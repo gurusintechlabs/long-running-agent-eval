@@ -138,7 +138,7 @@ def score_commits(*, mirror: Path, prev_sha: str, cur_sha: str, t_prev: float, t
         with sandbox.scratch_dir(forbid) as scratch:
             src = scratch / "commit"
             r_regression.materialize_commit(mirror, sha, src)
-            p = p_hidden.score_hidden(src, hidden, python, forbid=forbid, stage=stage)
+            p = p_hidden.score_hidden(src, hidden, python, forbid=forbid, stage=stage, timing=False)
             d = p["detail"]
             reg_out = (accepted.data.get(tree) or {}).get("outcomes")
             new_acc = None

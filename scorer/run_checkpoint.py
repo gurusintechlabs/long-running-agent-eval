@@ -442,8 +442,14 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         msgs = [m.strip() for m in _git("log", "--reverse", "--format=%B%x00",
                                         f"{seed_sha}..{cur_sha}", git_dir=a.mirror,
                                         check=False).split("\0") if m.strip()]
+        brief = Path(task.prompt_file).read_text()
+        if stage_k:  # staged task: later requirements and change requests are part of the brief, so a
+            # deliberate reversal ordered by a change request is not an agent contradiction
+            from runner.stages import load_stages
+            for st in load_stages(task.stages_file).stages[1:stage_k + 1]:
+                brief += f"\n\n--- Stage {st.id} ({st.kind}), delivered during the run ---\n\n{st.text}"
         bundle = x_judge.build_bundle(
-            task_prompt=Path(task.prompt_file).read_text(),
+            task_prompt=brief,
             constraints=[c.get("text", "") for c in constraints],
             assistant_texts=assistant_texts(stream, end_ns), commit_messages=msgs, diff=diff)
         jr = x_judge.judge(bundle, model=s.scoring.judge_model, samples=s.scoring.judge_samples,

@@ -97,8 +97,14 @@ def collect_ids(python: Path, hidden: Path, env: dict[str, str], cwd: Path,
 
 
 def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
-                 forbid: list[Path] | None = None, stage: int | None = None) -> dict:
+                 forbid: list[Path] | None = None, stage: int | None = None,
+                 timing: bool = True) -> dict:
     """Return ``{"value", "detail"}`` for the P metric.
+
+    Timing tests (``scorer.yaml`` ``timing_k``, a pytest ``-k`` expression) assert wall-clock limits.
+    With ``timing=False`` (per-commit scoring, which runs several suites in parallel) they are
+    deselected, so they neither pass nor fail. At checkpoints a failing timing test is rerun once and
+    the rerun's outcome counts (the agent shares the machine), recorded in ``detail.timing_reruns``.
 
     ``stage`` (staged tasks, interfaces.md §9) is passed to the hidden pytest run as
     ``LRAE_STAGE``; tests not active at that stage come back ``skipped`` and are excluded from the
@@ -136,11 +142,22 @@ def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
                     t_env.setdefault("LRAE_APP_DB", str(db))
                     if stage is not None:
                         t_env["LRAE_STAGE"] = str(int(stage))
+                    base = ["-c", str(hidden / "pytest.ini"), f"--rootdir={hidden}", "--noconftest"]
+                    timing_k = cfg.get("timing_k")
+                    sel = ["-k", f"not ({timing_k})"] if (timing_k and not timing) else []
+                    h_env = sandbox.scrubbed_env(python, home, t_env)
                     suite = run_pytest_json(
-                        python, ["-c", str(hidden / "pytest.ini"), f"--rootdir={hidden}",
-                                 "--noconftest", str(hidden)],
-                        cwd=hidden, env=sandbox.scrubbed_env(python, home, t_env),
+                        python, [*base, *sel, str(hidden)], cwd=hidden, env=h_env,
                         report=scratch / "hidden.json", timeout_s=SUITE_TIMEOUT_S, label="hidden")
+                    if timing and timing_k and not suite.reason:
+                        failed = sorted(t for t, o in suite.outcomes.items() if o in ("failed", "error"))
+                        if failed:
+                            again = run_pytest_json(
+                                python, [*base, "-k", timing_k, *failed], cwd=hidden, env=h_env,
+                                report=scratch / "hidden-rerun.json", timeout_s=SUITE_TIMEOUT_S,
+                                label="hidden-rerun")
+                            detail["timing_reruns"] = dict(sorted(again.outcomes.items()))
+                            suite.outcomes.update(again.outcomes)
             finally:
                 if proc is not None:
                     sandbox.stop(proc)

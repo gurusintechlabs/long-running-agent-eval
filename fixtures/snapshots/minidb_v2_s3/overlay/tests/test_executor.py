@@ -1,0 +1,58 @@
+import pytest
+
+from minidb.engine import Engine, run_sql
+from minidb.executor import Executor, sort_rows
+from minidb.parser import parse
+from minidb.protocol import SQLNameError, SQLSyntaxError, SQLTypeError
+
+SETUP = """
+CREATE TABLE emp (id INTEGER, name TEXT, dept INTEGER, salary INTEGER);
+CREATE TABLE dept (id INTEGER, name TEXT);
+INSERT INTO emp VALUES (1, 'a', 1, 10), (2, 'b', 1, NULL), (3, 'c', 2, 30), (4, 'd', NULL, 5);
+INSERT INTO dept VALUES (1, 'x'), (2, 'y'), (3, 'z');
+"""
+
+
+def engine():
+    e = Engine()
+    run_sql(e, SETUP)
+    return e
+
+
+def q(e, sql):
+    return Executor(e.db).query(parse(sql))["rows"]
+
+
+def test_grouping_and_aggregates():
+    e = engine()
+    assert q(e, "SELECT dept, COUNT(*), COUNT(salary), SUM(salary), AVG(salary) FROM emp GROUP BY dept") == [
+        [1, 2, 1, 10, 10.0], [2, 1, 1, 30, 30.0], [None, 1, 1, 5, 5.0]]
+    assert q(e, "SELECT COUNT(*), SUM(salary) FROM emp WHERE id > 9") == [[0, None]]
+
+
+def test_joins_keep_nested_loop_order():
+    e = engine()
+    assert q(e, "SELECT d.name, COUNT(e.id) AS n FROM dept d LEFT JOIN emp e ON e.dept = d.id "
+                "GROUP BY d.name ORDER BY n DESC, d.name") == [["x", 2], ["y", 1], ["z", 0]]
+    assert q(e, "SELECT e.name, d.name FROM emp e JOIN dept d ON d.id = e.dept") == [
+        ["a", "x"], ["b", "x"], ["c", "y"]]
+
+
+def test_sorting_is_stable_type_checked_and_places_nulls():
+    keys = [2, None, 1, 2]
+    for spec, expect in (((False, False), [2, 0, 3, 1]), ((True, True), [1, 0, 3, 2]),
+                         ((False, True), [1, 2, 0, 3]), ((True, False), [0, 3, 2, 1])):
+        out = [([i], [k]) for i, k in enumerate(keys)]
+        sort_rows(out, [spec])
+        assert [vals[0] for vals, _ in out] == expect, spec
+    with pytest.raises(SQLTypeError):
+        sort_rows([([0], [1]), ([1], ["a"])], [(False, False)])
+
+
+def test_static_name_errors():
+    e = engine()
+    for sql, err in (("SELECT id FROM emp JOIN dept ON TRUE", SQLNameError),
+                     ("SELECT name, COUNT(*) FROM emp", SQLSyntaxError),
+                     ("SELECT nope(1)", SQLNameError)):
+        with pytest.raises(err):
+            q(e, sql)

@@ -116,3 +116,31 @@ def test_stage_skips_tests_and_excludes_them_from_the_denominator(tmp_path, scor
     none = p_hidden.score_hidden(app, hidden, scorer_py)           # no stage: everything active
     assert none["detail"]["active"] == 3 and none["detail"]["stage"] is None
     assert not sandbox.leftover_processes() and not sandbox.leftover_temp_dirs()
+
+
+TIMING_HIDDEN = {
+    "scorer.yaml": ("test_env: {LRAE_WORKSPACE: '{ws}', LRAE_PYTHON: '{python}'}\n"
+                    "timing_k: 'timing'\n"),
+    "pytest.ini": "[pytest]\ntestpaths = .\n",
+    "test_x.py": (
+        "import os, pathlib\n"
+        "def test_plain():\n    assert True\n"
+        "def test_timing_flaky():\n"
+        "    # fails on the first attempt in this workspace, passes on the rerun\n"
+        "    marker = pathlib.Path(os.environ['LRAE_WORKSPACE']) / '.attempted'\n"
+        "    first = not marker.exists()\n"
+        "    marker.write_text('x')\n"
+        "    assert not first\n"),
+}
+
+
+@pytest.mark.local
+def test_timing_tests_rerun_once_at_checkpoints_and_are_deselected_per_commit(tmp_path, scorer_py):
+    hidden = write_tree(tmp_path / "hidden", TIMING_HIDDEN)
+    ws = write_tree(tmp_path / "ws", {"a.txt": "x"})
+    res = p_hidden.score_hidden(ws, hidden, scorer_py)
+    assert res["value"] == 1.0, res["detail"]
+    assert res["detail"]["timing_reruns"] == {"test_x.py::test_timing_flaky": "passed"}
+    per_commit = p_hidden.score_hidden(ws, hidden, scorer_py, timing=False)
+    assert set(per_commit["detail"]["outcomes"]) == {"test_x.py::test_plain"}
+    assert per_commit["value"] == 1.0 and "timing_reruns" not in per_commit["detail"]

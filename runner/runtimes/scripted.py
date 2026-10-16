@@ -18,7 +18,10 @@ class ScriptedRuntime:
     def render(self, art: Path) -> Path:
         """Canary scripts name harness paths with ``@@REPO@@``; the copy the agent replays has the real
         repo root (``runs/<id>/`` lives in the repo). Scripts without placeholders are used as is."""
-        text = self.script.read_text()
+        try:
+            text = self.script.read_text()
+        except OSError:  # the scripted agent reports a missing script itself
+            return self.script
         if "@@REPO@@" not in text:
             return self.script
         out = Path(art) / "script.rendered.yaml"

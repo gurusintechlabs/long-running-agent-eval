@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LRAE report - {{ experiment_id }}</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+  body { font:11px/1.4 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color:#222; }
+  h1 { font-size:18px; margin:0 0 2px; } h2 { font-size:13px; margin:12px 0 4px; }
+  table { border-collapse:collapse; width:100%; font-size:9.5px; }
+  th, td { text-align:left; padding:3px 5px; border-bottom:1px solid #ddd; }
+  td.num { text-align:right; }
+  img { width:62%; display:block; margin:4px auto; }
+  .note { background:#fff6e5; border-left:3px solid #E69F00; padding:5px 8px; margin-top:8px; }
+  .sub { color:#666; font-size:9.5px; }
+</style>
+</head>
+<body>
+<h1>Long-running agent evaluation: {{ experiment_id }}</h1>
+<div class="sub">spec hash {{ spec_hash[:12] if spec_hash else "n/a" }} (stub report; the full report is Phase 6)</div>
+
+<h2>Headline</h2>
+{% for s in summaries %}
+<p><b>{{ s.label }}</b><br>{{ s.headline }}<br>Median TTFH {{ s.median }} (bootstrap 95% CI {{ s.median_ci }}).</p>
+{% else %}
+<p>No runs in the survival set.</p>
+{% endfor %}
+<img src="figures/{{ figures.survival }}" alt="Survival curve">
+
+<h2>Runs</h2>
+<table>
+<tr><th>Run</th><th>State</th><th>Duration</th><th>TTFH</th><th>Cost, {{ cost_label }}</th><th>Tokens</th></tr>
+{% for r in runs %}
+<tr><td>{{ r.run_id }}</td><td>{{ r.state }}</td><td class="num">{{ r.duration }}</td><td class="num">{{ r.ttfh }}</td>
+<td class="num">{{ r.cost }}</td><td class="num">{{ r.tokens_fmt }}</td></tr>
+{% endfor %}
+</table>
+
+<h2>Caveats</h2>
+<p class="note">
+{% if not_isolated %}Isolation mode: <b>local</b>. Runs were <b>not OS-isolated</b>; out-of-scope access was detected through the command channel only.
+{% else %}Isolation mode: {{ isolation_modes | join(", ") or "n/a" }}.{% endif %}
+Costs are {{ cost_label }}, derived from token telemetry (subscription login, no bill). Sample sizes are small, so confidence intervals are wide.
+{% if n_censored_limit %}{{ n_censored_limit }} run(s) were censored by usage limits.{% endif %}
+</p>
+</body>
+</html>

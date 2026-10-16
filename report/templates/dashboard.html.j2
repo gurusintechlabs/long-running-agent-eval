@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LRAE dashboard - {{ experiment_id }}</title>
+<style>
+  :root { --ink:#222; --muted:#666; --line:#e2e2e2; --bg:#fff; --accent:#0072B2; --warn:#b00020; }
+  body { font:14px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color:var(--ink);
+         background:var(--bg); margin:0 auto; max-width:1100px; padding:24px 16px; }
+  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:16px; margin:28px 0 8px; }
+  .sub { color:var(--muted); font-size:12px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th, td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  img { max-width:100%; height:auto; }
+  .note { background:#fff6e5; border-left:3px solid #E69F00; padding:8px 12px; font-size:12px; }
+  .headline { font-weight:600; }
+  .overflow { overflow-x:auto; }
+</style>
+</head>
+<body>
+<h1>Long-running agent evaluation: {{ experiment_id }}</h1>
+<div class="sub">spec hash {{ spec_hash[:12] if spec_hash else "n/a" }} &middot; isolation: {{ isolation_modes | join(", ") or "n/a" }}</div>
+{% if not_isolated %}
+<p class="note">Runs used isolation mode <b>local</b>: they were not OS-isolated; out-of-scope access was detected through the command channel only.</p>
+{% endif %}
+
+<h2>Runs</h2>
+<div class="overflow">
+<table>
+<tr><th>Run</th><th>Config</th><th>State</th><th>Duration</th><th>TTFH</th><th>Outcome</th>
+<th>Checkpoints</th><th>Cost, {{ cost_label }}</th><th>Tokens</th></tr>
+{% for r in runs %}
+<tr><td>{{ r.run_id }}</td><td>{{ r.config }}</td><td>{{ r.state }}</td><td class="num">{{ r.duration }}</td>
+<td class="num">{{ r.ttfh }}</td><td>{{ r.outcome }}</td><td class="num">{{ r.checkpoints }}</td>
+<td class="num">{{ r.cost }}</td><td class="num">{{ r.tokens_fmt }}</td></tr>
+{% else %}
+<tr><td colspan="9">No runs.</td></tr>
+{% endfor %}
+</table>
+</div>
+
+<h2>Survival (time to first hazard)</h2>
+{% for s in summaries %}
+<p><b>{{ s.label }}</b>: median TTFH {{ s.median }} (bootstrap 95% CI {{ s.median_ci }}).<br>
+<span class="headline">{{ s.headline }}</span></p>
+{% else %}
+<p>No runs in the survival set.</p>
+{% endfor %}
+<img src="figures/{{ figures.survival }}" alt="Kaplan-Meier survival curve with confidence band">
+
+<h2>Metrics vs runtime</h2>
+<img src="figures/metric_strips.png" alt="Per-run metric strips for P, R, D, C, W, X, S">
+
+<h2>Cost and context</h2>
+<img src="figures/cost.png" alt="Cumulative estimated cost vs runtime">
+<img src="figures/context_fill.png" alt="Context fill vs runtime with compactions and hazards">
+
+<h2>Incidents</h2>
+<div class="overflow">
+<table>
+<tr><th>Run</th><th>Time</th><th>Kind</th><th>Detail</th></tr>
+{% for i in incidents %}
+<tr><td>{{ i.run_id }}</td><td class="num">{{ i.t_min }}</td><td>{{ i.kind }}</td><td>{{ i.detail }}</td></tr>
+{% else %}
+<tr><td colspan="4">None.</td></tr>
+{% endfor %}
+</table>
+</div>
+<p class="sub">Costs are {{ cost_label }} figures derived from token telemetry; the runs use a subscription login, so there is no bill.</p>
+</body>
+</html>

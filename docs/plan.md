@@ -29,7 +29,7 @@ Concretely: a scripted-runtime run of the pilot spec (shortened to 3 min, dt = 1
 - `tests/unit/test_run_id_manifest.py`: run_id format; manifest has every required field.
 - `tests/unit/test_scripted_runtime.py`: the script parses, and actions run in order with correct relative timing (fake clock).
 - `tests/unit/test_snapshot.py`: snapshots of a temp workspace include `.git` and uncommitted files; `meta.json` fields; the mirror repo gets tag `ckpt/tK` while the source repo has no new tags or refs.
-- `tests/integration/test_container_isolation.py` (docker): inside the agent container, the scorer and hidden paths are absent (I-1, S-5); egress to `example.com` fails while the gateway is reachable (I-3); the process runs as non-root with caps dropped (S-4); `docker inspect` mounts are exactly workspace and agent_home.
+- `tests/integration/test_container_isolation.py` (docker): inside the agent container, the scorer and hidden paths are absent (I-1, S-5); egress to `example.com` fails while the collector and egress proxy are reachable (I-3); the process runs as non-root with caps dropped (S-4); `docker inspect` mounts are exactly workspace and agent_home.
 - `tests/integration/test_image_contents.py` (docker): the agent image filesystem contains no files from `scorer/` or `fixtures/tasks/*/hidden` (S-6).
 - `tests/integration/test_run_reproducible.py` (docker): the exit check, using the scripted runtime twice.
 - `tests/integration/test_resume.py` (docker): kill a scripted run after t2, resume from t2, and check that it completes with K checkpoints and is flagged `resumed`.

@@ -1,6 +1,6 @@
 # Implementation Plan
 
-**Spec:** [spec.md](spec.md) (v0.3, local mode) · **Source design:** [design.md](design.md)
+**Spec:** [spec.md](spec.md) (v0.4, local mode, installed CLI, clean memory) · **Source design:** [design.md](design.md)
 
 Process (design §4): one phase per Claude Code session, tests first, and each phase is merged only after human review. At the start of a session, Claude Code reads `design.md`, `spec.md` and this file, then **restates the phase's exit check** before writing code. At the end of the session it stops and writes `docs/phase-N-summary.md` covering what was built, what was tested (with the `pytest` output), and what is unresolved.
 
@@ -17,12 +17,12 @@ Test markers:
 
 - [x] Agent runtime: the Claude Code CLI, headless.
 - [x] Model: `claude-opus-5-5` for agent and judge. To change it later, edit `agent.model` / `scoring.judge_model` in the experiment spec (spec §4.1).
-- [x] D-2 (local OTel), D-3 (small libraries), D-5 (local checkpoint tags) and D-14 (local mode, Docker optional) confirmed.
+- [x] D-2 (local OTel), D-3 (small libraries), D-5 (local checkpoint tags), D-12 (existing CLI login), D-14 (local mode is good enough for the report) and D-15 (clean memory per workspace) confirmed.
 - [x] Repo on `github.com/gurusintechlabs/long-running-agent-eval`, `main`. Use one branch per phase (`phase-1-spec-sandbox`, …).
-- [ ] Choose the credential type (spec §15 Q1: `oauth_token` via `claude setup-token`, or `api_key`). Create a **dedicated** credential for the study and save it in `~/.config/lrae/credentials.env` (mode 0600).
-- [ ] Confirm the host has Python 3.11, Node.js ≥ 18, git and Chrome/Chromium.
+- [x] The Claude Code CLI is installed and logged in on this machine.
+- [ ] Confirm the host has Python 3.11, git and Chrome/Chromium.
 - [ ] Confirm that `~/lrae-work` (or another `work_dir`) has no `CLAUDE.md`/`.claude/` in its ancestors. Check `~` itself in particular.
-- [ ] Accept the local-mode risk: the agent runs as your user with `--dangerously-skip-permissions`. Prefer a machine without production credentials.
+- [ ] Accepted risk: the agent runs as your user with your login and `--dangerously-skip-permissions`.
 
 ---
 
@@ -39,7 +39,14 @@ Concretely:
   - Rejected: unknown keys, model aliases, short SHAs, dt not dividing the duration, `work_dir` inside the repo, a missing `script` for the scripted runtime.
   - `spec_hash` changes when any referenced file changes and stays the same when YAML key order changes.
 - `tests/unit/test_run_id_manifest.py`: run_id format; the manifest has every required field and no credential.
-- `tests/unit/test_env_scrub.py`: the agent env contains only allowlisted keys (L-2), and host variables such as `GITHUB_TOKEN`, `AWS_*` and `SSH_AUTH_SOCK` are dropped. `HOME`, `CLAUDE_CONFIG_DIR` and `TMPDIR` point into the work dir.
+- `tests/unit/test_env_scrub.py`: the agent env contains only allowlisted keys (L-2), and host variables such as `GITHUB_TOKEN`, `AWS_*`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` and `SSH_AUTH_SOCK` are dropped. `HOME` is the real home; `TMPDIR` points into the work dir.
+- `tests/unit/test_memory.py` (L-3, D-15):
+  - The agent-state-dir path is computed correctly for a workspace path; the encoding is verified against the installed CLI in Phase 1.
+  - Pre-flight fails if the state dir is non-empty at start, or if the seed contains `CLAUDE.md`/`.claude/`.
+  - The state dir is copied into each snapshot and deleted at finalize, for **every** terminal state (COMPLETED, KILLED, BUDGET_EXHAUSTED, INTERRUPTED, FAILED) and after a simulated harness crash followed by restart.
+  - The user-memory exclusion picks the first working mechanism. If the move-aside fallback is used, `~/.claude/CLAUDE.md` is restored byte-identical in every terminal state and after a crash (tested against a temp `HOME`, never the real one).
+  - Two runs never share a folder or a state dir.
+  - `lrae clean` removes leftovers only for `work_dir` paths and never touches other projects.
 - `tests/unit/test_preflight.py`: a `CLAUDE.md` in an ancestor of the workspace fails the check (L-1); a harness path or a symlink into the repo inside the work dir fails it (L-4, S-5).
 - `tests/unit/test_scripted_runtime.py`: the script parses, and actions run in order with correct relative timing (fake clock).
 - `tests/unit/test_snapshot.py`: snapshots include `.git` and uncommitted files, exclude `venv/`, and record `pip freeze`. The mirror repo gets tag `ckpt/tK` while the agent's repo has no new tags or refs.
@@ -48,12 +55,14 @@ Concretely:
 - `tests/integration/test_run_reproducible.py` (local): the exit check, using the scripted runtime twice.
 - `tests/integration/test_resume.py` (local): kill a scripted run after t2, resume from t2, and check that it completes with K checkpoints and is flagged `resumed`.
 - `tests/integration/test_agent_env_live.py` (local): during a scripted run, `psutil.Process(pid).environ()` of the agent subprocess matches the allowlist (S-4).
-- `tests/live/test_smoke_claude_code.py` (api): the exit-check smoke run, including the L-3 assertion (no MCP servers or plugins in `init`).
+- `tests/live/test_smoke_claude_code.py` (api): the exit-check smoke run, plus these clean-memory checks:
+  - No MCP servers or plugins appear in `init`.
+  - **Memory canary:** with a temporary canary line added to `~/.claude/CLAUDE.md` (backed up and restored by the test), the agent's probe reply MUST NOT reveal it. The test also checks that no state dir for the run remains afterwards (S-3).
 
 **Tasks**
 1. Scaffold: `pyproject.toml` (package `lrae`, Python 3.11, console script `lrae`), ruff config, pytest markers, `.gitignore` (`runs/`, `tools/`).
-2. `spec/schema.py` and `loader.py` (pydantic v2, spec §4.1), `spec_hash`, `spec/examples/pilot.yaml` (`model: claude-opus-5-5`, `isolation.mode: local`), and `spec/configs/A.yaml` (B–E are stubs until Phase 5).
-3. `lrae install-cli`: `npm install --prefix tools/claude-code @anthropic-ai/claude-code@<version>`, then verify `--version`. Pin the current release and record it in `pilot.yaml`.
+2. `spec/schema.py` and `loader.py` (pydantic v2, spec §4.1), `spec_hash`, `spec/examples/pilot.yaml` (`model: claude-opus-5-5`, `isolation.mode: local`, and `claude_code_version` set to the current `claude --version`), and `spec/configs/A.yaml` (B–E are stubs until Phase 5).
+3. `runner/memory.py`: compute the agent state dir, run the start-empty check, snapshot it, delete it, and `lrae clean`.
 4. **Seed repo fixture** `fixtures/seed_export_service/`: a FastAPI service of about 500 lines (users, items, an auth stub, a SQLite store) with a passing pytest suite (~15 tests), a `vendor/` directory (a small vendored helper module the app imports), `requirements.txt`, and a pinned `requirements.lock`. Build it deterministically with `fixtures/build_seed.py` so the SHA is stable, and record the SHA in `pilot.yaml`.
 5. `fixtures/tasks/export_csv/prompt.md` and `constraints.yaml`, with the three planted constraints stated once. (Hidden tests are written in Phase 3.)
 6. `telemetry/events.py`: envelope writer (append-only, fsync, `seq`, `mono_ns`, redaction filter).
@@ -61,18 +70,19 @@ Concretely:
 8. `runner/workdir.py` (work dir layout, seed clone, per-run venv with a wheel cache, env scrub, harness settings file), `runner/procs.py` (spawn in a new session, SIGSTOP/SIGCONT/SIGTERM/SIGKILL on the group, `psutil` descendant tracking, orphan sweep), `runner/preflight.py`.
 9. `runner/runtimes/scripted.py` and `claude_code.py`. Verify the following against the pinned version and write the findings into `docs/phase-1-summary.md`:
     - the exact headless flags, including `--settings` precedence over project settings;
-    - the `stream-json` message shapes, the `init` contents, and `--resume` behavior;
-    - whether `CLAUDE_CONFIG_DIR` fully isolates your `~/.claude`;
+    - the `stream-json` message shapes, the `init` contents, and `--resume` behavior after the state dir is restored;
+    - **clean memory (D-15):** which mechanism keeps `~/.claude/CLAUDE.md` and user settings (hooks, plugins) out (`--setting-sources`, or something else); whether `--strict-mcp-config` with an empty config drops every MCP server; how to turn auto-memory off (for `auto_memory: off`) and where it is stored; how the CLI encodes workspace paths under `~/.claude/projects/`;
     - the OTLP protocols supported (http/json?), plus the OTel event and metric names (record real payloads into `fixtures/otel/` and `fixtures/stream/` for Phase 2 tests);
     - whether `permissions.deny` and built-in Bash sandboxing are available under `--dangerously-skip-permissions` (spec §3.2 optional hardening).
-10. `runner/loop_driver.py` (config A), `runner/snapshot.py`, `runner/orchestrator.py` (lifecycle state machine, timers, `caffeinate` on macOS), `runner/resume.py`, `runner/cli.py` (`install-cli`, `validate`, `run`, `resume`).
-11. **Platform-limit probe** (design risk: "verify first"): an `api`-marked soak test that keeps the CLI running with the study credential for ≥ 3 h on a cheap, low-activity prompt loop. It records any token expiry, usage-limit stop, 5xx errors, disconnects or sleep gaps. Run it once, with spend confirmed, and report the results in the summary.
+10. `runner/loop_driver.py` (config A), `runner/snapshot.py`, `runner/orchestrator.py` (lifecycle state machine, timers, `caffeinate` on macOS), `runner/resume.py`, `runner/cli.py` (`validate`, `run`, `resume`, `clean`).
+11. **Platform-limit probe** (design risk: "verify first"): an `api`-marked soak test that keeps the CLI running on your existing login for ≥ 3 h on a cheap, low-activity prompt loop. It records any login expiry, usage-limit stop, 5xx errors, disconnects or sleep gaps. Run it once, with spend confirmed, and report the results in the summary.
 
 **Out of scope:** counters, guardrails, scoring, configs B–E, Docker.
 
 **Reviewer checklist:**
 - The env-scrub and pre-flight tests would fail if a variable or path leaked.
-- The smoke run's `init` message shows no personal MCP servers, plugins or `CLAUDE.md` content.
+- The smoke run's `init` message shows no personal MCP servers, plugins or `CLAUDE.md` content, and the memory canary passed.
+- `~/.claude/projects/` has no leftovers from test runs.
 - `pilot.yaml` pins everything.
 - The soak-test results are reported.
 
@@ -184,7 +194,7 @@ Concretely:
 **Reviewer checklist:**
 - The pilot actually exercised the hazards.
 - The calibration is justified by the data.
-- Cost accounting matches real usage within 2%. With `api_key`, compare against the Console bill; with `oauth_token`, cost is an estimate, so compare token counts.
+- Cost accounting matches real usage within 2%. With a Console API login, compare against the bill; with a subscription login, cost is an estimate, so compare token counts.
 
 ---
 
@@ -244,7 +254,7 @@ Before it goes to the sponsor, `lrae report <experiment_id> --pdf` must produce 
 
 ## Phase 7 (optional): Docker isolation mode
 
-**When:** before the results are used to authorize longer unsupervised runs in an environment with real credentials or data (spec §15 Q6), or sooner if a `harness-access` kill shows the local-mode gap matters in practice.
+**When:** not needed for this study, since the owner accepted local-mode results for the report (D-14). Do it only if a `harness-access` or `home-secrets` kill shows the local-mode gap matters in practice, or if a later study needs enforced isolation.
 
 **Exit check:** the Phase 1–4 local-mode test suites pass unchanged with `isolation.mode: docker`. In addition, the isolation tests prove that the agent **cannot** read harness files or reach non-allowlisted hosts.
 
@@ -252,6 +262,7 @@ Before it goes to the sponsor, `lrae report <experiment_id> --pdf` must produce 
 - One container per run: non-root, `cap-drop=ALL`, `no-new-privileges`. Only the workspace and agent_home are mounted.
 - A per-run Docker `internal` network, with an egress CONNECT-allowlist proxy.
 - Managed settings baked into the image (root-owned, 0444), so the agent cannot disable OTel.
+- A container-scoped credential, which brings back the dedicated credential from v0.2, since the host login would not be available inside the container.
 - `docker pause`/`kill` in place of SIGSTOP/SIGKILL.
 - The scorer runs in its own container with `--network none`.
 - Image-content and mount-inspection tests.

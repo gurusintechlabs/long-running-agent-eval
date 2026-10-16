@@ -13,7 +13,8 @@ Read these before any work: `docs/design.md` (source design, verbatim), `docs/sp
 ## Guardrails for this repo
 - Never run `api`-marked tests or real agent runs without explicit approval of the estimated spend.
 - Do not change a spec decision (D-n) silently. Propose the change in the phase summary.
-- Stack: Python 3.11, pytest, SQLite, JSONL, matplotlib, Jinja2 + headless Chrome, Node (pinned Claude Code CLI in `tools/`). Small Python libraries are OK. **Docker is optional** (Phase 7). Phases 1–6 run as local processes (D-14).
-- Agent under test: the Claude Code CLI, headless, from `tools/claude-code/`, never the global `claude`. Model is set only in the experiment spec (`agent.model`, `scoring.judge_model`; default `claude-opus-5-5`).
-- Agent subprocesses get a scrubbed env and an isolated `HOME`/`CLAUDE_CONFIG_DIR`. Never pass the host environment through.
+- Stack: Python 3.11, pytest, SQLite, JSONL, matplotlib, Jinja2 + headless Chrome. Small Python libraries are OK. **Docker is optional** (Phase 7, not needed for this study). Everything runs as local processes (D-14).
+- Agent under test: the **installed, logged-in** Claude Code CLI, headless. Its version is checked against `agent.claude_code_version` at every pre-flight. Model is set only in the experiment spec (`agent.model`, `scoring.judge_model`; default `claude-opus-5-5`).
+- Agent subprocesses get a scrubbed env (real `HOME` so the login works). Never pass other host variables through.
+- **Clean memory (D-15):** every run starts with no project, ancestor or user memory, and an empty `~/.claude/projects/<workspace>/`. That dir is snapshotted and deleted at the end of the run. Never touch other projects under `~/.claude`, and never read or copy the login.
 - Checkpoint tags and all run artifacts stay on this machine (`runs/`, `tools/` gitignored). Never push them.

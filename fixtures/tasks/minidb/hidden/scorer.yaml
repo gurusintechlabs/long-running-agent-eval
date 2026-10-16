@@ -1,0 +1,11 @@
+# How the scorer runs the minidb hidden suite (docs/spec.md 8.1, 8.2). There is no app server:
+# every test starts its own `python -m minidb` process (cwd = the temp copy of the snapshot),
+# feeds it SQL on stdin and parses the JSON lines (see _support.py). So no app_cmd/ready_path.
+# Placeholders: {ws} = absolute path of the temp copy of the snapshot, {python} = scorer venv
+# python (which has only stdlib + pytest available to the agent's code).
+test_env:
+  LRAE_WORKSPACE: "{ws}"
+  LRAE_PYTHON: "{python}"
+per_test_timeout_s: 30
+# Each minidb invocation has its own 10 s timeout (_support.RUN_TIMEOUT_S); the whole suite runs
+# in well under 60 s on a correct implementation.

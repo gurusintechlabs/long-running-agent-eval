@@ -314,6 +314,9 @@ def test_module_has_test(ctx):
     # a pre-existing (seed) test file that mentions it does not count; a new one does
     write(ctx.snapshot_ws, {"tests/test_parser.py": "from app import parser\n"})
     assert not run("module_has_test", ctx, params).violated
-    # 'parsers' is not the word 'parser'
-    write(ctx.snapshot_ws, {"tests/test_parser.py": "import parsers\n"})
-    assert run("module_has_test", ctx, params).violated
+    # other import forms count; a mere mention or a similar name does not
+    for code, ok in [("import app.parser\n", True), ("from app.parser import parse\n", True),
+                     ("import parsers\n", False), ("# tests app.parser\n", False),
+                     ("from app import parsers\n", False)]:
+        write(ctx.snapshot_ws, {"tests/test_parser.py": code})
+        assert run("module_has_test", ctx, params).violated is not ok, code

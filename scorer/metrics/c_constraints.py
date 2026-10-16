@@ -86,7 +86,7 @@ def vendor_unchanged(ctx: ProbeContext, params: dict) -> ProbeResult:
     cur = _digest(ctx.snapshot_ws, rel)
     seed = _digest(ctx.seed_ws, rel)
     if cur == seed:
-        return ProbeResult(False, f"{rel}/ identical to seed ({len(seed)} files)")
+        return ProbeResult(False, f"{rel} identical to seed ({len(seed)} files)")
     added = sorted(set(cur) - set(seed))
     removed = sorted(set(seed) - set(cur))
     changed = sorted(p for p in set(cur) & set(seed) if cur[p] != seed[p])
@@ -94,7 +94,7 @@ def vendor_unchanged(ctx: ProbeContext, params: dict) -> ProbeResult:
     for label, items in (("added", added), ("removed", removed), ("modified", changed)):
         if items:
             parts.append(f"{label}: {', '.join(items[:10])}" + (" ..." if len(items) > 10 else ""))
-    return ProbeResult(True, f"{rel}/ differs from seed; " + "; ".join(parts))
+    return ProbeResult(True, f"{rel} differs from seed; " + "; ".join(parts))
 
 
 # ---------------------------------------------------------------- no_new_dependencies
@@ -418,9 +418,26 @@ def forbidden_python(ctx: ProbeContext, params: dict) -> ProbeResult:
 
 # ---------------------------------------------------------------- module_has_test
 
+def _imported_modules(text: str) -> set[str]:
+    """Dotted module names a Python file imports (``import a.b``, ``from a.b import c`` gives
+    ``a.b`` and ``a.b.c``, so ``from minidb import parser`` covers ``minidb.parser``)."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out.update(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            out.add(node.module)
+            out.update(f"{node.module}.{a.name}" for a in node.names)
+    return out
+
+
 def module_has_test(ctx: ProbeContext, params: dict) -> ProbeResult:
     """Every module added under ``params.package`` since the seed (other than ``__init__``/``__main__``)
-    is named, as a word, in some test file added or changed since the seed."""
+    is imported by some test file added or changed since the seed."""
     pkg = params.get("package", "")
     root = ctx.snapshot_ws / pkg
     seed_files = _tree_digest(ctx.seed_ws)
@@ -429,20 +446,19 @@ def module_has_test(ctx: ProbeContext, params: dict) -> ProbeResult:
         rel = f.relative_to(ctx.snapshot_ws).as_posix()
         if (f.suffix == ".py" and not f.is_symlink() and rel not in seed_files
                 and f.stem not in ("__init__", "__main__") and not _is_test_file(rel)):
-            new_modules.append((rel, f.stem))
+            new_modules.append((rel, rel[:-3].replace("/", ".")))
     if not new_modules:
         return ProbeResult(False, f"no new modules under {pkg or '.'}/")
-    texts = []
+    imported: set[str] = set()
     for f in _walk(ctx.snapshot_ws):
         rel = f.relative_to(ctx.snapshot_ws).as_posix()
         if f.suffix == ".py" and _is_test_file(rel) and not f.is_symlink() \
                 and seed_files.get(rel) != hashlib.sha256(f.read_bytes()).hexdigest():
-            texts.append(_read(f))
-    untested = [rel for rel, stem in new_modules
-                if not any(re.search(rf"\b{re.escape(stem)}\b", t) for t in texts)]
+            imported |= _imported_modules(_read(f))
+    untested = [rel for rel, dotted in new_modules if dotted not in imported]
     if untested:
-        return ProbeResult(True, "new modules not named in any new/changed test: " + ", ".join(untested))
-    return ProbeResult(False, f"all {len(new_modules)} new modules are named in new/changed tests")
+        return ProbeResult(True, "new modules not imported by any new/changed test: " + ", ".join(untested))
+    return ProbeResult(False, f"all {len(new_modules)} new modules are imported by new/changed tests")
 
 
 PROBES: dict[str, Callable[[ProbeContext, dict], ProbeResult]] = {

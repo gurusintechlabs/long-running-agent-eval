@@ -1,6 +1,6 @@
 # Long-Running Agent Evaluation Framework — Specification
 
-**Status:** Draft v0.4 for review · **Source:** [design.md](design.md) (Innovation Team)
+**Status:** Draft v0.5 for review · **Source:** [design.md](design.md) (Innovation Team)
 **Audience:** the human reviewer signing off each phase, and Claude Code implementing it.
 
 This spec makes the design doc implementable. It keeps the design's intent and fills in exact definitions, schemas, interfaces and trust boundaries. Wherever it had to resolve an ambiguity or add something the design did not state, the text is marked **[D-n]**, and every such decision is listed in [§15](#15-decisions-and-open-questions) for sign-off. Requirements use MUST / SHOULD.
@@ -8,6 +8,7 @@ This spec makes the design doc implementable. It keeps the design's intent and f
 **Change log**
 - **v0.2:** Claude Code CLI as the agent; `claude-opus-5-5` default; Claude Code's native OpenTelemetry (OTel) export, kept local; small Python libraries allowed; checkpoint tags stored locally.
 - **v0.3 (owner, 2026-10-16):** **Docker is not required.** Everything runs as local processes on this machine (`isolation.mode: local`). This is knowingly **not a security boundary** **[D-14]**. Docker isolation moves to optional Phase 7. Telemetry uses an in-repo local OTLP receiver, so no collector binary or container is needed.
+- **v0.5 (live findings, 2026-10-16, CLI 1.0.126):** first runs against the real CLI changed several assumptions; see the **[verified]** notes in §3.2 L-3, §5.1, §6.2 and decision D-17. `--setting-sources` does **not** keep a user `CLAUDE.md` out; `claude-opus-5-5` needs CLI ≥ 2.1.280; telemetry is `http/json` but chunked, with different event names than assumed and account identifiers on every record.
 - **v0.4 (owner, 2026-10-16):** Local-mode results are good enough for the report, so Phase 7 is truly optional. The agent uses the **Claude Code CLI already installed and logged in on this machine**, with no pinned copy and no separate credential **[D-12]**. Isolation work focuses on **starting each workspace with clean memory** **[D-15]**.
 
 ---
@@ -122,12 +123,12 @@ In local mode the agent runs as **your user** and could in principle read anythi
 - **L-3 Clean memory per workspace [D-15].** Every run starts with **no memory** apart from the task prompt.
   - *Project memory:* the seed repo contains no `CLAUDE.md`, `CLAUDE.local.md` or `.claude/` (checked when the fixture is built and again at pre-flight).
   - *Ancestor memory:* covered by L-1.
-  - *User memory:* `~/.claude/CLAUDE.md` (and any user-level rules or memory imports) MUST NOT reach the agent. The orchestrator applies the first mechanism that Phase 1 verifies works, with no manual step:
-    1. A CLI flag or setting that excludes user memory, such as `--setting-sources project,local`.
+  - *User memory:* `~/.claude/CLAUDE.md` (and any user-level rules or memory imports) MUST NOT reach the agent. **[verified, CLI 1.0.126]** Mechanism 1 below does **not** work: with a canary line in `~/.claude/CLAUDE.md`, the agent repeated the canary with no flags, with `--setting-sources project,local`, and with `--setting-sources project` (all three leaked). So the orchestrator uses mechanism 3, with no manual step. The mechanisms in order of preference:
+    1. ~~A CLI flag or setting that excludes user memory, such as `--setting-sources project,local`.~~ Disproven for `CLAUDE.md`. The flags are still passed, because they exclude user *settings* (hooks, permissions, env) and plugins.
     2. A per-run `CLAUDE_CONFIG_DIR` cloned from `~/.claude` **without** `CLAUDE.md`, rules, `projects/`, plugins or hooks. This is used only if the existing login still works from the clone (e.g. macOS Keychain-backed auth).
     3. As a last resort, the orchestrator moves `~/.claude/CLAUDE.md` aside for the duration of the run under a lock file and restores it at FINALIZING. The restore also runs on crash recovery and in `lrae clean`. Every move and restore is logged.
     
-    Which mechanism was used is recorded in the manifest.
+    Which mechanism was used is recorded in the manifest. A newer CLI may behave differently, so the live smoke test (a canary in the real `~/.claude/CLAUDE.md`) MUST be re-run after any CLI update.
   - *Auto-memory and session history:* the agent state dir for the workspace path MUST be absent or empty at run start. Workspace paths include the run_id, so this holds naturally, and pre-flight asserts it. The dir is snapshotted with the workspace at every checkpoint, so memory the agent writes during a run is part of the measured state. It is **deleted at FINALIZING**, after the final snapshot. Whether auto-memory is on during runs is set by `agent.auto_memory` and recorded.
   - *Other user config:* MCP servers, plugins, **user skills** (`~/.claude/skills/`) and hooks from your user settings are excluded per run with `--strict-mcp-config` and an empty MCP config, plus `--setting-sources` without `user` (verify the flags in Phase 1). Pre-flight asserts that the stream's `init` message lists **no MCP servers, plugins or user skills** and exactly the expected tool set. The hash of `~/.claude/settings.json` is recorded in the manifest. If no flag excludes user skills or plugins, mechanism 2 (a per-run config dir clone without them) is used.
 - **L-4 Harness data stays out of the work dir.** Hidden tests, scorer code, events, snapshots and scorer output are never copied into, written under, or symlinked from the work dir. They remain readable on disk (known gap, D-14). Any agent tool call that references a path outside its work dir is a detected **safety violation** (§7.1 `out-of-workspace`).
@@ -291,7 +292,7 @@ Every transition is an `orchestrator.state` event.
 **RUNNING (loop driver, in the harness)**
 - Each turn spawns `claude -p <prompt> --output-format stream-json --verbose --model <agent.model> --settings <harness-settings.json> --setting-sources project,local --strict-mcp-config --mcp-config <empty.json> --dangerously-skip-permissions [--resume <session_id>]`:
   - cwd is `workspace/`; the env is the scrubbed env.
-  - The process starts in a **new process group** (`start_new_session=True`).
+  - The process starts in a **new process group** (`start_new_session=True`) with **stdin closed** (`/dev/null`). **[verified]** `claude -p` waits for end-of-input on an inherited, open stdin and hangs; this cost a 4-minute timeout during the first live probe.
   - stdout streams to `events/agent_stream.jsonl`, wrapped in the event envelope.
   - Verify the exact flags against the pinned version in Phase 1.
 - `--dangerously-skip-permissions` runs on your machine with no sandbox. This is the accepted risk of D-14. The guardrail monitor (§7) is the only active control.
@@ -347,12 +348,13 @@ lrae clean                      # remove leftover agent state dirs / ~/.claude.j
 
 1. **Claude Code OpenTelemetry, received locally: authoritative for tokens, cost and context fill [D-2].**
    - Claude Code's built-in exporter POSTs OTLP to the run's receiver, a stdlib `ThreadingHTTPServer` on loopback (about 100 lines). Using it instead of an OTel Collector binary is the v0.3 change.
-   - Protocol: `http/json` by default. If the pinned version only supports protobuf over HTTP, `http/protobuf` is parsed with `opentelemetry-proto`.
-   - Signals used (names verified against the pinned version in Phase 1, with fixtures recorded):
-     - `claude_code.api_request` events: model, `cost_usd`, `duration_ms`, input, output, cache-read and cache-creation tokens.
-     - `claude_code.api_error` events.
-     - `claude_code.tool_result` and `claude_code.tool_decision` events.
-     - Metrics: `claude_code.token.usage`, `claude_code.cost.usage`, `claude_code.session.count`, `claude_code.commit.count`, `claude_code.lines_of_code.count`.
+   - Protocol: `http/json`. **[verified, CLI 1.0.126]** The CLI honours `OTEL_EXPORTER_OTLP_PROTOCOL=http/json` (user agent `OTel-OTLP-Exporter-JavaScript/0.200.0`) and posts to `/v1/logs` and `/v1/metrics`. Two properties the receiver must handle: bodies are sent with **`Transfer-Encoding: chunked` and no `Content-Length`**, and **every record carries `user.email`, `user.account_uuid`, `user.id` and `organization.id`**, which the receiver redacts before anything is written (raw or flattened). If a future CLI only supports protobuf over HTTP, `http/protobuf` would be parsed with `opentelemetry-proto`; today such bodies are stored as `otel.unparsed`.
+   - Signals used (**[verified]** against CLI 1.0.126; real captures in `fixtures/otel/` and `fixtures/stream/`):
+     - Log events, whose canonical type is the prefixed **body** (`claude_code.api_request`, `claude_code.user_prompt`); the bare `event.name` attribute is `api_request`, with no prefix. `api_request` carries `model`, `cost_usd`, `duration_ms`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_creation_tokens`, **all as strings**, so consumers must convert. The prompt text is exported as `<REDACTED>` by default.
+     - `claude_code.api_error`, `claude_code.tool_result`, `claude_code.tool_decision` events: expected by the docs, **not yet observed** (the smoke turns used no tools and had no errors); confirm in Phase 2.
+     - Metrics (sum data points): `claude_code.cost.usage` (USD) and `claude_code.token.usage` with attribute `type` in `input`, `output`, `cacheRead`, `cacheCreation`. `session.count`, `commit.count` and `lines_of_code.count` are expected but not yet observed.
+   - The `stream-json` `result` message also reports `total_cost_usd`, `usage`, and per-model `modelUsage` including `contextWindow` (200000 for haiku-5-5), which gives the context window without a hand-kept table.
+   - The `init` message reports `tools`, `mcp_servers`, `slash_commands`, `agents`, `model`, `permissionMode` and `apiKeySource` (`none` under the subscription login). It has **no `plugins` or `skills` fields** in 1.0.126, so the L-3 check on those is vacuous for this version; `slash_commands` and `agents` showed only built-ins even with a populated `~/.claude/skills`.
    - These values come from the CLI's instrumentation, not from the model (I-5).
    - Cross-check: Σ OTel `cost_usd` per session must equal the `stream-json` result's `total_cost_usd` within 1%.
 2. **Agent stream:** the Claude Code `stream-json` output, parsed into:
@@ -585,6 +587,7 @@ Tables:
 | D-12 | Use the CLI's existing login on this machine; no per-run or dedicated credential | **confirmed** (owner, v0.4) | 1 |
 | D-13 | Judge via the Claude Code CLI; X = median of 3 samples | proposed | 3 |
 | D-14 | **Local mode, no OS isolation.** The design's "isolated sandbox" is deferred to optional Phase 7. Out-of-scope access is detected, not prevented. Local-mode results are acceptable for the report. | **confirmed** (owner, v0.3–v0.4) | 1 |
+| D-17 | **Model vs CLI version.** `claude-opus-5-5` is rejected by the API for CLI 1.0.126 (`claude_code_version_too_old`: needs ≥ 2.1.280). The CLI's own default model (`claude-sonnet-4-20250514`) also returns 404. Real-agent runs therefore need a CLI update first; until then only models the API accepts for 1.0.126 (e.g. `claude-haiku-5-5`) work. After updating, flags, telemetry names and the `CLAUDE.md` behaviour MUST be re-verified (the smoke test does this). | **open: needs owner decision** | 1 |
 | D-16 | **Subscription login.** OTel `cost_usd` is the CLI's *API-equivalent estimate*, not a bill. All cost metrics, S(t) and budget caps use that estimate, plus token caps. Subscription usage limits that stop a run count as platform interruptions and censor it (D-7). The report labels cost as "estimated, API-equivalent". | **confirmed** (owner, 2026-10-16) | 1–6 |
 | D-15 | Clean memory per workspace: no project, ancestor or user memory; agent state dir empty at start, snapshotted, deleted at end; MCP servers, plugins and user settings excluded per run | **confirmed** (owner, v0.4); exact flags verified in Phase 1 | 1 |
 

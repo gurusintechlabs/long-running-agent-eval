@@ -123,6 +123,9 @@ class Thresholds(Strict):
 class Scoring(Strict):
     judge_model: str
     judge_samples: int = Field(default=3, ge=1)
+    # claude_code = the installed CLI (spec §8.3.6); scripted = deterministic fake for tests and
+    # scripted pilots (no spend).
+    judge_runtime: Literal["claude_code", "scripted"] = "claude_code"
     thresholds: Thresholds = Thresholds()
 
     @field_validator("judge_model")

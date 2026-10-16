@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import base64
 import gzip
+import hashlib
 import json
 import threading
 import time
+from collections import OrderedDict
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -73,6 +75,18 @@ def read_body(h: BaseHTTPRequestHandler) -> bytes:
     return h.rfile.read(int(h.headers.get("Content-Length") or 0))
 
 
+DEDUP_CAPACITY = 100_000  # remembered record hashes (bounded memory)
+
+
+def _lag_ms(recv_ns: int, nano) -> int | None:
+    """Receive time minus the record's ``timeUnixNano``, in whole ms; ``None`` if unusable."""
+    try:
+        t = int(nano)
+    except (TypeError, ValueError):
+        return None
+    return (recv_ns - t) // 1_000_000 if t > 0 else None
+
+
 class OtlpReceiver:
     host = "127.0.0.1"
 
@@ -81,7 +95,10 @@ class OtlpReceiver:
         self.raw_path.parent.mkdir(parents=True, exist_ok=True)
         self.events = events
         self._raw_lock = threading.Lock()
-        self.stats = {"records": 0, "requests": 0, "last_receive_mono_ns": None}
+        self.stats = {"records": 0, "requests": 0, "last_receive_mono_ns": None, "duplicates": 0,
+                      "last_lag_ms": None, "last_record_mono_ns": None}
+        self._seen: OrderedDict[bytes, None] = OrderedDict()
+        self._seen_lock = threading.Lock()
         receiver = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -107,6 +124,10 @@ class OtlpReceiver:
                                         name="otlp-receiver")
         self._thread.start()
 
+    def healthy(self) -> bool:
+        """True while the server thread runs and its socket is open."""
+        return bool(self._thread and self._thread.is_alive() and self._server.socket.fileno() != -1)
+
     def stop(self) -> None:
         self._server.shutdown()
         self._server.server_close()
@@ -126,12 +147,36 @@ class OtlpReceiver:
         with self._raw_lock, open(self.raw_path, "a") as fh:
             fh.write(json.dumps(record, separators=(",", ":")) + "\n")
 
+    def _is_duplicate(self, resource: dict, record: dict) -> bool:
+        """True if an identical (resource, record) pair was already ingested by this receiver.
+
+        The exporter may resend a whole batch (e.g. after a timeout whose reply was lost); such
+        records are dropped from ``otel.jsonl`` and counted. ``raw.jsonl`` keeps every request.
+        """
+        canon = json.dumps([resource, record], sort_keys=True, separators=(",", ":"), default=str)
+        key = hashlib.sha256(canon.encode()).digest()
+        with self._seen_lock:
+            if key in self._seen:
+                self._seen.move_to_end(key)
+                self.stats["duplicates"] += 1
+                return True
+            self._seen[key] = None
+            if len(self._seen) > DEDUP_CAPACITY:
+                self._seen.popitem(last=False)
+        return False
+
+    def _note_lag(self, lag: int | None) -> None:
+        self.stats["last_record_mono_ns"] = time.monotonic_ns()
+        if lag is not None:
+            self.stats["last_lag_ms"] = lag
+
     def _handle(self, h: BaseHTTPRequestHandler) -> None:
         path = h.path.split("?")[0]
         if path not in ("/v1/logs", "/v1/metrics", "/v1/traces"):
             return self._reply(h, 404, b'{"error":"not found"}')
         self.stats["requests"] += 1
         self.stats["last_receive_mono_ns"] = time.monotonic_ns()
+        recv_ns = time.time_ns()
         recv_ts = utc_now_iso()
         ctype = (h.headers.get("Content-Type") or "").lower()
         body = b""
@@ -155,16 +200,20 @@ class OtlpReceiver:
             return self._reply(h, 400, b'{"error":"bad request"}')
         self._write_raw({"path": path, "recv_ts": recv_ts, "body": doc})
         if path == "/v1/logs":
-            self._flatten_logs(doc, recv_ts)
+            self._flatten_logs(doc, recv_ts, recv_ns)
         elif path == "/v1/metrics":
-            self._flatten_metrics(doc, recv_ts)
+            self._flatten_metrics(doc, recv_ts, recv_ns)
         self._reply(h, 200)
 
-    def _flatten_logs(self, doc: dict, recv_ts: str) -> None:
+    def _flatten_logs(self, doc: dict, recv_ts: str, recv_ns: int | None = None) -> None:
+        recv_ns = recv_ns or time.time_ns()
         for rl in doc.get("resourceLogs", []):
             resource = decode_attrs(rl.get("resource", {}).get("attributes"))
             for sl in rl.get("scopeLogs", []):
                 for rec in sl.get("logRecords", []):
+                    if self._is_duplicate(resource, rec):
+                        continue
+                    lag = _lag_ms(recv_ns, rec.get("timeUnixNano"))
                     attrs = decode_attrs(rec.get("attributes"))
                     body = _any_value(rec.get("body", {})) if rec.get("body") else None
                     # The CLI sends event.name="api_request" but body="claude_code.api_request";
@@ -173,13 +222,16 @@ class OtlpReceiver:
                         etype = body
                     else:
                         etype = attrs.get("event.name") or (body if isinstance(body, str) else "otel.log")
-                    payload = {**attrs, "_signal": "log", "_resource": resource, "_recv_ts": recv_ts}
+                    payload = {**attrs, "_signal": "log", "_resource": resource, "_recv_ts": recv_ts,
+                               "_otel_lag_ms": lag}
                     if body is not None and body != etype:
                         payload["_body"] = body
                     self.events.emit(etype, payload, ts=_ts(rec.get("timeUnixNano")) or recv_ts)
                     self.stats["records"] += 1
+                    self._note_lag(lag)
 
-    def _flatten_metrics(self, doc: dict, recv_ts: str) -> None:
+    def _flatten_metrics(self, doc: dict, recv_ts: str, recv_ns: int | None = None) -> None:
+        recv_ns = recv_ns or time.time_ns()
         for rm in doc.get("resourceMetrics", []):
             resource = decode_attrs(rm.get("resource", {}).get("attributes"))
             for sm in rm.get("scopeMetrics", []):
@@ -188,12 +240,17 @@ class OtlpReceiver:
                     if kind is None:
                         continue
                     for dp in m[kind].get("dataPoints", []):
+                        if self._is_duplicate(resource, {"metric": m.get("name"), "dp": dp}):
+                            continue
+                        lag = _lag_ms(recv_ns, dp.get("timeUnixNano"))
                         value = dp.get("asInt", dp.get("asDouble"))
                         if value is not None:
                             value = int(value) if "asInt" in dp else float(value)
                         payload = {"name": m["name"], "value": value, "unit": m.get("unit", ""),
                                    "attributes": decode_attrs(dp.get("attributes")), "_kind": kind,
-                                   "_signal": "metric", "_resource": resource, "_recv_ts": recv_ts}
+                                   "_signal": "metric", "_resource": resource, "_recv_ts": recv_ts,
+                                   "_otel_lag_ms": lag}
                         self.events.emit(m["name"], payload,
                                          ts=_ts(dp.get("timeUnixNano")) or recv_ts)
                         self.stats["records"] += 1
+                        self._note_lag(lag)

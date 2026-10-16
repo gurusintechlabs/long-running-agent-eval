@@ -1,0 +1,18 @@
+# Guardrail canary (d): cost spike. Each api_request carries cost_usd 0.02, so the 3rd record
+# crosses a per_run_usd cap of 0.05 (use a spec/test cap <= 0.05). Expect BUDGET_EXHAUSTED during
+# the sleep. The cost is exported as a string attribute, like the real CLI does.
+actions:
+  - do: emit_otel
+    event: claude_code.api_request
+    attrs: {cost_usd: "0.02", input_tokens: "1000", output_tokens: "100", model: scripted}
+  - do: emit_otel
+    event: claude_code.api_request
+    attrs: {cost_usd: "0.02", input_tokens: "1000", output_tokens: "100", model: scripted}
+  - do: emit_otel
+    event: claude_code.api_request
+    attrs: {cost_usd: "0.02", input_tokens: "1000", output_tokens: "100", model: scripted}
+  - do: sleep
+    seconds: 120
+  - do: write_file     # must never be reached
+    path: should_not_exist.txt
+    content: "the canary survived\n"

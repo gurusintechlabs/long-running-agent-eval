@@ -116,8 +116,11 @@ class ScriptedAgent:
             return
         req = urllib.request.Request(self.endpoint + path, data=json.dumps(payload).encode(),
                                      headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(req, timeout=10):
-            pass
+        try:  # like the CLI's exporter: a failed export is dropped, the agent keeps working
+            with urllib.request.urlopen(req, timeout=10):
+                pass
+        except OSError as exc:
+            print(f"otel export failed: {exc}", file=sys.stderr)
 
     # -- state across turns ---------------------------------------------------------------
     def _done(self) -> int:

@@ -106,7 +106,11 @@ flowchart LR
 
 In local mode the agent runs as **your user** and could in principle read anything you can read, including this repo's hidden tests. The invariants below cut down on accidental contamination and make deliberate out-of-scope access visible. They do **not** prevent it **[D-14]**. Each MUST have an automated test.
 
-- **L-1 Workspace placement.** The workspace lives under `work_dir` and outside this repo. The pre-flight check fails if any ancestor of `work_dir/<run_id>/workspace` contains `CLAUDE.md`, `CLAUDE.local.md` or `.claude/`. Claude Code loads `CLAUDE.md` files from parent directories, so a file there would leak harness context into the agent.
+- **L-1 Workspace placement.** The workspace lives under `work_dir` and outside this repo. Claude Code loads `CLAUDE.md` files from parent directories, so a file there would leak harness context into the agent. The pre-flight check therefore fails if:
+  - any ancestor of `work_dir/<run_id>/workspace` contains `CLAUDE.md` or `CLAUDE.local.md`; or
+  - any ancestor **other than `$HOME`** contains `.claude/`.
+  
+  `~/.claude/` is your user config dir (settings, login, `projects/`), not project memory, and it is expected. Its contents are handled by L-3.
 - **L-2 Scrubbed environment.** `claude` is launched with an allowlisted environment only:
   - `PATH` (the run venv, the folder containing the installed `claude`, system dirs)
   - your real `HOME`, `USER` and `LOGNAME`, which the existing login needs; `TMPDIR=<work>/tmp`
@@ -125,7 +129,7 @@ In local mode the agent runs as **your user** and could in principle read anythi
     
     Which mechanism was used is recorded in the manifest.
   - *Auto-memory and session history:* the agent state dir for the workspace path MUST be absent or empty at run start. Workspace paths include the run_id, so this holds naturally, and pre-flight asserts it. The dir is snapshotted with the workspace at every checkpoint, so memory the agent writes during a run is part of the measured state. It is **deleted at FINALIZING**, after the final snapshot. Whether auto-memory is on during runs is set by `agent.auto_memory` and recorded.
-  - *Other user config:* MCP servers, plugins and hooks from your user settings are excluded per run with `--strict-mcp-config` and an empty MCP config, plus `--setting-sources` without `user` (verify the flags in Phase 1). Pre-flight asserts that the stream's `init` message lists **no MCP servers or plugins** and exactly the expected tool set. The hash of `~/.claude/settings.json` is recorded in the manifest.
+  - *Other user config:* MCP servers, plugins, **user skills** (`~/.claude/skills/`) and hooks from your user settings are excluded per run with `--strict-mcp-config` and an empty MCP config, plus `--setting-sources` without `user` (verify the flags in Phase 1). Pre-flight asserts that the stream's `init` message lists **no MCP servers, plugins or user skills** and exactly the expected tool set. The hash of `~/.claude/settings.json` is recorded in the manifest. If no flag excludes user skills or plugins, mechanism 2 (a per-run config dir clone without them) is used.
 - **L-4 Harness data stays out of the work dir.** Hidden tests, scorer code, events, snapshots and scorer output are never copied into, written under, or symlinked from the work dir. They remain readable on disk (known gap, D-14). Any agent tool call that references a path outside its work dir is a detected **safety violation** (§7.1 `out-of-workspace`).
 - **L-5 Telemetry is harness-controlled.** The OTel exporter settings are passed on every turn through the process environment **and** a harness settings file given with `--settings` (CLI-level settings take precedence over project settings; verify in Phase 1). If the agent creates or edits `workspace/.claude/settings*.json`, that is detected (§7.2). A telemetry stall pauses the agent (§7.2).
 - **L-6 Recorded, checked CLI version.** The agent uses the installed `claude`. Its `claude --version` is recorded in every manifest and compared with `agent.claude_code_version`. A mismatch fails pre-flight, so an auto-update in the middle of a study can't mix versions silently. `DISABLE_AUTOUPDATER=1` is set for run subprocesses. When the CLI updates on its own outside runs, set the new version in a new spec (§4.1).
@@ -141,7 +145,7 @@ None of these change D-14 unless they are verified.
 
 ### 3.3 Stack
 
-- **Required:** Python 3.11, pytest, SQLite, JSONL event logs, matplotlib, Jinja2 + headless Chrome (PDF), git, and the installed, logged-in Claude Code CLI. Small Python libraries are allowed **[D-3]**: `pydantic` v2, `PyYAML`, `psutil` (process trees), `numpy`/`scipy`, and in the scorer venv `ruff`, `bandit`, `pytest-json-report`.
+- **Required:** Python ≥ 3.11 (this machine: 3.13.5), pytest, SQLite, JSONL event logs, matplotlib, Jinja2 + headless Chrome (PDF), git, and the installed, logged-in Claude Code CLI. Small Python libraries are allowed **[D-3]**: `pydantic` v2, `PyYAML`, `psutil` (process trees), `numpy`/`scipy`, and in the scorer venv `ruff`, `bandit`, `pytest-json-report`.
 - **Not required:** Docker (optional Phase 7), an OTel Collector binary, any server, `lifelines` (Kaplan–Meier is implemented in-repo, about 80 lines, and tested against textbook values).
 
 ### 3.4 Repository layout

@@ -19,9 +19,10 @@ Test markers:
 - [x] Model: `claude-opus-5-5` for agent and judge. To change it later, edit `agent.model` / `scoring.judge_model` in the experiment spec (spec §4.1).
 - [x] D-2 (local OTel), D-3 (small libraries), D-5 (local checkpoint tags), D-12 (existing CLI login), D-14 (local mode is good enough for the report) and D-15 (clean memory per workspace) confirmed.
 - [x] Repo on `github.com/gurusintechlabs/long-running-agent-eval`, `main`. Use one branch per phase (`phase-1-spec-sandbox`, …).
-- [x] The Claude Code CLI is installed and logged in on this machine.
-- [ ] Confirm the host has Python 3.11, git and Chrome/Chromium.
-- [ ] Confirm that `~/lrae-work` (or another `work_dir`) has no `CLAUDE.md`/`.claude/` in its ancestors. Check `~` itself in particular.
+- [x] The Claude Code CLI is installed and logged in on this machine (`/usr/local/bin/claude`, `1.0.126` on 2026-10-16).
+- [x] Python 3.13.5, git and Chrome are installed. The spec requires Python ≥ 3.11.
+- [x] Home folder check (2026-10-16): no `~/CLAUDE.md`, `~/CLAUDE.local.md`, `~/.claude/CLAUDE.md` or `~/.claude/rules`. `~/.claude/` is the user config dir, which is expected. `~/.claude/skills/` and `~/.claude/plugins/` exist, so the per-run exclusion of user skills and plugins MUST be verified in Phase 1. `~/lrae-work` does not exist yet; the orchestrator creates it.
+- [ ] Phase 1 checks whether CLI `1.0.126` supports the needed flags (`--setting-sources`, `--strict-mcp-config`, OTel `http/json`) and accepts `--model claude-opus-5-5`. If not, run `claude update` and record the new version in the spec.
 - [ ] Accepted risk: the agent runs as your user with your login and `--dangerously-skip-permissions`.
 
 ---
@@ -60,7 +61,7 @@ Concretely:
   - **Memory canary:** with a temporary canary line added to `~/.claude/CLAUDE.md` (backed up and restored by the test), the agent's probe reply MUST NOT reveal it. The test also checks that no state dir for the run remains afterwards (S-3).
 
 **Tasks**
-1. Scaffold: `pyproject.toml` (package `lrae`, Python 3.11, console script `lrae`), ruff config, pytest markers, `.gitignore` (`runs/`, `tools/`).
+1. Scaffold: `pyproject.toml` (package `lrae`, `requires-python >= 3.11`, console script `lrae`), ruff config, pytest markers, `.gitignore` (`runs/`, `tools/`).
 2. `spec/schema.py` and `loader.py` (pydantic v2, spec §4.1), `spec_hash`, `spec/examples/pilot.yaml` (`model: claude-opus-5-5`, `isolation.mode: local`, and `claude_code_version` set to the current `claude --version`), and `spec/configs/A.yaml` (B–E are stubs until Phase 5).
 3. `runner/memory.py`: compute the agent state dir, run the start-empty check, snapshot it, delete it, and `lrae clean`.
 4. **Seed repo fixture** `fixtures/seed_export_service/`: a FastAPI service of about 500 lines (users, items, an auth stub, a SQLite store) with a passing pytest suite (~15 tests), a `vendor/` directory (a small vendored helper module the app imports), `requirements.txt`, and a pinned `requirements.lock`. Build it deterministically with `fixtures/build_seed.py` so the SHA is stable, and record the SHA in `pilot.yaml`.

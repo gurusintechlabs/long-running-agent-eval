@@ -1,0 +1,44 @@
+# Scripted pilot (Phase 4 pipeline check): the real harness and scorer, a scripted agent, no spend.
+spec_version: 1
+experiment_id: pilot-export-csv-scripted
+task:
+  id: export-csv
+  class: L1
+  prompt_file: ../../fixtures/tasks/export_csv/prompt.md
+  seed_repo: ../../fixtures/seed_export_service
+  seed_commit: 07b476cee11f71c3364e0c39bdd7de5a80f86b10   # fixtures/build_seed.py output
+  seed_requirements_lock: ../../fixtures/seed_export_service/requirements.lock
+  constraints_file: ../../fixtures/tasks/export_csv/constraints.yaml
+  hidden_tests: ../../fixtures/tasks/export_csv/hidden
+agent:
+  runtime: scripted
+  claude_code_version: "n/a"            # scripted runtime: no CLI
+  script: ../../fixtures/scripted/pilot_agent.yaml   # build_pilot_script.py 60 6
+  auto_memory: cli_default
+run:
+  duration_min: 6                      # 6 checkpoints at dt = 1 min (docs/plan.md Phase 4)
+  checkpoint_interval_min: 1
+  repeats: 2
+  configs: [A]
+  seed: 1234
+  parallelism: 1
+budget:                                # subscription login: $ = API-equivalent estimate (D-16)
+  per_run_usd: 1.00
+  experiment_usd: 5.00
+isolation:
+  mode: local
+  work_dir: ~/lrae-work
+  keep_work_dir: false
+telemetry:
+  protocol: http/json
+  export_interval_ms: 1000
+guardrails:
+  policy_file: ../../guardrails/rules/default.yaml
+scoring:
+  judge_model: claude-opus-5-5         # <- CHANGE JUDGE MODEL HERE
+  judge_samples: 3
+  judge_runtime: scripted              # deterministic fake judge: no spend
+  thresholds:
+    repeat_work_ratio: 0.30
+    cost_per_commit_multiplier: 2.0
+    cost_baseline_checkpoints: 2

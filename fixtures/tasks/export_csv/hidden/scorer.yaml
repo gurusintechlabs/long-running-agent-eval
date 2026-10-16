@@ -1,0 +1,17 @@
+# How the scorer starts the app under test and runs the hidden suite (docs/spec.md 8.1, 8.2).
+# Placeholders {port} and {db} are substituted by the scorer: a free loopback port and a fresh
+# SQLite path outside the snapshot copy. The app runs with cwd = the temp copy of the snapshot.
+app_cmd: [python, -m, uvicorn, "app.main:app_factory", "--factory", "--host", "127.0.0.1", "--port", "{port}"]
+env:
+  ITEMS_DB_PATH: "{db}"
+  # Seed demo keys plus one key per hidden test (user ids 101..113; the tests register the users).
+  ITEMS_API_KEYS: "key-alice:1,key-bob:2,hk-01:101,hk-02:102,hk-03:103,hk-04:104,hk-05:105,hk-06:106,hk-07:107,hk-08:108,hk-09:109,hk-10:110,hk-11:111,hk-12:112,hk-13:113"
+  ITEMS_EXPORT_RATE_LIMIT: "5"
+  ITEMS_EXPORT_RATE_WINDOW_S: "3600"   # long window: no mid-suite resets
+ready_path: /health
+startup_timeout_s: 20
+# Environment for the separate pytest process
+test_env:
+  LRAE_APP_URL: "http://127.0.0.1:{port}"
+  LRAE_APP_DB: "{db}"
+pytest_cmd: [python, -m, pytest, -c, hidden/pytest.ini, --rootdir=hidden, --noconftest, -p, no:cacheprovider]

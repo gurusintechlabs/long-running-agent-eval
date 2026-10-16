@@ -6,6 +6,7 @@ writes only ``events/scorer.jsonl`` and ``scorer/`` there (spec §8.1).
 """
 from __future__ import annotations
 
+import os
 import queue
 import subprocess
 import sys
@@ -18,13 +19,14 @@ from telemetry.events import EventWriter
 
 class ScorerQueue:
     def __init__(self, art: Path, spec_path: Path, events: EventWriter, *, repo_root: Path,
-                 python: str = sys.executable, timeout_s: float = 1800.0):
+                 python: str = sys.executable, timeout_s: float = 1800.0, confirm_spend: bool = False):
         self.art = Path(art)
         self.spec_path = Path(spec_path)
         self.events = events
         self.repo_root = Path(repo_root)
         self.python = python
         self.timeout_s = timeout_s
+        self.confirm_spend = confirm_spend
         self.results: dict[int, int | None] = {}
         self._q: queue.Queue[int | None] = queue.Queue()
         self._thread = threading.Thread(target=self._work, name="scorer-queue", daemon=True)
@@ -52,12 +54,15 @@ class ScorerQueue:
         log_dir.mkdir(parents=True, exist_ok=True)
         cmd = [self.python, "-m", "scorer.run_checkpoint", "--art", str(self.art), "--k", str(k),
                "--spec", str(self.spec_path)]
+        env = {k: v for k, v in os.environ.items() if k != "LRAE_CONFIRM_SPEND"}
+        if self.confirm_spend:  # the real judge refuses to run without it
+            env["LRAE_CONFIRM_SPEND"] = "1"
         t0 = time.monotonic()
         rc: int | None
         with open(log_dir / f"score-t{k}.log", "a") as log:
             try:
                 rc = subprocess.run(cmd, cwd=self.repo_root, stdout=log, stderr=subprocess.STDOUT,
-                                    stdin=subprocess.DEVNULL, timeout=self.timeout_s).returncode
+                                    stdin=subprocess.DEVNULL, timeout=self.timeout_s, env=env).returncode
             except subprocess.TimeoutExpired:
                 rc = None
         self.results[k] = rc

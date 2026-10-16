@@ -201,8 +201,9 @@ run:
   configs: [A]                             # subset of spec/configs/
   seed: 1234                               # orchestrator RNG (run order, jitter)
   parallelism: 1
-budget:
-  per_run_usd: 15.00                       # hard kill switch (guardrail)
+budget:                                    # subscription login: $ = API-equivalent estimate (D-16)
+  per_run_usd: 15.00                       # hard kill switch (guardrail), on estimated $
+  per_run_tokens: null                     # optional hard cap on total tokens (input+output+cache)
   experiment_usd: 40.00                    # orchestrator refuses to start more runs past this
 isolation:
   mode: local                              # local (default) | docker (Phase 7, optional)
@@ -427,7 +428,7 @@ Writing to `/vendor` is a **planted constraint** (context dimension, scored by C
 
 The following are logged as `platform.interruption`:
 - API errors: repeated `claude_code.api_error` or 5xx responses.
-- Auth or token expiry, or a usage-limit stop.
+- Auth or token expiry, or a **subscription usage-limit stop**. This is detected from `claude_code.api_error` or the CLI's result/error output, and the reset time is recorded when the CLI reports it. The run is censored, not resumed later, because a gap of hours would distort the time axis. The scheduler waits for the reset before starting the next run.
 - The machine sleeping. Detected as a monotonic-vs-wall clock gap. Run `caffeinate` for the run's duration on macOS.
 - An agent process that exits non-zero repeatedly.
 
@@ -522,7 +523,7 @@ Tables:
 ## 10. Dashboard and report (`report/`)
 
 - **Dashboard v1 (Phase 4):** a static HTML file built from SQLite with Jinja2 plus matplotlib PNGs. Content: run table (state, duration, TTFH, cost), per-run metric strips, survival curve, and an incident list. There is no server.
-- **Executive report (Phase 6):** Jinja2 HTML rendered to PDF with headless Chrome (`--headless --print-to-pdf`), 2–3 pages, built with `lrae report --pdf` and no manual steps. Sections follow design §5. Every number comes from a SQL query in `report/queries.py`. The caveats section MUST state the isolation mode used. For local mode, it says that runs were **not OS-isolated**, and that out-of-scope access was detected through the command channel only.
+- **Executive report (Phase 6):** Jinja2 HTML rendered to PDF with headless Chrome (`--headless --print-to-pdf`), 2–3 pages, built with `lrae report --pdf` and no manual steps. Sections follow design §5. Every number comes from a SQL query in `report/queries.py`. Every cost figure is labeled **"estimated (API-equivalent)"** and shown alongside token counts, because the runs use a subscription login (D-16). The report also states how many runs were censored by usage limits. The caveats section MUST state the isolation mode used. For local mode, it says that runs were **not OS-isolated**, and that out-of-scope access was detected through the command channel only.
 
 ## 11. Security requirements (summary, each tested)
 
@@ -562,7 +563,7 @@ Tables:
 | Telemetry tampering or loss | Harness-controlled settings, `telemetry-tamper` rule, stall pause, cost cross-check |
 | **Memory contamination** (your `CLAUDE.md`, earlier runs' memory, other projects) | Clean-memory checks (L-1, L-3), unique workspace paths, state dir deleted after each run, canary test in Phase 1 |
 | CLI auto-update mid-study | Version recorded and checked at every pre-flight (L-6); a mismatch stops the run |
-| Shared login: runs and your interactive Claude use share usage limits | Avoid heavy interactive use during long runs; usage-limit stops are logged as interruptions and censor the run |
+| **Subscription usage limits cap run length** (shared with your interactive Claude use) | Phase 1 soak test measures how long an Opus 5.5 run lasts before hitting a limit; pilot and ladder durations are sized to fit one usage window; the scheduler waits for resets between runs; avoid heavy interactive use during runs; limit stops censor runs (D-16). If limits make 3–6 h runs impossible, the L2/L3 durations are reduced or the plan is revisited before Phase 5. |
 | Scope creep | The ladder grows only after the previous tier's data is complete |
 | API spend | Per-run kill switch, experiment cap, `--confirm-spend`, scripted runtime for all tests |
 
@@ -584,18 +585,19 @@ Tables:
 | D-12 | Use the CLI's existing login on this machine; no per-run or dedicated credential | **confirmed** (owner, v0.4) | 1 |
 | D-13 | Judge via the Claude Code CLI; X = median of 3 samples | proposed | 3 |
 | D-14 | **Local mode, no OS isolation.** The design's "isolated sandbox" is deferred to optional Phase 7. Out-of-scope access is detected, not prevented. Local-mode results are acceptable for the report. | **confirmed** (owner, v0.3–v0.4) | 1 |
+| D-16 | **Subscription login.** OTel `cost_usd` is the CLI's *API-equivalent estimate*, not a bill. All cost metrics, S(t) and budget caps use that estimate, plus token caps. Subscription usage limits that stop a run count as platform interruptions and censor it (D-7). The report labels cost as "estimated, API-equivalent". | **confirmed** (owner, 2026-10-16) | 1–6 |
 | D-15 | Clean memory per workspace: no project, ancestor or user memory; agent state dir empty at start, snapshotted, deleted at end; MCP servers, plugins and user settings excluded per run | **confirmed** (owner, v0.4); exact flags verified in Phase 1 | 1 |
 
 **Resolved:**
 - Agent: the installed, logged-in Claude Code CLI, headless.
 - Model: `claude-opus-5-5` (§4.1 shows where to change it).
 - CLI version: recorded and checked per run.
+- Login: Claude subscription (D-16).
 - Docker: optional, not needed for the report.
 
 **Open questions:**
 
-1. **Cost figures.** If the login is a subscription (not a Console API key), OTel `cost_usd` is an estimate and the budget caps act on estimated spend. Is that acceptable for the report's cost section?
-2. **Pilot length.** Validation pilot at 60 min, then one 2 h calibration run?
-3. **"Metrics are stable across repeats" (Phase 4 exit).** Proposal: re-scoring is deterministic for P/R/D/C/W/S and X stays within its spread; no metric is missing; differences between repeats are explained.
-4. **Task ladder (Phase 5).** L2 ≈ 3 h, L3 ≈ 6 h tasks. A human SHOULD review every hidden test.
-5. **Budget numbers.** The Phase 5 total needs owner approval before launch.
+1. **Pilot length.** Validation pilot at 60 min, then one 2 h calibration run?
+2. **"Metrics are stable across repeats" (Phase 4 exit).** Proposal: re-scoring is deterministic for P/R/D/C/W/S and X stays within its spread; no metric is missing; differences between repeats are explained.
+3. **Task ladder (Phase 5).** L2 ≈ 3 h, L3 ≈ 6 h tasks. A human SHOULD review every hidden test.
+4. **Budget numbers.** The Phase 5 total needs owner approval before launch. It is expressed in API-equivalent dollars, tokens and wall-clock hours, plus the expected number of subscription usage windows (D-16).

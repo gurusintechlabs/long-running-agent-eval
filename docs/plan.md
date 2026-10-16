@@ -23,7 +23,8 @@ Test markers:
 - [x] Python 3.13.5, git and Chrome are installed. The spec requires Python ≥ 3.11.
 - [x] Home folder check (2026-10-16): no `~/CLAUDE.md`, `~/CLAUDE.local.md`, `~/.claude/CLAUDE.md` or `~/.claude/rules`. `~/.claude/` is the user config dir, which is expected. `~/.claude/skills/` and `~/.claude/plugins/` exist, so the per-run exclusion of user skills and plugins MUST be verified in Phase 1. `~/lrae-work` does not exist yet; the orchestrator creates it.
 - [ ] Phase 1 checks whether CLI `1.0.126` supports the needed flags (`--setting-sources`, `--strict-mcp-config`, OTel `http/json`) and accepts `--model claude-opus-5-5`. If not, run `claude update` and record the new version in the spec.
-- [ ] Accepted risk: the agent runs as your user with your login and `--dangerously-skip-permissions`.
+- [x] Accepted risk: the agent runs as your user with your login and `--dangerously-skip-permissions`.
+- [x] Login type: Claude subscription. Costs are API-equivalent estimates, and usage limits can censor runs (D-16).
 
 ---
 
@@ -76,7 +77,7 @@ Concretely:
     - the OTLP protocols supported (http/json?), plus the OTel event and metric names (record real payloads into `fixtures/otel/` and `fixtures/stream/` for Phase 2 tests);
     - whether `permissions.deny` and built-in Bash sandboxing are available under `--dangerously-skip-permissions` (spec §3.2 optional hardening).
 10. `runner/loop_driver.py` (config A), `runner/snapshot.py`, `runner/orchestrator.py` (lifecycle state machine, timers, `caffeinate` on macOS), `runner/resume.py`, `runner/cli.py` (`validate`, `run`, `resume`, `clean`).
-11. **Platform-limit probe** (design risk: "verify first"): an `api`-marked soak test that keeps the CLI running on your existing login for ≥ 3 h on a cheap, low-activity prompt loop. It records any login expiry, usage-limit stop, 5xx errors, disconnects or sleep gaps. Run it once, with spend confirmed, and report the results in the summary.
+11. **Platform-limit probe** (design risk: "verify first"): an `api`-marked soak test that keeps the CLI running on your existing login for ≥ 3 h on a cheap, low-activity prompt loop. It records any login expiry, usage-limit stop, 5xx errors, disconnects or sleep gaps. Run it once, with spend confirmed, and report the results in the summary. A low-activity loop only tests session and login durability. How long a *realistic* Opus 5.5 run lasts before hitting a subscription usage limit is measured by the Phase 4 dry run, and that number sizes every later run (D-16).
 
 **Out of scope:** counters, guardrails, scoring, configs B–E, Docker.
 
@@ -186,7 +187,7 @@ Concretely:
 
 **Tasks**
 1. `analysis/ingest.py`, `survival.py`, `trends.py`; `report/charts.py`; dashboard v1 (`lrae dashboard`).
-2. **Dry run** (api): one 15 min config-A run to estimate $/hour and set `per_run_usd` with ~1.5× headroom. Get budget approval for the pilot.
+2. **Dry run** (api): one 15 min config-A run to estimate tokens/hour and API-equivalent $/hour, and to set `per_run_usd`/`per_run_tokens` with ~1.5× headroom. Also record how much of the subscription usage window it consumed, then extrapolate whether a 60 min pilot run fits in one window (D-16). Get approval for the pilot.
 3. **Pilot** (api): 2 repeats × config A × 60 min, dt = 10 min, plus both canary runs.
 4. **Determinism check:** re-score every pilot snapshot and diff the results.
 5. **Calibration:** propose `repeat_work_ratio`, `cost_per_commit_multiplier` and the baseline (and whether D should become a hazard) in `docs/calibration.md`. Changes go into a new spec (new `spec_hash`). Optional: one 2 h run.
@@ -195,7 +196,8 @@ Concretely:
 **Reviewer checklist:**
 - The pilot actually exercised the hazards.
 - The calibration is justified by the data.
-- Cost accounting matches real usage within 2%. With a Console API login, compare against the bill; with a subscription login, cost is an estimate, so compare token counts.
+- Cost accounting is consistent: OTel tokens and estimated cost match `stream-json` totals within 1%. The subscription has no bill to compare against (D-16).
+- The pilot finished within the subscription usage limits. If it did not, resize the runs before Phase 5.
 
 ---
 

@@ -115,6 +115,15 @@ class Artifact:
 
     @property
     def start_epoch(self) -> float:
+        """Run-time origin: the last ``run.clock`` start (checkpoint ``t_s`` is measured from it,
+        and on resume it already accounts for the offset). The manifest's ``start_epoch`` is taken
+        earlier, at PREPARING, so using it would shift every event later than its checkpoint."""
+        for ev in reversed(read_events(self.events_dir / "orchestrator.jsonl")):
+            if ev.get("type") == "run.clock":
+                try:
+                    return float(ev["payload"]["start_epoch"])
+                except (KeyError, TypeError, ValueError):
+                    break
         return float(self.manifest.get("start_epoch") or 0.0)
 
     def snap(self, k: int) -> Path:

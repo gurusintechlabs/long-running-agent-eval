@@ -5,6 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from analysis import cli as analysis_cli
 from runner import manifest as mf
 from runner import memory
 from runner.orchestrator import Run, RunState, recover_unfinalized
@@ -42,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_parser("clean", help="finish cleanup of crashed runs and leftover agent state dirs")
 
     scorer_cli.add_parsers(sp)    # score, install-scorer
+    analysis_cli.add_parsers(sp)  # ingest, dashboard, report
     return ap
 
 
@@ -140,8 +142,7 @@ def main(argv: list[str] | None = None) -> int:
             return scorer_cli.cmd_score(a)
         if a.cmd == "install-scorer":
             return scorer_cli.cmd_install_scorer(a)
-        print(f"`lrae {a.cmd}` is not implemented yet (later phase)", file=sys.stderr)
-        return 2
+        return a.func(a)  # ingest, dashboard, report
     except (SpecError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

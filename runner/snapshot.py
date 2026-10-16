@@ -74,7 +74,7 @@ def update_mirror(mirror: Path, workspace: Path, k: int) -> None:
 
 def take_snapshot(paths: RunPaths, k: int, *, state_dir: Path, proc=None,
                   cumulative_cost_usd: float | None = None,
-                  pip_freeze_text: str | None = None) -> SnapshotInfo:
+                  pip_freeze_text: str | None = None, extra_meta: dict | None = None) -> SnapshotInfo:
     dest = paths.snapshots / f"t{k}"
     if dest.exists():
         raise FileExistsError(f"snapshot already exists: {dest}")
@@ -103,6 +103,7 @@ def take_snapshot(paths: RunPaths, k: int, *, state_dir: Path, proc=None,
         "pause_ms": pause_ms,
         "cumulative_cost_usd": cumulative_cost_usd,
         "pip_freeze_hash": None,
+        **(extra_meta or {}),
     }
     if pip_freeze_text is not None:
         (dest / "pip-freeze.txt").write_text(pip_freeze_text)

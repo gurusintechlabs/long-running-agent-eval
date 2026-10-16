@@ -7,3 +7,5 @@
 - `tasks/export_csv/`: task prompt, planted constraints and (Phase 3) hidden tests.
 - `otel/`, `stream/`: real output captured from Claude Code CLI 1.0.126 (haiku, one trivial turn), with
   account identifiers removed. Used by the Phase 2 parser/counter tests.
+  Files named `synthetic-*` in those directories are **hand-written, not captured** (tool_use, tool_result,
+  compact_boundary, api_error shapes not yet observed live); they carry a `_synthetic` marker.

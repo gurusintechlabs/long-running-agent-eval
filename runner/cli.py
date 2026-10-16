@@ -30,6 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--confirm-spend", action="store_true",
                    help="required for the real agent: acknowledge that runs consume subscription usage")
     r.add_argument("--no-caffeinate", action="store_true")
+    r.add_argument("--no-score", action="store_true", help="skip checkpoint scoring (score later)")
 
     rs = sp.add_parser("resume", help="resume a run from a snapshot")
     rs.add_argument("run_id")
@@ -71,12 +72,31 @@ def cmd_run(a) -> int:
     bad = 0
     for cfg in configs:
         for rep in repeats:
+            spent = experiment_spend(a.repo_root, s.experiment_id, loaded.spec_hash)
+            if spent >= s.budget.experiment_usd:
+                print(f"experiment budget reached: ${spent:.2f} estimated of ${s.budget.experiment_usd:.2f}; "
+                      "not starting more runs", file=sys.stderr)
+                return 1
             run = Run(loaded, cfg, rep, repo_root=a.repo_root, claude_home=a.claude_home,
-                      host_home=a.home, confirm_spend=a.confirm_spend, caffeinate=not a.no_caffeinate)
+                      host_home=a.home, confirm_spend=a.confirm_spend, caffeinate=not a.no_caffeinate,
+                      score=not a.no_score)
             res = run.execute()
             print(f"{res.run_id}: {res.state.value}" + (f"  ({res.error})" if res.error else ""), flush=True)
             bad += res.state != RunState.COMPLETED
     return 1 if bad else 0
+
+
+def experiment_spend(repo_root: Path, experiment_id: str, spec_hash: str) -> float:
+    """Estimated agent spend of finished runs of this experiment (same spec hash), from manifests."""
+    total = 0.0
+    for mpath in sorted((Path(repo_root) / "runs").glob("*/manifest.json")):
+        try:
+            m = mf.load(mpath)
+        except (OSError, ValueError):
+            continue
+        if m.get("experiment_id") == experiment_id and m.get("spec_hash") == spec_hash:
+            total += float((m.get("end") or {}).get("cost_usd") or 0)
+    return total
 
 
 def cmd_resume(a) -> int:

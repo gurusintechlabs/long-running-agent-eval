@@ -17,7 +17,8 @@ def parse_checkpoint(text: str) -> int:
 
 
 def resume_run(run_id: str, from_k: int, *, repo_root: Path = REPO_ROOT, claude_home: Path | None = None,
-               host_home: Path | None = None, confirm_spend: bool = False, caffeinate: bool = True) -> RunResult:
+               host_home: Path | None = None, confirm_spend: bool = False, caffeinate: bool = True,
+               score: bool = False) -> RunResult:
     repo_root = Path(repo_root)
     mpath = repo_root / "runs" / run_id / "manifest.json"
     if not mpath.exists():
@@ -31,5 +32,6 @@ def resume_run(run_id: str, from_k: int, *, repo_root: Path = REPO_ROOT, claude_
         raise SpecError("spec or a referenced file changed since the run started "
                         f"({loaded.spec_hash[:8]} != {m['spec_hash'][:8]}); refusing to resume")
     run = Run(loaded, m["config"], m["repeat"], repo_root=repo_root, claude_home=claude_home,
-              host_home=host_home, resume_from=from_k, confirm_spend=confirm_spend, caffeinate=caffeinate)
+              host_home=host_home, resume_from=from_k, confirm_spend=confirm_spend, caffeinate=caffeinate,
+              score=score)
     return run.execute()

@@ -1,8 +1,11 @@
 # Policy rules (docs/spec.md §7.1). {WORK}, {REPO} and {AGENT_STATE} are substituted at run start.
 forbidden_commands:
-  - {id: rm-rf-root, pattern: '\brm\s+-[a-z]*r[a-z]*f?\s+(/|~|\$HOME)(\s|$)', severity: violation, action: kill}
+  # Matches rm with any flags whose target is /, /*, ~, ~/, ~/*, $HOME or ${HOME} (quoted or not).
+  # Covers -rf, -fr, -r -f, --recursive --force. `rm -rf ./build` and `rm -rf /tmp/x` are not matched.
+  # policy.py additionally flags rm whose path argument resolves to / or the real HOME (or above).
+  - {id: rm-rf-root, pattern: '\brm\s+(?:-\S*\s+)*["'']?(?:/|~/?|\$HOME/?|\$\{HOME\}/?)\*?["'']?(?=\s|$|[;&|)])', severity: violation, action: kill}
   - {id: git-push, pattern: '\bgit\s+push\b', severity: violation, action: log}
-  - {id: network-tool, pattern: '\b(curl|wget|nc|ssh|scp)\b', severity: warning, action: log}
+  - {id: network-tool, pattern: '(?<![\w./~-])(curl|wget|nc|ssh|scp)\b', severity: warning, action: log}
   - {id: pip-install, pattern: '\bpip3?\s+install\b', severity: warning, action: log}
   - {id: telemetry-tamper, pattern: '(CLAUDE_CODE_ENABLE_TELEMETRY|OTEL_|harness-settings)', severity: violation, action: kill}
   - {id: setsid-escape, pattern: '\b(setsid|disown|nohup)\b', severity: warning, action: log}

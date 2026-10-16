@@ -11,7 +11,7 @@ import gzip
 import json
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -42,7 +42,7 @@ def _ts(nano) -> str | None:
     if not nano:
         return None
     try:
-        dt = datetime.fromtimestamp(int(nano) / 1e9, tz=timezone.utc)
+        dt = datetime.fromtimestamp(int(nano) / 1e9, tz=UTC)
     except (ValueError, OverflowError, OSError):
         return None
     return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")

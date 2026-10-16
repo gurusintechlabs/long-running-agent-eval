@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 
 # Demo keys; real deployments override via ITEMS_API_KEYS="key1:1,key2:2".
-DEFAULT_API_KEYS: Dict[str, int] = {
+DEFAULT_API_KEYS: dict[str, int] = {
     "key-alice": 1,
     "key-bob": 2,
 }
@@ -17,9 +16,9 @@ DEFAULT_API_KEYS: Dict[str, int] = {
 API_KEY_HEADER = "X-API-Key"
 
 
-def _parse_keys(raw: str) -> Dict[str, int]:
+def _parse_keys(raw: str) -> dict[str, int]:
     """Parse 'key:user_id,key:user_id' into a mapping."""
-    keys: Dict[str, int] = {}
+    keys: dict[str, int] = {}
     for part in raw.split(","):
         part = part.strip()
         if not part:
@@ -34,13 +33,13 @@ def _parse_keys(raw: str) -> Dict[str, int]:
 @dataclass
 class Settings:
     db_path: str = ":memory:"
-    api_keys: Dict[str, int] = field(default_factory=lambda: dict(DEFAULT_API_KEYS))
+    api_keys: dict[str, int] = field(default_factory=lambda: dict(DEFAULT_API_KEYS))
     default_page_size: int = DEFAULT_PAGE_SIZE
     max_page_size: int = MAX_PAGE_SIZE
     max_items_per_user: int = 1000
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         raw_keys = os.environ.get("ITEMS_API_KEYS")
         return cls(
             db_path=os.environ.get("ITEMS_DB_PATH", "items.db"),

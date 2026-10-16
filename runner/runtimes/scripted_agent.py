@@ -1,0 +1,211 @@
+"""Scripted stand-in for ``claude -p`` (docs/spec.md §5.3).
+
+Replays a YAML script of timed actions inside the workspace, emits Claude-Code-shaped
+``stream-json`` on stdout and OTLP records to the run's receiver. It runs as a real subprocess
+so the harness exercises exactly the same pause/kill/sweep paths as with the real agent.
+Used for every automated test and for the guardrail canaries (no API spend, deterministic).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+import yaml
+
+REQUIRED = {
+    "write_file": {"path", "content"},
+    "git_commit": {"message"},
+    "bash": {"cmd"},
+    "emit_otel": {"event"},
+    "emit_otel_metric": {"name", "value"},
+    "emit_stream_event": {"event"},
+    "sleep": {"seconds"},
+}
+FIXED_DATE = "2026-01-01T00:00:00Z"
+
+
+class ScriptError(ValueError):
+    pass
+
+
+def load_script(path: Path | str) -> dict:
+    doc = yaml.safe_load(Path(path).read_text()) or {}
+    actions = doc.get("actions", [])
+    for i, act in enumerate(actions):
+        kind = act.get("do")
+        if kind not in REQUIRED:
+            raise ScriptError(f"action {i}: unknown 'do': {kind!r}")
+        missing = REQUIRED[kind] - set(act)
+        if missing:
+            raise ScriptError(f"action {i} ({kind}): missing {sorted(missing)}")
+    doc["actions"] = actions
+    doc.setdefault("idle_s", 0.2)
+    return doc
+
+
+def _attr(key: str, value) -> dict:
+    if isinstance(value, bool):
+        v = {"boolValue": value}
+    elif isinstance(value, int):
+        v = {"intValue": str(value)}
+    elif isinstance(value, float):
+        v = {"doubleValue": value}
+    else:
+        v = {"stringValue": str(value)}
+    return {"key": key, "value": v}
+
+
+def _resource_attrs() -> list[dict]:
+    raw = os.environ.get("OTEL_RESOURCE_ATTRIBUTES", "")
+    pairs = [kv.split("=", 1) for kv in raw.split(",") if "=" in kv]
+    return [_attr(k, v) for k, v in pairs]
+
+
+def otlp_log_payload(event: str, attrs: dict) -> dict:
+    now = str(int(time.time() * 1e9))
+    rec = {"timeUnixNano": now, "body": {"stringValue": event},
+           "attributes": [_attr("event.name", event), *[_attr(k, v) for k, v in attrs.items()]]}
+    return {"resourceLogs": [{"resource": {"attributes": _resource_attrs()},
+                              "scopeLogs": [{"logRecords": [rec]}]}]}
+
+
+def otlp_metric_payload(name: str, value: float, attrs: dict) -> dict:
+    dp = {"timeUnixNano": str(int(time.time() * 1e9)), "asDouble": float(value),
+          "attributes": [_attr(k, v) for k, v in attrs.items()]}
+    return {"resourceMetrics": [{"resource": {"attributes": _resource_attrs()},
+                                 "scopeMetrics": [{"metrics": [{"name": name,
+                                                                "sum": {"dataPoints": [dp]}}]}]}]}
+
+
+class ScriptedAgent:
+    def __init__(self, script: dict, *, workspace: Path, otel_endpoint: str | None,
+                 run_start_epoch: float, session_id: str, out, state_path: Path,
+                 clock=time.time, sleep=time.sleep):
+        self.script = script
+        self.workspace = Path(workspace).resolve()
+        self.endpoint = otel_endpoint
+        self.run_start = run_start_epoch
+        self.session_id = session_id
+        self.out = out
+        self.state_path = Path(state_path)
+        self.clock = clock
+        self.sleep = sleep
+        self.max_actions_per_turn: int | None = None
+        self.cost_total = 0.0
+        self._n = 0
+
+    # -- output ---------------------------------------------------------------------------
+    def _emit(self, msg: dict) -> None:
+        msg.setdefault("session_id", self.session_id)
+        self.out.write(json.dumps(msg) + "\n")
+        self.out.flush()
+
+    def _tool_use(self, name: str, tool_input: dict) -> None:
+        self._n += 1
+        self._emit({"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "id": f"toolu_{self._n:04d}", "name": name, "input": tool_input}]}})
+
+    def _post(self, path: str, payload: dict) -> None:
+        if not self.endpoint:
+            return
+        req = urllib.request.Request(self.endpoint + path, data=json.dumps(payload).encode(),
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+
+    # -- state across turns ---------------------------------------------------------------
+    def _done(self) -> int:
+        try:
+            return int(json.loads(self.state_path.read_text())["done"])
+        except (OSError, ValueError, KeyError):
+            return 0
+
+    def _set_done(self, n: int) -> None:
+        self.state_path.parent.mkdir(parents=True, exist_ok=True)
+        self.state_path.write_text(json.dumps({"done": n}))
+
+    # -- actions --------------------------------------------------------------------------
+    def _inside(self, path: Path, allow_outside: bool) -> Path:
+        full = (self.workspace / path).resolve()
+        if not allow_outside and self.workspace not in (full, *full.parents):
+            raise ScriptError(f"write_file path is outside the workspace: {path}")
+        return full
+
+    def _do(self, act: dict) -> None:
+        kind = act["do"]
+        if kind == "write_file":
+            full = self._inside(Path(act["path"]), bool(act.get("allow_outside")))
+            self._tool_use("Write", {"file_path": str(full), "content": act["content"]})
+            full.parent.mkdir(parents=True, exist_ok=True)
+            full.write_text(act["content"])
+        elif kind == "git_commit":
+            self._tool_use("Bash", {"command": f"git add -A && git commit -m {json.dumps(act['message'])}"})
+            env = dict(os.environ, GIT_AUTHOR_DATE=FIXED_DATE, GIT_COMMITTER_DATE=FIXED_DATE)
+            for cmd in (["git", "add", "-A"],
+                        ["git", "commit", "-q", "--allow-empty", "-m", act["message"]]):
+                subprocess.run(cmd, cwd=self.workspace, env=env, check=False, capture_output=True)
+        elif kind == "bash":
+            self._tool_use("Bash", {"command": act["cmd"]})
+            subprocess.run(act["cmd"], shell=True, cwd=self.workspace, timeout=act.get("timeout", 120),
+                           check=False, capture_output=True)
+        elif kind == "emit_otel":
+            attrs = dict(act.get("attrs", {}))
+            self.cost_total += float(attrs.get("cost_usd", 0) or 0)
+            self._post("/v1/logs", otlp_log_payload(act["event"], attrs))
+        elif kind == "emit_otel_metric":
+            self._post("/v1/metrics", otlp_metric_payload(act["name"], act["value"],
+                                                          act.get("attrs", {})))
+        elif kind == "emit_stream_event":
+            self._emit(dict(act["event"]))
+        elif kind == "sleep":
+            self.sleep(float(act["seconds"]))
+
+    def run(self) -> None:
+        self._emit({"type": "system", "subtype": "init", "cwd": str(self.workspace),
+                    "tools": ["Bash", "Edit", "Read", "Write", "Glob", "Grep"], "mcp_servers": [],
+                    "model": "scripted", "permissionMode": "bypassPermissions"})
+        actions = self.script["actions"]
+        done = self._done()
+        ran = 0
+        while done < len(actions) and (self.max_actions_per_turn is None or ran < self.max_actions_per_turn):
+            act = actions[done]
+            if "at" in act:
+                wait = self.run_start + float(act["at"]) - self.clock()
+                if wait > 0:
+                    self.sleep(wait)
+            self._do(act)
+            done += 1
+            ran += 1
+            self._set_done(done)
+        if ran == 0:
+            idle = float(self.script.get("idle_s", 0.2))
+            if idle > 0:
+                self.sleep(idle)
+        self._emit({"type": "result", "subtype": "success", "is_error": False,
+                    "total_cost_usd": self.cost_total, "num_turns": ran})
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--script", required=True)
+    ap.add_argument("--workspace", required=True)
+    ap.add_argument("--otel", default=None)
+    ap.add_argument("--run-start", type=float, required=True)
+    ap.add_argument("--session-id", required=True)
+    ap.add_argument("--state", required=True)
+    args = ap.parse_args(argv)
+    agent = ScriptedAgent(load_script(args.script), workspace=Path(args.workspace),
+                          otel_endpoint=args.otel, run_start_epoch=args.run_start,
+                          session_id=args.session_id, out=sys.stdout, state_path=Path(args.state))
+    agent.run()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

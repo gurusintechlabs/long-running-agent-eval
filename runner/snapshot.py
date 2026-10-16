@@ -48,7 +48,7 @@ def worktree_hash(root: Path) -> str:
 
 def _count_files(root: Path) -> int:
     n = 0
-    for dirpath, dirnames, filenames in os.walk(root):
+    for _dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in _IGNORED_DIRS]
         n += sum(1 for f in filenames if not f.endswith(".pyc"))
     return n

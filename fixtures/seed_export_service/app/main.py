@@ -1,8 +1,6 @@
 """App factory and routes."""
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 
 from . import __version__, audit
@@ -13,7 +11,7 @@ from .pagination import clamp_page
 from .store import Store
 
 
-def create_app(db_path: str = ":memory:", settings: Optional[Settings] = None) -> FastAPI:
+def create_app(db_path: str = ":memory:", settings: Settings | None = None) -> FastAPI:
     """Build an app with its own isolated store (and audit log)."""
     settings = settings or Settings(db_path=db_path)
     store = Store(settings.db_path)
@@ -45,8 +43,8 @@ def create_app(db_path: str = ":memory:", settings: Optional[Settings] = None) -
     @app.get("/items", response_model=ItemPage)
     def list_items(
         request: Request,
-        limit: Optional[int] = Query(default=None),
-        offset: Optional[int] = Query(default=None),
+        limit: int | None = Query(default=None),
+        offset: int | None = Query(default=None),
         user_id: int = Depends(current_user_id),
         store: Store = Depends(get_store),
     ) -> dict:

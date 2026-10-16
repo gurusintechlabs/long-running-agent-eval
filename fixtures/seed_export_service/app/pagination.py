@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -12,8 +11,8 @@ class PageParams:
 
 
 def clamp_page(
-    limit: Optional[int],
-    offset: Optional[int],
+    limit: int | None,
+    offset: int | None,
     default_limit: int = 20,
     max_limit: int = 100,
 ) -> PageParams:

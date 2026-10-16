@@ -1,5 +1,3 @@
-import copy
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -168,7 +166,8 @@ def test_hash_changes_when_model_changes(tmp_path):
 
 def test_hash_independent_of_checkout_location(tmp_path):
     a, b = tmp_path / "a", tmp_path / "b"
-    a.mkdir(); b.mkdir()
+    a.mkdir()
+    b.mkdir()
     ha = load_spec(write_spec(a), repo_root=Path("/x")).spec_hash
     hb = load_spec(write_spec(b), repo_root=Path("/x")).spec_hash
     # work_dir differs between the two specs; it is machine-local and excluded from the hash

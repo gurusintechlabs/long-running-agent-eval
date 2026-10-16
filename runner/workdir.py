@@ -1,7 +1,6 @@
 """Per-run folders, the scrubbed agent environment and seed cloning (docs/spec.md §3.2, §5.1)."""
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -48,6 +47,15 @@ class RunPaths:
                 raise FileExistsError(f"run folder already exists: {base}")
         for d in (self.workspace.parent, self.tmp, self.events, self.otel_raw, self.snapshots):
             d.mkdir(parents=True)
+
+    def create_work(self) -> None:
+        """Resume: artifacts already exist; recreate only the agent-facing folders."""
+        if self.work.exists():
+            raise FileExistsError(f"run folder already exists: {self.work}")
+        self.workspace.parent.mkdir(parents=True)
+        self.tmp.mkdir()
+        for d in (self.events, self.otel_raw, self.snapshots):
+            d.mkdir(parents=True, exist_ok=True)
 
     def remove_work(self) -> None:
         shutil.rmtree(self.work, ignore_errors=True)

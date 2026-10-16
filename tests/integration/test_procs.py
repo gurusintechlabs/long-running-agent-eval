@@ -1,5 +1,4 @@
 import os
-import signal
 import subprocess
 import sys
 import time
@@ -99,7 +98,8 @@ def test_orphan_sweep_kills_escaped_background_process(tmp_path):
 
 def test_sweep_ignores_unrelated_and_own_processes(tmp_path):
     work, other = tmp_path / "work", tmp_path / "other"
-    work.mkdir(); other.mkdir()
+    work.mkdir()
+    other.mkdir()
     bystander = subprocess.Popen(["sleep", "30"], cwd=other)
     try:
         assert procs.sweep(work) == []

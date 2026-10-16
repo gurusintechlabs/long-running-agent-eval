@@ -27,8 +27,13 @@ def _under(path: str | None, root: Path) -> bool:
         return False
 
 
-def find_in_dir(root: Path, exclude: set[int] | None = None) -> list[psutil.Process]:
-    """Processes whose cwd or open files lie under ``root`` (catches setsid/nohup escapes)."""
+def find_in_dir(root: Path, exclude: set[int] | None = None, since: float | None = None,
+                check_files: bool = True) -> list[psutil.Process]:
+    """Processes whose cwd or open files lie under ``root`` (catches setsid/nohup escapes).
+
+    ``since`` (epoch seconds) restricts the result to processes started at or after that time, so
+    a shell the user left sitting in the work dir is never touched.
+    """
     root = Path(root).resolve()
     exclude = (exclude or set()) | {os.getpid()}
     found = []
@@ -36,17 +41,20 @@ def find_in_dir(root: Path, exclude: set[int] | None = None) -> list[psutil.Proc
         if proc.pid in exclude:
             continue
         try:
-            if _under(proc.cwd(), root) or any(_under(f.path, root) for f in proc.open_files()):
+            if since is not None and proc.create_time() < since:
+                continue
+            if _under(proc.cwd(), root) or (
+                    check_files and any(_under(f.path, root) for f in proc.open_files())):
                 found.append(proc)
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
             continue
     return found
 
 
-def sweep(root: Path) -> list[int]:
+def sweep(root: Path, since: float | None = None) -> list[int]:
     """SIGKILL every process (outside this one) working under ``root``; return their pids."""
     killed = []
-    for proc in find_in_dir(root):
+    for proc in find_in_dir(root, since=since):
         with contextlib.suppress(psutil.NoSuchProcess, psutil.AccessDenied):
             proc.kill()
             killed.append(proc.pid)
@@ -54,10 +62,12 @@ def sweep(root: Path) -> list[int]:
 
 
 class ManagedProcess:
-    def __init__(self, popen: subprocess.Popen, sweep_root: Path | None = None):
+    def __init__(self, popen: subprocess.Popen, sweep_root: Path | None = None,
+                 since: float | None = None):
         self.popen = popen
         self.pid = popen.pid  # also the pgid: the child is its own session leader
         self.sweep_root = Path(sweep_root).resolve() if sweep_root else None
+        self.since = since if since is not None else time.time() - 1
         self._paused: list[int] = []
 
     def alive(self) -> bool:
@@ -75,7 +85,7 @@ class ManagedProcess:
                 if os.getpgid(p.pid) == self.pid:
                     procs[p.pid] = p
         if self.sweep_root:
-            for p in find_in_dir(self.sweep_root):
+            for p in find_in_dir(self.sweep_root, since=self.since, check_files=False):
                 procs[p.pid] = p
         procs.pop(os.getpid(), None)
         return list(procs.values())
@@ -124,7 +134,7 @@ class ManagedProcess:
 
 def spawn(cmd: list[str], *, cwd: Path, env: dict[str, str], stdout: int | IO | None = None,
           stderr: int | IO | None = None, stdin: int | IO | None = subprocess.DEVNULL,
-          sweep_root: Path | None = None, **kw: Any) -> ManagedProcess:
+          sweep_root: Path | None = None, since: float | None = None, **kw: Any) -> ManagedProcess:
     popen = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=stdout, stderr=stderr, stdin=stdin,
                              start_new_session=True, **kw)
-    return ManagedProcess(popen, sweep_root=sweep_root)
+    return ManagedProcess(popen, sweep_root=sweep_root, since=since)

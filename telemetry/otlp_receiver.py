@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from telemetry.events import EventWriter, redact, utc_now_iso
+from telemetry.events import EventWriter, redact, scrub_otlp, utc_now_iso
 
 
 def _any_value(v: dict):
@@ -48,6 +48,31 @@ def _ts(nano) -> str | None:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
+def read_body(h: BaseHTTPRequestHandler) -> bytes:
+    """Request body, honouring ``Transfer-Encoding: chunked``.
+
+    The Claude Code CLI's OTel exporter sends chunked bodies with no Content-Length (observed
+    live against CLI 1.0.126), which ``BaseHTTPRequestHandler`` does not decode by itself.
+    """
+    if "chunked" in (h.headers.get("Transfer-Encoding") or "").lower():
+        out = bytearray()
+        while True:
+            line = h.rfile.readline(1024)
+            if not line:
+                raise EOFError("connection closed inside a chunked body")
+            size = int(line.split(b";", 1)[0].strip(), 16)
+            if size == 0:
+                while h.rfile.readline(1024).strip():  # trailers, up to the blank line
+                    pass
+                return bytes(out)
+            chunk = h.rfile.read(size)
+            if len(chunk) != size:
+                raise EOFError("truncated chunk")
+            out += chunk
+            h.rfile.readline(8)  # CRLF after the chunk
+    return h.rfile.read(int(h.headers.get("Content-Length") or 0))
+
+
 class OtlpReceiver:
     host = "127.0.0.1"
 
@@ -60,6 +85,8 @@ class OtlpReceiver:
         receiver = self
 
         class Handler(BaseHTTPRequestHandler):
+            timeout = 30  # a stalled client must not pin a handler thread forever
+
             def log_message(self, *a):  # silence
                 pass
 
@@ -103,13 +130,13 @@ class OtlpReceiver:
         path = h.path.split("?")[0]
         if path not in ("/v1/logs", "/v1/metrics", "/v1/traces"):
             return self._reply(h, 404, b'{"error":"not found"}')
-        length = int(h.headers.get("Content-Length") or 0)
-        body = h.rfile.read(length)
         self.stats["requests"] += 1
         self.stats["last_receive_mono_ns"] = time.monotonic_ns()
         recv_ts = utc_now_iso()
         ctype = (h.headers.get("Content-Type") or "").lower()
+        body = b""
         try:
+            body = read_body(h)
             if h.headers.get("Content-Encoding", "").lower() == "gzip":
                 body = gzip.decompress(body)
             if "json" not in ctype:
@@ -118,11 +145,15 @@ class OtlpReceiver:
                 self.events.emit("otel.unparsed", {"path": path, "bytes": len(body),
                                                    "content_type": ctype}, ts=recv_ts)
                 return self._reply(h, 200)
-            doc = json.loads(body)
+            doc = scrub_otlp(json.loads(body))
         except (OSError, ValueError, EOFError) as exc:
+            if body:  # keep the bytes for debugging; undecodable text cannot be scrubbed, so it is redacted
+                text = redact(body.decode("utf-8", "replace"))
+                self._write_raw({"path": path, "recv_ts": recv_ts, "content_type": ctype,
+                                 "body_b64": base64.b64encode(text.encode()).decode(), "scrubbed": False})
             self.events.emit("otel.parse_error", {"path": path, "error": str(exc)[:200]}, ts=recv_ts)
             return self._reply(h, 400, b'{"error":"bad request"}')
-        self._write_raw({"path": path, "recv_ts": recv_ts, "body": redact(doc)})
+        self._write_raw({"path": path, "recv_ts": recv_ts, "body": doc})
         if path == "/v1/logs":
             self._flatten_logs(doc, recv_ts)
         elif path == "/v1/metrics":
@@ -136,7 +167,12 @@ class OtlpReceiver:
                 for rec in sl.get("logRecords", []):
                     attrs = decode_attrs(rec.get("attributes"))
                     body = _any_value(rec.get("body", {})) if rec.get("body") else None
-                    etype = attrs.get("event.name") or (body if isinstance(body, str) else "otel.log")
+                    # The CLI sends event.name="api_request" but body="claude_code.api_request";
+                    # the prefixed body is the canonical type (matches its metric names).
+                    if isinstance(body, str) and body.startswith("claude_code."):
+                        etype = body
+                    else:
+                        etype = attrs.get("event.name") or (body if isinstance(body, str) else "otel.log")
                     payload = {**attrs, "_signal": "log", "_resource": resource, "_recv_ts": recv_ts}
                     if body is not None and body != etype:
                         payload["_body"] = body

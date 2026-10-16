@@ -31,6 +31,7 @@ from runner.prompt import assemble_prompt
 from runner.runtimes.base import TurnContext
 from runner.runtimes.claude_code import ClaudeCodeRuntime
 from runner.runtimes.scripted import ScriptedRuntime
+from runner.seed import ensure_seed_repo
 from runner.workdir import (
     RunPaths,
     WorkdirError,
@@ -181,7 +182,9 @@ class Run:
         else:
             self._session_id = str(uuid.uuid4())
             self._write_manifest()  # before cloning, so even an early failure records its end state
-            clone_seed(Path(self.spec.task.seed_repo), self.spec.task.seed_commit, self.paths.workspace)
+            seed_repo = ensure_seed_repo(Path(self.spec.task.seed_repo), self.spec.task.seed_commit,
+                                         self.repo_root / "runs" / ".seed-cache")
+            clone_seed(seed_repo, self.spec.task.seed_commit, self.paths.workspace)
 
         if self.runtime.needs_venv:
             cache = Path(self.spec.isolation.work_dir) / ".pip-cache"

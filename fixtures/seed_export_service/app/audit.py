@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from datetime import UTC, datetime
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
 """
 
-_conn: sqlite3.Connection | None = None
+_conn: Optional[sqlite3.Connection] = None
 _lock = threading.RLock()
 
 
@@ -40,9 +40,9 @@ def _require_conn() -> sqlite3.Connection:
     return _conn
 
 
-def record(user_id: int | None, action: str, detail: str = "") -> int:
+def record(user_id: Optional[int], action: str, detail: str = "") -> int:
     """Append an audit entry and return its id."""
-    ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     with _lock:
         conn = _require_conn()
         cur = conn.execute(
@@ -54,8 +54,8 @@ def record(user_id: int | None, action: str, detail: str = "") -> int:
 
 
 def list_entries(
-    user_id: int | None = None, limit: int = 100, offset: int = 0
-) -> list[dict[str, Any]]:
+    user_id: Optional[int] = None, limit: int = 100, offset: int = 0
+) -> List[Dict[str, Any]]:
     """Return audit entries oldest-first, optionally filtered by user."""
     sql = "SELECT id, ts, user_id, action, detail FROM audit_log"
     args: list = []

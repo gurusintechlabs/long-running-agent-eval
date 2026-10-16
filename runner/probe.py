@@ -66,8 +66,12 @@ def run_probe(*, runtime, env: dict[str, str], receiver, probe_dir: Path, art: P
             checks.extend(preflight.evaluate_init(init))
         result = next((json.loads(x) for x in reversed(lines) if x.startswith("{") and '"result"' in x), None)
         ok = bool(result) and not result.get("is_error") and rc == 0 and not timed_out
-        checks.append(Check("probe: agent replied", ok,
-                            "timed out" if timed_out else (f"rc={rc}" if not ok else "")))
+        detail = ""
+        if not ok:
+            reason = "timed out" if timed_out else f"rc={rc}"
+            said = str((result or {}).get("result") or "").strip()  # e.g. the API's own error text
+            detail = f"{reason}: {said[:300]}" if said else reason
+        checks.append(Check("probe: agent replied", ok, detail))
         end = time.monotonic() + otel_wait_s
         while receiver.stats["records"] <= before and time.monotonic() < end:
             time.sleep(0.1)

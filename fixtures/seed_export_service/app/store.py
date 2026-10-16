@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from datetime import UTC, datetime
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 from vendor.slugify_lite import slugify
 
@@ -32,7 +32,7 @@ SEED_USERS = [
     (2, "Bob Example", "bob@example.com"),
 ]
 
-Row = dict[str, Any]
+Row = Dict[str, Any]
 
 
 class Store:
@@ -59,7 +59,7 @@ class Store:
             )
             self.conn.commit()
 
-    def get_user(self, user_id: int) -> Row | None:
+    def get_user(self, user_id: int) -> Optional[Row]:
         with self._lock:
             r = self.conn.execute(
                 "SELECT id, name, email FROM users WHERE id = ?", (user_id,)
@@ -76,7 +76,7 @@ class Store:
 
     # -- items -----------------------------------------------------------
     @staticmethod
-    def _item_row(r: tuple) -> Row:
+    def _item_row(r: Tuple) -> Row:
         return {
             "id": r[0],
             "owner_id": r[1],
@@ -103,10 +103,10 @@ class Store:
         self,
         owner_id: int,
         title: str,
-        description: str | None = None,
+        description: Optional[str] = None,
         quantity: int = 1,
     ) -> Row:
-        created_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        created_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         with self._lock:
             slug = self._unique_slug(owner_id, title)
             cur = self.conn.execute(
@@ -120,7 +120,7 @@ class Store:
         assert item is not None
         return item
 
-    def get_item(self, owner_id: int, item_id: int) -> Row | None:
+    def get_item(self, owner_id: int, item_id: int) -> Optional[Row]:
         with self._lock:
             r = self.conn.execute(
                 f"SELECT {self._ITEM_COLS} FROM items WHERE id = ? AND owner_id = ?",
@@ -130,7 +130,7 @@ class Store:
 
     def list_items(
         self, owner_id: int, limit: int = 20, offset: int = 0
-    ) -> list[Row]:
+    ) -> List[Row]:
         with self._lock:
             rows = self.conn.execute(
                 f"SELECT {self._ITEM_COLS} FROM items WHERE owner_id = ?"

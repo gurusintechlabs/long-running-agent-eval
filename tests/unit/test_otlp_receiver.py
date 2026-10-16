@@ -147,3 +147,101 @@ def test_decode_attrs_types():
              {"key": "d", "value": {"kvlistValue": {"values": [
                  {"key": "k", "value": {"boolValue": False}}]}}}]
     assert decode_attrs(attrs) == {"a": "s", "b": 7, "c": [1, "x"], "d": {"k": False}}
+
+
+# The Claude Code CLI's OTel exporter (OTel-OTLP-Exporter-JavaScript) sends bodies chunked, with no
+# Content-Length (observed live against CLI 1.0.126).
+
+def post_chunked(rx, path, payload, gz=False):
+    import http.client
+    body = json.dumps(payload).encode()
+    headers = {"Content-Type": "application/json"}
+    if gz:
+        body = gzip.compress(body)
+        headers["Content-Encoding"] = "gzip"
+    conn = http.client.HTTPConnection(rx.host, rx.port, timeout=5)
+    pieces = [body[i:i + 50] for i in range(0, len(body), 50)]  # many small chunks
+    conn.request("POST", path, body=iter(pieces), headers=headers, encode_chunked=True)
+    resp = conn.getresponse()
+    status = resp.status
+    resp.read()
+    conn.close()
+    return status
+
+
+def test_chunked_body_is_decoded(rx):
+    r, tmp = rx
+    assert post_chunked(r, "/v1/logs", LOGS) == 200
+    ev = lines(tmp / "otel.jsonl")
+    assert [e["type"] for e in ev] == ["claude_code.api_request"]
+    assert ev[0]["payload"]["input_tokens"] == 1500
+
+
+def test_chunked_metrics_and_gzip(rx):
+    r, tmp = rx
+    assert post_chunked(r, "/v1/metrics", METRICS) == 200
+    assert post_chunked(r, "/v1/logs", LOGS, gz=True) == 200
+    assert [e["type"] for e in lines(tmp / "otel.jsonl")] == [
+        "claude_code.token.usage", "claude_code.cost.usage", "claude_code.api_request"]
+
+
+def test_truncated_chunked_body_is_400_not_a_hang(rx):
+    r, tmp = rx
+    s = socket.create_connection((r.host, r.port), timeout=3)
+    s.sendall(b"POST /v1/logs HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n"
+              b"Transfer-Encoding: chunked\r\n\r\nff\r\n{\"resourceLogs\":")
+    s.shutdown(socket.SHUT_WR)  # peer closes mid-chunk
+    data = s.recv(4096)
+    s.close()
+    assert b"400" in data.split(b"\r\n")[0]
+    assert lines(tmp / "otel.jsonl")[-1]["type"] == "otel.parse_error"
+
+
+# --- shapes observed live from Claude Code CLI 1.0.126 ---------------------------------------
+
+SENSITIVE = {"user.email": "someone@example.com", "user.account_uuid": "9583a392-ed68-4723-be22",
+             "user.id": "2abfd159d971cc63", "organization.id": "522f75bc-1158-47d8"}
+
+
+def real_log(attrs=None):
+    base = [{"key": "event.name", "value": {"stringValue": "api_request"}},
+            {"key": "model", "value": {"stringValue": "claude-haiku-5-5"}},
+            {"key": "cost_usd", "value": {"stringValue": "0.0063735"}},
+            {"key": "input_tokens", "value": {"stringValue": "4"}}]
+    base += [{"key": k, "value": {"stringValue": v}} for k, v in {**SENSITIVE, **(attrs or {})}.items()]
+    return {"resourceLogs": [{"resource": {"attributes": [
+        {"key": "service.name", "value": {"stringValue": "claude-code"}}]},
+        "scopeLogs": [{"logRecords": [{"timeUnixNano": "1767225600000000000",
+                                       "body": {"stringValue": "claude_code.api_request"},
+                                       "attributes": base}]}]}]}
+
+
+def test_type_uses_prefixed_body_name_not_bare_event_name(rx):
+    r, tmp = rx
+    post(r.endpoint + "/v1/logs", real_log())
+    e = lines(tmp / "otel.jsonl")[0]
+    assert e["type"] == "claude_code.api_request"
+    assert e["payload"]["event.name"] == "api_request" and e["payload"]["cost_usd"] == "0.0063735"
+
+
+def test_account_identifiers_never_reach_disk(rx):
+    r, tmp = rx
+    post(r.endpoint + "/v1/logs", real_log())
+    post(r.endpoint + "/v1/metrics", {"resourceMetrics": [{"resource": {"attributes": []}, "scopeMetrics": [
+        {"metrics": [{"name": "claude_code.cost.usage", "unit": "USD", "sum": {"dataPoints": [
+            {"asDouble": 0.5, "attributes": [{"key": k, "value": {"stringValue": v}}
+                                             for k, v in SENSITIVE.items()]}]}}]}]}]})
+    for f in ("raw.jsonl", "otel.jsonl"):
+        text = (tmp / f).read_text()
+        for value in SENSITIVE.values():
+            assert value not in text, (f, value)
+    assert "[REDACTED]" in (tmp / "otel.jsonl").read_text()
+    assert lines(tmp / "otel.jsonl")[0]["payload"]["model"] == "claude-haiku-5-5"  # non-sensitive intact
+
+
+def test_unparseable_body_is_kept_raw_for_debugging(rx):
+    r, tmp = rx
+    with pytest.raises(urllib.error.HTTPError):
+        post(r.endpoint + "/v1/logs", b"{not json", raw=True)
+    raw = lines(tmp / "raw.jsonl")
+    assert raw[0]["path"] == "/v1/logs" and raw[0]["body_b64"]

@@ -12,6 +12,7 @@ from runner import memory
 KNOWN_TOOLS = {
     "Task", "Bash", "Glob", "Grep", "LS", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write",
     "NotebookRead", "NotebookEdit", "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillBash",
+    "KillShell", "SlashCommand",  # reported by CLI 1.0.126
 }
 
 

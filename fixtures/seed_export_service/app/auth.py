@@ -1,14 +1,14 @@
 """API-key authentication stub: maps X-API-Key header values to user ids."""
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import Callable, Dict
 
 from fastapi import Header, HTTPException, Request, status
 
 from .config import API_KEY_HEADER
 
 
-def resolve_user_id(api_keys: dict[str, int], key: str | None) -> int:
+def resolve_user_id(api_keys: Dict[str, int], key: str | None) -> int:
     """Return the user id for ``key`` or raise 401."""
     if not key:
         raise HTTPException(

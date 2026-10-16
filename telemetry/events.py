@@ -18,6 +18,9 @@ _SECRET_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),
 ]
 REDACTED = "[REDACTED]"
+# Claude Code stamps every telemetry record with account identifiers (observed live, CLI 1.0.126).
+# They are never needed for any metric, so they are dropped on the way in.
+SENSITIVE_KEYS = frozenset({"user.email", "user.account_uuid", "user.id", "organization.id"})
 
 
 def redact(obj: Any) -> Any:
@@ -27,10 +30,24 @@ def redact(obj: Any) -> Any:
             obj = pat.sub(REDACTED, obj)
         return obj
     if isinstance(obj, dict):
-        return {k: redact(v) for k, v in obj.items()}
+        return {k: (REDACTED if k in SENSITIVE_KEYS else redact(v)) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
         return [redact(v) for v in obj]
     return obj
+
+
+def scrub_otlp(doc: Any) -> Any:
+    """Copy of an OTLP JSON document with sensitive attribute values replaced.
+
+    OTLP attributes are ``{"key": ..., "value": {...}}`` pairs, which :func:`redact` cannot see.
+    """
+    if isinstance(doc, dict):
+        if doc.get("key") in SENSITIVE_KEYS and "value" in doc:
+            return {**doc, "value": {"stringValue": REDACTED}}
+        return {k: scrub_otlp(v) for k, v in doc.items()}
+    if isinstance(doc, list):
+        return [scrub_otlp(v) for v in doc]
+    return doc
 
 
 def utc_now_iso() -> str:

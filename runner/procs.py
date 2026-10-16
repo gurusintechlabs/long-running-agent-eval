@@ -81,7 +81,7 @@ class ManagedProcess:
             for p in [root, *root.children(recursive=True)]:
                 procs[p.pid] = p
         for p in psutil.process_iter(["pid"]):
-            with contextlib.suppress(psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError):
+            with contextlib.suppress(psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError, PermissionError):
                 if os.getpgid(p.pid) == self.pid:
                     procs[p.pid] = p
         if self.sweep_root:
@@ -91,11 +91,15 @@ class ManagedProcess:
         return list(procs.values())
 
     def _signal_all(self, sig: int) -> list[int]:
+        # EPERM is not a real permission problem here: macOS returns it when signalling a process
+        # (or group) that has exited but not yet been reaped, e.g. a checkpoint landing between two
+        # turns. Treat it like "already gone" (seen intermittently under load before this fix).
+        gone = (ProcessLookupError, PermissionError)
         pids = []
-        with contextlib.suppress(ProcessLookupError):
+        with contextlib.suppress(*gone):
             os.killpg(self.pid, sig)
         for p in self._tree():
-            with contextlib.suppress(psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError):
+            with contextlib.suppress(psutil.NoSuchProcess, psutil.AccessDenied, *gone):
                 os.kill(p.pid, sig)
                 pids.append(p.pid)
         return pids
@@ -109,7 +113,7 @@ class ManagedProcess:
         for pid in self._paused:
             with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.kill(pid, signal.SIGCONT)
-        with contextlib.suppress(ProcessLookupError):
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(self.pid, signal.SIGCONT)
         self._paused = []
 

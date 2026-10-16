@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-__all__ = ["__version__", "slugify"]
+__all__ = ["slugify", "__version__"]
 __version__ = "1.2.0"
 
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")

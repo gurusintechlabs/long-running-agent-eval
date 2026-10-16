@@ -94,3 +94,19 @@ def test_probe_deletes_its_state_dir(tmp_path, rx):
               settings_path=tmp_path / "art" / "hs.json", claude_home=tmp_path / "claude-home",
               otel_wait_s=1.0)
     assert not sd.exists()
+
+
+def test_probe_failure_detail_carries_the_api_error_text(tmp_path, rx):
+    # CLI 1.0.126 + claude-opus-5-5 returns an is_error result explaining the version requirement
+    msg = "API Error: 400 Claude Code 1.0.126 does not support this model; version 2.1.280 or newer is required."
+    result = {"type": "result", "subtype": "success", "is_error": True, "result": msg}
+    stub_path = tmp_path / "claude"
+    stub_path.write_text(
+        f"#!{sys.executable}\nimport json, sys\n"
+        f"print(json.dumps({GOOD_INIT!r}), flush=True)\n"
+        f"print(json.dumps({result!r}), flush=True)\n"
+        "sys.exit(1)\n")
+    stub_path.chmod(stub_path.stat().st_mode | stat.S_IEXEC)
+    res = probe(tmp_path, rx, str(stub_path))
+    bad = next(c for c in res.checks if c.name == "probe: agent replied")
+    assert not bad.ok and "2.1.280" in bad.detail

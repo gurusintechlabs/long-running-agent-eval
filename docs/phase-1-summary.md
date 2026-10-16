@@ -10,11 +10,10 @@
 |---|---|
 | Scripted-runtime run completes and snapshots (4 checkpoints) | **Met.** `tests/integration/test_orchestrator.py::test_scripted_run_completes_with_all_artifacts` |
 | Two scripted runs give identical snapshot tree hashes at every checkpoint | **Met.** `test_runs_are_reproducible` compares `worktree_hash` and `head_tree` for t1..t4 |
-| Real Claude Code CLI smoke run (5 min, dt = 1 min) | **Not run.** Needs your approval to spend subscription usage. The test is written: `tests/live/test_smoke_claude_code.py` |
-| Platform-limit soak test (≥ 3 h) | **Not run.** Same reason. Written: `tests/live/test_soak.py` |
+| Real Claude Code CLI smoke run | **Met, in a smaller form** the owner approved: 30 s, two checkpoints, `claude-haiku-5-5` (Opus 5.5 is not available on CLI 1.0.126, D-17). `tests/live/test_smoke_claude_code.py` passed. |
+| Platform-limit soak test (≥ 3 h) | **Dropped by the owner** (cost). Written, never run: `tests/live/test_soak.py` |
 
-So the exit check is **met for the scripted runtime and not yet verified against the real CLI.** Everything below
-marked "unverified" depends on that live run.
+The exit check is **met** for both the scripted runtime and the real CLI (with a cheaper model, pending D-17).
 
 ## What was built
 
@@ -35,7 +34,7 @@ CLI: `lrae validate | run | resume | clean`. `score`, `ingest`, `dashboard` and 
 
 ## What was tested
 
-`pytest -m "not api"` (default plus `-m local`): **159 passed, 1 skipped** (the skip is a loopback-interface check that cannot run when this machine's hostname resolves to loopback), 2 live tests deselected. Full suite run three times, identical results (~2 min); no flaky tests observed.
+`pytest -m "not api"` (default plus `-m local`): **181 passed, 1 skipped** (the skip is a loopback-interface check that cannot run when this machine's hostname resolves to loopback), 2 live tests deselected (~2 min). One intermittent failure showed up during development (bug 6 below); it is fixed and was confirmed with 6 rounds under full CPU load.
 
 Covered, with no API spend:
 - Spec rejection cases (aliases, short SHA, dt not dividing duration, work_dir inside repo, script rules) and hash stability.
@@ -47,34 +46,41 @@ Covered, with no API spend:
 
 Ruff is clean (`E,F,I,B`; fixtures excluded).
 
-## Findings about the installed CLI (1.0.126), from `claude --help` only
+## Live verification (CLI 1.0.126, run 2026-10-16 with the owner's approval)
 
-Supported, so the clean-memory design is feasible: `--setting-sources`, `--strict-mcp-config`, `--mcp-config`, `--settings`, `--session-id`, `--resume`, `--output-format stream-json`, `--model`, `--dangerously-skip-permissions`.
+Cost: a handful of one-turn Haiku calls, one rejected Opus call (free), and one 63-second smoke run (about ten Haiku turns).
+The soak test was **dropped by the owner** (cost); `tests/live/test_soak.py` stays in the repo, unrun.
 
-**Not available:** `--max-turns` (the probe relies on its prompt alone to end quickly).
+| Question | Answer |
+|---|---|
+| Does the CLI export OTel in a format the receiver can read? | **Yes: `http/json`**, posted to `/v1/logs` and `/v1/metrics`. But the first attempt flattened 0 records: the CLI sends **chunked bodies with no `Content-Length`**. Receiver fixed (with tests). |
+| Event names | The prefixed *body* is canonical (`claude_code.api_request`); `event.name` is the bare `api_request`. Values such as `cost_usd` and token counts are **strings**. Metrics: `claude_code.cost.usage`, `claude_code.token.usage` (`type`: input/output/cacheRead/cacheCreation). |
+| Privacy | **Every record carries your email, account UUID, user ID and organization ID.** The receiver now redacts them before writing (raw and flattened); a test asserts none reach disk. Prompt text arrives as `<REDACTED>`. |
+| Is `--model claude-opus-5-5` accepted? | **No, not by CLI 1.0.126.** The API answers 400 `claude_code_version_too_old`: version **2.1.280 or newer** is required. `claude-haiku-5-5` is accepted. The CLI's own default model (`claude-sonnet-4-20250514`) returns 404, which is why every turn passes `--model`. See D-17. |
+| Does `--setting-sources project,local` keep a user `CLAUDE.md` out? | **No.** With a canary in `~/.claude/CLAUDE.md`, the agent repeated it with no flags (control), with `project,local`, and with `project` only. So the **move-aside guard is required**, not a fallback, and it is what the orchestrator uses. The live smoke test passed with it (canary never reached the agent; file restored; none existed originally). |
+| User skills / plugins | `init` has no `plugins` or `skills` fields in this version; `slash_commands` and `agents` list only built-ins in every run, even with `~/.claude/skills` populated. The probe's check on those is vacuous for 1.0.126. |
+| Does `memory.state_dir()` match the CLI's real path? | **Yes.** The smoke snapshots contain the CLI's session `.jsonl` files at the computed path, and no state dir remained afterwards. |
+| Does the full orchestrator work against the real CLI? | **Yes** (haiku, 30 s, 2 checkpoints): probe passed, telemetry arrived, cost recorded from OTel (> $0), clean-memory checks held, no leftovers. |
+| `claude -p` and stdin | An inherited open stdin makes `claude -p` hang waiting for end-of-input (my first probe timed out after 240 s). The harness always closes stdin. |
+| Auth | `apiKeySource: none` in `init`: the subscription login is in use, as expected. |
+| `--max-turns` | Not available in 1.0.126. |
 
-Observed on disk: the CLI names project dirs by replacing every non-alphanumeric character of the path with `-`
-(`.../longhorizon_testing` is stored as `...-longhorizon-testing`). `runner/memory.py` uses the same rule.
+Real captures, with account identifiers removed, are in `fixtures/otel/` and `fixtures/stream/` for the Phase 2 tests.
 
-## Unverified until a live run (needs your approval)
+### Still unverified
+- `--resume` against a *restored* state dir with the real CLI (resume is tested end to end only with the scripted agent).
+- OTel events for tool use and API errors (`tool_result`, `tool_decision`, `api_error`): the smoke turns used no tools.
+- Behaviour on a newer CLI (see D-17); everything above must be re-checked after updating, which `tests/live/test_smoke_claude_code.py` does cheaply.
+- `auto_memory: off` (no mechanism found; raises `NotImplementedError`).
+- Usage-limit behaviour and how long an Opus run lasts (needs real long runs; the Phase 4 dry run measures it).
 
-1. **Real `stream-json` shapes.** The scripted agent mimics the documented shape; the real `init` message may name fields differently (e.g. how MCP servers, plugins and skills are reported). `preflight.evaluate_init` is strict about unknown tools.
-2. **OTel details.** Whether 1.0.126 exports OTLP `http/json` (the receiver records `http/protobuf` as `otel.unparsed` without parsing), and the real event and metric names (`claude_code.api_request`, `cost_usd`, …).
-3. **Whether `--setting-sources project,local` keeps `~/.claude/CLAUDE.md` out.** Until verified, the orchestrator uses the move-aside mechanism whenever user memory exists. (On this machine none exists today: no `~/.claude/CLAUDE.md` or `rules/`.)
-4. **User skills and plugins.** `~/.claude/skills` and `~/.claude/plugins` exist. The probe fails the run if `init` reports any; whether the CLI reports them at all in 1.0.126 is unknown.
-5. **`--model claude-opus-5-5`** accepted by this CLI version.
-6. **`--resume` after restoring the state dir** from a snapshot (resume is tested end to end only with the scripted agent).
-7. **Real state dir location** equals `memory.state_dir(workspace)` (encoding was checked against existing dirs, not against a fresh run).
-8. **`auto_memory: off`** has no verified mechanism; the runtime raises `NotImplementedError` for it.
-9. **Soak test:** login expiry, usage-limit stops, how long an Opus run lasts before a limit.
-
-To run the live checks (about 5 minutes of subscription usage for the smoke run, a few cents for the probe):
-
-```
-LRAE_CONFIRM_SPEND=1 .venv/bin/python -m pytest tests/live/test_smoke_claude_code.py --run-api -s
-```
-
-The smoke test temporarily writes a canary line into your real `~/.claude/CLAUDE.md` and restores the file afterwards.
+### Bugs the live runs found (all fixed, with tests)
+1. Receiver ignored chunked request bodies.
+2. Cost counter would have summed 0 for real runs (assumed numeric values and a different event name), and crashed on a non-numeric value.
+3. Pre-flight rejected the real tool list (`KillShell`, `SlashCommand` missing).
+4. The seed fixture is plain files but the orchestrator tried to `git clone` it. Added `runner/seed.py` (deterministic build, cache, SHA verification).
+5. My own early `ruff --fix` had rewritten 10 seed files and I had committed that, silently changing the pinned seed SHA. Caught by the new pinned-SHA test, restored from the verified commit, and fixtures are now excluded from linting.
+6. **Intermittent run failure under load** (`PermissionError: Operation not permitted`, about 1 run in 4 when the machine was busy). macOS answers EPERM when you signal the process group of a process that has exited but not been reaped, and a checkpoint landing between two agent turns did exactly that. Now treated as "already gone" in all signalling paths; a deterministic test builds a zombie on purpose. Confirmed with 6 rounds of the previously failing tests under full CPU load (all pass). It surfaced only because I reran a failing test instead of dismissing it as flaky.
 
 ## Known limitations and deviations (for review)
 
@@ -89,4 +95,5 @@ The smoke test temporarily writes a canary line into your real `~/.claude/CLAUDE
 
 ## Decisions to confirm
 
-None new. D-2, D-3, D-5, D-12, D-14, D-15 and D-16 were implemented as written. One implementation choice worth a look: **the user-memory move-aside** is the default mechanism until item 3 above is verified.
+- **D-17 (open): the installed CLI cannot run `claude-opus-5-5`.** It needs Claude Code ≥ 2.1.280; this machine has 1.0.126. Options: (a) run `claude update` (changes your global CLI, which also affects your interactive use; I have not done it), then re-run the smoke test, which re-verifies flags, telemetry and the `CLAUDE.md` behaviour; (b) run studies on a model 1.0.126 accepts (e.g. `claude-haiku-5-5`), which is not what the pilot spec intends.
+- D-2, D-3, D-5, D-12, D-14, D-15 and D-16 were implemented as written. D-15's mechanism 1 (flags) was **disproven**, so mechanism 3 (move-aside) is now the verified mechanism rather than a fallback.

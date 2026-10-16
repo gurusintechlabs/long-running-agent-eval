@@ -139,3 +139,10 @@ def test_raise_on_failure(tmp_path):
     with pytest.raises(preflight.PreflightError) as ei:
         preflight.require(static(tmp_path, paths))
     assert "L-1" in str(ei.value)
+
+
+def test_real_cli_1_0_126_tool_list_is_accepted():
+    # tools reported by the live CLI (observed 2026-10-16)
+    tools = ["Task", "Bash", "Glob", "Grep", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write",
+             "NotebookEdit", "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillShell", "SlashCommand"]
+    assert all(c.ok for c in preflight.evaluate_init(init_msg(tools=tools)))

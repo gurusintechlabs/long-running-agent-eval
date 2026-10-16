@@ -137,3 +137,26 @@ def test_pause_includes_escaped_descendants_under_workdir(tmp_path):
     finally:
         mp.kill()
         procs.sweep(work)
+
+
+def make_zombie(tmp_path):
+    """A managed process that has exited but has not been reaped (the harness has not polled it)."""
+    mp = procs.spawn(["true"], cwd=tmp_path, env={"PATH": "/usr/bin:/bin"})
+    assert wait_for(lambda: psutil.Process(mp.pid).status() == psutil.STATUS_ZOMBIE), "never became a zombie"
+    return mp
+
+
+def test_pause_resume_on_an_exited_unreaped_process_do_not_raise(tmp_path):
+    # macOS answers EPERM when signalling the group of a zombie; a checkpoint that lands between
+    # turns used to crash the whole run with PermissionError (seen intermittently under load).
+    mp = make_zombie(tmp_path)
+    mp.pause()
+    mp.resume()
+    mp.kill()
+    assert not mp.alive()
+
+
+def test_terminate_on_an_exited_unreaped_process_does_not_raise(tmp_path):
+    mp = make_zombie(tmp_path)
+    mp.terminate(grace_s=1)
+    assert not mp.alive()

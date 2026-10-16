@@ -76,3 +76,22 @@ def test_non_serialisable_payload_does_not_crash(tmp_path):
     w = EventWriter(tmp_path / "e.jsonl", "r", "s")
     w.emit("t", {"p": tmp_path})
     assert read(tmp_path / "e.jsonl")[0]["payload"]["p"] == str(tmp_path)
+
+
+def test_account_identifier_keys_redacted_in_nested_dicts():
+    out = redact({"user.email": "a@b.c", "attributes": {"organization.id": "x", "model": "m",
+                                                         "user.account_uuid": "u", "user.id": "i"}})
+    assert out["user.email"] == "[REDACTED]"
+    assert out["attributes"] == {"organization.id": "[REDACTED]", "model": "m",
+                                 "user.account_uuid": "[REDACTED]", "user.id": "[REDACTED]"}
+
+
+def test_scrub_otlp_attribute_lists():
+    from telemetry.events import scrub_otlp
+    doc = {"resourceLogs": [{"scopeLogs": [{"logRecords": [{"attributes": [
+        {"key": "user.email", "value": {"stringValue": "a@b.c"}},
+        {"key": "model", "value": {"stringValue": "m"}}]}]}]}]}
+    out = scrub_otlp(doc)
+    attrs = out["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]["attributes"]
+    assert attrs[0]["value"] == {"stringValue": "[REDACTED]"} and attrs[1]["value"] == {"stringValue": "m"}
+    assert doc["resourceLogs"][0]["scopeLogs"][0]["logRecords"][0]["attributes"][0]["value"] == {"stringValue": "a@b.c"}

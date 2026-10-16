@@ -16,7 +16,10 @@ def cumulative_cost(otel_events: Path) -> float:
                 except ValueError:
                     continue
                 if ev.get("type") == "claude_code.api_request":
-                    total += float(ev.get("payload", {}).get("cost_usd") or 0)
+                    try:  # the CLI exports cost_usd as a string attribute
+                        total += float(ev.get("payload", {}).get("cost_usd") or 0)
+                    except (TypeError, ValueError):
+                        continue
     except OSError:
         pass
     return total

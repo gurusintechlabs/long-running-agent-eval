@@ -52,6 +52,10 @@ def test_state_transitions_logged_in_order(env):
     res, _ = do_run(env)
     ev = events(res.paths.events / "orchestrator.jsonl")
     states = [e["payload"]["to"] for e in ev if e["type"] == "state"]
+    for e in ev:
+        if e["type"] in ("run.error", "cleanup.error"):
+            print(e["payload"].get("trace") or e["payload"])
+    assert res.state == RunState.COMPLETED, res.error
     assert states[0] == "PREPARING" and "RUNNING" in states and "FINALIZING" in states
     assert states[-1] == "COMPLETED"
     assert states.count("CHECKPOINTING") == 4
@@ -91,7 +95,8 @@ def test_keep_work_dir_option(env):
 def test_runs_are_reproducible(env):
     r0, _ = do_run(env, repeat=0)
     r1, _ = do_run(env, repeat=1)
-    assert r0.state == r1.state == RunState.COMPLETED
+    assert r0.state == RunState.COMPLETED, r0.error
+    assert r1.state == RunState.COMPLETED, r1.error
     assert r0.paths.work != r1.paths.work and r0.paths.art != r1.paths.art
     for k in range(1, 5):
         m0 = json.loads((r0.paths.snapshots / f"t{k}" / "meta.json").read_text())

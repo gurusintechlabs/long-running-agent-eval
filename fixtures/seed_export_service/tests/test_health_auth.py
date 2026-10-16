@@ -1,6 +1,6 @@
-import pytest
 from app.auth import resolve_user_id
 from fastapi import HTTPException
+import pytest
 
 
 def test_health(client):

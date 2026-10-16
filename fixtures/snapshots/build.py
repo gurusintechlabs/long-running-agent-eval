@@ -6,8 +6,10 @@
 The result is the seed at its pinned commit plus ONE agent commit (author/committer
 ``agent <agent@lrae.local>``, date 2026-01-01T00:00:00Z) holding the snapshot's overlay, so the
 HEAD SHA depends only on the fixture files. ``snapshot.yaml`` per snapshot:
-``{base: seed | <other snapshot>, commit_message, deletes: [paths]}``; overlays of the base chain
-are applied first, then the snapshot's own, then its deletes.
+``{base: seed | <other snapshot>, commit_message, deletes: [paths], spec: <experiment spec>}``;
+overlays of the base chain are applied first, then the snapshot's own, then its deletes. ``spec``
+(optional; the nearest one along the base chain wins, default ``spec/examples/pilot.yaml``) names
+the experiment spec whose ``task.seed_repo`` / ``task.seed_commit`` give the seed.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
+DEFAULT_SPEC = "spec/examples/pilot.yaml"
 DATE = "2026-01-01T00:00:00Z"
 IDENT = {
     "GIT_AUTHOR_NAME": "agent", "GIT_AUTHOR_EMAIL": "agent@lrae.local",
@@ -58,10 +61,12 @@ def materialize(name: str, dest: Path, repo_root: Path) -> Path:
 
     repo_root, dest = Path(repo_root), Path(dest)
     chain = _chain(name)
-    task = yaml.safe_load((repo_root / "spec/examples/pilot.yaml").read_text())["task"]
+    spec_rel = next((m["spec"] for _, m in reversed(chain) if m.get("spec")), DEFAULT_SPEC)
+    spec_path = repo_root / spec_rel
+    task = yaml.safe_load(spec_path.read_text())["task"]
     seed_commit = task["seed_commit"]
-    seed_repo = ensure_seed_repo(repo_root / "fixtures/seed_export_service", seed_commit,
-                                 repo_root / "runs" / ".seed-cache")
+    seed_src = (spec_path.parent / task["seed_repo"]).resolve()
+    seed_repo = ensure_seed_repo(seed_src, seed_commit, repo_root / "runs" / ".seed-cache")
     if dest.exists() and any(dest.iterdir()):
         raise FileExistsError(f"destination is not empty: {dest}")
     if dest.exists():
@@ -91,7 +96,7 @@ def materialize(name: str, dest: Path, repo_root: Path) -> Path:
 
 def main(argv: list[str]) -> int:
     if len(argv) != 3:
-        print("usage: build.py <known_good|known_bad> <dest-dir>", file=sys.stderr)
+        print("usage: build.py <snapshot name, e.g. known_good> <dest-dir>", file=sys.stderr)
         return 2
     root = HERE.parents[1]
     sys.path.insert(0, str(root))

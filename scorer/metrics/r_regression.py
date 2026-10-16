@@ -130,10 +130,14 @@ def run_regression_on(tree_src: Path, seed_ws: Path, python: Path, *,
 # --- R --------------------------------------------------------------------------------------
 
 def count_regressions(prev: dict[str, str] | None, cur: dict[str, str]) -> list[str]:
-    """Test ids that passed before and do not pass now (a deleted test is a regression)."""
+    """Test ids that passed before and do not pass now (a deleted test is a regression).
+
+    A test that is ``skipped`` now (not active at the current stage) is never a regression; a test
+    that was not passing (or absent) before cannot regress."""
     if not prev:
         return []
-    return sorted(t for t, o in prev.items() if o == "passed" and cur.get(t) != "passed")
+    return sorted(t for t, o in prev.items()
+                  if o == "passed" and cur.get(t) not in ("passed", "skipped"))
 
 
 def score_regressions(prev_hidden: dict[str, str] | None, cur_hidden: dict[str, str],
@@ -278,7 +282,7 @@ def accepted_in_interval(mirror: Path, prev_sha: str, cur_sha: str, seed_ws: Pat
             materialize_commit(mirror, commit, src)
             res = run_regression_on(src, seed_ws, python)
         return tree_hash, {"green": res.green, "passed": res.passed, "total": res.total,
-                           "reason": res.reason}
+                           "reason": res.reason, "outcomes": res.outcomes}
 
     if todo:
         with ThreadPoolExecutor(max_workers=max(1, min(workers, len(todo)))) as pool:

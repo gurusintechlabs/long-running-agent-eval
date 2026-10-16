@@ -255,6 +255,10 @@ Pre-flight rejects a run whose installed `claude --version` does not match `clau
 
 Each config is a YAML file in `spec/configs/`. Configs MUST change only loop-driver behavior.
 
+### 4.4 Staged briefs **[D-18, proposed]**
+
+A task may set `task.stages_file`. Stage 0 is the t=0 prompt (`task.prompt_file`, with the planted constraints appended); each later stage is a product-owner message (`feature` or `change_request`) sent as the prompt of the first turn that starts at or after `at_frac × duration`, resuming the same session. A turn still running at `(at_frac + max_wait_frac) × duration` is interrupted (SIGTERM with grace; not counted as a failed turn) so the stage can go out. Every delivery is an `orchestrator` event `stage.delivered`. Stages are a property of the **task**, identical across configs A–E, so configs still differ only in loop-driver behavior. The scorer evaluates each checkpoint and commit against the hidden tests active at the stage in force at that time (`LRAE_STAGE`).
+
 ## 5. Runner (`runner/`)
 
 ### 5.1 Run lifecycle
@@ -588,6 +592,7 @@ Tables:
 | D-13 | Judge via the Claude Code CLI; X = median of 3 samples | proposed | 3 |
 | D-14 | **Local mode, no OS isolation.** The design's "isolated sandbox" is deferred to optional Phase 7. Out-of-scope access is detected, not prevented. Local-mode results are acceptable for the report. | **confirmed** (owner, v0.3–v0.4) | 1 |
 | D-17 | **Model vs CLI version.** `claude-opus-5-5` is rejected by the API for CLI 1.0.126 (`claude_code_version_too_old`: needs ≥ 2.1.280). The CLI's own default model (`claude-sonnet-4-20250514`) also returns 404. Real-agent runs therefore need a CLI update first; until then only models the API accepts for 1.0.126 (e.g. `claude-haiku-5-5`) work. After updating, flags, telemetry names and the `CLAUDE.md` behaviour MUST be re-verified (the smoke test does this). | **open: needs owner decision** | 1 |
+| D-18 | **Staged briefs.** A task may deliver its brief in stages during the run (`task.stages_file`, docs/interfaces.md §9): new features and *change requests* that overturn earlier behaviour, at fixed fractions of the run, at a turn boundary or by interrupting an overdue turn. Hidden tests carry a stage window, so retired behaviour stops counting. Planted constraints are still stated once, with stage 0. Purpose: force revision of earlier work so degradation (regressions, forgotten requirements) becomes observable; the all-at-once brief let a capable agent design everything up front (docs/minidb-blind-check.md). | **proposed** (2026-10-17) | 5 |
 | D-16 | **Subscription login.** OTel `cost_usd` is the CLI's *API-equivalent estimate*, not a bill. All cost metrics, S(t) and budget caps use that estimate, plus token caps. Subscription usage limits that stop a run count as platform interruptions and censor it (D-7). The report labels cost as "estimated, API-equivalent". | **confirmed** (owner, 2026-10-16) | 1–6 |
 | D-15 | Clean memory per workspace: no project, ancestor or user memory; agent state dir empty at start, snapshotted, deleted at end; MCP servers, plugins and user settings excluded per run | **confirmed** (owner, v0.4); exact flags verified in Phase 1 | 1 |
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 
-from analysis import survival, trends
+from analysis import degradation, survival, trends
 from report import charts
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -56,6 +56,68 @@ def incidents(runs: list[dict], hazards: list[dict]) -> list[dict]:
     for i in out:
         i["t_min"] = fmt_min(i["t_s"])
     return out
+
+
+MAX_DEGRADATION_RUNS = 12
+_SAFE = "".join(chr(c) for c in range(128) if chr(c).isalnum()) + "-_"
+
+
+def _pct(v: float | None) -> str:
+    return "-" if v is None else f"{100 * v:.0f}%"
+
+
+def degradation_context(db_path: Path, experiment_id: str, fig_dir: Path) -> dict:
+    """Degradation figures and tables; ``{"has_data": False}`` when no run has per-commit data."""
+    rids = degradation.runs_with_data(db_path, experiment_id)
+    if not rids:
+        return {"has_data": False}
+    shown = rids[:MAX_DEGRADATION_RUNS]
+    runs, intervals, windows = [], [], []
+    for rid in shown:
+        safe = "".join(c if c in _SAFE else "_" for c in rid)
+        m = degradation.load_matrix(db_path, rid)
+        flips = degradation.flip_events(db_path, rid)
+        rates = degradation.pass_rates(db_path, rid)
+        iv = degradation.fill_intervals(db_path, rid)
+        belief = degradation.belief_gap(db_path, rid)
+        stages = [(s, t) for s, t, _ in degradation.stage_deliveries(db_path, rid)]
+        comp = [i["t1"] for i in iv if i["compactions"]]
+        names = {"heatmap": f"deg_{safe}_heatmap.png", "tiers": f"deg_{safe}_tiers.png",
+                 "fill": f"deg_{safe}_regressions_fill.png", "belief": f"deg_{safe}_belief.png"}
+        charts.outcome_heatmap(m, flips, fig_dir / names["heatmap"], stages=stages, title=f"{rid}: test outcomes")
+        charts.tier_rate_chart(rates, fig_dir / names["tiers"], stages=stages, compactions=comp,
+                               title=f"{rid}: pass rate per tier")
+        charts.regression_fill_chart(iv, flips, fig_dir / names["fill"], title=f"{rid}: regressions vs context fill")
+        charts.belief_gap_chart(belief, fig_dir / names["belief"], title=f"{rid}: belief gap")
+        summ = degradation.run_summary(db_path, rid)
+        bs = degradation.belief_summary(belief)
+        effects = [{**e, **{k: _pct(e[k]) for k in ("carried_before", "carried_after", "carried_end",
+                                                    "retired_before", "introduced_end")}}
+                   for e in degradation.stage_effects(db_path, rid)]
+        status = degradation.status_counts(db_path, rid)
+        runs.append({"run_id": rid, "figs": names, "summary": {
+            **summ, "mean_ttfr": fmt_min(summ["mean_ttfr_s"]), "est_min": _pct(summ["established_min"]),
+            "est_final": _pct(summ["established_final"]), "overall_final": _pct(summ["overall_final"])},
+            "belief": {**bs, "gap_frac": _pct(bs["gap_frac"])}, "effects": effects,
+            "final_status": status[-1] if status else None,
+            "staged": len(degradation.stage_deliveries(db_path, rid)) > 1})
+        intervals += iv
+        windows.append(degradation.window_rates(db_path, rid))
+    pooled_windows = []
+    for w in range(max((len(x) for x in windows), default=0)):
+        sel = [x[w] for x in windows if len(x) > w]
+        n, h = sum(i["regressions"] for i in sel), sum(i["hours"] for i in sel)
+        pooled_windows.append({"window": w + 1, "runs": len(sel), "regressions": n, "hours": f"{h:.2f}",
+                               "per_hour": "-" if h <= 0 else f"{n / h:.1f}"})
+    fmt = lambda r: "-" if r is None else f"{r:.1f}"  # noqa: E731
+    bins = [{"label": f"{b['lo']:.2f}-{b['hi']:.2f}" if b["hi"] else f">= {b['lo']:.2f}",
+             "intervals": b["intervals"], "regressions": b["regressions"], "per_hour": fmt(b["per_hour"])}
+            for b in degradation.fill_bins(intervals)]
+    comp_eff = [{**e, "per_hour": fmt(e["per_hour"])} for e in degradation.compaction_effect(intervals)]
+    top = [{**r, "ttfr": fmt_min(r["ttfr_s"]), "first_pass": fmt_min(r["first_pass_t"])}
+           for r in degradation.top_relapsers(db_path, shown)]
+    return {"has_data": True, "runs": runs, "skipped_runs": len(rids) - len(shown), "bins": bins,
+            "compaction_effect": comp_eff, "windows": pooled_windows, "top": top}
 
 
 def collect_context(db_path: Path, experiment_id: str, out_dir: Path) -> dict:
@@ -105,6 +167,8 @@ def collect_context(db_path: Path, experiment_id: str, out_dir: Path) -> dict:
                          hazards={rid: [(h["t_attributed_s"], h["dimension"]) for h in hs]
                                   for rid, hs in haz_by_run.items()})
 
+    deg = degradation_context(db_path, experiment_id, fig_dir)
+
     rows = []
     for r in runs:
         rows.append({**r, "duration": fmt_min(r["duration_s"]), "ttfh": fmt_min(r["ttfh_s"]),
@@ -116,7 +180,7 @@ def collect_context(db_path: Path, experiment_id: str, out_dir: Path) -> dict:
                                  f"excluded ({r['censored_reason'] or r['state'].lower()})")})
     modes = sorted({r["isolation_mode"] for r in runs if r["isolation_mode"]})
     return {"experiment_id": experiment_id, "spec_hash": exp[0]["spec_hash"], "runs": rows,
-            "incidents": incidents(runs, hazards), "summaries": summaries, "figures": figs,
+            "incidents": incidents(runs, hazards), "summaries": summaries, "figures": figs, "degradation": deg,
             "cost_label": COST_LABEL, "isolation_modes": modes, "not_isolated": "local" in modes,
             "n_censored_limit": sum(1 for r in runs if r["censored_reason"] in ("usage_limit", "usage-limit"))}
 

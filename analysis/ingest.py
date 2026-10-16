@@ -3,11 +3,34 @@
 The store is a derived cache: it is rebuilt from scratch into a temp file and renamed into place,
 rows are inserted in a deterministic order and nothing time-of-ingestion is stored, so re-running
 ``ingest`` on unchanged runs reproduces identical table contents.
+
+Degradation tables (docs/interfaces.md §8, §9); all are empty for runs written before they existed:
+
+``test_outcomes(run_id, point, k, seq, sha, t_s, stage, test_id, tier, suite, outcome)``
+    One row per (point, suite, test). ``point`` is ``'commit'`` (a ``scorer.commit`` event of the
+    selected pass of checkpoint ``k``: the hidden suite and the regression suite run on that commit's
+    tree; ``t_s`` = commit time since run start) or ``'checkpoint'`` (``P.detail.outcomes`` ->
+    ``suite='hidden'`` and ``R.detail.outcomes`` -> ``suite='regression'`` of the selected pass of ``k``,
+    i.e. the working tree at ``t_s`` of the checkpoint, ``sha`` = checkpoint head sha). ``stage`` is the
+    stage active at ``t_s`` (the event's own value for commits, else derived from ``stages``; ``0``
+    when the task is not staged). ``outcome``: passed | failed | error | skipped. ``tier`` is TEXT:
+    ``P.detail.tiers`` when given, else the ``N`` of ``test_tN_*.py`` in the test id, else the file stem.
+    ``seq`` orders points that share ``t_s``: the commit's position in the scorer's oldest-first
+    ``scorer.commit`` sequence for ``k`` (scripted runs commit with one fixed date, so their commit
+    times tie), and 1 000 000 for the checkpoint itself.
+    Row order: ``t_s, point('commit' first), k, seq, suite, test_id``.
+``stages(run_id, stage, t_s, interrupted)``
+    ``stage.delivered`` orchestrator events (last one wins per stage), ordered by stage.
+``agent_test_runs(run_id, t_s, passed, failed, errors, skipped)``
+    ``agent.test_run`` events (the agent's own pytest output = its *belief*). ``t_s`` is the envelope
+    ``ts`` relative to the latest ``run.clock`` origin that precedes it (plus that clock's ``offset_s``),
+    i.e. on the same axis as checkpoint ``t_s``. Ordered by ``t_s`` then file order.
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass, field
@@ -28,8 +51,15 @@ CREATE TABLE hazards(run_id TEXT, dimension TEXT, rule TEXT, t_attributed_s REAL
   k INTEGER, evidence TEXT, PRIMARY KEY(run_id, dimension));
 CREATE TABLE events_index(run_id TEXT, source TEXT, type TEXT, count INTEGER,
   PRIMARY KEY(run_id, source, type));
+CREATE TABLE test_outcomes(run_id TEXT, point TEXT, k INTEGER, seq INTEGER, sha TEXT, t_s REAL, stage INTEGER,
+  test_id TEXT, tier TEXT, suite TEXT, outcome TEXT);
+CREATE INDEX test_outcomes_run ON test_outcomes(run_id, suite, test_id);
+CREATE TABLE stages(run_id TEXT, stage INTEGER, t_s REAL, interrupted INTEGER, PRIMARY KEY(run_id, stage));
+CREATE TABLE agent_test_runs(run_id TEXT, t_s REAL, passed INTEGER, failed INTEGER, errors INTEGER,
+  skipped INTEGER);
 """
-TABLES = ("experiments", "runs", "checkpoints", "metrics", "counters", "hazards", "events_index")
+TABLES = ("experiments", "runs", "checkpoints", "metrics", "counters", "hazards", "events_index",
+          "test_outcomes", "stages", "agent_test_runs")
 # Used when telemetry.counters is unavailable so downstream consumers still see every name.
 ZERO_COUNTERS = ("tokens_in", "tokens_out", "tokens_cache_read", "tokens_cache_creation",
                  "cost_usd", "tool_calls", "context_fill_max", "context_fill_last", "compactions",
@@ -48,6 +78,9 @@ class IngestReport:
     hazards: int = 0
     events_indexed: int = 0
     in_survival: int = 0
+    test_outcomes: int = 0
+    stages: int = 0
+    agent_test_runs: int = 0
     warnings: list[str] = field(default_factory=list)
 
 
@@ -98,6 +131,81 @@ def scored_view(scorer_events: list[dict]) -> tuple[list[tuple], list[dict]]:
             if cur is None or (p["t_attributed_s"], p["k"]) < (cur["t_attributed_s"], cur["k"]):
                 hazards[p["dimension"]] = p
     return [metrics[key] for key in sorted(metrics)], [hazards[d] for d in sorted(hazards)]
+
+
+_TIER_RE = re.compile(r"test_t(\d+)_[^/:]*\.py")
+
+
+def derive_tier(test_id: str) -> str:
+    """``N`` of ``test_tN_*.py`` in a test id, else the file stem."""
+    m = _TIER_RE.search(test_id)
+    if m:
+        return m.group(1)
+    return Path(test_id.split("::", 1)[0]).stem
+
+
+def _stage_at(deliveries: list[tuple[float, int]], t: float | None) -> int:
+    """Stage active at ``t``: the last delivered at or before it (0 before any / unknown time)."""
+    cur = 0
+    for ts, st in deliveries:
+        if t is not None and ts <= t:
+            cur = st
+    return cur
+
+
+CHECKPOINT_SEQ = 1_000_000
+
+
+def _test_outcome_rows(scorer_events: list[dict], metrics: list[tuple], cps: dict[int, dict],
+                       deliveries: list[tuple[float, int]]) -> list[tuple]:
+    """Rows for ``test_outcomes`` (without run_id) from the selected scorer passes."""
+    ok = last_ok_passes(scorer_events)
+    tiers: dict[str, str] = {}
+    for _k, name, _v, detail in metrics:
+        if name == "P" and isinstance(detail.get("tiers"), dict):
+            tiers.update({t: str(n) for t, n in detail["tiers"].items()})
+    tier = lambda t: tiers.get(t) or derive_tier(t)  # noqa: E731
+    rows = []
+    seq: dict[int, int] = {}
+    for ev in scorer_events:
+        p = ev.get("payload") or {}
+        if ev.get("type") != "scorer.commit" or "k" not in p:
+            continue
+        k = int(p["k"])
+        if ok.get(k) is None or p.get("pass_id") != ok[k]:
+            continue
+        n = seq[k] = seq.get(k, -1) + 1
+        t = _num(p.get("t_s"))
+        stage = p["stage"] if isinstance(p.get("stage"), int) else _stage_at(deliveries, t)
+        for suite, key in (("hidden", "hidden"), ("regression", "regression")):
+            for tid, out in (p.get(key) or {}).items():
+                rows.append(("commit", k, n, p.get("sha"), t, stage, tid, tier(tid), suite, out))
+    for k, name, _v, detail in metrics:
+        suite = {"P": "hidden", "R": "regression"}.get(name)
+        if suite is None or not isinstance(detail.get("outcomes"), dict):
+            continue
+        t = _num((cps.get(k) or {}).get("t_s"))
+        for tid, out in detail["outcomes"].items():
+            rows.append(("checkpoint", k, CHECKPOINT_SEQ, (cps.get(k) or {}).get("head_sha"), t,
+                         _stage_at(deliveries, t),
+                         tid, tier(tid), suite, out))
+    rows.sort(key=lambda r: (-1 if r[4] is None else r[4], r[0] != "commit", r[1], r[2], r[8], r[6]))
+    return rows
+
+
+def _clock_t(ts: str, clocks: list[tuple[float, float]]) -> float | None:
+    """Run time (checkpoint t_s axis) of an envelope ``ts`` given ``[(start_epoch, offset_s)]``."""
+    try:
+        e = _iso_epoch(ts)
+    except (ValueError, TypeError, AttributeError):
+        return None
+    use = None
+    for start, off in clocks:
+        if start <= e + 1e-6:
+            use = (start, off)
+    if use is None and clocks:
+        use = clocks[0]
+    return None if use is None else e - use[0] + use[1]
 
 
 def _counters(events_dir: Path, rid: str, report: IngestReport) -> list[dict]:
@@ -225,6 +333,36 @@ def _build(runs_dir: Path, con: sqlite3.Connection, report: IngestReport) -> Non
                          h["evidence"] if isinstance(h.get("evidence"), str)
                          else json.dumps(h.get("evidence"), sort_keys=True)))
         report.hazards += len(hazards)
+
+        deliv: dict[int, tuple[float, int]] = {}
+        for e in orch:
+            p = e.get("payload") or {}
+            if e.get("type") == "stage.delivered" and _num(p.get("t_s")) is not None and "stage" in p:
+                deliv[int(p["stage"])] = (float(p["t_s"]), int(bool(p.get("interrupted"))))
+        for st in sorted(deliv):
+            con.execute("INSERT INTO stages VALUES(?,?,?,?)", (rid, st, deliv[st][0], deliv[st][1]))
+        report.stages += len(deliv)
+        deliveries = sorted((t, st) for st, (t, _i) in deliv.items())
+        trows = _test_outcome_rows(read_jsonl(events / "scorer.jsonl"), metrics, cps, deliveries)
+        con.executemany("INSERT INTO test_outcomes VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                        [(rid, *r) for r in trows])
+        report.test_outcomes += len(trows)
+        clocks = [(float(e["payload"]["start_epoch"]), float(e["payload"].get("offset_s") or 0))
+                  for e in orch if e.get("type") == "run.clock"
+                  and _num(e.get("payload", {}).get("start_epoch")) is not None]
+        runs_t = []
+        for n, e in enumerate(read_jsonl(events / "agent_stream.jsonl")):
+            p = e.get("payload") or {}
+            if e.get("type") != "agent.test_run":
+                continue
+            t = _clock_t(e.get("ts"), clocks)
+            if t is not None:
+                runs_t.append((t, n, tuple(int(p.get(c) or 0) for c in
+                                           ("passed", "failed", "errors", "skipped"))))
+        runs_t.sort()
+        con.executemany("INSERT INTO agent_test_runs VALUES(?,?,?,?,?,?)",
+                        [(rid, t, *c) for t, _n, c in runs_t])
+        report.agent_test_runs += len(runs_t)
 
         idx: Counter = Counter()
         for f in sorted(events.glob("*.jsonl")):

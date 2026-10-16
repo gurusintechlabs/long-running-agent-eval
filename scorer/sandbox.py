@@ -74,10 +74,23 @@ def temp_copy(src: Path, *, forbid: list[Path] | None = None, exclude_git: bool 
         yield dest
 
 
+_recent_ports: list[int] = []
+
+
 def free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    """A free loopback port; ports handed out recently are not handed out again, so concurrent
+    callers (per-commit scoring threads) never race for the same one before its app binds."""
+    port = 0
+    for _ in range(50):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        with _lock:
+            if port not in _recent_ports:
+                _recent_ports.append(port)
+                del _recent_ports[:-256]
+                return port
+    return port
 
 
 def scrubbed_env(python: Path, home: Path, extra: dict[str, str] | None = None) -> dict[str, str]:

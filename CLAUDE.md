@@ -13,4 +13,6 @@ Read these before any work: `docs/design.md` (source design, verbatim), `docs/sp
 ## Guardrails for this repo
 - Never run `api`-marked tests or real agent runs without explicit approval of the estimated spend.
 - Do not change a spec decision (D-n) silently. Propose the change in the phase summary.
-- Stack: Python 3.11, Docker, pytest, SQLite, JSONL, matplotlib, Jinja2 + headless Chrome. No extra services.
+- Stack: Python 3.11, Docker, pytest, SQLite, JSONL, matplotlib, Jinja2 + headless Chrome, a local OTel Collector (container). Small Python libraries are OK; no other services.
+- Agent under test: the Claude Code CLI, headless. Model is set only in the experiment spec (`agent.model`, `scoring.judge_model`; default `claude-opus-5-5`). Never rely on CLI defaults.
+- Checkpoint tags and all run artifacts stay on this machine (`runs/`, gitignored). Never push them.

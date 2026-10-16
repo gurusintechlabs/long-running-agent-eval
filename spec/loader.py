@@ -1,0 +1,128 @@
+"""Load, validate and hash an experiment spec (docs/spec.md §4.1, §4.2)."""
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import yaml
+from pydantic import ValidationError
+
+from spec.schema import HarnessConfig, Spec
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CONFIGS_DIR = Path(__file__).resolve().parent / "configs"
+
+# Spec fields that hold paths to referenced files/dirs; hashed by content, not by location.
+_PATH_FIELDS = [
+    ("task", "prompt_file"),
+    ("task", "constraints_file"),
+    ("task", "hidden_tests"),
+    ("task", "seed_requirements_lock"),
+    ("guardrails", "policy_file"),
+    ("agent", "script"),
+]
+
+
+class SpecError(ValueError):
+    pass
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def hash_path(path: Path) -> str:
+    """Content hash of a file, or of a directory tree (sorted relative names + contents)."""
+    if path.is_file():
+        return sha256_bytes(path.read_bytes())
+    if path.is_dir():
+        h = hashlib.sha256()
+        for f in sorted(p for p in path.rglob("*") if p.is_file()):
+            if "__pycache__" in f.parts or f.suffix == ".pyc":
+                continue
+            h.update(f.relative_to(path).as_posix().encode())
+            h.update(b"\0")
+            h.update(f.read_bytes())
+            h.update(b"\0")
+        return h.hexdigest()
+    raise SpecError(f"referenced path does not exist: {path}")
+
+
+@dataclass(frozen=True)
+class LoadedSpec:
+    spec: Spec
+    spec_hash: str
+    path: Path
+
+    def run_id(self, config: str, repeat: int) -> str:
+        return f"{self.spec.experiment_id}-{config}-r{repeat:02d}-{self.spec_hash[:8]}"
+
+
+def load_harness_config(name: str, configs_dir: Path = CONFIGS_DIR) -> HarnessConfig:
+    path = configs_dir / f"{name}.yaml"
+    if not path.is_file():
+        raise SpecError(f"config {name} has no file at {path}")
+    try:
+        return HarnessConfig.model_validate(yaml.safe_load(path.read_text()))
+    except ValidationError as exc:
+        raise SpecError(f"invalid config {path}: {exc}") from exc
+
+
+def _resolve(spec_dir: Path, value: str) -> str:
+    p = Path(value).expanduser()
+    return str(p if p.is_absolute() else (spec_dir / p).resolve())
+
+
+def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) -> str:
+    data = spec.model_dump(mode="json", by_alias=True)
+    data["isolation"].pop("work_dir")  # machine-local
+    for section, field in _PATH_FIELDS:
+        value = data[section][field]
+        if value is not None:
+            data[section][field] = {"sha256": hash_path(Path(value))}
+    data["task"].pop("seed_repo")  # identified by seed_commit
+    if extra_files:
+        data["_extra_files"] = {k: hash_path(p) for k, p in sorted(extra_files.items())}
+    canonical = json.dumps(data, sort_keys=True, separators=(",", ":"))
+    return sha256_bytes(canonical.encode())
+
+
+def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
+    path = Path(path).resolve()
+    try:
+        raw = yaml.safe_load(path.read_text())
+    except (OSError, yaml.YAMLError) as exc:
+        raise SpecError(f"cannot read spec {path}: {exc}") from exc
+    try:
+        spec = Spec.model_validate(raw)
+    except ValidationError as exc:
+        raise SpecError(str(exc)) from exc
+
+    spec_dir = path.parent
+    for section, field in _PATH_FIELDS + [("task", "seed_repo")]:
+        obj = getattr(spec, section)
+        value = getattr(obj, field)
+        if value is not None:
+            setattr(obj, field, _resolve(spec_dir, value))
+    spec.isolation.work_dir = str(Path(spec.isolation.work_dir).expanduser().resolve())
+
+    work = Path(spec.isolation.work_dir)
+    repo = Path(repo_root).resolve()
+    if work == repo or repo in work.parents:
+        raise SpecError(f"isolation.work_dir must be outside the repo ({repo}); got {work}")
+
+    for section, field in _PATH_FIELDS:
+        value = getattr(getattr(spec, section), field)
+        if value is not None and not Path(value).exists():
+            raise SpecError(f"{section}.{field}: file does not exist: {value}")
+
+    extra = {}
+    for name, candidate in (
+        ("judge_prompt", repo / "scorer" / "judge_prompt.md"),
+        ("harness_settings", repo / "runner" / "harness_settings.template.json"),
+    ):
+        if candidate.is_file():
+            extra[name] = candidate
+    return LoadedSpec(spec=spec, spec_hash=compute_spec_hash(spec, extra), path=path)

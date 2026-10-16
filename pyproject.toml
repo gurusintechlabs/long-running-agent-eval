@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lrae"
+version = "0.1.0"
+description = "Long-Running Agent Evaluation framework"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2", "pyyaml", "psutil"]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+lrae = "runner.cli:main"
+
+[tool.setuptools]
+packages = ["spec", "runner", "runner.runtimes", "telemetry", "guardrails", "scorer", "analysis", "report"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not api' -q"
+markers = [
+  "unit: fast tests, no agent subprocess",
+  "local: spawns real local processes (scripted runtime, receiver, scorer); no API spend",
+  "api: real Anthropic spend; run only with --run-api and LRAE_CONFIRM_SPEND=1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

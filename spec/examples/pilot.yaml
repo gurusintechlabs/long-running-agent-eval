@@ -1,0 +1,44 @@
+# Pilot: one feature, end to end (design §4.2). Model and CLI version are set ONLY here.
+spec_version: 1
+experiment_id: pilot-export-csv
+task:
+  id: export-csv
+  class: L1
+  prompt_file: ../../fixtures/tasks/export_csv/prompt.md
+  seed_repo: ../../fixtures/seed_export_service
+  seed_commit: 07b476cee11f71c3364e0c39bdd7de5a80f86b10   # fixtures/build_seed.py output
+  seed_requirements_lock: ../../fixtures/seed_export_service/requirements.lock
+  constraints_file: ../../fixtures/tasks/export_csv/constraints.yaml
+  hidden_tests: ../../fixtures/tasks/export_csv/hidden
+agent:
+  runtime: claude_code
+  claude_bin: claude
+  claude_code_version: "1.0.126"       # must equal `claude --version` at run start
+  model: claude-opus-5-5               # <- CHANGE AGENT MODEL HERE
+  auto_memory: cli_default
+run:
+  duration_min: 60
+  checkpoint_interval_min: 10
+  repeats: 2
+  configs: [A]
+  seed: 1234
+  parallelism: 1
+budget:                                # subscription login: $ = API-equivalent estimate (D-16)
+  per_run_usd: 15.00                   # placeholder until the Phase 4 dry run
+  experiment_usd: 40.00
+isolation:
+  mode: local
+  work_dir: ~/lrae-work
+  keep_work_dir: false
+telemetry:
+  protocol: http/json
+  export_interval_ms: 1000
+guardrails:
+  policy_file: ../../guardrails/rules/default.yaml
+scoring:
+  judge_model: claude-opus-5-5         # <- CHANGE JUDGE MODEL HERE
+  judge_samples: 3
+  thresholds:
+    repeat_work_ratio: 0.30
+    cost_per_commit_multiplier: 2.0
+    cost_baseline_checkpoints: 2

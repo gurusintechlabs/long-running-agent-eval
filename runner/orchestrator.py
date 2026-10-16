@@ -193,7 +193,8 @@ class Run:
         self._gev = EventWriter(self.paths.events / "guardrail.jsonl", self.run_id, "guardrail")
         self._stderr = open(self.paths.events / "agent_stderr.log", "a")
         if self.score:
-            self._scorer = ScorerQueue(self.paths.art, self.loaded.path, self._ev, repo_root=self.repo_root)
+            self._scorer = ScorerQueue(self.paths.art, self.loaded.path, self._ev, repo_root=self.repo_root,
+                                       confirm_spend=self.confirm_spend)
         self._set_state(RunState.PREPARING)
 
         self._start_epoch = time.time()

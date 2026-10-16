@@ -9,6 +9,7 @@ from runner import manifest as mf
 from runner import memory
 from runner.orchestrator import Run, RunState, recover_unfinalized
 from runner.resume import parse_checkpoint, resume_run
+from scorer import cli as scorer_cli
 from spec.loader import REPO_ROOT, SpecError, load_spec
 
 
@@ -40,9 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp.add_parser("clean", help="finish cleanup of crashed runs and leftover agent state dirs")
 
-    for name, phase in (("score", 3), ("ingest", 4), ("dashboard", 4), ("report", 6)):
-        s = sp.add_parser(name, help=f"(Phase {phase}, not implemented yet)")
-        s.add_argument("args", nargs="*")
+    scorer_cli.add_parsers(sp)    # score, install-scorer
     return ap
 
 
@@ -137,6 +136,10 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_resume(a)
         if a.cmd == "clean":
             return cmd_clean(a)
+        if a.cmd == "score":
+            return scorer_cli.cmd_score(a)
+        if a.cmd == "install-scorer":
+            return scorer_cli.cmd_install_scorer(a)
         print(f"`lrae {a.cmd}` is not implemented yet (later phase)", file=sys.stderr)
         return 2
     except (SpecError, ValueError) as exc:

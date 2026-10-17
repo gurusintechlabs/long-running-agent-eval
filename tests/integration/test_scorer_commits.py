@@ -212,6 +212,7 @@ def test_budget_limits_and_flags_sampling_and_the_plan_is_sticky(tmp_path, score
     assert not any(e["sampled"] for e in roomy.events)
 
 
+@pytest.mark.slow
 def test_intra_interval_regression_reaches_the_degradation_analysis(tmp_path, scorer_venv):  # noqa: F811
     """End to end: run -> per-commit scoring -> ingest -> degradation analysis sees the break and the
     fix inside interval 2, in commit order (the scripted commits share one timestamp)."""

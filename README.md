@@ -167,8 +167,8 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 ### 2. Check the setup without spending anything
 
 ```bash
-.venv/bin/python -m pytest                    # fast tests
-.venv/bin/python -m pytest -m local           # real processes, scripted agent, no API calls (~15 min)
+.venv/bin/python -m pytest -n 4                               # fast tests (~1 min)
+.venv/bin/python -m pytest -m "local and not slow" -n 4       # real processes, scripted agent, no API calls (~2 min)
 .venv/bin/lrae run spec/examples/pilot-scripted.yaml   # a full scripted run: harness, scorer, reports
 ```
 
@@ -283,11 +283,16 @@ docs/        design, spec, plan, phase summaries, interfaces, task design notes
 
 ## Tests
 
-| Command | What runs | Spend |
-|---|---|---|
-| `pytest` | fast unit tests | none |
-| `pytest -m local` | real processes: scripted agent runs, scorer, receiver, PDF build | none |
-| `pytest --run-api` with `LRAE_CONFIRM_SPEND=1` | live tests against the real CLI | real |
+| Command | What runs | Time | Spend |
+|---|---|---|---|
+| `pytest -n 4` | fast unit tests | ~1 min | none |
+| `pytest -m "local and not slow" -n 4` | real processes: scripted agent runs, scorer, guardrails, receiver | ~2 min | none |
+| `pytest -m slow -n 4` | the long checks: full pilot pipeline, every minidb v2 stage, full scorer sweeps; run before merging | ~6 min | none |
+| `pytest --run-api` with `LRAE_CONFIRM_SPEND=1` | live tests against the real CLI | minutes | real |
+
+No test calls the real model unless it is marked `api` and both switches above are set. The long
+tests are slow because they wait on real time between scripted checkpoints and run the hidden test
+suites for real, not because an AI is working.
 
 ## Further reading
 

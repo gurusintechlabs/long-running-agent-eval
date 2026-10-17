@@ -29,6 +29,11 @@ SPEC = REPO_ROOT / "spec" / "examples" / "minidb-v2.yaml"
 SEED = REPO_ROOT / "fixtures" / "seed_minidb"
 HIDDEN = REPO_ROOT / "fixtures" / "tasks" / "minidb_v2" / "hidden"
 N_STAGES = 7
+KEY_STAGES = (N_STAGES - 1,)  # the final stage runs every time; the per-stage sweep is slow
+
+
+def _stage_params(stages):
+    return [s if s in KEY_STAGES else pytest.param(s, marks=pytest.mark.slow) for s in stages]
 UNTERMINATED_TEST = "tests/test_cli.py::test_unterminated_string_literal_is_an_error_not_a_crash"
 SUITE_BUDGET_S = 120
 
@@ -124,7 +129,7 @@ def _ids(tests: list[dict]) -> set[str]:
     return {t["id"] for t in tests}
 
 
-@pytest.mark.parametrize("stage", range(N_STAGES))
+@pytest.mark.parametrize("stage", _stage_params(range(N_STAGES)))
 def test_reference_passes_every_test_active_at_its_stage(refs, tests, tmp_path, stage):
     t0 = time.monotonic()
     out = run_hidden(refs[stage], tmp_path, stage)
@@ -145,7 +150,8 @@ def test_the_bare_seed_fails_cleanly(seed_ws, tests, tmp_path):
     assert {out[t] for t in final} == {"failed"}
 
 
-@pytest.mark.parametrize("stage", range(N_STAGES - 1))
+@pytest.mark.parametrize("stage", [s if s == N_STAGES - 2 else pytest.param(s, marks=pytest.mark.slow)
+                                   for s in range(N_STAGES - 1)])
 def test_each_stage_adds_work_the_previous_reference_cannot_do(refs, tests, tmp_path, stage):
     new = [t for t in tests if t["introduced"] == stage + 1]
     out = run_hidden(refs[stage], tmp_path, stage + 1, select=sorted(_ids(new)))
@@ -153,7 +159,8 @@ def test_each_stage_adds_work_the_previous_reference_cannot_do(refs, tests, tmp_
     assert len(failed) >= 0.75 * len(new), (stage, sorted(_ids(new) - set(failed)))
 
 
-@pytest.mark.parametrize("cr", [s.id for s in load_stages(STAGES).stages if s.kind == "change_request"])
+@pytest.mark.parametrize("cr", [s.id if s.id == 3 else pytest.param(s.id, marks=pytest.mark.slow)
+                                for s in load_stages(STAGES).stages if s.kind == "change_request"])
 def test_change_requests_flip_the_retired_behaviour(refs, tests, tmp_path, cr):
     retired = [t for t in tests if t["retired"] == cr]
     replacements = [t for t in tests if t["introduced"] == cr]
@@ -166,6 +173,7 @@ def test_change_requests_flip_the_retired_behaviour(refs, tests, tmp_path, cr):
     assert len(failed) >= 0.75 * len(replacements), sorted(_ids(replacements) - set(failed))
 
 
+@pytest.mark.slow
 def test_pristine_seed_tests_pass_on_every_reference_and_known_bad_breaks_one(refs, seed_ws, tmp_path):
     for label, tree in [("seed", seed_ws)] + [(f"s{s}", refs[s]) for s in range(N_STAGES)]:
         out = run_pristine_seed_tests(tree, tmp_path / label)
@@ -174,6 +182,7 @@ def test_pristine_seed_tests_pass_on_every_reference_and_known_bad_breaks_one(re
     assert [t for t, o in out.items() if o != "passed"] == [UNTERMINATED_TEST]
 
 
+@pytest.mark.slow
 def test_reference_unit_tests_are_green(refs, tmp_path):
     for s in range(N_STAGES):
         work = tmp_path / f"s{s}"
@@ -184,6 +193,7 @@ def test_reference_unit_tests_are_green(refs, tmp_path):
         assert proc.returncode == 0, (s, proc.stdout[-2000:])
 
 
+@pytest.mark.slow
 def test_scorer_passes_the_final_reference_and_flags_known_bad(tmp_path_factory):
     from scorer.run_checkpoint import CORE
     from scorer.standalone import score_snapshot_dir

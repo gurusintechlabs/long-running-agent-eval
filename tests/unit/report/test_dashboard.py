@@ -83,3 +83,44 @@ def test_build_pdf(db, tmp_path):
     data = pdf.read_bytes()
     assert data.startswith(b"%PDF") and len(data) > 5000
     assert len(re.findall(rb"/Type\s*/Page[^s]", data)) == 1   # one page
+
+
+def test_dashboard_without_per_commit_data(db, tmp_path):
+    out = tmp_path / "o"
+    html = build_dashboard(db, "exp-one", out).read_text()
+    assert "No per-commit data" in html
+    assert not list((out / "figures").glob("deg_*"))
+
+
+@pytest.fixture
+def deg_db(tmp_path, monkeypatch):
+    monkeypatch.setattr("telemetry.counters.interval_counters", synth.fake_counters)
+    r = tmp_path / "runs"
+    synth.make_degrading_run(r, repeat=1)
+    synth.make_degrading_run(r, repeat=2)
+    make_run(r, repeat=3)
+    ingest(r, tmp_path / "m.sqlite")
+    return tmp_path / "m.sqlite"
+
+
+def test_degradation_section(deg_db, tmp_path):
+    out = tmp_path / "out"
+    html = build_dashboard(deg_db, "exp-one", out).read_text()
+    assert "No per-commit data" not in html and "{{" not in html
+    names = {f.name for f in (out / "figures").glob("deg_*.png")}
+    assert len(names) == 8                       # 4 figures x the 2 runs with data
+    for n in names:
+        assert f"figures/{n}" in html and (out / "figures" / n).read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+        assert (out / "figures" / n).stat().st_size > 1500
+    assert "Top relapsing tests" in html and "test_t1_a.py::a" in html
+    assert "2 of 2 green" in html                # belief gap summary
+    assert "Staged task" in html and "Carried / retired" in html
+    assert not re.search(r"https?://", html)
+
+
+def test_degradation_is_deterministic(deg_db, tmp_path):
+    a = build_dashboard(deg_db, "exp-one", tmp_path / "a")
+    b = build_dashboard(deg_db, "exp-one", tmp_path / "b")
+    assert a.read_text() == b.read_text()
+    for f in sorted((tmp_path / "a/figures").glob("deg_*.png")):
+        assert f.read_bytes() == (tmp_path / "b/figures" / f.name).read_bytes()

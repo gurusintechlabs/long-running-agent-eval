@@ -20,7 +20,8 @@ def cmd_ingest(a) -> int:
     db = Path(a.db) if a.db else runs_dir / "metrics.sqlite"
     rep = ingest(runs_dir, db)
     print(f"ingested {rep.runs} runs ({rep.in_survival} in survival set), {rep.checkpoints} checkpoints, "
-          f"{rep.metrics} metrics, {rep.counters} counters, {rep.hazards} hazards -> {db}")
+          f"{rep.metrics} metrics, {rep.counters} counters, {rep.hazards} hazards, {rep.test_outcomes} test outcomes, {rep.stages} stages, "
+          f"{rep.agent_test_runs} agent test runs -> {db}")
     for w in rep.warnings:
         print(f"warning: {w}")
     return 0

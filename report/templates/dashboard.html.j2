@@ -58,6 +58,98 @@
 <img src="figures/cost.png" alt="Cumulative estimated cost vs runtime">
 <img src="figures/context_fill.png" alt="Context fill vs runtime with compactions and hazards">
 
+<h2>Degradation</h2>
+{% if not degradation.has_data %}
+<p class="note">No per-commit data (runs from before per-commit scoring, or none recorded yet).</p>
+{% else %}
+<p class="sub">Per-test history from the hidden suite scored on every agent commit and at every checkpoint.
+A <b>regression</b> is a test that passed and then failed or errored at a later scored point (skipped = not active
+at that stage, ignored). <b>Established</b> tests are those that had passed before; their pass rate cannot fall
+because a feature is not implemented yet, so a fall is genuine degradation. The <b>belief gap</b> compares what
+the agent's own pytest runs reported with the hidden suite at the nearest preceding commit (the agent may have run
+only a subset, so treat it as a signal).</p>
+<div class="overflow">
+<table>
+<tr><th>Run</th><th>Points</th><th>Tests</th><th>Ever passed</th><th>Regressions</th><th>Tests regressed</th>
+<th>Relapsing (&ge;2)</th><th>Mean time to 1st regression</th><th>Established rate, min / final</th>
+<th>All-tests rate, final</th><th>Agent green while failing</th></tr>
+{% for r in degradation.runs %}
+<tr><td>{{ r.run_id }}</td><td class="num">{{ r.summary.points }}</td><td class="num">{{ r.summary.tests }}</td>
+<td class="num">{{ r.summary.ever_passed }}</td><td class="num">{{ r.summary.regressions }}</td>
+<td class="num">{{ r.summary.regressed_tests }}</td><td class="num">{{ r.summary.relapsing_tests }}</td>
+<td class="num">{{ r.summary.mean_ttfr }}</td><td class="num">{{ r.summary.est_min }} / {{ r.summary.est_final }}</td>
+<td class="num">{{ r.summary.overall_final }}</td>
+<td class="num">{{ r.belief.gaps }} of {{ r.belief.green }} green ({{ r.belief.gap_frac }})</td></tr>
+{% endfor %}
+</table>
+</div>
+{% if degradation.skipped_runs %}
+<p class="sub">Figures are shown for the first {{ degradation.runs | length }} runs; {{ degradation.skipped_runs }} more have data.</p>
+{% endif %}
+
+<h3>Top relapsing tests</h3>
+<div class="overflow">
+<table>
+<tr><th>Run</th><th>Test</th><th>Tier</th><th>Regressions</th><th>Recoveries</th><th>First passed</th>
+<th>Time to 1st regression</th><th>Last outcome</th></tr>
+{% for t in degradation.top %}
+<tr><td>{{ t.run_id }}</td><td>{{ t.test_id }}</td><td>{{ t.tier }}</td><td class="num">{{ t.regressions }}</td>
+<td class="num">{{ t.recoveries }}</td><td class="num">{{ t.first_pass }}</td><td class="num">{{ t.ttfr }}</td>
+<td>{{ t.final }}</td></tr>
+{% else %}
+<tr><td colspan="8">No test regressed.</td></tr>
+{% endfor %}
+</table>
+</div>
+
+<h3>Regression rate vs context fill and compactions (pooled over runs)</h3>
+<div class="overflow">
+<table>
+<tr><th>Context fill</th><th>Checkpoint intervals</th><th>Regressions</th><th>Regressions / hour</th></tr>
+{% for b in degradation.bins %}
+<tr><td>{{ b.label }}</td><td class="num">{{ b.intervals }}</td><td class="num">{{ b.regressions }}</td><td class="num">{{ b.per_hour }}</td></tr>
+{% endfor %}
+</table>
+<table style="margin-top:8px">
+<tr><th>Interval</th><th>Count</th><th>Regressions</th><th>Regressions / hour</th></tr>
+{% for b in degradation.compaction_effect %}
+<tr><td>{{ b.class | replace("_", " ") }}</td><td class="num">{{ b.intervals }}</td><td class="num">{{ b.regressions }}</td><td class="num">{{ b.per_hour }}</td></tr>
+{% endfor %}
+</table>
+<table style="margin-top:8px">
+<tr><th>Run-time window (1 h)</th><th>Runs</th><th>Regressions</th><th>Hours</th><th>Regressions / hour</th></tr>
+{% for w in degradation.windows %}
+<tr><td>{{ w.window }}</td><td class="num">{{ w.runs }}</td><td class="num">{{ w.regressions }}</td><td class="num">{{ w.hours }}</td><td class="num">{{ w.per_hour }}</td></tr>
+{% endfor %}
+</table>
+</div>
+
+{% for r in degradation.runs %}
+<h3>{{ r.run_id }}</h3>
+<img src="figures/{{ r.figs.heatmap }}" alt="Test by time outcome heatmap with regressions outlined">
+<img src="figures/{{ r.figs.tiers }}" alt="Per-tier and established-test pass rate over time">
+<img src="figures/{{ r.figs.fill }}" alt="Regression events versus context fill">
+<img src="figures/{{ r.figs.belief }}" alt="Belief gap: agent-reported failures versus hidden suite">
+{% if r.staged %}
+<p class="sub">Staged task. At the last scored point: {{ r.final_status.passing }} passing, {{ r.final_status.regressed }} regressed,
+{{ r.final_status.not_yet_implemented }} not yet implemented, {{ r.final_status.inactive }} inactive.</p>
+{% if r.effects %}
+<div class="overflow">
+<table>
+<tr><th>Stage</th><th>Delivered</th><th>Carried / retired / new tests</th><th>Carried pass: before</th><th>right after</th>
+<th>end of stage</th><th>Regressions of carried tests</th><th>Retired tests, pass before</th><th>New tests, pass at end</th></tr>
+{% for e in r.effects %}
+<tr><td>{{ e.stage }}</td><td class="num">{{ (e.t_s / 60) | round(1) }} min</td><td class="num">{{ e.carried }} / {{ e.retired }} / {{ e.introduced }}</td>
+<td class="num">{{ e.carried_before }}</td><td class="num">{{ e.carried_after }}</td><td class="num">{{ e.carried_end }}</td>
+<td class="num">{{ e.carried_regressions }}</td><td class="num">{{ e.retired_before }}</td><td class="num">{{ e.introduced_end }}</td></tr>
+{% endfor %}
+</table>
+</div>
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
 <h2>Incidents</h2>
 <div class="overflow">
 <table>

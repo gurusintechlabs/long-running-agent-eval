@@ -121,3 +121,11 @@ def test_more_than_40_commits_are_sampled(tmp_path, monkeypatch):
                                   rr.AcceptedCache(tmp_path / "c.json"))
     assert res["sampled"] and res["n_checked"] == 40 and res["n_commits"] == 60
     assert res["accepted"] == 60 and len(calls) == 40
+
+
+def test_count_regressions_ignores_skipped_and_new_tests():
+    prev = {"a": "passed", "b": "passed", "c": "skipped", "d": "failed", "e": "passed"}
+    cur = {"a": "skipped", "b": "failed", "c": "failed", "d": "passed", "e": "passed", "f": "failed"}
+    # a retired (skipped now), c was not active before, d/f were not passing before
+    assert rr.count_regressions(prev, cur) == ["b"]
+    assert rr.count_regressions({"x": "passed"}, {"x": "skipped"}) == []

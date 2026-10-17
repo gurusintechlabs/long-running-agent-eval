@@ -77,3 +77,70 @@ def test_app_that_cannot_start_scores_zero_with_reason(tmp_path, scorer_py):
     assert "definitely_not_installed_pkg" in res["detail"]["app_log_tail"]
     assert res["detail"]["total"] == 2
     assert set(res["detail"]["outcomes"].values()) == {"failed"}
+
+
+def test_tier_of_uses_the_file_name_number_else_the_stem():
+    assert p_hidden.tier_of("test_t01_basics.py::test_x") == 1
+    assert p_hidden.tier_of("test_t12_views_alter.py::TestA::test_y[param]") == 12
+    assert p_hidden.tier_of("test_export_acceptance.py::test_z") == "test_export_acceptance"
+
+
+def test_tier_of_requires_the_t_prefix_and_trailing_underscore():
+    assert p_hidden.tier_of("sub/test_t3_x.py::t") == 3
+    assert p_hidden.tier_of("test_t3.py::t") == "test_t3"
+    assert p_hidden.tier_of("test_tier_x.py::t") == "test_tier_x"
+
+
+STAGED_HIDDEN = {
+    **HIDDEN_FILES,
+    "test_t02_late.py": (
+        "import os\nimport urllib.request\n\nimport pytest\n\n"
+        "@pytest.mark.skipif(int(os.environ.get('LRAE_STAGE', '9')) < 1, reason='not yet')\n"
+        "def test_late():\n"
+        "    assert urllib.request.urlopen(os.environ['LRAE_APP_URL'] + '/late').read() == b'late'\n"),
+}
+
+
+@pytest.mark.local
+def test_stage_skips_tests_and_excludes_them_from_the_denominator(tmp_path, scorer_py):
+    hidden = write_tree(tmp_path / "hidden", STAGED_HIDDEN)
+    app = write_tree(tmp_path / "app", {"app.py": APP_OK})
+    s0 = p_hidden.score_hidden(app, hidden, scorer_py, stage=0)
+    d = s0["detail"]
+    assert s0["value"] == 1.0 and (d["total"], d["active"], d["skipped"], d["passed"]) == (3, 2, 1, 2)
+    assert d["outcomes"]["test_t02_late.py::test_late"] == "skipped"
+    assert d["tiers"] == {"test_black_box.py::test_a": "test_black_box",
+                          "test_black_box.py::test_b": "test_black_box", "test_t02_late.py::test_late": 2}
+    s1 = p_hidden.score_hidden(app, hidden, scorer_py, stage=1)   # 'late' is active and fails
+    assert s1["value"] == pytest.approx(2 / 3) and s1["detail"]["skipped"] == 0
+    none = p_hidden.score_hidden(app, hidden, scorer_py)           # no stage: everything active
+    assert none["detail"]["active"] == 3 and none["detail"]["stage"] is None
+    assert not sandbox.leftover_processes() and not sandbox.leftover_temp_dirs()
+
+
+TIMING_HIDDEN = {
+    "scorer.yaml": ("test_env: {LRAE_WORKSPACE: '{ws}', LRAE_PYTHON: '{python}'}\n"
+                    "timing_k: 'timing'\n"),
+    "pytest.ini": "[pytest]\ntestpaths = .\n",
+    "test_x.py": (
+        "import os, pathlib\n"
+        "def test_plain():\n    assert True\n"
+        "def test_timing_flaky():\n"
+        "    # fails on the first attempt in this workspace, passes on the rerun\n"
+        "    marker = pathlib.Path(os.environ['LRAE_WORKSPACE']) / '.attempted'\n"
+        "    first = not marker.exists()\n"
+        "    marker.write_text('x')\n"
+        "    assert not first\n"),
+}
+
+
+@pytest.mark.local
+def test_timing_tests_rerun_once_at_checkpoints_and_are_deselected_per_commit(tmp_path, scorer_py):
+    hidden = write_tree(tmp_path / "hidden", TIMING_HIDDEN)
+    ws = write_tree(tmp_path / "ws", {"a.txt": "x"})
+    res = p_hidden.score_hidden(ws, hidden, scorer_py)
+    assert res["value"] == 1.0, res["detail"]
+    assert res["detail"]["timing_reruns"] == {"test_x.py::test_timing_flaky": "passed"}
+    per_commit = p_hidden.score_hidden(ws, hidden, scorer_py, timing=False)
+    assert set(per_commit["detail"]["outcomes"]) == {"test_x.py::test_plain"}
+    assert per_commit["value"] == 1.0 and "timing_reruns" not in per_commit["detail"]

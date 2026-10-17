@@ -1,0 +1,15 @@
+# How the scorer runs the minidb v2 hidden suite (docs/spec.md 8.1, 8.2; staged: interfaces.md §9).
+# There is no app server: every test starts its own `python -m minidb` process(es) (cwd = the temp
+# copy of the snapshot), feeds them SQL on stdin and parses the JSON lines (see _support.py).
+# Placeholders: {ws} = absolute path of the temp copy of the snapshot, {python} = scorer venv
+# python (which has only stdlib + pytest available to the agent's code). The scorer adds
+# LRAE_STAGE=<active stage>; tests outside their stage window are skipped.
+test_env:
+  LRAE_WORKSPACE: "{ws}"
+  LRAE_PYTHON: "{python}"
+per_test_timeout_s: 30
+# Each minidb invocation has its own timeout (_support.RUN_TIMEOUT_S, Session timeouts); the whole
+# suite at the final stage runs in about a minute on a correct implementation.
+# Wall-clock assertions: deselected in per-commit scoring (parallel suites), rerun once on failure at
+# checkpoints (scorer/metrics/p_hidden.py).
+timing_k: "t13_performance or cost_does_not_grow or durable_mode_performance"

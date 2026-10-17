@@ -168,3 +168,45 @@ def evaluate(views: list[CheckpointView], *, guardrail_violations: list[dict], r
 def attribute_commit(repo: Path, commits: list[str], is_bad: Callable[[Path], bool]) -> str | None
 #   first commit (oldest first) whose tree is bad; trees are materialised with `git archive` in a temp dir.
 ```
+
+## 8. Degradation tracking (per-commit and per-test history)
+
+**Per-commit hidden scoring.** For every agent commit in (t_{k-1}, t_k] (sampled evenly above 40),
+the scorer runs the hidden suite on the commit's tree (materialised with `git archive`, cached by
+tree hash in `runs/<id>/scorer/commit-cache.json`) and emits, before `scorer.done`:
+
+`scorer.commit` `{k, pass_id, sha, tree, t_s, stage, hidden: {test_id: outcome}, regression: {test_id: outcome}, P, passed, total, sampled, cached}`
+- `t_s` = committer time − run start (clamped into `[t_{k-1}, t_k]`), `stage` = stage active at `t_s`.
+- Commits are emitted oldest first. The checkpoint's own `P.detail.outcomes` stays as before (working tree).
+
+**Outcomes.** `passed | failed | error | skipped`. `skipped` = not active at this stage (§9); skipped
+tests are excluded from P's denominator and are never a regression.
+
+**Tier of a test** = the number in its file name `test_t(\d+)_*.py` (else the file stem); a test may
+override it with `@pytest.mark.tier(n)` — consumers read it from `P.detail.tiers` `{test_id: tier}`.
+
+**Agent-reported test runs** (parsed from the agent's own tool output, a *belief* signal, never a
+metric of truth): `agent_stream.jsonl` event `agent.test_run` `{session_id, tool_use_id, passed, failed, errors, skipped, raw_summary}`
+from a `tool.result` whose text contains a pytest summary line (`=+ ... N passed, M failed ... in Xs =+`).
+`tool.result` payloads therefore also carry `text_tail` (last 2 000 chars of the result text).
+
+## 9. Staged requirements (proposed decision D-18)
+
+A task may deliver its brief in stages instead of all at t=0. `task.stages_file` (optional) points to:
+
+```yaml
+stages:
+  - {id: 0, prompt: stage0.md, at_frac: 0.0}     # the t=0 brief (constraints are appended to stage 0 only)
+  - {id: 1, prompt: stage1.md, at_frac: 0.25}    # delivered at >= 25% of duration
+  - {id: 2, prompt: stage2.md, at_frac: 0.5, kind: change_request}
+max_wait_frac: 0.05   # if a turn is still running at at_frac + max_wait_frac, interrupt it (SIGTERM, grace) and resume with the stage prompt
+```
+
+- Delivery: at the first turn boundary at or after `at_frac × duration`; the stage prompt replaces the
+  continuation prompt for that turn (same session, `--resume`). Orchestrator event
+  `stage.delivered` `{stage, t_s, prompt_sha256, interrupted: bool}`.
+- The stage active at time t is the last stage delivered at or before t (0 before any delivery).
+- Hidden tests declare their stage window with `_support.stage(introduced, retired=None)` (a
+  `pytest.mark.skipif` on `LRAE_STAGE`); the scorer passes `LRAE_STAGE=<stage>` to the hidden pytest
+  run. Without `LRAE_STAGE` (standalone scoring) the final stage applies.
+- `spec_hash` covers the stages file and every stage prompt.

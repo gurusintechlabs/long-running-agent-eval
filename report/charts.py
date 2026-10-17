@@ -9,8 +9,11 @@ from pathlib import Path
 
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.colors import ListedColormap
 from matplotlib.figure import Figure
+from matplotlib.patches import Rectangle
 
+from analysis.degradation import FAILING, Flip, Matrix, RatePoint
 from analysis.survival import KM
 from analysis.trends import CORE_METRICS, Series, median_by_k
 
@@ -150,3 +153,164 @@ def context_chart(fill: dict[str, tuple[list[float], list[float]]], out: Path, *
     fig.tight_layout()
     return _save(fig, out)
 
+
+
+# ---- degradation figures (analysis.degradation) --------------------------------------------------
+PASS_C, FAIL_C, SKIP_C = "#009E73", "#D55E00", "#d9d9d9"
+STAGE_C = "#0072B2"
+
+
+def _stage_x(points, t_d: float) -> float:
+    """Heatmap x position (between columns) of a stage delivery at ``t_d``."""
+    for p in points:
+        if p.t_s >= t_d:
+            return p.idx - 0.5
+    return len(points) - 0.5
+
+
+def outcome_heatmap(m: Matrix, flips: list[Flip], out: Path, *, stages: list[tuple[int, float]] = (),
+                 title: str = "") -> Path:
+    """Tests (rows, grouped by tier) x scoring points (columns); regressions outlined in black."""
+    n_t, n_p = len(m.tests), len(m.points)
+    fig = Figure(figsize=(10.0, min(14.0, max(3.2, 1.6 + 0.16 * n_t))))
+    ax = fig.add_subplot(111)
+    if not n_t:
+        _empty(ax, "no per-commit data")
+        return _save(fig, out)
+    code = np.full((n_t, n_p), np.nan)
+    for i, tid in enumerate(m.tests):
+        for j, o in enumerate(m.outcome[tid]):
+            if o is not None:
+                code[i, j] = 1 if o == "passed" else 0 if o in FAILING else 2
+    ax.imshow(np.ma.masked_invalid(code), aspect="auto", interpolation="nearest", vmin=0, vmax=2,
+              cmap=ListedColormap([FAIL_C, PASS_C, SKIP_C]))
+    row = {t: i for i, t in enumerate(m.tests)}
+    for f in flips:
+        if f.kind == "regression" and f.test_id in row:
+            for p in m.points:
+                if p.t_s == f.t_s:
+                    ax.add_patch(Rectangle((p.idx - 0.5, row[f.test_id] - 0.5), 1, 1, fill=False,
+                                           ec=INK, lw=1.4))
+                    break
+    prev = None
+    for i, tid in enumerate(m.tests):
+        if prev is not None and m.tier[tid] != prev:
+            ax.axhline(i - 0.5, color="white", lw=2.5)
+        prev = m.tier[tid]
+    for sid, t_d in stages:
+        if sid > 0:
+            x = _stage_x(m.points, t_d)
+            ax.axvline(x, color=STAGE_C, ls="--", lw=1.2)
+            ax.text(x + 0.1, -0.7, f"stage {sid}", fontsize=7, color=STAGE_C, va="bottom")
+    ax.set_xticks(range(n_p))
+    ax.set_xticklabels([f"{p.t_s / 60:.0f}" + ("" if p.point == "commit" else "*") for p in m.points],
+                       fontsize=6, rotation=90)
+    if n_t <= 70:
+        ax.set_yticks(range(n_t))
+        ax.set_yticklabels([f"t{m.tier[t]}  {t.split('::')[-1][:38]}" for t in m.tests], fontsize=6)
+    else:
+        ax.set_yticks([])
+    ax.set_xlabel("run time (min) of each scored commit; * = checkpoint working tree", fontsize=8)
+    ax.set_title(title or "Test outcomes over time (green pass, orange fail, grey skipped; black box = regression)",
+                 fontsize=10, loc="left", color=INK)
+    for side in ax.spines.values():
+        side.set_visible(False)
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def tier_rate_chart(rates: list[RatePoint], out: Path, *, stages: list[tuple[int, float]] = (),
+                    compactions: list[float] = (), title: str = "") -> Path:
+    """Per-tier pass rate, overall rate and established-test pass rate vs run time."""
+    fig = Figure(figsize=(9.0, 4.2))
+    ax = fig.add_subplot(111)
+    _style(ax)
+    if not rates:
+        _empty(ax, "no per-commit data")
+        return _save(fig, out)
+    x = np.array([r.t_s for r in rates]) / 60.0
+    tiers = sorted({t for r in rates for t in r.tiers}, key=lambda t: (not t.isdigit(), int(t) if t.isdigit() else 0, t))
+    for i, t in enumerate(tiers):
+        y = [r.tiers[t][0] / r.tiers[t][1] if t in r.tiers and r.tiers[t][1] else np.nan for r in rates]
+        ax.plot(x, y, color=PALETTE[i % len(PALETTE)], lw=1.4, marker="o", ms=2.5, label=f"tier {t}")
+    ax.plot(x, [r.overall if r.overall is not None else np.nan for r in rates], color="#888", lw=1.4, ls="--",
+            label="all tests")
+    ax.plot(x, [r.established if r.established is not None else np.nan for r in rates], color=INK, lw=2.6,
+            marker="s", ms=3.5, label="established tests (passed before)")
+    for sid, t_d in stages:
+        if sid > 0:
+            ax.axvline(t_d / 60.0, color=STAGE_C, ls="--", lw=1.1)
+            ax.text(t_d / 60.0, 1.04, f"stage {sid}", fontsize=7, color=STAGE_C, ha="left")
+    for tc in compactions:
+        ax.plot([tc / 60.0], [0.02], "^", color="#CC79A7", ms=8)
+    ax.set_ylim(-0.03, 1.1)
+    ax.set_xlabel("run time (min)", fontsize=9)
+    ax.set_ylabel("pass rate of active hidden tests", fontsize=9)
+    ax.set_title(title or "Pass rate per tier and established-test pass rate (triangles: compactions)",
+                 fontsize=10, loc="left", color=INK)
+    ax.legend(fontsize=7, frameon=False, loc="lower left", ncol=2)
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def regression_fill_chart(intervals: list[dict], flips: list[Flip], out: Path, *, title: str = "") -> Path:
+    """Regressions per checkpoint interval (bars) and event ticks vs context fill (line)."""
+    fig = Figure(figsize=(9.0, 3.8))
+    ax = fig.add_subplot(111)
+    _style(ax)
+    if not intervals:
+        _empty(ax, "no per-commit data")
+        return _save(fig, out)
+    for iv in intervals:
+        w = (iv["t1"] - iv["t0"]) / 60.0
+        ax.bar(iv["t0"] / 60.0 + w / 2, iv["regressions"], width=w * 0.9, color=FAIL_C, alpha=0.55)
+        if iv["compactions"]:
+            ax.plot([iv["t1"] / 60.0], [0], "^", color="#CC79A7", ms=8, clip_on=False)
+    reg = [f.t_s / 60.0 for f in flips if f.kind == "regression"]
+    ax.plot(reg, [-0.15] * len(reg), "|", color=INK, ms=9, clip_on=False)
+    ax.set_ylabel("regressions in interval", fontsize=9, color=FAIL_C)
+    ax.set_xlabel("run time (min); ticks = individual regressions, triangles = compactions", fontsize=9)
+    ax2 = ax.twinx()
+    fx = [(iv["t1"] / 60.0, iv["fill"]) for iv in intervals if iv["fill"] is not None]
+    if fx:
+        ax2.plot(*zip(*fx, strict=True), color=PALETTE[0], lw=2, marker="o", ms=3.5)
+    ax2.set_ylim(0, 1.05)
+    ax2.set_ylabel("context fill (max in interval)", fontsize=9, color=PALETTE[0])
+    ax2.tick_params(labelsize=8)
+    ax2.spines["top"].set_visible(False)
+    ax2.grid(False)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=-0.3)
+    ax.set_title(title or "Regression events vs context fill", fontsize=10, loc="left", color=INK)
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def belief_gap_chart(rows: list[dict], out: Path, *, title: str = "") -> Path:
+    """Failures the agent reported vs established hidden tests failing at the nearest preceding commit."""
+    fig = Figure(figsize=(9.0, 3.8))
+    ax = fig.add_subplot(111)
+    _style(ax)
+    if not rows:
+        _empty(ax, "no agent test runs matched to scored commits")
+        return _save(fig, out)
+    x = np.array([r["t_s"] for r in rows]) / 60.0
+    ax.plot(x, [r["agent_failed"] for r in rows], color=PALETTE[0], lw=1.6, marker="o", ms=4,
+            label="failures the agent saw")
+    ax.plot(x, [r["established_failing"] for r in rows], color=FAIL_C, lw=1.6, marker="s", ms=4,
+            label="established hidden tests failing (preceding commit)")
+    for r in rows:
+        if r["gap"]:
+            ax.axvspan(r["t_s"] / 60.0 - 0.4, r["t_s"] / 60.0 + 0.4, color=FAIL_C, alpha=0.18, lw=0)
+    n_gap = sum(r["gap"] for r in rows)
+    n_green = sum(r["agent_green"] for r in rows)
+    ax.text(0.99, 0.97, f"agent saw all green while established tests failed: {n_gap} of {n_green} green runs",
+            transform=ax.transAxes, ha="right", va="top", fontsize=8, color=INK)
+    ax.set_ylim(bottom=-0.3)
+    ax.set_xlabel("run time (min) of the agent's own test run", fontsize=9)
+    ax.set_ylabel("failing tests", fontsize=9)
+    ax.set_title(title or "Belief gap: what the agent saw vs what the hidden suite said (shaded: gap)",
+                 fontsize=10, loc="left", color=INK)
+    ax.legend(fontsize=7, frameon=False, loc="upper left", bbox_to_anchor=(0, 0.92))
+    fig.tight_layout()
+    return _save(fig, out)

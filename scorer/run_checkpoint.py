@@ -20,7 +20,7 @@ from pathlib import Path
 
 import yaml
 
-from scorer import sandbox
+from scorer import commit_scoring, sandbox
 from scorer.metrics import d_defects, p_hidden, r_regression
 from spec.loader import REPO_ROOT, LoadedSpec, hash_path, load_spec
 from telemetry import counters
@@ -40,6 +40,7 @@ class CheckpointScore:
     duration_s: float = 0.0
     error: str | None = None
     phases: dict[str, float] = field(default_factory=dict)
+    commits: list[dict] = field(default_factory=list)  # scorer.commit payloads
 
     def value(self, name: str):
         return self.metrics.get(name, {}).get("value")
@@ -164,8 +165,9 @@ def seed_checkout(spec: LoadedSpec, art: Artifact, dest: Path) -> Path:
 
 # --- suites ---------------------------------------------------------------------------------
 
-def run_suites(ws: Path, seed_ws: Path, hidden: Path, python: Path, forbid: list[Path]) -> dict:
-    p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid)
+def run_suites(ws: Path, seed_ws: Path, hidden: Path, python: Path, forbid: list[Path],
+               stage: int | None = None) -> dict:
+    p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage)
     reg = r_regression.run_regression_on(ws, seed_ws, python, forbid=forbid)
     return {"hidden": p["detail"]["outcomes"], "regression": reg.outcomes, "P": p, "reg": reg}
 
@@ -275,6 +277,7 @@ def score_checkpoint(art: Path, k: int, *, spec: LoadedSpec, scorer_python: Path
             score.error = f"{type(exc).__name__}: {exc}"
             score.metrics.clear()
             score.hazards.clear()
+            score.commits.clear()
             traceback.print_exc(file=sys.stderr)
         leaked = sandbox.reap_leftovers()
         dirs = sandbox.leftover_temp_dirs()
@@ -311,6 +314,11 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
     scorer_events = read_events(a.events_dir / "scorer.jsonl")
     a.scorer_dir.mkdir(parents=True, exist_ok=True)
     cache = r_regression.AcceptedCache(a.scorer_dir / "accepted-cache.json")
+    commit_cache = commit_scoring.CommitCache(a.scorer_dir / "commit-cache.json")
+    staged = bool(getattr(task, "stages_file", None))
+    timeline = commit_scoring.stage_timeline(a.orch) if staged else []
+    stage_k = commit_scoring.stage_at(timeline, t_k) if staged else None
+    stage_prev = commit_scoring.stage_at(timeline, t_prev) if staged else None
     tm = out.phases
     mark = time.monotonic()
 
@@ -333,13 +341,16 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             prev_hidden = prev["P"]["detail"].get("outcomes")
             prev_reg = prev["R"]["detail"].get("outcomes")
         else:
-            s_prev = run_suites(a.snap(k - 1) / "workspace", seed_ws, hidden, python, forbid)
+            s_prev = run_suites(a.snap(k - 1) / "workspace", seed_ws, hidden, python, forbid,
+                                stage_prev)
             prev_hidden, prev_reg = s_prev["hidden"], s_prev["regression"]
 
         lap("prev_outcomes")
         # P, R
-        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid)
+        t_pr = time.monotonic()
+        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage_k)
         reg = r_regression.run_regression_on(ws, seed_ws, python, forbid=forbid)
+        est_commit_s = time.monotonic() - t_pr   # one hidden + one regression run
         r = r_regression.score_regressions(prev_hidden, p["detail"]["outcomes"], prev_reg,
                                            reg.outcomes)
         r["detail"]["regression_suite"] = {"total": reg.total, "passed": reg.passed,
@@ -365,6 +376,15 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         cum_accepted = cum_prev + int_accepted
 
         lap("accepted")
+        # per-commit hidden scoring (interfaces.md §8)
+        cs = commit_scoring.score_commits(
+            mirror=a.mirror, prev_sha=prev_sha, cur_sha=cur_sha, t_prev=t_prev, t_k=t_k,
+            start_epoch=a.start_epoch, timeline=timeline, staged=staged, hidden=hidden,
+            seed_ws=seed_ws, python=python, accepted=cache, cache=commit_cache, forbid=forbid,
+            est_commit_s=est_commit_s,
+            max_scoring_s=float(getattr(s.scoring, "max_commit_scoring_s",
+                                        commit_scoring.DEFAULT_MAX_COMMIT_SCORING_S)))
+        lap("commits")
         # D
         dd = d_defects.score_defects(ws, base["defects"], python)
 
@@ -422,8 +442,14 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         msgs = [m.strip() for m in _git("log", "--reverse", "--format=%B%x00",
                                         f"{seed_sha}..{cur_sha}", git_dir=a.mirror,
                                         check=False).split("\0") if m.strip()]
+        brief = Path(task.prompt_file).read_text()
+        if stage_k:  # staged task: later requirements and change requests are part of the brief, so a
+            # deliberate reversal ordered by a change request is not an agent contradiction
+            from runner.stages import load_stages
+            for st in load_stages(task.stages_file).stages[1:stage_k + 1]:
+                brief += f"\n\n--- Stage {st.id} ({st.kind}), delivered during the run ---\n\n{st.text}"
         bundle = x_judge.build_bundle(
-            task_prompt=Path(task.prompt_file).read_text(),
+            task_prompt=brief,
             constraints=[c.get("text", "") for c in constraints],
             assistant_texts=assistant_texts(stream, end_ns), commit_messages=msgs, diff=diff)
         jr = x_judge.judge(bundle, model=s.scoring.judge_model, samples=s.scoring.judge_samples,
@@ -497,6 +523,10 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         payload = {**hz, "k": k, "pass_id": pass_id}
         writer.emit("scorer.hazard", payload)
         out.hazards.append(payload)
+    for ev in cs.events:
+        payload = {"k": k, "pass_id": pass_id, **ev}
+        writer.emit("scorer.commit", payload)
+        out.commits.append(payload)
 
 
 def _guardrail_violations(a: Artifact, t_k: float) -> list[dict]:

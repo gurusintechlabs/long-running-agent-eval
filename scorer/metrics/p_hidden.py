@@ -13,6 +13,7 @@ tests drive the agent's program themselves, in subprocesses, through ``test_env`
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -24,6 +25,19 @@ from scorer import sandbox
 from scorer.metrics.r_regression import SuiteResult, run_pytest_json
 
 SUITE_TIMEOUT_S = 300
+_TIER_RE = re.compile(r"test_t(\d+)_")
+
+
+def tier_of(nodeid: str) -> int | str:
+    """Tier of a hidden test: the number in ``test_t(\\d+)_*.py``, else the file stem.
+
+    A ``@pytest.mark.tier(n)`` override is not read: the JSON report is written with
+    ``keywords`` omitted (and keywords hold only the marker name, not its argument), so the
+    marker value is not recoverable from the report.
+    """
+    stem = Path(nodeid.split("::", 1)[0]).stem
+    m = _TIER_RE.match(stem)
+    return int(m.group(1)) if m else stem
 
 
 def load_config(hidden: Path) -> dict:
@@ -83,8 +97,19 @@ def collect_ids(python: Path, hidden: Path, env: dict[str, str], cwd: Path,
 
 
 def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
-                 forbid: list[Path] | None = None) -> dict:
-    """Return ``{"value", "detail"}`` for the P metric."""
+                 forbid: list[Path] | None = None, stage: int | None = None,
+                 timing: bool = True) -> dict:
+    """Return ``{"value", "detail"}`` for the P metric.
+
+    Timing tests (``scorer.yaml`` ``timing_k``, a pytest ``-k`` expression) assert wall-clock limits.
+    With ``timing=False`` (per-commit scoring, which runs several suites in parallel) they are
+    deselected, so they neither pass nor fail. At checkpoints a failing timing test is rerun once and
+    the rerun's outcome counts (the agent shares the machine), recorded in ``detail.timing_reruns``.
+
+    ``stage`` (staged tasks, interfaces.md §9) is passed to the hidden pytest run as
+    ``LRAE_STAGE``; tests not active at that stage come back ``skipped`` and are excluded from the
+    denominator: value = passed / (total - skipped).
+    """
     hidden = Path(hidden).resolve()
     cfg = load_config(hidden)
     with sandbox.temp_copy(snapshot_ws, forbid=forbid, name="app") as app_dir:
@@ -115,11 +140,24 @@ def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
                              for k, v in (cfg.get("test_env") or {}).items()}
                     t_env.setdefault("LRAE_APP_URL", url)
                     t_env.setdefault("LRAE_APP_DB", str(db))
+                    if stage is not None:
+                        t_env["LRAE_STAGE"] = str(int(stage))
+                    base = ["-c", str(hidden / "pytest.ini"), f"--rootdir={hidden}", "--noconftest"]
+                    timing_k = cfg.get("timing_k")
+                    sel = ["-k", f"not ({timing_k})"] if (timing_k and not timing) else []
+                    h_env = sandbox.scrubbed_env(python, home, t_env)
                     suite = run_pytest_json(
-                        python, ["-c", str(hidden / "pytest.ini"), f"--rootdir={hidden}",
-                                 "--noconftest", str(hidden)],
-                        cwd=hidden, env=sandbox.scrubbed_env(python, home, t_env),
+                        python, [*base, *sel, str(hidden)], cwd=hidden, env=h_env,
                         report=scratch / "hidden.json", timeout_s=SUITE_TIMEOUT_S, label="hidden")
+                    if timing and timing_k and not suite.reason:
+                        failed = sorted(t for t, o in suite.outcomes.items() if o in ("failed", "error"))
+                        if failed:
+                            again = run_pytest_json(
+                                python, [*base, "-k", timing_k, *failed], cwd=hidden, env=h_env,
+                                report=scratch / "hidden-rerun.json", timeout_s=SUITE_TIMEOUT_S,
+                                label="hidden-rerun")
+                            detail["timing_reruns"] = dict(sorted(again.outcomes.items()))
+                            suite.outcomes.update(again.outcomes)
             finally:
                 if proc is not None:
                     sandbox.stop(proc)
@@ -138,8 +176,12 @@ def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
                     outcomes[tid] = "failed"
             detail["reason"] = reason
         total = len(outcomes)
+        skipped = sum(1 for v in outcomes.values() if v == "skipped")
+        active = total - skipped
         passed = sum(1 for v in outcomes.values() if v == "passed")
-        if total == 0:
-            detail["reason"] = detail.get("reason") or "no_hidden_tests_ran"
-        detail.update(total=total, passed=passed, outcomes=outcomes)
-        return {"value": (passed / total) if total else 0.0, "detail": detail}
+        if active == 0:
+            detail["reason"] = detail.get("reason") or (
+                "no_hidden_tests_ran" if total == 0 else "no_active_hidden_tests")
+        detail.update(total=total, passed=passed, active=active, skipped=skipped, stage=stage,
+                      outcomes=outcomes, tiers={t: tier_of(t) for t in sorted(outcomes)})
+        return {"value": (passed / active) if active else 0.0, "detail": detail}

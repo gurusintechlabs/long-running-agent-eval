@@ -22,6 +22,7 @@ _PATH_FIELDS = [
     ("task", "seed_requirements_lock"),
     ("guardrails", "policy_file"),
     ("agent", "script"),
+    ("task", "stages_file"),
 ]
 
 
@@ -83,6 +84,9 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
         if value is not None:
             data[section][field] = {"sha256": hash_path(Path(value))}
     data["task"].pop("seed_repo")  # identified by seed_commit
+    if spec.task.stages_file:  # the stage prompts are part of the task, not just the index file
+        from runner.stages import load_stages
+        data["task"]["stages_prompts"] = [hash_path(s.prompt) for s in load_stages(spec.task.stages_file).stages]
     if extra_files:
         data["_extra_files"] = {k: hash_path(p) for k, p in sorted(extra_files.items())}
     canonical = json.dumps(data, sort_keys=True, separators=(",", ":"))
@@ -117,6 +121,15 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
         value = getattr(getattr(spec, section), field)
         if value is not None and not Path(value).exists():
             raise SpecError(f"{section}.{field}: file does not exist: {value}")
+
+    if spec.task.stages_file:
+        from runner.stages import StageError, load_stages
+        try:
+            plan = load_stages(spec.task.stages_file)
+        except StageError as exc:
+            raise SpecError(f"task.stages_file: {exc}") from exc
+        if plan.stages[0].prompt.resolve() != Path(spec.task.prompt_file).resolve():
+            raise SpecError("task.prompt_file must be the stage-0 prompt of task.stages_file")
 
     extra = {}
     for name, candidate in (

@@ -31,7 +31,7 @@ TAG = "untrusted_agent_output"
 LIMIT_TEXTS = 60_000
 LIMIT_COMMITS = 12_000
 LIMIT_DIFF = 40_000
-LIMIT_TASK = 20_000
+LIMIT_TASK = 80_000  # staged briefs (minidb v2: ~58 KB) must reach the judge whole
 
 _TAG_RE = re.compile(r"<\s*(/?)\s*" + TAG, re.IGNORECASE)
 

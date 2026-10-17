@@ -71,6 +71,12 @@ def score_snapshot_dir(name_or_path: str | Path, spec: LoadedSpec, out_art: Path
     ws = snap / "workspace"
     snap.mkdir(parents=True)
     (out_art / "events").mkdir()
+    if task.stages_file:  # a standalone snapshot is scored against the final stage (interfaces.md §9)
+        from runner.stages import load_stages
+        from telemetry.events import EventWriter
+        last = load_stages(task.stages_file).stages[-1].id
+        with EventWriter(out_art / "events" / "orchestrator.jsonl", "standalone", "orchestrator") as w:
+            w.emit("stage.delivered", {"stage": last, "t_s": 0.0, "interrupted": False, "standalone": True})
     with tempfile.TemporaryDirectory(prefix="lrae-standalone-") as tmp:
         tmp = Path(tmp)
         if cand.is_dir() and not (cand / "snapshot.yaml").is_file():

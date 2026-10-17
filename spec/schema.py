@@ -31,6 +31,8 @@ class Task(Strict):
     seed_requirements_lock: str
     constraints_file: str
     hidden_tests: str
+    # Optional staged brief (docs/interfaces.md §9, proposed D-18). Stage 0's prompt must be prompt_file.
+    stages_file: str | None = None
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -126,6 +128,8 @@ class Scoring(Strict):
     # claude_code = the installed CLI (spec §8.3.6); scripted = deterministic fake for tests and
     # scripted pilots (no spend).
     judge_runtime: Literal["claude_code", "scripted"] = "claude_code"
+    # Wall-clock budget for scoring each commit of an interval (docs/interfaces.md §8); above it, sample.
+    max_commit_scoring_s: float = Field(default=600.0, gt=0)
     thresholds: Thresholds = Thresholds()
 
     @field_validator("judge_model")

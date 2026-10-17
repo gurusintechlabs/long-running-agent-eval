@@ -150,8 +150,10 @@ class ScriptedAgent:
         elif kind == "git_commit":
             self._tool_use("Bash", {"command": f"git add -A && git commit -m {json.dumps(act['message'])}"})
             env = dict(os.environ, GIT_AUTHOR_DATE=FIXED_DATE, GIT_COMMITTER_DATE=FIXED_DATE)
+            # explicit identity: the scripted agent must not depend on the host's git config
             for cmd in (["git", "add", "-A"],
-                        ["git", "commit", "-q", "--allow-empty", "-m", act["message"]]):
+                        ["git", "-c", "user.name=agent", "-c", "user.email=agent@lrae.local",
+                         "commit", "-q", "--allow-empty", "-m", act["message"]]):
                 subprocess.run(cmd, cwd=self.workspace, env=env, check=False, capture_output=True)
         elif kind == "bash":
             self._tool_use("Bash", {"command": act["cmd"]})

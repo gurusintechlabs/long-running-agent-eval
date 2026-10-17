@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any
 
 TEXT_LIMIT = 20_000
 RESULT_TEXT_LIMIT = 2_000
+TEXT_TAIL_LIMIT = 2_000
 
 
 def _sha256(text: str) -> str:
@@ -61,6 +63,41 @@ def _content_size(content: Any) -> int:
     return 0
 
 
+def _content_text(content: Any) -> str:
+    """Concatenated text of a ``tool_result`` content (a string or a list of blocks)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(_content_text(b.get("text") if isinstance(b, dict) else b) for b in content)
+    return ""
+
+
+# One pytest summary line, with or without "=====" rules: "== 2 failed, 5 passed, 1 skipped in 1.2s ==",
+# "3 passed in 0.12s (0:00:00)", "1 error in 0.3s", "no tests ran in 0.01s".
+_COUNT = r"\d+ (?:passed|failed|errors?|skipped|xfailed|xpassed|deselected|warnings?|rerun)"
+_SUMMARY = re.compile(
+    rf"^[=\s]*(?P<body>(?:{_COUNT})(?:\s*,\s*(?:{_COUNT}))*|no tests ran)"
+    r"(?:\s+in\s+[\d.]+s(?:\s*\([\d:.]+\))?)?[=\s]*$")
+_ONE = re.compile(r"(\d+) (passed|failed|errors?|skipped)")
+
+
+def parse_pytest_summary(text: str) -> dict | None:
+    """Counts from the last pytest summary line in ``text`` (None if there is none).
+
+    ``xfailed``/``xpassed``/``deselected``/``warnings`` are recognised but not counted."""
+    found = None
+    for line in text.splitlines():
+        m = _SUMMARY.match(line.strip())
+        if m:
+            found = (m.group("body"), line.strip().strip("=").strip())
+    if found is None:
+        return None
+    counts = {"passed": 0, "failed": 0, "errors": 0, "skipped": 0}
+    for n, word in _ONE.findall(found[0]):
+        counts["errors" if word.startswith("error") else word] += int(n)
+    return {**counts, "raw_summary": found[1]}
+
+
 def _blocks(msg: dict) -> list[dict]:
     content = (msg.get("message") or {}).get("content")
     if isinstance(content, str):  # a plain-string user/assistant message
@@ -79,10 +116,19 @@ def _parse_assistant(msg: dict) -> list[tuple[str, dict]]:
 
 
 def _parse_user(msg: dict) -> list[tuple[str, dict]]:
-    sid = msg.get("session_id")
-    return [("tool.result", {"session_id": sid, "tool_use_id": b.get("tool_use_id"),
-                             "is_error": bool(b.get("is_error")), "size": _content_size(b.get("content"))})
-            for b in _blocks(msg) if b.get("type") == "tool_result"]
+    sid, out = msg.get("session_id"), []
+    for b in _blocks(msg):
+        if b.get("type") != "tool_result":
+            continue
+        text = _content_text(b.get("content"))
+        out.append(("tool.result", {"session_id": sid, "tool_use_id": b.get("tool_use_id"),
+                                    "is_error": bool(b.get("is_error")),
+                                    "size": _content_size(b.get("content")),
+                                    "text_tail": text[-TEXT_TAIL_LIMIT:]}))
+        summary = parse_pytest_summary(text)
+        if summary:
+            out.append(("agent.test_run", {"session_id": sid, "tool_use_id": b.get("tool_use_id"), **summary}))
+    return out
 
 
 def _parse_system(msg: dict) -> list[tuple[str, dict]]:

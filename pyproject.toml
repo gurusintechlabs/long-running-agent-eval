@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = ["pydantic>=2", "pyyaml", "psutil", "numpy", "scipy", "matplotlib", "jinja2"]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "pytest-xdist", "ruff"]
 
 [project.scripts]
 lrae = "runner.cli:main"
@@ -20,11 +20,12 @@ packages = ["spec", "runner", "runner.runtimes", "telemetry", "guardrails", "sco
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not api' -q"
+addopts = "-m 'not api and not local and not slow' -q"
 markers = [
   "unit: fast tests, no agent subprocess",
   "local: spawns real local processes (scripted runtime, receiver, scorer); no API spend",
   "api: real Anthropic spend; run only with --run-api and LRAE_CONFIRM_SPEND=1",
+  "slow: long local tests (multi-minute end-to-end runs, full per-stage sweeps); run before merging",
 ]
 
 [tool.ruff]

@@ -13,6 +13,7 @@ pytestmark = pytest.mark.local
 DT_S, K = 20.0, 3
 
 
+@pytest.mark.slow
 def test_checkpoints_are_scored_during_the_run(tmp_path, scorer_venv):  # noqa: F811
     repo_root = tmp_path / "repo"
     repo_root.mkdir()

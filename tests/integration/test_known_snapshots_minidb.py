@@ -6,7 +6,7 @@ from scorer.standalone import score_snapshot_dir
 from scorer.venv import install_scorer
 from spec.loader import REPO_ROOT, load_spec
 
-pytestmark = pytest.mark.local
+pytestmark = [pytest.mark.local, pytest.mark.slow]
 
 
 @pytest.fixture(scope="module")

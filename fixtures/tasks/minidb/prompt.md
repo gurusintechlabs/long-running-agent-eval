@@ -9,11 +9,12 @@ through them in order, and make each tier solid before you start the next: a bug
 will surface again in every later one. This brief is the specification. Where it says something
 is an error, return exactly the error type it names.
 
-Work on your own, without asking questions. Keep `python -m pytest` green. Add tests for every
-tier as you go (the existing tests in `tests/` show the style), and commit to git with clear
-messages at least once per tier. When all tiers are done, keep improving correctness, test
-coverage and code quality while time remains. Organise the code however you like; a lexer, a
-parser producing an AST, and an executor in separate modules is a reasonable start.
+Work on your own, without asking questions. Keep `python -m pytest` green. Add tests for every tier
+as you go (the existing tests in `tests/` show the style), and commit to git with clear messages at
+least once per tier. Organise the code however you like; a lexer, a parser producing an AST, and an
+executor in separate modules is a reasonable start. Do all of it before you end your turn:
+implementation, tests, fixes and any cleanup you think the code needs. Ending your turn means you
+consider the work finished.
 
 ## 0. Protocol recap and general rules
 

@@ -6,6 +6,7 @@ ruff and bandit all run with this interpreter, never with the agent's venv.
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import subprocess
 import sys
@@ -56,6 +57,16 @@ def install_scorer(repo_root: Path, seed_lock: Path, *, force: bool = False,
     stamp = venv / STAMP
     if not force and py.exists() and stamp.exists() and stamp.read_text().strip() == want:
         return py
+    venv.parent.mkdir(parents=True, exist_ok=True)
+    with open(venv.parent / f".{venv.name}.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)  # several processes may need the same venv at once
+        if not force and py.exists() and stamp.exists() and stamp.read_text().strip() == want:
+            return py
+        return _build(venv, py, stamp, want, seed_lock, requirements, repo_root)
+
+
+def _build(venv: Path, py: Path, stamp: Path, want: str, seed_lock: Path, requirements: Path,
+           repo_root: Path) -> Path:
     cache = repo_root / "tools" / "wheel-cache"
     cache.mkdir(parents=True, exist_ok=True)
     try:

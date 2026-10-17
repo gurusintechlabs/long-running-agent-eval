@@ -43,6 +43,11 @@ The blind build also logged 35 places where the v1 brief was silent or loose.
 
 ## 3. Timeline (240-minute run)
 
+> **Superseded (owner, 2026-10-17):** stages are no longer delivered at fixed times. Each stage now
+> goes to the agent as soon as it finishes the previous one, and the run ends when stage 6 is done
+> (spec §4.4, D-18). The `at_frac` column below is the original schedule, kept for the record; the
+> first real run (docs/minidb-v2-blind-check.md, trial 1 report) showed the agent idle about half of it.
+
 | Stage | at_frac | t (min) | kind | Brief | Forces the agent to revise |
 |---|---|---|---|---|---|
 | 0 | 0.000 | 0 | feature | `stage0.md`: core engine, sections 1–7 (v1 tiers 1–6 and joins, every ambiguity pinned) | — (baseline) |

@@ -16,7 +16,7 @@ from spec.loader import load_spec
 
 from .pilot_support import CORE, make_pilot_spec, scorer_passes, scorer_venv  # noqa: F401
 
-pytestmark = pytest.mark.local
+pytestmark = [pytest.mark.local, pytest.mark.slow]
 
 DT_S, K, REPEATS = 20.0, 6, 2
 
@@ -28,11 +28,14 @@ def pilot(tmp_path_factory, scorer_venv):  # noqa: F811
     repo_root.mkdir()
     (tmp / "claude").mkdir()
     loaded = load_spec(make_pilot_spec(tmp, dt_s=DT_S, k=K, repeats=REPEATS), repo_root=repo_root)
-    results = []
-    for rep in range(REPEATS):
-        run = Run(loaded, "A", rep, repo_root=repo_root, claude_home=tmp / "claude",
-                  host_home=tmp / "home", caffeinate=False, score=True)
-        results.append(run.execute())
+    # the repeats are independent (own folders, receivers, scorer queues), so they run side by side
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(rep):
+        return Run(loaded, "A", rep, repo_root=repo_root, claude_home=tmp / "claude",
+                   host_home=tmp / "home", caffeinate=False, score=True).execute()
+    with ThreadPoolExecutor(max_workers=REPEATS) as pool:
+        results = list(pool.map(one, range(REPEATS)))
     db = repo_root / "runs" / "metrics.sqlite"
     report = ingest(repo_root / "runs", db)
     return dict(tmp=tmp, repo_root=repo_root, loaded=loaded, results=results, db=db, report=report)

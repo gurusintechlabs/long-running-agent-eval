@@ -54,6 +54,12 @@ def real(env):
         spec["agent"] = {"runtime": "claude_code", "claude_bin": str(stub),
                          "claude_code_version": runtime_version, "model": "claude-opus-5-5"}
         spec["run"].update(duration_min=3.0 / 60, checkpoint_interval_min=1.5 / 60)
+        # two stages, so a second turn resumes the same session with the stage-1 brief
+        (env["tmp"] / "s0.md").write_text("Build stage zero.\n")
+        (env["tmp"] / "s1.md").write_text("Now build stage one.\n")
+        (env["tmp"] / "stages.yaml").write_text(yaml.safe_dump(
+            {"stages": [{"id": 0, "prompt": "s0.md"}, {"id": 1, "prompt": "s1.md"}]}))
+        spec["task"].update(prompt_file="s0.md", stages_file="stages.yaml")
         spec["isolation"]["keep_work_dir"] = keep_work
         env["spec_path"].write_text(yaml.safe_dump(spec))
         return load_spec(env["spec_path"], repo_root=env["repo_root"])
@@ -71,7 +77,7 @@ def test_full_real_agent_path_with_stub(real):
     res = real["run"](real["build"]())
     assert res.state == RunState.COMPLETED, res.error
     calls = real["calls"]()
-    assert len(calls) >= 3  # probe + at least two turns
+    assert len(calls) == 3  # probe + one turn per stage, then the run is done
     probe, first, later = calls[0], calls[1], calls[2:]
     assert "Reply with the single word OK." in probe["argv"]
     for c in calls:
@@ -79,6 +85,8 @@ def test_full_real_agent_path_with_stub(real):
         assert a[0] == "-p" and a[a.index("--model") + 1] == "claude-opus-5-5"
         assert a[a.index("--setting-sources") + 1] == "project,local"
         assert "--strict-mcp-config" in a and "--dangerously-skip-permissions" in a
+        assert "--safe-mode" in a and "--disable-slash-commands" in a
+        assert set(a[a.index("--tools") + 1].split(",")) >= {"Bash", "Read", "Edit", "Write"}
         assert a[a.index("--output-format") + 1] == "stream-json"
         assert Path(a[a.index("--settings") + 1]).name == "harness-settings.json"
         assert c["user_md_exists"] is False, "user CLAUDE.md must be hidden while the agent runs"
@@ -86,6 +94,7 @@ def test_full_real_agent_path_with_stub(real):
     assert "--session-id" in first["argv"] and "--resume" not in first["argv"]
     sid = first["argv"][first["argv"].index("--session-id") + 1]
     assert all(c["argv"][c["argv"].index("--resume") + 1] == sid for c in later)
+    assert "Build stage zero." in first["argv"][1] and later[0]["argv"][1] == "Now build stage one.\n"
     assert first["cwd"].endswith("/workspace") and probe["cwd"].endswith("/probe")
     assert real["user_md"].read_bytes() == b"my private memory\n"
     assert (real["claude_home"] / "rules" / "r.md").read_text() == "rule"

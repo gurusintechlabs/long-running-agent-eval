@@ -7,9 +7,11 @@ procedure as ``fixtures/build_seed.py``, which this must keep matching.)
 """
 from __future__ import annotations
 
+import fcntl
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from runner.workdir import WorkdirError
@@ -70,10 +72,21 @@ def ensure_seed_repo(seed: Path, seed_commit: str, cache_root: Path) -> Path:
     cached = Path(cache_root) / seed_commit
     if cached.exists() and _head(cached) == seed_commit:
         return cached
-    shutil.rmtree(cached, ignore_errors=True)
-    built = build_seed_repo(seed, cached)
-    if built != seed_commit:
-        shutil.rmtree(cached, ignore_errors=True)
-        raise WorkdirError(f"seed fixture {seed} builds to {built}, but the spec pins {seed_commit}; "
-                           "the fixture changed. Rebuild it deliberately and update seed_commit.")
+    # Several runs may need the same seed at once (run.parallelism > 1): build under a lock into a
+    # private folder, then move it into place, so no run ever sees a half-built cache.
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    with open(cached.parent / f".{seed_commit}.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if cached.exists() and _head(cached) == seed_commit:
+            return cached  # another run built it while we waited
+        tmp = Path(tempfile.mkdtemp(prefix=f".{seed_commit[:8]}-", dir=cached.parent))
+        try:
+            built = build_seed_repo(seed, tmp / "repo")
+            if built != seed_commit:
+                raise WorkdirError(f"seed fixture {seed} builds to {built}, but the spec pins {seed_commit}; "
+                                   "the fixture changed. Rebuild it deliberately and update seed_commit.")
+            shutil.rmtree(cached, ignore_errors=True)
+            os.replace(tmp / "repo", cached)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
     return cached

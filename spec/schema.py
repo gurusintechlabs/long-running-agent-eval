@@ -179,7 +179,10 @@ class IntervalCap(Strict):
 class HarnessConfig(Strict):
     name: Literal["A", "B", "C", "D", "E"]
     description: str
-    continuation_prompt: str = "Continue working on the task."
+    # Sent only after a turn FAILED (non-zero exit), to let the agent finish what it was doing. A
+    # successful turn means the work is done: the next stage follows, or the run ends.
+    recovery_prompt: str = ("Your previous turn ended with an error before it finished. "
+                            "Continue the current work from where it stopped.")
     gate: Gate = Gate()
     reset: Reset = Reset()
     interval_cap: IntervalCap = IntervalCap()

@@ -8,6 +8,7 @@ is scored. It has no time limit, so a multi-hour run needs it started only once.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from datetime import datetime
@@ -81,6 +82,8 @@ class Watcher:
         self.metrics: dict[tuple[str, int], dict[str, float | None]] = {}
         self.last_agent_text = ""
         self.cost = 0.0
+        self.queued: set[int] = set()  # checkpoints handed to the scorer queue ...
+        self.scored: set[int] = set()  # ... and those whose scorer process has exited
 
     def _t(self, ev: dict) -> float | None:
         if self.start_epoch is None:
@@ -108,6 +111,12 @@ class Watcher:
             self.last_agent_text = p.get("text") or self.last_agent_text
             return []
         if typ == "claude_code.api_request":
+            return []
+        if typ == "scorer.queued":
+            self.queued.add(p.get("k"))
+            return []
+        if typ == "scorer.finished":
+            self.scored.add(p.get("k"))
             return []
         if typ == "turn.end":
             ok = "finished" if p.get("returncode") == 0 else f"FAILED (exit {p.get('returncode')})"
@@ -150,12 +159,29 @@ class Watcher:
         return []
 
 
-def _finished(art: Path) -> bool:
-    """Run ended and its scorer queue drained (the manifest gets ``end`` after draining)."""
+def _harness_alive(m: dict) -> bool:
+    pid = m.get("harness_pid")
+    if not pid:
+        return False
     try:
-        return "end" in mf.load(art / "manifest.json")
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, ValueError, OverflowError):
+        return True
+    return True
+
+
+def _finished(art: Path, w: Watcher) -> bool:
+    """Run ended and every queued checkpoint scored. The manifest gets ``end`` before the scorer
+    queue drains, so ``end`` alone is not enough. A harness that died mid-scoring ends the wait."""
+    try:
+        m = mf.load(art / "manifest.json")
     except (OSError, ValueError):
         return False
+    if "end" not in m:
+        return False
+    return w.queued <= w.scored or not _harness_alive(m)
 
 
 def watch(art: Path, *, out=sys.stdout, poll_s: float = 2.0, follow: bool = True) -> int:
@@ -163,13 +189,18 @@ def watch(art: Path, *, out=sys.stdout, poll_s: float = 2.0, follow: bool = True
     w = Watcher(art)
     tails = [_Tail(art / "events" / f"{s}.jsonl") for s in SOURCES]
     print(f"watching {art.name}  (Ctrl-C stops watching; the run itself keeps going)", file=out, flush=True)
+    waiting_said = False
     while True:
         batch = [ev for tl in tails for ev in tl.read()]
         batch.sort(key=lambda e: e.get("ts", ""))
         for ev in batch:
             for line in w.feed(ev):
                 print(line, file=out, flush=True)
-        if not follow or _finished(art):
+            if ev.get("type") == "state" and (ev.get("payload") or {}).get("to") in TERMINAL:
+                if w.queued - w.scored and not waiting_said:
+                    print("        waiting for the final scoring ...", file=out, flush=True)
+                    waiting_said = True
+        if not follow or _finished(art, w):
             # one last read: the final events may land just before the manifest is closed
             for ev in sorted((ev for tl in tails for ev in tl.read()), key=lambda e: e.get("ts", "")):
                 for line in w.feed(ev):

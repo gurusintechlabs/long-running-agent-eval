@@ -64,3 +64,47 @@ def test_status_and_latest_run(art, tmp_path):
     assert "hidden tests 5/10 passing" in s
     with pytest.raises(FileNotFoundError):
         watch.find_run(tmp_path / "runs", "nope")
+
+
+def _end(art, harness_pid):
+    m = json.loads((art / "manifest.json").read_text())
+    m["harness_pid"] = harness_pid
+    m["end"] = {"state": "COMPLETED", "end_epoch": START + 700, "end_reason": "task_done"}
+    (art / "manifest.json").write_text(json.dumps(m))
+    write(art, "orchestrator", [(690, "scorer.queued", {"k": 2}),
+                                (700, "state", {"from": "FINALIZING", "to": "COMPLETED"})])
+
+
+def test_watch_waits_for_the_final_scoring_after_the_run_has_ended(art):
+    import os
+    import threading
+    _end(art, os.getpid())  # harness still alive, final checkpoint 2 queued but not scored yet
+
+    def score_later():
+        import time
+        time.sleep(0.3)
+        write(art, "scorer", [(750, "scorer.metric", {"k": 2, "pass_id": "p", "name": "P", "value": 1.0,
+                                                      "detail": {"passed": 10, "active": 10}}),
+                              (751, "scorer.done", {"k": 2, "pass_id": "p", "ok": True, "duration_s": 30})])
+        write(art, "orchestrator", [(752, "scorer.finished", {"k": 2, "returncode": 0})])
+
+    t = threading.Thread(target=score_later)
+    t.start()
+    out = io.StringIO()
+    assert watch.watch(art, out=out, poll_s=0.01) == 0
+    t.join()
+    text = out.getvalue()
+    assert "waiting for the final scoring" in text
+    assert "checkpoint 2 scored in 30s: hidden tests 10/10 passing" in text, text
+    assert text.index("RUN ENDED") < text.index("checkpoint 2 scored")
+
+
+def test_watch_stops_if_the_harness_died_before_scoring_finished(art):
+    import subprocess
+    import sys
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    _end(art, dead.pid)
+    out = io.StringIO()
+    assert watch.watch(art, out=out, poll_s=0.01) == 0
+    assert "RUN ENDED: COMPLETED" in out.getvalue()

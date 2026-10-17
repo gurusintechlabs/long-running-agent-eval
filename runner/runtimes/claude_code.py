@@ -7,6 +7,12 @@ from pathlib import Path
 from runner.runtimes.base import TurnContext
 
 EMPTY_MCP = '{"mcpServers": {}}'
+# The agent's tools: an explicit allowlist of core coding tools (CLI >= 2.1 also offers tools that
+# message other local sessions, trigger remote or scheduled agents, run workflows or load skills,
+# none of which belong in an isolated, comparable run). No web tools (design §2 egress allowlist).
+# Verified against CLI 2.1.301 (probe init, 2026-10-17): Task comes with TaskStop (stops its own
+# sub-tasks); MultiEdit/TodoWrite/BashOutput/KillShell no longer exist.
+AGENT_TOOLS = ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "NotebookEdit", "Task", "TaskStop")
 
 
 class ClaudeCodeRuntime:
@@ -20,6 +26,7 @@ class ClaudeCodeRuntime:
                                       "mechanism is verified against the installed CLI (Phase 1 findings)")
         self.claude_bin = claude_bin
         self.model = model
+        self.allowed_tools = set(AGENT_TOOLS)
 
     def build_command(self, ctx: TurnContext) -> list[str]:
         empty_mcp = ctx.art / "empty-mcp.json"
@@ -32,6 +39,11 @@ class ClaudeCodeRuntime:
                "--settings", str(ctx.settings_path),
                "--setting-sources", "project,local",
                "--strict-mcp-config", "--mcp-config", str(empty_mcp),
+               # clean memory (D-15): no CLAUDE.md, skills, installed plugins, hooks, custom agents
+               # or workflows; the login, built-in tools and built-in plugins still work
+               "--safe-mode",
+               "--disable-slash-commands",  # no skills at all, bundled ones included
+               "--tools", ",".join(AGENT_TOOLS),
                "--dangerously-skip-permissions"]
         cmd += ["--session-id", ctx.session_id] if ctx.first_turn else ["--resume", ctx.session_id]
         return cmd

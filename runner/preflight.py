@@ -103,15 +103,25 @@ def find_init(lines) -> dict | None:
     return None
 
 
-def evaluate_init(init: dict) -> list[Check]:
-    """L-3: no MCP servers, plugins or user skills; only built-in tools."""
+def _builtin(plugin) -> bool:
+    """A plugin that ships inside the CLI (``source`` ``name@builtin``), not one the user installed."""
+    return isinstance(plugin, dict) and (str(plugin.get("source", "")).endswith("@builtin")
+                                         or plugin.get("path") == "builtin")
+
+
+def evaluate_init(init: dict, allowed_tools: set[str] | None = None) -> list[Check]:
+    """L-3: no MCP servers, user plugins or user skills; only the allowed built-in tools."""
     checks = []
     servers = init.get("mcp_servers") or []
     checks.append(Check("L-3 no mcp servers", not servers,
                         ", ".join(str(s.get("name", s)) if isinstance(s, dict) else str(s) for s in servers)))
     tools = init.get("tools") or []
-    odd = [t for t in tools if t.startswith("mcp__") or t not in KNOWN_TOOLS]
+    allowed = allowed_tools if allowed_tools is not None else KNOWN_TOOLS
+    odd = [t for t in tools if t.startswith("mcp__") or t not in allowed]
     checks.append(Check("L-3 only built-in tools", not odd, "unexpected tools: " + ", ".join(odd)))
-    extras = {k: init[k] for k in ("plugins", "skills", "slash_commands_custom") if init.get(k)}
-    checks.append(Check("L-3 no plugins or skills", not extras, json.dumps(extras)[:200]))
+    plugins = [p for p in (init.get("plugins") or []) if not _builtin(p)]
+    extras = {k: init[k] for k in ("skills", "slash_commands_custom") if init.get(k)}
+    if plugins:
+        extras["plugins"] = plugins
+    checks.append(Check("L-3 no user plugins or skills", not extras, json.dumps(extras)[:2000]))
     return checks

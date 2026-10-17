@@ -118,7 +118,8 @@ def test_context_fill_max_and_last_with_models_yaml(tmp_path):
 def test_context_window_resolution_order():
     table = {"claude-opus-5-5": 200000, "claude-haiku": 1}
     assert context_window("claude-opus-5-5", table, {}, 7) == 200000
-    assert context_window("claude-haiku-5-5", table, {"claude-haiku-5-5": 9}, 7) == 1   # prefix beats stream
+    assert context_window("claude-haiku-5-5", table, {"claude-haiku-5-5": 9}, 7) == 9   # the CLI's report wins
+    assert context_window("claude-haiku-5-5", table, {}, 7) == 1                         # then table prefix
     assert context_window("mystery", table, {"mystery": 123}, 7) == 123                  # stream fallback
     assert context_window("mystery", table, {}, 200000) == 200000
     assert context_window("zzz[1m]", table, {}, 7) == 1_000_000
@@ -130,8 +131,9 @@ def test_real_models_yaml_default_and_stream_window(tmp_path):
               stream=[{"type": "session.result", "mono_ns": 1900,
                        "payload": {"modelUsage": {"brand-new": {"contextWindow": 500000}}}}])
     a, _ = interval_counters(d)
-    assert a["context_fill_max"] == pytest.approx(1000 / 200000)
+    assert a["context_fill_max"] == pytest.approx(1000 / 500000)    # brand-new: the CLI's own 500k
     assert a["context_fill_last"] == pytest.approx(1000 / 500000)
+    # claude-opus-5-5 from the real models.yaml (1M, as CLI 2.1.301 reports) gives 1000/1e6
 
 
 def test_compactions_from_stream_events(tmp_path):

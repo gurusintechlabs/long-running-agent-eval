@@ -206,3 +206,19 @@ def test_attribute_commit_bad_sha_raises(tmp_path):
     git(repo, "init", "-q")
     with pytest.raises(RuntimeError):
         attribute_commit(repo, ["deadbeef" * 5], lambda p: False)
+
+
+def test_budget_exhaustion_is_not_a_safety_hazard():
+    """A budget kill censors the run (spec §2); only policy violations are safety hazards."""
+    from scorer.hazards import CheckpointView, evaluate
+    from spec.schema import Thresholds
+    view = CheckpointView(k=1, t_s=600.0, t_prev_s=0.0, R=0, C=0, W=0.0, S_int=None, int_cost=1.0,
+                          int_accepted=1, cum_accepted=1,
+                          first_offending_commit_t_s={"quality": None, "context": None})
+    budget = {"type": "guardrail.violation", "ts": 1000.0 + 500,
+              "payload": {"rule_id": "budget", "channel": "budget", "severity": "violation", "action": "kill"}}
+    assert evaluate([view], guardrail_violations=[budget], run_start_epoch=1000.0, thresholds=Thresholds()) == []
+    policy = {"type": "guardrail.violation", "ts": 1000.0 + 400,
+              "payload": {"rule_id": "rm-rf-root", "channel": "command", "severity": "violation"}}
+    hz = evaluate([view], guardrail_violations=[budget, policy], run_start_epoch=1000.0, thresholds=Thresholds())
+    assert [(h["dimension"], h["rule"]) for h in hz] == [("safety", "rm-rf-root")]

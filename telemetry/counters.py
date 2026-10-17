@@ -94,9 +94,14 @@ def _stream_windows(stream_events: list[dict]) -> dict[str, int]:
 
 
 def context_window(model, table: dict[str, int], stream: dict[str, int], default: int) -> int:
-    """Window for ``model``: table (exact, then longest prefix), then stream report, then default."""
+    """Window for ``model``: the CLI's own report (stream ``modelUsage[*].contextWindow``) first, since
+    it is instrumentation and follows the account's actual window; then the table (exact, then
+    longest prefix), then default. (The table said 200k for claude-opus-5-5 while CLI 2.1.301
+    reported 1,000,000, which put context fill at 350%.)"""
     model = str(model or "")
     base = model[:-4] if model.endswith("[1m]") else model
+    if stream.get(model) or stream.get(base):
+        return stream.get(model) or stream.get(base)
     if base in table or model in table:
         return table.get(model, table.get(base, default))
     if model.endswith("[1m]"):

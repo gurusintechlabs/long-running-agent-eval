@@ -84,15 +84,11 @@ def test_spec_validates_with_its_stages_and_the_v1_seed():
     assert loaded.spec.scoring.judge_runtime == "claude_code"
 
 
-def test_stages_file_is_valid_and_spread_over_the_run():
+def test_stages_file_is_valid():
     plan = load_stages(STAGES)
     assert [s.id for s in plan.stages] == list(range(7))
-    fracs = [s.at_frac for s in plan.stages]
-    assert fracs[0] == 0.0 and fracs == sorted(fracs) and fracs[-1] <= 0.8
-    assert all(b - a >= 0.1 for a, b in zip(fracs, fracs[1:], strict=False))
     kinds = [s.kind for s in plan.stages]
     assert kinds.count("change_request") == 2 and kinds[0] == "feature"
-    assert 0 < plan.max_wait_frac <= 0.1
     for s in plan.stages:
         assert s.prompt.is_file() and s.prompt.parent == TASK.resolve()
 

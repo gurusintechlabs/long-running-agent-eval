@@ -12,10 +12,10 @@ the specification. Where it says something is an error, return exactly the error
 
 Work on your own, without asking questions. Keep `python -m pytest` green. Add tests for every
 section as you go (the existing tests in `tests/` show the style), and commit to git with clear
-messages at least once per section. Organise the code however you like; a lexer, a parser
-producing an AST, and an executor in separate modules is a reasonable start. When everything in
-this brief is done, keep improving correctness, test coverage and code quality while you wait for
-the next message.
+messages at least once per section. Organise the code however you like; a lexer, a parser producing
+an AST, and an executor in separate modules is a reasonable start. Do all of it before you end your
+turn: implementation, tests, fixes and any cleanup you think the code needs. Ending your turn means
+you consider the work finished; the next message from the product owner arrives as soon as you do.
 
 ## 0. Protocol recap and general rules
 

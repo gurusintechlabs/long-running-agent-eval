@@ -131,7 +131,7 @@ class Run:
         self._final_tag: str | None = None
         self._stage_plan = load_stages(self.spec.task.stages_file) if self.spec.task.stages_file else None
         self._stages: StageScheduler | None = None
-        self._interrupt_pending = False
+        self.end_reason: str | None = None  # task_done | deadline (guardrail ends set censored_reason)
 
         self.stop = threading.Event()
         self.snap_lock = threading.Lock()
@@ -429,19 +429,16 @@ class Run:
         self._ev.emit("run.clock", {"start_epoch": self._start_epoch_run, "offset_s": self._offset_s})
         self._set_state(RunState.RUNNING)
         initial = assemble_prompt(self.spec.task.prompt_file, self.spec.task.constraints_file)
-        staged = {}
         if self._stage_plan:
-            self._stages = StageScheduler(self._stage_plan, self.spec.run.duration_min * 60, self.elapsed_s,
-                                          delivered=self._delivered_before_resume())
+            self._stages = StageScheduler(self._stage_plan, delivered=self._delivered_before_resume())
             if self.resume_from is None:
                 s0 = self._stage_plan.stages[0]
                 self._ev.emit("stage.delivered", {"stage": 0, "t_s": 0.0, "kind": s0.kind,
-                                                  "prompt_sha256": s0.sha256, "interrupted": False})
-            staged = dict(next_prompt=self._next_prompt, should_interrupt=self._stage_overdue)
+                                                  "prompt_sha256": s0.sha256})
         driver = LoopDriver(spawn_turn=lambda p, first: self._spawn_turn(p, first), stop=self.stop,
-                            initial_prompt=initial, continuation_prompt=self.config.continuation_prompt,
+                            initial_prompt=initial, recovery_prompt=self.config.recovery_prompt,
                             snap_lock=self.snap_lock, first_turn=self.resume_from is None,
-                            on_turn=self._on_turn_end, **staged)
+                            on_turn=self._on_turn_end, next_prompt=self._next_prompt)
         ckpt = threading.Thread(target=self._checkpointer, name="checkpointer", daemon=True)
         ckpt.start()
         try:
@@ -453,6 +450,15 @@ class Run:
                 self._halt_done.wait(300)
         if self._checkpoint_error:
             raise self._checkpoint_error
+        if driver.finished and not self._halting:
+            # The agent finished all of its work before the deadline: final snapshot, run complete.
+            self.end_reason = "task_done"
+            self._ev.emit("run.done", {"t_s": round(self.elapsed_s(), 3), "turns": driver.turns,
+                                       "stages": sorted(self._stages.delivered) if self._stages else None})
+            done = [int(p.name[1:]) for p in self.paths.snapshots.glob("t*") if p.name[1:].isdigit()]
+            self._checkpoint(max(done, default=0) + 1, final="complete", pause=False)
+        elif self.end_reason is None and not self._halting:
+            self.end_reason = "deadline"
         if self.final_state is None and self._guard_paused:
             self.final_state, self.censored_reason = RunState.INTERRUPTED, "telemetry_stalled"
 
@@ -471,24 +477,15 @@ class Run:
                 done.add(int(ev["payload"]["stage"]))
         return done
 
-    def _next_prompt(self) -> str:
-        stage = self._stages.due()
+    def _next_prompt(self) -> str | None:
+        """After a successful turn: the next stage's brief, or None when there is no more work."""
+        stage = self._stages.next() if self._stages else None
         if stage is None:
-            return self.config.continuation_prompt
+            return None
         self._stages.mark_delivered(stage)
         self._ev.emit("stage.delivered", {"stage": stage.id, "t_s": round(self.elapsed_s(), 3),
-                                          "kind": stage.kind, "prompt_sha256": stage.sha256,
-                                          "interrupted": self._interrupt_pending})
-        self._interrupt_pending = False
+                                          "kind": stage.kind, "prompt_sha256": stage.sha256})
         return stage.text
-
-    def _stage_overdue(self) -> bool:
-        if self._stages.overdue() and not self._interrupt_pending:
-            self._interrupt_pending = True
-            self._ev.emit("turn.interrupted", {"reason": "stage_due", "stage": self._stages.due().id,
-                                               "t_s": round(self.elapsed_s(), 3)})
-            return True
-        return False
 
     def _on_turn_end(self, n: int, rc: int | None) -> None:
         if self._monitor:
@@ -575,7 +572,7 @@ class Run:
             self._ev.emit("checkpoint", {"k": k, "t_s": round(self.elapsed_s(), 3), **info.meta})
             if final is None:
                 self._set_state(RunState.RUNNING)
-        if self._monitor and final is None:
+        if self._monitor and final in (None, "complete"):
             self._monitor.check_effects_now()
         if self._scorer:
             self._scorer.submit(k)
@@ -607,6 +604,7 @@ class Run:
         otel = self.paths.events / "otel.jsonl"
         manifest_end = {"state": final.value, "end_epoch": time.time(), "error": self.error,
                         "checkpoints": len(self.snapshots), "censored_reason": self.censored_reason,
+                        "end_reason": self.end_reason,
                         "cost_usd": cumulative_cost(otel), "tokens": cumulative_tokens(otel)}
         try:
             mf.update(self.paths.manifest, end=manifest_end)

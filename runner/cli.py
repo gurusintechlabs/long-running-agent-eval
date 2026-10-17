@@ -42,6 +42,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp.add_parser("clean", help="finish cleanup of crashed runs and leftover agent state dirs")
 
+    st = sp.add_parser("status", help="where a run stands now (default: the latest run)")
+    st.add_argument("run_id", nargs="?", default="latest")
+    w = sp.add_parser("watch", help="follow a run until it ends and is scored (default: the latest run)")
+    w.add_argument("run_id", nargs="?", default="latest")
+    w.add_argument("--interval", type=float, default=2.0, help="seconds between checks")
+
     scorer_cli.add_parsers(sp)    # score, install-scorer
     analysis_cli.add_parsers(sp)  # ingest, dashboard, report
     return ap
@@ -102,7 +108,8 @@ def experiment_spend(repo_root: Path, experiment_id: str, spec_hash: str) -> flo
 
 def cmd_resume(a) -> int:
     res = resume_run(a.run_id, parse_checkpoint(a.from_k), repo_root=a.repo_root, claude_home=a.claude_home,
-                     host_home=a.home, confirm_spend=a.confirm_spend, caffeinate=not a.no_caffeinate)
+                     host_home=a.home, confirm_spend=a.confirm_spend, caffeinate=not a.no_caffeinate,
+                     score=True)
     print(f"{res.run_id}: {res.state.value}" + (f"  ({res.error})" if res.error else ""))
     return 0 if res.state == RunState.COMPLETED else 1
 
@@ -138,12 +145,22 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_resume(a)
         if a.cmd == "clean":
             return cmd_clean(a)
+        if a.cmd in ("status", "watch"):
+            from runner import watch
+            art = watch.find_run(a.repo_root / "runs", a.run_id)
+            if a.cmd == "status":
+                print(watch.status(art))
+                return 0
+            try:
+                return watch.watch(art, poll_s=a.interval)
+            except KeyboardInterrupt:
+                return 0
         if a.cmd == "score":
             return scorer_cli.cmd_score(a)
         if a.cmd == "install-scorer":
             return scorer_cli.cmd_install_scorer(a)
         return a.func(a)  # ingest, dashboard, report
-    except (SpecError, ValueError) as exc:
+    except (SpecError, ValueError, FileNotFoundError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

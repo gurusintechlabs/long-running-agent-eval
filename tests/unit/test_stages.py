@@ -7,32 +7,36 @@ from spec.loader import SpecError, load_spec
 
 def write_plan(tmp_path, stages, **extra):
     for s in stages:
-        (tmp_path / s["prompt"]).write_text(f"brief {s['id']}\n")
+        if "prompt" in s:
+            (tmp_path / s["prompt"]).write_text(f"brief {s['id']}\n")
     (tmp_path / "stages.yaml").write_text(yaml.safe_dump({"stages": stages, **extra}))
     return tmp_path / "stages.yaml"
 
 
-PLAN = [{"id": 0, "prompt": "s0.md", "at_frac": 0.0}, {"id": 1, "prompt": "s1.md", "at_frac": 0.25},
-        {"id": 2, "prompt": "s2.md", "at_frac": 0.5, "kind": "change_request"}]
+PLAN = [{"id": 0, "prompt": "s0.md"}, {"id": 1, "prompt": "s1.md"},
+        {"id": 2, "prompt": "s2.md", "kind": "change_request"}]
 
 
 def test_load(tmp_path):
-    plan = load_stages(write_plan(tmp_path, PLAN, max_wait_frac=0.1))
-    assert [s.id for s in plan.stages] == [0, 1, 2] and plan.max_wait_frac == 0.1
+    plan = load_stages(write_plan(tmp_path, PLAN))
+    assert [s.id for s in plan.stages] == [0, 1, 2]
     assert plan.stages[2].kind == "change_request" and plan.stages[1].text == "brief 1\n"
 
 
 @pytest.mark.parametrize("bad", [
-    [{"id": 0, "prompt": "s0.md", "at_frac": 0.1}],                                    # stage 0 not at 0
-    [PLAN[0], {"id": 2, "prompt": "s1.md", "at_frac": 0.3}],                           # ids not sequential
-    [PLAN[0], {"id": 1, "prompt": "s1.md", "at_frac": 0.0}],                           # not increasing
-    [PLAN[0], {"id": 1, "prompt": "s1.md", "at_frac": 1.0}],                           # not below 1
-    [PLAN[0], {"id": 1, "prompt": "s1.md", "at_frac": 0.3, "kind": "surprise"}],       # unknown kind
-    [PLAN[0], {"id": 1, "prompt": "s1.md", "at_frac": 0.3, "when": 3}],                # unknown key
+    [PLAN[0], {"id": 2, "prompt": "s1.md"}],                         # ids not sequential
+    [PLAN[0], {"id": 1, "prompt": "s1.md", "kind": "surprise"}],     # unknown kind
+    [PLAN[0], {"id": 1, "prompt": "s1.md", "at_frac": 0.3}],         # no clock: times are not a key
+    [PLAN[0], {"id": 1}],                                            # no prompt
 ])
 def test_invalid_plans(tmp_path, bad):
     with pytest.raises(StageError):
         load_stages(write_plan(tmp_path, bad))
+
+
+def test_unknown_top_level_key(tmp_path):
+    with pytest.raises(StageError):
+        load_stages(write_plan(tmp_path, PLAN, max_wait_frac=0.1))
 
 
 def test_missing_prompt_file(tmp_path):
@@ -42,25 +46,20 @@ def test_missing_prompt_file(tmp_path):
         load_stages(path)
 
 
-def test_scheduler(tmp_path):
-    plan = load_stages(write_plan(tmp_path, PLAN, max_wait_frac=0.1))
-    now = {"t": 0.0}
-    sch = StageScheduler(plan, 100.0, lambda: now["t"])
-    assert sch.due() is None and sch.active() == 0
-    now["t"] = 30
-    assert sch.due().id == 1 and not sch.overdue()
-    now["t"] = 60  # stage 1 still undelivered: stages go out in order, one per turn
-    assert sch.due().id == 1 and sch.overdue()
-    sch.mark_delivered(sch.due())
-    assert sch.due().id == 2 and sch.active() == 1
-    sch.mark_delivered(sch.due())
-    assert sch.due() is None and not sch.overdue() and sch.active() == 2
+def test_scheduler_hands_out_stages_in_order_then_none(tmp_path):
+    sch = StageScheduler(load_stages(write_plan(tmp_path, PLAN)))
+    assert sch.active() == 0
+    s = sch.next()
+    assert s.id == 1
+    sch.mark_delivered(s)
+    assert sch.next().id == 2 and sch.active() == 1
+    sch.mark_delivered(sch.next())
+    assert sch.next() is None and sch.active() == 2
 
 
 def test_resume_keeps_delivered(tmp_path):
-    plan = load_stages(write_plan(tmp_path, PLAN))
-    sch = StageScheduler(plan, 100.0, lambda: 70.0, delivered={0, 1})
-    assert sch.due().id == 2
+    sch = StageScheduler(load_stages(write_plan(tmp_path, PLAN)), delivered={0, 1})
+    assert sch.next().id == 2
 
 
 def _spec(tmp_path, stages_file, prompt="s0.md"):

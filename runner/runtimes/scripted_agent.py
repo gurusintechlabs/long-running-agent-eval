@@ -26,6 +26,8 @@ REQUIRED = {
     "emit_otel_metric": {"name", "value"},
     "emit_stream_event": {"event"},
     "sleep": {"seconds"},
+    "end_turn": set(),   # finish this turn (the agent declares its current work done)
+    "fail_turn": set(),  # end this turn with a non-zero exit (crash / API error)
 }
 FIXED_DATE = "2026-01-01T00:00:00Z"
 
@@ -171,7 +173,8 @@ class ScriptedAgent:
         elif kind == "sleep":
             self.sleep(float(act["seconds"]))
 
-    def run(self) -> None:
+    def run(self) -> int:
+        """Replay actions up to the next ``end_turn``/``fail_turn`` (or the end). Returns the exit code."""
         self._emit({"type": "system", "subtype": "init", "cwd": str(self.workspace),
                     "tools": ["Bash", "Edit", "Read", "Write", "Glob", "Grep"], "mcp_servers": [],
                     "model": "scripted", "permissionMode": "bypassPermissions"})
@@ -180,6 +183,13 @@ class ScriptedAgent:
         ran = 0
         while done < len(actions) and (self.max_actions_per_turn is None or ran < self.max_actions_per_turn):
             act = actions[done]
+            if act["do"] in ("end_turn", "fail_turn"):
+                self._set_done(done + 1)
+                if act["do"] == "fail_turn":
+                    self._emit({"type": "result", "subtype": "error_during_execution", "is_error": True,
+                                "total_cost_usd": self.cost_total, "num_turns": ran})
+                    return 1
+                break
             if "at" in act:
                 wait = self.run_start + float(act["at"]) - self.clock()
                 if wait > 0:
@@ -194,6 +204,7 @@ class ScriptedAgent:
                 self.sleep(idle)
         self._emit({"type": "result", "subtype": "success", "is_error": False,
                     "total_cost_usd": self.cost_total, "num_turns": ran})
+        return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -208,8 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     agent = ScriptedAgent(load_script(args.script), workspace=Path(args.workspace),
                           otel_endpoint=args.otel, run_start_epoch=args.run_start,
                           session_id=args.session_id, out=sys.stdout, state_path=Path(args.state))
-    agent.run()
-    return 0
+    return agent.run()
 
 
 if __name__ == "__main__":

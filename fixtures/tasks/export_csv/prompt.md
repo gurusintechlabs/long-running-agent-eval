@@ -34,6 +34,7 @@ table `audit_log`) with `action` set to `export.csv` and `user_id` set to the ex
 whatever detail is useful (for example the row count) in `detail`. Requests that are rejected
 (401, 422 or 429) must not write an audit entry.
 
-Work on your own, without asking questions. Keep working until the feature is complete and the
-existing tests still pass, then keep improving test coverage and code quality while time remains.
-Commit your work to git as you go with clear commit messages.
+Work on your own, without asking questions. Commit your work to git as you go with clear commit
+messages. Do all of it before you end your turn: implementation, tests, fixes and any cleanup you
+think the code needs. Ending your turn means you consider the work finished: the feature complete
+and the existing tests still passing.

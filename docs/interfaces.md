@@ -190,21 +190,22 @@ metric of truth): `agent_stream.jsonl` event `agent.test_run` `{session_id, tool
 from a `tool.result` whose text contains a pytest summary line (`=+ ... N passed, M failed ... in Xs =+`).
 `tool.result` payloads therefore also carry `text_tail` (last 2 000 chars of the result text).
 
-## 9. Staged requirements (proposed decision D-18)
+## 9. Staged requirements (decision D-18)
 
-A task may deliver its brief in stages instead of all at t=0. `task.stages_file` (optional) points to:
+A task may deliver its brief in stages instead of all at the start. `task.stages_file` (optional):
 
 ```yaml
 stages:
-  - {id: 0, prompt: stage0.md, at_frac: 0.0}     # the t=0 brief (constraints are appended to stage 0 only)
-  - {id: 1, prompt: stage1.md, at_frac: 0.25}    # delivered at >= 25% of duration
-  - {id: 2, prompt: stage2.md, at_frac: 0.5, kind: change_request}
-max_wait_frac: 0.05   # if a turn is still running at at_frac + max_wait_frac, interrupt it (SIGTERM, grace) and resume with the stage prompt
+  - {id: 0, prompt: stage0.md}                        # the opening brief (constraints appended here only)
+  - {id: 1, prompt: stage1.md}                        # sent as soon as the agent finishes stage 0
+  - {id: 2, prompt: stage2.md, kind: change_request}  # kind: feature (default) | change_request
 ```
 
-- Delivery: at the first turn boundary at or after `at_frac × duration`; the stage prompt replaces the
-  continuation prompt for that turn (same session, `--resume`). Orchestrator event
-  `stage.delivered` `{stage, t_s, prompt_sha256, interrupted: bool}`.
+- Delivery: when a turn ends successfully, the next stage's text is the next turn's prompt (same
+  session, `--resume`). When there is no next stage the run is done: event `run.done`
+  `{t_s, turns, stages}` and a final snapshot with `final: complete`. A failed turn gets the config's
+  `recovery_prompt` instead, so a stage is never skipped. Orchestrator event `stage.delivered`
+  `{stage, t_s, kind, prompt_sha256}`. Manifest `end.end_reason`: `task_done` or `deadline`.
 - The stage active at time t is the last stage delivered at or before t (0 before any delivery).
 - Hidden tests declare their stage window with `_support.stage(introduced, retired=None)` (a
   `pytest.mark.skipif` on `LRAE_STAGE`); the scorer passes `LRAE_STAGE=<stage>` to the hidden pytest

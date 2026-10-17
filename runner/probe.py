@@ -17,6 +17,7 @@ from pathlib import Path
 from runner import memory, preflight, procs
 from runner.preflight import Check
 from runner.runtimes.base import TurnContext
+from telemetry.events import redact
 
 PROBE_PROMPT = "Reply with the single word OK."
 
@@ -63,7 +64,8 @@ def run_probe(*, runtime, env: dict[str, str], receiver, probe_dir: Path, art: P
         if init is None:
             checks.append(Check("probe: init message", False, f"no init message in stream (rc={rc})"))
         else:
-            checks.extend(preflight.evaluate_init(init))
+            (art / "probe-init.json").write_text(json.dumps(redact(init), indent=1, sort_keys=True))
+            checks.extend(preflight.evaluate_init(init, getattr(runtime, "allowed_tools", None)))
         result = next((json.loads(x) for x in reversed(lines) if x.startswith("{") and '"result"' in x), None)
         ok = bool(result) and not result.get("is_error") and rc == 0 and not timed_out
         detail = ""

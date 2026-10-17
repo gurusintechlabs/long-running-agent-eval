@@ -246,6 +246,7 @@ class ClaudeJudgeRunner:
     def command(self, model: str, mcp_config: Path) -> list[str]:
         return [self.claude_bin, "-p", "--model", model, "--output-format", "json",
                 "--tools", "",
+                "--safe-mode",  # no CLAUDE.md, skills, plugins or hooks reach the judge either
                 "--setting-sources", "project,local",
                 "--strict-mcp-config", "--mcp-config", str(mcp_config)]
 

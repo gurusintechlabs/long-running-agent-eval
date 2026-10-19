@@ -1,6 +1,6 @@
 # Long-Running Agent Evaluation Framework (LRAE)
 
-Read these before any work: `docs/design.md` (source design, verbatim), `docs/spec.md` (implementable spec, decisions D-n), `docs/plan.md` (phase plan).
+Read these before any work: `docs/design.md` (source design, verbatim), `docs/spec.md` (implementable spec, decisions D-n), `docs/plan.md` (phase plan). For the behaviour and security track (phases B1–B7) also read `docs/behavior-design.md`, `docs/behavior-plan.md` and `docs/minidb-v3-design.md` (all drafts awaiting owner review).
 
 ## Working rules (from design §4.1)
 1. One phase per session. Read the docs first and restate the phase's exit check before coding.

@@ -201,6 +201,10 @@ Concretely:
 
 ---
 
+## Behaviour and security track (B1–B7, draft)
+
+Between Phase 4 and the Phase 5 full runs of minidb v3. See `docs/behavior-plan.md` (phases), `docs/behavior-design.md` (design and proposed decisions D-15a, D-18a, D-19 to D-25) and `docs/minidb-v3-design.md` (task).
+
 ## Phase 5: Full runs
 
 **Exit check:** *Data complete, outliers explained.*

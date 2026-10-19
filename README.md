@@ -287,12 +287,15 @@ docs/        design, spec, plan, phase summaries, interfaces, task design notes
 |---|---|---|---|
 | `pytest -n 4` | fast unit tests | ~1 min | none |
 | `pytest -m "local and not slow" -n 4` | real processes: scripted agent runs, scorer, guardrails, receiver | ~2 min | none |
-| `pytest -m slow -n 4` | the long checks: full pilot pipeline, every minidb v2 stage, full scorer sweeps; run before merging | ~6 min | none |
+| `caffeinate -i pytest -m slow -n 4` | the long checks: full pilot pipeline, every minidb v2 stage, full scorer sweeps; run before merging | ~7 min | none |
 | `pytest --run-api` with `LRAE_CONFIRM_SPEND=1` | live tests against the real CLI | minutes | real |
 
 No test calls the real model unless it is marked `api` and both switches above are set. The long
 tests are slow because they wait on real time between scripted checkpoints and run the hidden test
-suites for real, not because an AI is working.
+suites for real, not because an AI is working. Keep the machine awake for them (`caffeinate -i` on
+macOS): the scripted runs detect sleep as a platform interruption and end INTERRUPTED, which fails
+the tests. With `-n`, each test file stays on one worker (tests/conftest.py), so shared fixtures
+such as the pilot pipeline are built once.
 
 ## Further reading
 

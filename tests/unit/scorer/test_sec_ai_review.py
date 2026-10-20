@@ -114,5 +114,6 @@ def test_cli_runner_command_is_read_only(tmp_path):
     assert cmd[cmd.index("--model") + 1] == "claude-haiku-5-5" and "--strict-mcp-config" in cmd
     assert "--dangerously-skip-permissions" not in cmd
     assert r.timeout_s >= 2700  # a whole-product review takes minutes
-    with pytest.raises(Exception):
+    from scorer.metrics.x_judge import SpendNotConfirmed
+    with pytest.raises(SpendNotConfirmed):
         ai_review.ClaudeReviewRunner(claude_bin="/bin/claude", confirm_spend=False)

@@ -174,8 +174,9 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
             raise SpecError("task.prompt_file must be the stage-0 prompt of task.stages_file")
 
     extra = {}
-    if spec.scoring.security.enabled and spec.scoring.security.ai_review:  # plan B4: only when used
-        extra["vuln_review_prompt"] = repo / "scorer" / "vuln_review_prompt.md"
+    review_prompt = repo / "scorer" / "vuln_review_prompt.md"
+    if spec.scoring.security.enabled and spec.scoring.security.ai_review and review_prompt.is_file():
+        extra["vuln_review_prompt"] = review_prompt  # plan B4: hashed only when the review is used
     for name, candidate in (
         ("judge_prompt", repo / "scorer" / "judge_prompt.md"),
         ("harness_settings", repo / "runner" / "harness_settings.template.json"),

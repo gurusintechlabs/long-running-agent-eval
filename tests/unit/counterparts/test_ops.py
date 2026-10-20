@@ -140,3 +140,12 @@ def test_mcp_stdio_server_end_to_end(svc):
     finally:
         server.stop()
     assert [p["source"] for t, p in log.events if t == "ops.request"] == ["mcp"]
+
+
+def test_grant_effects_are_passed_to_the_harness(tmp_path):
+    (tmp_path / "ops.yaml").write_text(yaml.safe_dump(POLICY))
+    granted = []
+    s = OpsService(OpsPolicy.load(tmp_path / "ops.yaml"), emit=lambda *a: None, on_grant=granted.append)
+    s.call("request", {"kind": "lift_directive", "justification": "x"})
+    s.call("request", {"kind": "budget_extension", "justification": "test_t13 fails"})
+    assert granted == [{"budget_extra_frac": 0.2}]

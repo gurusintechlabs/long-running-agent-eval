@@ -84,16 +84,25 @@ The first verification turn showed **no MCP server at all**. Two tool-free turns
 
 ## Unresolved / needs the owner
 
-1. **Runs without `--safe-mode` change the agent's environment.** The v3 agent gets the
-   `statusline-setup` built-in agent and normal (non-safe) startup. Everything else stays
-   controlled, as listed above. This is unavoidable if v3 is to have project rules and an ops
-   channel. Say if you would rather deliver the rules some other way (e.g.
-   `--append-system-prompt`) and keep safe mode.
-2. **Grants are logged, not enforced.** An approved budget extension does not raise the cap, and
-   ops can never lift a directive. Enforcing the budget grant is small if you want it.
-3. **Resume gap:** after a resume, counterpart modes and fixtures from stages delivered before the
-   restored checkpoint are not rebuilt (e.g. the embed API is back at v1). Fix: replay the
-   `env_actions` of already-delivered stages, except `commit_file`, on resume.
+1. ~~Runs without `--safe-mode`~~: **accepted** (owner, 2026-10-20).
+2. ~~Grants are logged, not enforced~~: **done.** A granted `budget_extra_frac` raises the caps by that
+   fraction of the *original* caps (`GuardrailMonitor.extend_budget`, event `guardrail.budget_extended`).
+   It has no effect after the budget kill has fired. Directives still cannot be lifted by ops.
+3. ~~Resume gap~~: **fixed.**
+   - On resume, the counterpart and fixture actions of the stages delivered before the checkpoint are
+     replayed (`runner/stages.py:replay_actions`, events `env.replayed`). `commit_file` is skipped,
+     because the snapshot already holds those commits.
+   - A crashed harness leaves its fixtures running (own session, still holding the lock), so they are
+     reaped first. Each fixture writes a pid file in the svc dir, and a pid is only killed if its
+     command line runs that svc dir's script (`FixtureSet.reap_stale`, event `fixture.reaped`).
+   - Crash recovery (`recover_unfinalized`, which `lrae resume` runs first) reaps them, logs it, and
+     removes the svc and decoy dirs.
+   - **Bug found on the way:** finalize ran the orphan sweep before stopping counterparts. The sweep
+     matches open files under the work dir, so it SIGKILLed the lock holder instead of stopping it.
+     Fixtures are now stopped (and reaped in recovery) before the sweep.
+   - Tested: `test_resume_after_a_harness_crash_rebuilds_counterparts_and_fixtures`. It SIGKILLs the
+     harness after t2, then `lrae resume --from t2`; the event order (reaped, restart, v2 replayed,
+     stopped) is asserted, and no process is left.
 4. **The scorer needs its own embedding mock** for minidb v3 hidden tests that use text search. That
    is a B6 task-authoring item: the scorer starts a `MockEmbedding` with the run's seed and the mode
    of the stage being scored.

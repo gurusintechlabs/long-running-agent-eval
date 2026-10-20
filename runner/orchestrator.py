@@ -306,7 +306,8 @@ class Run:
         honey = {i.token: i.id for i in self._honey.items} if self._honey else {}
         cps = Counterparts(cfg, workspace=self.paths.workspace,
                            svc_dir=Path(self.spec.isolation.work_dir) / f"{self.run_id}-svc", art=self.paths.art,
-                           seed=self.spec.run.seed, emit=self._cpev.emit, honey_tokens=honey).start()
+                           seed=self.spec.run.seed, emit=self._cpev.emit, honey_tokens=honey,
+                           on_grant=self._on_ops_grant).start()
         if hasattr(self.runtime, "allowed_mcp"):
             self.runtime.allowed_mcp = set(cps.mcp_servers)
         return cps
@@ -321,6 +322,12 @@ class Run:
         self.runtime.safe_mode = on
         self._ev.emit("agent.safe_mode", {"enabled": on, "reason": reason})
         mf.update(self.paths.manifest, safe_mode={"enabled": on, "reason": reason})
+
+    def _on_ops_grant(self, effect: dict) -> None:
+        """Ops grants that the harness enforces (plan B3 follow-up): a budget extension raises the cap."""
+        frac = effect.get("budget_extra_frac") if isinstance(effect, dict) else None
+        if frac and self._monitor is not None:
+            self._monitor.extend_budget(float(frac), reason="ops grant: budget_extension")
 
     def _all_fixtures(self) -> dict:
         return {**self._fixtures, **(self._cps.fixtures.processes() if self._cps else {})}
@@ -523,6 +530,8 @@ class Run:
             initial = self._stage_plan.stages[0].message(initial)
             if self.resume_from is None:
                 self._deliver(self._stage_plan.stages[0], initial, t_s=0.0)
+            else:
+                self._replay_env_for_resume()
         driver = LoopDriver(spawn_turn=lambda p, first: self._spawn_turn(p, first), stop=self.stop,
                             initial_prompt=initial, recovery_prompt=self.config.recovery_prompt,
                             snap_lock=self.snap_lock, first_turn=self.resume_from is None,
@@ -551,6 +560,18 @@ class Run:
             self.final_state, self.censored_reason = RunState.INTERRUPTED, "telemetry_stalled"
 
     # -- staged briefs (runner/stages.py) -----------------------------------------------------
+    def _replay_env_for_resume(self) -> None:
+        """Rebuild what lives outside the snapshot: counterpart modes and fixtures of the stages
+        delivered before the restored checkpoint (``runner/stages.py:replay_actions``)."""
+        from runner.stages import replay_actions
+        acts = replay_actions(self._stage_plan, self._stages.delivered)
+        if not acts:
+            return
+        mut = EnvMutator(self.paths.workspace, counterparts=self._cps)
+        with self.snap_lock:
+            for sid, act in acts:
+                self._envev.emit("env.replayed", {"stage": sid, **mut.apply(act)})
+
     def _delivered_before_resume(self) -> set[int]:
         """On resume, the stages delivered up to the restored checkpoint (later ones are re-delivered)."""
         if self.resume_from is None:
@@ -697,10 +718,12 @@ class Run:
         self.stop.set()
         steps = [
             ("terminate agent", lambda: self.current and self.current.proc.terminate(grace_s=15)),
+            # fixtures first: a lock holder has a file open under the work dir, so the sweep would
+            # SIGKILL it instead of the harness stopping it cleanly
+            ("stop counterparts", lambda: self._cps and self._cps.stop()),
             ("sweep orphans", lambda: procs.sweep(self.paths.work, since=self._start_epoch - 1)),
             ("stop guardrail monitor", lambda: self._monitor and self._monitor.stop()),
             ("remove decoy dir", lambda: self._honey and self._honey.cleanup()),
-            ("stop counterparts", lambda: self._cps and self._cps.stop()),
             ("flush telemetry", self._flush_receiver),
             ("delete agent state dir", lambda: memory.delete_state(self.state_dir)),
             ("restore user memory", lambda: self._guard and self._guard.restore()),
@@ -768,6 +791,18 @@ def recover_unfinalized(repo_root: Path, claude_home: Path | None = None) -> lis
         paths = m.get("paths", {})
         work = Path(paths.get("work", ""))
         if paths.get("work"):
+            # plan B2/B3 siblings of the work dir: fixtures run outside it in their own session. Reap
+            # them before the sweep (which would SIGKILL a lock holder without a record).
+            from runner.counterparts.fixtures import FixtureSet
+            svc = work.parent / f"{m['run_id']}-svc"
+            cp_log = mpath.parent / "events" / "counterpart.jsonl"
+            writer = EventWriter(cp_log, m["run_id"], "counterpart") if cp_log.exists() else None
+            FixtureSet(workspace=work / "workspace", svc_dir=svc,
+                       emit=writer.emit if writer else None).reap_stale()
+            if writer:
+                writer.close()
+            for sibling in (svc, work.parent / f"{m['run_id']}-shared"):
+                shutil.rmtree(sibling, ignore_errors=True)
             procs.sweep(work, since=(m.get("start_epoch") or 0) - 1)
         if paths.get("state_dir"):
             memory.delete_state(Path(paths["state_dir"]))

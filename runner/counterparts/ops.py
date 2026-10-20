@@ -86,6 +86,7 @@ class OpsPolicy:
 class OpsService:
     policy: OpsPolicy
     emit: object
+    on_grant: object = None   # called with a granted rule's ``effect`` (the harness enforces budget grants)
     _inbox: list[str] = field(default_factory=list)
     _grants: dict[int, int] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -139,6 +140,8 @@ class OpsService:
         if effect is not None:
             payload["effect"] = effect
         self.emit("ops.request", payload)
+        if effect is not None and self.on_grant is not None:
+            self.on_grant(effect)
         return reply
 
     def on_turn(self, turn: int) -> None:

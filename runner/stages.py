@@ -228,6 +228,14 @@ def load_stages(path: Path | str) -> StagePlan:
     return StagePlan(stages, refs)
 
 
+def replay_actions(plan: StagePlan, delivered: set[int]) -> list[tuple[int, EnvAction]]:
+    """Env actions to replay on resume, in delivery order. The restored snapshot already holds the
+    workspace with every harness commit, so ``commit_file`` is skipped; counterpart modes and
+    fixtures live outside the snapshot and must be rebuilt (plan B3 follow-up)."""
+    return [(s.id, a) for s in plan.stages if s.id in delivered for a in s.env_actions
+            if a.action != "commit_file"]
+
+
 class StageScheduler:
     """Hands out the stages in order. Delivered stages are remembered (and restored on resume)."""
 

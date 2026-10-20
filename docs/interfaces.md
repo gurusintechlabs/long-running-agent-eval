@@ -307,7 +307,9 @@ before the agent env is built, and stop in FINALIZING. Their events go to
   - `ops.checkin_queued {turn, text}`, `ops.inbound {sender, text}`, `ops.error {tool, error, source}`;
   - `ops.started {url}`.
 
-  Grants are logged, not enforced.
+  A granted `effect: {budget_extra_frac}` raises the run's caps by that fraction of the original caps
+  (`guardrail.budget_extended {from_usd, to_usd, from_tokens, to_tokens, reason}`). Ops can never
+  lift a directive.
 - **Mock embedding API** (`runner/counterparts/embed.py`): the agent env carries `EMBED_URL` and
   `EMBED_API_KEY`.
   - Mode `{api: v1|v2, flaky: p, rate_limit_rps: n|null}`.
@@ -340,5 +342,9 @@ before the agent env is built, and stop in FINALIZING. Their events go to
   - `mcp_call {server, tool, arguments}` runs the server from `--mcp-config` over stdio, the way the
     CLI does, and emits `tool_use` / `tool_result`;
   - `http {method, url, headers?, json?}` fills `{VAR}` from the env and emits no tool event.
-- **Resume:** counterpart modes and fixtures are not rebuilt for stages delivered before the restored
-  checkpoint (known gap; see the B3 summary).
+- **Resume:**
+  - the `env_actions` (except `commit_file`) of stages delivered before the restored checkpoint are
+    replayed (`env.replayed {stage, ...}`);
+  - fixtures orphaned by a crashed harness are reaped first (`fixture.reaped {name, pid}`): pid
+    files in the svc dir, killed only if the command line runs that dir's script;
+  - fixtures are stopped or reaped before the orphan sweep, in both finalize and recovery.

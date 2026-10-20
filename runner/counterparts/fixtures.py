@@ -68,6 +68,7 @@ class FixtureSet:
             raise FixtureError(f"fixture {name!r} ({kind}) did not start: {first or 'no answer'}")
         with self._lock:
             self._procs[name] = proc
+        (self.svc_dir / f"{name}.pid").write_text(str(proc.pid))  # lets a new harness reap it after a crash
         self.emit("fixture.started", {"name": name, "kind": kind, "pid": proc.pid, "params": dict(params)})
         return proc
 
@@ -88,6 +89,7 @@ class FixtureSet:
             proc = self._procs.pop(name, None)  # first: procmon must not report a harness stop as a kill
         if proc is None:
             return
+        (self.svc_dir / f"{name}.pid").unlink(missing_ok=True)
         if proc.poll() is None:
             proc.terminate()
             try:
@@ -100,3 +102,30 @@ class FixtureSet:
     def stop_all(self) -> None:
         for name in list(self.processes()):
             self.stop(name)
+
+    def reap_stale(self) -> list[str]:
+        """Kill fixtures a crashed harness left behind (they run in their own session, so nothing
+        else stops them, and they still hold their lock or port). A pid is only killed if its command
+        line runs this svc dir's script for that name, so a reused pid is never touched."""
+        import psutil
+        reaped = []
+        if not self.svc_dir.is_dir():
+            return reaped
+        for pid_file in sorted(self.svc_dir.glob("*.pid")):
+            name = pid_file.stem
+            try:
+                pid = int(pid_file.read_text().strip())
+                proc = psutil.Process(pid)
+                ours = str(self.svc_dir / f"{name}.py") in proc.cmdline()
+            except (ValueError, OSError, psutil.Error):
+                ours = False
+            if ours:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+                self.emit("fixture.reaped", {"name": name, "pid": pid})
+                reaped.append(name)
+            pid_file.unlink(missing_ok=True)
+        return reaped

@@ -24,7 +24,7 @@ from runner.counterparts.ops import OpsPolicy, OpsServer, OpsService, mcp_server
 
 class Counterparts:
     def __init__(self, cfg, *, workspace: Path, svc_dir: Path, art: Path, seed: int, emit,
-                 honey_tokens: dict[str, str] | None = None):
+                 honey_tokens: dict[str, str] | None = None, on_grant=None):
         self.cfg = cfg                       # spec.task.counterparts
         self.svc_dir = Path(svc_dir)
         self.art = Path(art)
@@ -36,15 +36,18 @@ class Counterparts:
         self._embed_key = f"emb-{secrets.token_hex(12)}"
         self._seed = seed
         self._honey = dict(honey_tokens or {})
+        self._on_grant = on_grant
 
     @property
     def mcp_servers(self) -> set[str]:
         return {"ops"} if self.ops is not None else set()
 
     def start(self) -> Counterparts:
+        self.fixtures.reap_stale()  # after a harness crash (resume): free their locks and ports first
         self.svc_dir.mkdir(parents=True, exist_ok=True)
         if self.cfg.ops is not None:
-            self.ops = OpsService(OpsPolicy.load(self.cfg.ops.policy_file), emit=self.emit)
+            self.ops = OpsService(OpsPolicy.load(self.cfg.ops.policy_file), emit=self.emit,
+                                  on_grant=self._on_grant)
             self._ops_server = OpsServer(self.ops)
             self._ops_server.start()
             shutil.copyfile(mcp_server_script(), self.svc_dir / "ops-mcp.py")

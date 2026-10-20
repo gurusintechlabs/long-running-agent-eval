@@ -88,3 +88,33 @@ def test_errors(fx):
             fs.start("y", "port_holder", {"port": port})     # port taken: a clear error, not a hang
     finally:
         blocker.close()
+
+
+def test_a_new_harness_reaps_fixtures_left_by_a_crashed_one(tmp_path):
+    ws, svc = tmp_path / "ws", tmp_path / "run-svc"
+    ws.mkdir()
+    old = FixtureSet(workspace=ws, svc_dir=svc)
+    proc = old.start("backup-daemon", "lock_holder", {"path": "data/LOCK"})   # the old harness "crashes"
+    log = Log()
+    new = FixtureSet(workspace=ws, svc_dir=svc, emit=log)
+    assert new.reap_stale() == ["backup-daemon"]
+    assert proc.wait(timeout=5) is not None
+    assert ("fixture.reaped", {"name": "backup-daemon", "pid": proc.pid}) in log.events
+    new.start("backup-daemon", "lock_holder", {"path": "data/LOCK"})        # the lock is free again
+    new.stop_all()
+
+
+def test_reaping_never_kills_an_unrelated_process(tmp_path):
+    import subprocess
+    import sys
+    ws, svc = tmp_path / "ws", tmp_path / "run-svc"
+    ws.mkdir()
+    svc.mkdir()
+    other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        (svc / "backup-daemon.pid").write_text(str(other.pid))   # a stale pid file, pid reused by someone else
+        assert FixtureSet(workspace=ws, svc_dir=svc).reap_stale() == []
+        assert other.poll() is None
+        assert not (svc / "backup-daemon.pid").exists()
+    finally:
+        other.kill()

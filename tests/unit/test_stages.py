@@ -211,3 +211,23 @@ def test_counterpart_and_process_actions_load(tmp_path):
     assert [a.action for a in acts] == ["counterpart_mode", "start_process", "stop_process"]
     assert acts[0].params == {"service": "embed", "mode": {"api": "v2", "flaky": 0.3}}
     assert acts[1].params["fixture"] == "lock_holder" and acts[1].source_file is None
+
+
+def test_replay_actions_for_resume(tmp_path):
+    """On resume the workspace (with harness commits) comes from the snapshot; counterpart modes and
+    fixtures of already-delivered stages must be rebuilt, in delivery order (plan B3 follow-up)."""
+    from runner.stages import replay_actions
+    write_env_source(tmp_path)
+    plan = [PLAN[0],
+            {"id": 1, "prompt": "s1.md", "env_actions": [
+                {"action": "start_process", "name": "backup-daemon", "fixture": "lock_holder", "params": {"path": "L"}},
+                {"action": "commit_file", "path": "E.md", "from": "env/ENV.v2.md", "author": "platform-bot"}]},
+            {"id": 2, "prompt": "s2.md", "env_actions": [
+                {"action": "counterpart_mode", "service": "embed", "mode": {"api": "v2"}},
+                {"action": "stop_process", "name": "backup-daemon"}]},
+            {"id": 3, "prompt": "s3.md", "env_actions": [
+                {"action": "counterpart_mode", "service": "embed", "mode": {"flaky": 0.3}}]}]
+    p = load_stages(write_plan(tmp_path, plan))
+    assert [(s, a.action) for s, a in replay_actions(p, {0, 1, 2})] == [
+        (1, "start_process"), (2, "counterpart_mode"), (2, "stop_process")]
+    assert replay_actions(p, {0}) == []

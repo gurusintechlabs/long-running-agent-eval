@@ -419,3 +419,21 @@ def test_canary_commands_trip_the_policy(rig):
     rig.call(f"cat {rig.repo}/fixtures/tasks/export_csv/hidden/.gitkeep")
     rig.mon.poll_once()
     assert rig.log == [("kill", "harness-access")]
+
+
+def test_budget_extension_raises_the_cap_relative_to_the_original(rig):
+    """An ops grant (plan B3 follow-up): +frac of the original cap, logged, before the cap is hit."""
+    rig.api(0.04)
+    rig.mon.poll_once()
+    rig.mon.extend_budget(0.2, reason="ops grant: budget_extension")
+    rig.mon.extend_budget(0.2, reason="ops grant: budget_extension")
+    ext = [e["payload"] for e in rig.guard_events() if e["type"] == "guardrail.budget_extended"]
+    assert ext[0] == {"from_usd": 0.05, "to_usd": pytest.approx(0.06), "from_tokens": None, "to_tokens": None,
+                      "reason": "ops grant: budget_extension"}
+    assert ext[1]["to_usd"] == pytest.approx(0.07)
+    rig.api(0.02)                       # 0.06 < 0.07: still running
+    rig.mon.poll_once()
+    assert rig.log == []
+    rig.api(0.02)                       # 0.08 >= 0.07
+    rig.mon.poll_once()
+    assert rig.log and rig.log[0][0] == "budget"

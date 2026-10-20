@@ -49,6 +49,27 @@ SYSTEM_ALLOW = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/opt", "/etc", "/dev
 _GLOB_CHARS = set("*?[")
 _PATHISH = re.compile(r"""(?<![\w./:-])(?:~[\w.-]*|\$\{HOME\}|\$HOME|/)[^\s'"`;|&<>()=,:]*""")
 _VAR = re.compile(r"\$\{(\w+)\}|\$(\w+)")
+_HEREDOC = re.compile(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\2")
+
+
+def split_heredocs(command: str) -> tuple[str, str]:
+    """``(shell text, heredoc bodies)``. A heredoc body is data (file contents, a Python script),
+    not shell: it must not be tokenised or have its ``cd``s simulated. The bodies are still returned,
+    so the raw-text pass can look for absolute and home paths inside them."""
+    shell: list[str] = []
+    bodies: list[str] = []
+    pending: list[tuple[str, bool]] = []
+    for line in command.split("\n"):
+        if pending:
+            delim, dash = pending[0]
+            if (line.lstrip("\t") if dash else line) == delim:
+                pending.pop(0)
+            else:
+                bodies.append(line)
+            continue
+        shell.append(line)
+        pending = [(m.group(3), m.group(1) == "-") for m in _HEREDOC.finditer(line)]
+    return "\n".join(shell), "\n".join(bodies)
 
 
 @dataclass(frozen=True)
@@ -192,8 +213,9 @@ class BoundPolicy:
         if tool == "Bash":
             command = str(tool_input.get("command", ""))
             norm = " ".join(command.split())
+            shell_norm = " ".join(split_heredocs(command)[0].split())
             for rule in self.policy.forbidden_commands:
-                m = rule["_re"].search(norm)
+                m = rule["_re"].search(shell_norm if rule.get("scope") == "shell" else norm)
                 if m:
                     add(Violation(rule["id"], rule["severity"], rule["action"], "command",
                                   f"{m.group(0)!r} in {norm[:300]!r}"))
@@ -221,9 +243,15 @@ class BoundPolicy:
                                    "Grep.glob"))
         return list(found.values())
 
-    def track_cwd(self, command: str, cwd: Path) -> Path:
-        """Working directory the Claude Code Bash tool is left in after ``command`` (cd simulated)."""
-        return Path(self._scan(command, _real(cwd))[1])
+    def track_cwd(self, command: str, cwd: Path, reset_to: Path | None = None) -> Path:
+        """Working directory the Claude Code Bash tool is left in after ``command`` (cd simulated).
+
+        With ``reset_to``, a cwd that ends up outside ``reset_to`` goes back to it. The CLI resets its
+        shell cwd to the project dir when a command leaves it (observed: "Shell cwd was reset")."""
+        new = self._scan(command, _real(cwd))[1]
+        if reset_to is not None and not _under(new, _real(reset_to)):
+            return Path(_real(reset_to))
+        return Path(new)
 
     # -- helpers: path classification -------------------------------------------------------
     def _abs(self, p: str, cwd: str) -> str:
@@ -318,21 +346,25 @@ class BoundPolicy:
             pass
         elif any(_under(path, s) for s in SYSTEM_ALLOW):
             return None
-        elif path != "/" and not os.path.exists("/" + path.split("/")[1]):
+        elif path == "/":
+            return None  # the root itself (`ls /`, a `/` operator in code); rm of / has its own rule
+        elif not os.path.exists("/" + path.split("/")[1]):
             return None  # e.g. an HTTP route like /api/export: no such top-level dir
         return Violation(outside["id"], outside["severity"], outside["action"], "command", ev)
 
     # -- helpers: bash text ------------------------------------------------------------------
     def _scan(self, command: str, cwd: str):
         """-> ([(path-like token, cwd in effect, is_rm_arg)], final cwd); ``cd`` is simulated."""
+        shell, _bodies = split_heredocs(command)
+        shell = shell.replace("\n", " ;\n")  # a newline ends a command, like ';'
         try:
-            lex = shlex.shlex(command, posix=True, punctuation_chars=True)
+            lex = shlex.shlex(shell, posix=True, punctuation_chars=True)
             lex.whitespace_split = True
             lex.commenters = ""
             tokens = list(lex)
         except ValueError:
-            tokens = [t.strip("'\"") for t in re.split(r"[\s;&|<>()`]+", command) if t.strip("'\"")]
-        cur = cwd
+            tokens = [t.strip("'\"") for t in re.split(r"[\s;&|<>()`]+", shell) if t.strip("'\"")]
+        cur = prev = cwd
         items: list[tuple[str, str, bool]] = []
         seg: list[str] = []
         expect_cd = False
@@ -340,20 +372,24 @@ class BoundPolicy:
         for tok in tokens:
             if tok and set(tok) <= set(";&|<>()"):
                 if expect_cd:  # bare `cd` goes home
-                    cur = self.home
+                    cur, prev = self.home, cur
                 seg, expect_cd = [], False
                 continue
             if tok == "`":
                 seg, expect_cd = [], False
                 continue
             if expect_cd:
+                if tok == "-":  # cd -: back to the previous directory
+                    cur, prev = prev, cur
+                    expect_cd = False
+                    continue
                 if tok.startswith("-"):
                     continue
                 expect_cd = False
                 items.append((tok, cur, False))
                 new = self._cd_target(tok, cur)
                 if new:
-                    cur = new
+                    cur, prev = new, cur
                 continue
             if not seg and tok in ("cd", "pushd"):
                 seg.append(tok)
@@ -365,7 +401,8 @@ class BoundPolicy:
                 items.append((cand, cur, is_rm))
         if expect_cd:
             cur = self.home
-        # regex pass over the raw text: absolute / home paths hidden inside quotes or assignments
+        # regex pass over the raw text (heredoc bodies included): absolute / home paths hidden
+        # inside quotes, assignments or scripts
         for m in _PATHISH.finditer(command):
             if m.group(0) != "/":
                 items.append((m.group(0), cur, False))
@@ -389,6 +426,8 @@ class BoundPolicy:
             if ":" in piece and "://" not in piece:
                 out.extend(piece.split(":"))
         for c in dict.fromkeys(out):
+            if "$(" in c or "`" in c:
+                continue  # a command substitution: its value is unknowable here
             if c in (".", "..", "~") or "/" in c or c.startswith(("~", "$HOME", "${HOME}")):
                 yield c
 
@@ -410,7 +449,8 @@ class BoundPolicy:
 
     # -- effect channel --------------------------------------------------------------------
     def check_effects(self, workspace: Path, seed_files: dict[str, str] | None) -> list[Violation]:
-        """Files matching ``forbidden_paths`` that are new or whose sha256 differs from the seed."""
+        """Files matching ``forbidden_paths`` that are new, whose sha256 differs from the seed, or
+        that the seed had and the workspace no longer has (deleted)."""
         ws = Path(workspace)
         seed = seed_files or {}
         out: list[Violation] = []
@@ -427,6 +467,10 @@ class BoundPolicy:
             top = ws.joinpath(*static) if static else ws
             if static and len(static) == len(glob.split("/")):
                 top = top.parent
+            for rel in sorted(seed):
+                if rx.match(rel) and not rel.endswith(".sample") and not (ws / rel).is_file():
+                    out.append(Violation(rule["id"], rule["severity"], rule["action"], "effect",
+                                         f"{rel} (deleted) matches {glob}"))
             if not top.exists():
                 continue
             hit = None

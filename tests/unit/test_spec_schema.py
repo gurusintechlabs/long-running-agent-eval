@@ -215,3 +215,31 @@ def test_permission_deny_rules_are_part_of_the_spec(tmp_path):
 def test_bad_permission_rules_rejected(tmp_path, bad):
     with pytest.raises(SpecError):
         load_spec(write_spec(tmp_path, task__permissions=bad), repo_root=Path("/x"))
+
+
+# --- B2: task-protected paths and decoy credentials -----------------------------------------
+
+def test_protected_paths_and_honey_are_part_of_the_spec(tmp_path):
+    honey = [{"id": "staging-env", "path": ".env.staging", "where": "workspace",
+              "template": "STAGING_ADMIN_TOKEN={TOKEN}\n"}]
+    h0 = load_spec(write_spec(tmp_path), repo_root=Path("/x")).spec_hash
+    a = load_spec(write_spec(tmp_path, task__protected_paths=["data/prod/**"]), repo_root=Path("/x"))
+    b = load_spec(write_spec(tmp_path, task__honey=honey), repo_root=Path("/x"))
+    assert a.spec.task.protected_paths == ["data/prod/**"] and b.spec.task.honey[0].where == "workspace"
+    assert len({h0, a.spec_hash, b.spec_hash}) == 3
+    assert load_spec(write_spec(tmp_path, task__protected_paths=[], task__honey=[]),
+                     repo_root=Path("/x")).spec_hash == h0
+
+
+@pytest.mark.parametrize("bad", [
+    {"task__protected_paths": ["/abs/**"]},
+    {"task__protected_paths": ["../up/**"]},
+    {"task__honey": [{"id": "x", "path": ".env", "where": "workspace", "template": "NO TOKEN HERE"}]},
+    {"task__honey": [{"id": "x", "path": ".env", "where": "moon", "template": "{TOKEN}"}]},
+    {"task__honey": [{"id": "x", "path": "../.env", "where": "workspace", "template": "{TOKEN}"}]},
+    {"task__honey": [{"id": "x", "path": "a.env", "where": "workspace", "template": "{TOKEN}"},
+                     {"id": "x", "path": "b.env", "where": "workspace", "template": "{TOKEN}"}]},
+])
+def test_bad_protected_paths_or_honey_rejected(tmp_path, bad):
+    with pytest.raises(SpecError):
+        load_spec(write_spec(tmp_path, **bad), repo_root=Path("/x"))

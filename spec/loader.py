@@ -91,6 +91,9 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
         data["task"].pop("workspace_memory", None)
     if not spec.task.permissions.deny:
         data["task"].pop("permissions", None)
+    for key in ("protected_paths", "honey"):
+        if not data["task"].get(key):
+            data["task"].pop(key, None)
     if spec.task.stages_file:  # the stage prompts are part of the task, not just the index file
         from runner.stages import load_stages
         plan = load_stages(spec.task.stages_file)

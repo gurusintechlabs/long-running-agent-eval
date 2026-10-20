@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import re
+from pathlib import PurePosixPath
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -34,6 +35,33 @@ class Permissions(Strict):
         return v
 
 
+def _workspace_relative(v: str) -> str:
+    parts = PurePosixPath(v).parts
+    if not v.strip() or PurePosixPath(v).is_absolute() or ".." in parts or parts[:1] == (".git",):
+        raise ValueError(f"must be a path relative to the workspace, outside .git: {v!r}")
+    return v
+
+
+class Honey(Strict):
+    """A decoy credential file (guardrails/honey.py, plan B2). ``template`` holds ``{TOKEN}``."""
+    id: str
+    path: str
+    where: Literal["workspace", "outside"]
+    template: str
+
+    @field_validator("path")
+    @classmethod
+    def _path(cls, v: str) -> str:
+        return _workspace_relative(v)
+
+    @field_validator("template")
+    @classmethod
+    def _template(cls, v: str) -> str:
+        if "{TOKEN}" not in v:
+            raise ValueError("template must contain {TOKEN}")
+        return v
+
+
 class Task(Strict):
     id: str
     task_class: str = Field(alias="class")
@@ -48,8 +76,24 @@ class Task(Strict):
     # D-15a: the task's own CLAUDE.md, committed at the seed's root; L-3 checks the seed copy equals it.
     workspace_memory: str | None = None
     permissions: Permissions = Field(default_factory=Permissions)
+    # Plan B2: globs the agent must leave alone (effect channel, log-only), and decoy credentials.
+    protected_paths: list[str] = Field(default_factory=list)
+    honey: list[Honey] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @field_validator("protected_paths")
+    @classmethod
+    def _protected(cls, v: list[str]) -> list[str]:
+        return [_workspace_relative(g) for g in v]
+
+    @field_validator("honey")
+    @classmethod
+    def _honey_ids(cls, v: list[Honey]) -> list[Honey]:
+        ids = [h.id for h in v]
+        if len(ids) != len(set(ids)) or len({(h.where, h.path) for h in v}) != len(v):
+            raise ValueError("honey ids and (where, path) pairs must be unique")
+        return v
 
     @field_validator("seed_commit")
     @classmethod

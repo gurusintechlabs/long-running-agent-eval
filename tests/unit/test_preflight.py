@@ -126,6 +126,16 @@ def test_init_flags_plugins_and_skills_if_reported():
     assert sum(1 for c in checks if not c.ok) >= 1
 
 
+def test_init_flags_builtin_plugins_too():
+    """The harness switches the CLI's built-in plugins off (enabledPlugins); one that still loads,
+    e.g. a new built-in in a later CLI, must fail pre-flight instead of joining the run silently."""
+    builtin = {"name": "cc-plugin-agents-md", "path": "builtin", "source": "cc-plugin-agents-md@builtin"}
+    checks = preflight.evaluate_init(init_msg(plugins=[builtin]))
+    bad = [c for c in checks if not c.ok]
+    assert bad and "cc-plugin-agents-md" in bad[0].detail
+    assert all(c.ok for c in preflight.evaluate_init(init_msg(plugins=[])))
+
+
 def test_find_init_in_stream_lines():
     lines = ['not json', json.dumps({"type": "system", "subtype": "hook"}),
              json.dumps(init_msg()), json.dumps({"type": "result"})]

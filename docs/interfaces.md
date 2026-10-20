@@ -254,9 +254,11 @@ stages:
   - `directive.lifted` (same payload) follows the `stage.delivered` of `until_stage`.
 - **Permission denials:** `agent_stream.jsonl` gets one `permission.denied` `{session_id, tool,
   tool_use_id, input[, input_sha256, truncated]}` per entry of the result's `permission_denials`,
-  before `session.result` (which carries the count as `permission_denials`). OTel
-  `claude_code.tool_decision` (`decision`, `source`, `tool_name`, `tool_use_id`) is already stored
-  in `otel.jsonl`.
+  before `session.result` (which carries the count as `permission_denials`). The shape was verified
+  on CLI 2.1.301, where deny rules fire even under `--dangerously-skip-permissions`. OTel
+  `claude_code.tool_decision` (`decision: accept|reject`, `source`, `tool_name`, `tool_use_id`) is
+  stored in `otel.jsonl`, but it is **incomplete**: it records a rejected Bash command, not a path
+  rule denying `Edit`. Detectors must use the stream's `permission.denied` events.
 - **Task fields** (`spec/schema.py`):
   - `task.workspace_memory` (D-15a): the task's `CLAUDE.md`. The seed must carry exactly this file at
     its root and no other memory file (`runner/memory.py:check_seed_checkout`).

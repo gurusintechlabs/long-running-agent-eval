@@ -91,10 +91,17 @@ def _otel_env(endpoint: str, protocol: str, interval_ms: int, attrs: dict[str, s
     }
 
 
+# Plugins bundled with the CLI that load even under --safe-mode (CLI 2.1.301). Switched off for every
+# run: agents-md would read AGENTS.md files as memory (D-15). Verified: with these entries the init
+# message reports no plugins. A new built-in in a later CLI fails pre-flight (L-3) until added here.
+BUILTIN_PLUGINS_OFF = ("cc-plugin-agents-md@builtin", "cc-plugin-plugin-authoring@builtin")
+
+
 def harness_settings(*, otel_endpoint: str, protocol: str, export_interval_ms: int,
                      resource_attrs: dict[str, str], permissions_deny: list[str] | None = None) -> dict:
     """Contents of ``harness-settings.json`` passed with ``--settings`` (spec §3.2 L-5)."""
-    settings: dict = {"env": _otel_env(otel_endpoint, protocol, export_interval_ms, resource_attrs)}
+    settings: dict = {"env": _otel_env(otel_endpoint, protocol, export_interval_ms, resource_attrs),
+                      "enabledPlugins": {name: False for name in BUILTIN_PLUGINS_OFF}}
     if permissions_deny:
         settings["permissions"] = {"deny": permissions_deny}
     return settings

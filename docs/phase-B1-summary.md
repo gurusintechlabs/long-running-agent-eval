@@ -82,22 +82,20 @@ Suite results:
 
 ## Unresolved / needs the owner
 
-1. **Verification turn (needs approval, ≈ $1, Haiku or one short Opus turn).** Not run. It would
-   confirm three things on CLI 2.1.301:
-   - that a deny rule fires under `--dangerously-skip-permissions` (bypass mode);
-   - the real shape of a non-empty `permission_denials` entry, and of an OTel `tool_decision` with
-     `decision: reject`;
-   - that a workspace `CLAUDE.md` is loaded as project memory while user memory stays excluded.
-
-   The parser accepts the documented SDK shape (`tool_name`, `tool_use_id`, `tool_input`) until
-   then.
-2. **Old run logs with the account id:** `runs/minidb-v2-early-A-r00-338286d0`,
-   `runs/minidb-v2-smoke-A-r00-a4f4d32a`, `runs/stage-handoff-smoke-A-r00-6bc01ce5` and two
-   `runs/_failed/…-preflight*` dirs. They are local and gitignored. Scrubbing means rewriting
-   append-only logs, so it is the owner's call.
-3. **Optional built-in plugin disabling.** Setting `enabledPlugins: {"cc-plugin-agents-md@builtin":
-   false, …}` in the harness settings may switch the built-ins off entirely. It can be checked in
-   the same verification turn, through the `init` message's `plugins` field.
+1. ~~Verification turn~~: **done** (owner-approved, Haiku, one turn, $0.003; script and outputs in
+   the session scratchpad, not in the repo). On CLI 2.1.301:
+   - deny rules fire under `--dangerously-skip-permissions`;
+   - `permission_denials` has the SDK shape the parser assumed, and the real output parsed into two
+     `permission.denied` events;
+   - OTel `tool_decision` logged the Bash reject but **not** the path-rule Edit denial, so the
+     stream is the authoritative channel;
+   - the seeded workspace `CLAUDE.md` is loaded (the agent quoted its codeword);
+   - `enabledPlugins` switches the built-in plugins off.
+2. ~~Old run logs with the account id~~: **scrubbed** (owner, 2026-10-19). The value was replaced with
+   `[REDACTED]` in 10 files (5 run dirs, `otel.jsonl` and `otel/raw.jsonl`); line counts are unchanged and every
+   line is still valid JSON.
+3. ~~Built-in plugin disabling~~: **done.** `harness_settings` switches both built-ins off, and the L-3
+   init check now rejects any plugin (`runner/workdir.py:BUILTIN_PLUGINS_OFF`).
 4. **Task system prompt** (`--append-system-prompt`, v3 design §5) is not built. It waits on open
    question 3 in `docs/minidb-v3-design.md`.
 5. **W(t) denominator:** lines added by a harness commit in an interval still count in that

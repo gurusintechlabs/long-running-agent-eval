@@ -41,6 +41,7 @@ class CheckpointScore:
     error: str | None = None
     phases: dict[str, float] = field(default_factory=dict)
     commits: list[dict] = field(default_factory=list)  # scorer.commit payloads
+    behavior: list[dict] = field(default_factory=list)  # scorer.behavior payloads (plan B5)
 
     def value(self, name: str):
         return self.metrics.get(name, {}).get("value")
@@ -77,6 +78,23 @@ def last_ok_pass(events: list[dict], k: int) -> dict[str, dict] | None:
         elif t == "scorer.done" and p.get("ok") and p.get("pass_id") in passes:
             good = p["pass_id"]
     return passes[good] if good else None
+
+
+def last_ok_behavior(events: list[dict], k: int) -> list[dict]:
+    """``scorer.behavior`` payloads of the last ok pass of checkpoint k."""
+    passes: dict[str, list[dict]] = {}
+    good: str | None = None
+    for ev in events:
+        p, t = ev.get("payload") or {}, ev.get("type")
+        if p.get("k") != k:
+            continue
+        if t == "scorer.start":
+            passes[p["pass_id"]] = []
+        elif t == "scorer.behavior" and p.get("pass_id") in passes:
+            passes[p["pass_id"]].append(p)
+        elif t == "scorer.done" and p.get("ok") and p.get("pass_id") in passes:
+            good = p["pass_id"]
+    return passes[good] if good else []
 
 
 def _git(*args: str, git_dir: Path | None = None, cwd: Path | None = None, check=True) -> str:
@@ -466,6 +484,23 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                 stage=stage_k, prev_pass=prev, k=k, orch=a.orch, t_prev=t_prev, t_k=t_k, mirror=a.mirror,
                 scorer_dir=a.scorer_dir, reviewer=getattr(judge_runner, "reviewer", None))
             lap("SEC")
+        # behaviour (plan B5, D-22, D-24): detectors over events and snapshots, agent-suite rerun
+        beh_metrics: dict[str, dict] = {}
+        beh_events: list[dict] = []
+        if s.scoring.behavior.enabled:
+            from scorer.behavior.checkpoint import score_behavior
+            history = []
+            for j in range(1, k):
+                pj = (last_ok_pass(scorer_events, j) or {}).get("P") or {}
+                tj = a.t_s(j, dt_s)
+                history.append({"k": j, "t_s": tj, "stage": commit_scoring.stage_at(timeline, tj) if staged else None,
+                                "outcomes": (pj.get("detail") or {}).get("outcomes") or {}})
+            history.append({"k": k, "t_s": t_k, "stage": stage_k, "outcomes": p["detail"]["outcomes"]})
+            beh_metrics, beh_events = score_behavior(
+                spec=spec, art=a, k=k, ws=ws, prev_ws=a.snap(k - 1) / "workspace" if k > 1 else seed_ws,
+                t_prev=t_prev, t_k=t_k, python=python, forbid=forbid, p_history=history, stage_k=stage_k,
+                stage_prev=stage_prev, constraints_violated=int(c_val), read_events=read_events)
+            lap("BEH")
         # hazards
         first_bad: dict[str, float | None] = {"quality": None, "context": None}
         commits = interval["commits"]
@@ -510,6 +545,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         "tests_tampered": tamper,
         "W_repeat_tool_calls": wt,
         **sec_metrics,
+        **beh_metrics,
     }
     for name in ("X", "S", "S_int", "X_spread", "tokens_per_commit"):
         m = metrics[name]
@@ -523,9 +559,15 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                                       "detail": m["detail"]})
         out.metrics[name] = m
 
+    for ev in beh_events:
+        payload = {**ev, "k": k, "pass_id": pass_id}
+        writer.emit("scorer.behavior", payload)
+        out.behavior.append(payload)
+
     from scorer import hazards
     views = _build_views(a, k, scorer_events, dt_s, metrics, t_k, t_prev, int_cost, int_accepted,
                          cum_accepted, first_bad)
+    views[-1].behavior = beh_events
     viol = _guardrail_violations(a, t_k)
     for hz in hazards.evaluate(views, guardrail_violations=viol, run_start_epoch=a.start_epoch,
                                thresholds=s.scoring.thresholds):
@@ -574,7 +616,7 @@ def _build_views(a, k, scorer_events, dt_s, metrics, t_k, t_prev, int_cost, int_
             int_accepted=si.get("int_accepted", 0), cum_accepted=si.get("cum_accepted", 0),
             first_offending_commit_t_s={"quality": det("R").get("first_offending_commit_t_s"),
                                         "context": det("C").get("first_offending_commit_t_s")},
-            SEC_exploits=val("SEC_exploits")))
+            SEC_exploits=val("SEC_exploits"), behavior=last_ok_behavior(scorer_events, j)))
     views.append(hazards.CheckpointView(
         k=k, t_s=t_k, t_prev_s=t_prev, R=metrics["R"]["value"], C=metrics["C"]["value"],
         W=metrics["W"]["value"], S_int=metrics["S_int"]["value"], int_cost=int_cost,

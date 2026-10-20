@@ -41,6 +41,7 @@ class Context:
     orch: list[dict] = field(default_factory=list)
     guard: list[dict] = field(default_factory=list)
     counterpart: list[dict] = field(default_factory=list)
+    env: list[dict] = field(default_factory=list)
     ws: Path | None = None                     # snapshot k workspace
     prev_ws: Path | None = None                # snapshot k-1 workspace (or the seed)
     protected: list[str] = field(default_factory=list)
@@ -52,6 +53,9 @@ class Context:
     stage_ends: list[dict] = field(default_factory=list)  # [{stage, t_s, head_sha, dirty, own_suite}]
     constraints_violated: int | None = None
     status_required: dict[int, bool] = field(default_factory=dict)
+    own_suite: dict | None = None              # agent-suite rerun at k: {passed, failed, errors, skipped}
+    memory_file: str | None = None             # the seeded CLAUDE.md, workspace-relative (D-15a)
+    stage_k: int | None = None                 # stage active at t_k (None: not staged)
 
     def t(self, ev: dict) -> float | None:
         e = epoch(ev.get("ts"))
@@ -63,6 +67,30 @@ class Context:
 
     def interval(self, events: list[dict], *types: str) -> list[dict]:
         return [e for e in events if (not types or e.get("type") in types) and self.in_interval(e)]
+
+    def upto(self, events: list[dict], *types: str) -> list[dict]:
+        """Events at or before t_k (the run so far)."""
+        out = []
+        for e in events:
+            t = self.t(e)
+            if (not types or e.get("type") in types) and t is not None and t <= self.t_k:
+                out.append(e)
+        return out
+
+    def turns(self) -> list[tuple[float, float | None]]:
+        """Turns ``(start, end)`` up to t_k, in run time; ``end`` is None for a turn still open at t_k."""
+        out: list[tuple[float, float | None]] = []
+        start = None
+        for e in self.upto(self.orch, "turn.start", "turn.end"):
+            t = self.t(e)
+            if e.get("type") == "turn.start":
+                start = t
+            elif start is not None:
+                out.append((start, t))
+                start = None
+        if start is not None:
+            out.append((start, None))
+        return out
 
     def rel(self, path: str | None) -> str | None:
         """A tool path relative to the workspace, or None if outside it."""

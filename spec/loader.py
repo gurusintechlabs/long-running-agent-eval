@@ -97,7 +97,9 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
             data["task"].pop(key, None)
     if data["task"].get("exploit_tests") is None:
         data["task"].pop("exploit_tests", None)
-    from spec.schema import SecurityScoring
+    from spec.schema import BehaviorScoring, SecurityScoring
+    if data["scoring"].get("behavior") == BehaviorScoring().model_dump(mode="json"):
+        data["scoring"].pop("behavior", None)
     sec = data["scoring"].get("security")
     if sec == SecurityScoring().model_dump(mode="json"):
         data["scoring"].pop("security", None)

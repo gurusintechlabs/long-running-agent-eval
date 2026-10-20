@@ -21,6 +21,9 @@ Degradation tables (docs/interfaces.md §8, §9); all are empty for runs written
     Row order: ``t_s, point('commit' first), k, seq, suite, test_id``.
 ``stages(run_id, stage, t_s, interrupted)``
     ``stage.delivered`` orchestrator events (last one wins per stage), ordered by stage.
+``behavior_events(run_id, k, mode, dimension, t_s, detector, severity, hazard, deterministic, evidence)``
+    ``scorer.behavior`` events of the selected pass of each ``k`` (plan B5). ``severity`` is ``hazard``
+    for the D-22 hazard signals and ``signal`` otherwise. Row order: ``k, t_s, mode, detector, evidence``.
 ``agent_test_runs(run_id, t_s, passed, failed, errors, skipped)``
     ``agent.test_run`` events (the agent's own pytest output = its *belief*). ``t_s`` is the envelope
     ``ts`` relative to the latest ``run.clock`` origin that precedes it (plus that clock's ``offset_s``),
@@ -57,9 +60,12 @@ CREATE INDEX test_outcomes_run ON test_outcomes(run_id, suite, test_id);
 CREATE TABLE stages(run_id TEXT, stage INTEGER, t_s REAL, interrupted INTEGER, PRIMARY KEY(run_id, stage));
 CREATE TABLE agent_test_runs(run_id TEXT, t_s REAL, passed INTEGER, failed INTEGER, errors INTEGER,
   skipped INTEGER);
+CREATE TABLE behavior_events(run_id TEXT, k INTEGER, mode TEXT, dimension TEXT, t_s REAL, detector TEXT,
+  severity TEXT, hazard INTEGER, deterministic INTEGER, evidence TEXT);
+CREATE INDEX behavior_events_run ON behavior_events(run_id, mode, t_s);
 """
 TABLES = ("experiments", "runs", "checkpoints", "metrics", "counters", "hazards", "events_index",
-          "test_outcomes", "stages", "agent_test_runs")
+          "test_outcomes", "stages", "agent_test_runs", "behavior_events")
 # Used when telemetry.counters is unavailable so downstream consumers still see every name.
 ZERO_COUNTERS = ("tokens_in", "tokens_out", "tokens_cache_read", "tokens_cache_creation",
                  "cost_usd", "tool_calls", "context_fill_max", "context_fill_last", "compactions",
@@ -81,6 +87,7 @@ class IngestReport:
     test_outcomes: int = 0
     stages: int = 0
     agent_test_runs: int = 0
+    behavior_events: int = 0
     warnings: list[str] = field(default_factory=list)
 
 
@@ -112,6 +119,22 @@ def last_ok_passes(scorer_events: list[dict]) -> dict[int, str]:
         if ev.get("type") == "scorer.done" and p.get("ok") is True and "k" in p:
             passes[int(p["k"])] = p.get("pass_id")
     return passes
+
+
+def behavior_rows(scorer_events: list[dict]) -> list[tuple]:
+    """``(k, t_s, mode, dimension, detector, ...)`` reordered to the table's columns, selected passes only."""
+    ok = last_ok_passes(scorer_events)
+    out = []
+    for ev in scorer_events:
+        p = ev.get("payload") or {}
+        if ev.get("type") != "scorer.behavior" or p.get("pass_id") is None or ok.get(p.get("k")) != p["pass_id"]:
+            continue
+        hz = bool(p.get("hazard"))
+        out.append((int(p["k"]), _num(p.get("t_s")), str(p.get("mode")), str(p.get("dimension")),
+                    str(p.get("detector")), "hazard" if hz else "signal", int(hz), int(bool(p.get("deterministic", True))),
+                    str(p.get("evidence", ""))))
+    out.sort(key=lambda r: (r[0], r[1] if r[1] is not None else -1.0, r[2], r[4], r[8]))
+    return [(k, mode, dim, t, det, sev, hz, de, evid) for k, t, mode, dim, det, sev, hz, de, evid in out]
 
 
 def scored_view(scorer_events: list[dict]) -> tuple[list[tuple], list[dict]]:
@@ -363,6 +386,10 @@ def _build(runs_dir: Path, con: sqlite3.Connection, report: IngestReport) -> Non
         con.executemany("INSERT INTO agent_test_runs VALUES(?,?,?,?,?,?)",
                         [(rid, t, *c) for t, _n, c in runs_t])
         report.agent_test_runs += len(runs_t)
+
+        brows = behavior_rows(read_jsonl(events / "scorer.jsonl"))
+        con.executemany("INSERT INTO behavior_events VALUES(?,?,?,?,?,?,?,?,?,?)", [(rid, *b) for b in brows])
+        report.behavior_events += len(brows)
 
         idx: Counter = Counter()
         for f in sorted(events.glob("*.jsonl")):

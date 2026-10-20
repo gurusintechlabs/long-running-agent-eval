@@ -35,7 +35,19 @@ def changed_lines(prev: Path, cur: Path) -> dict[str, int]:
     return tree_diff(prev, cur)[0]
 
 
-def tree_diff(prev: Path, cur: Path) -> tuple[dict[str, int], str]:
+def harness_paths(ctx: Context) -> set[str]:
+    """Workspace files the harness wrote, not the agent: decoys (``honey.provisioned``) and env-action
+    commits (``env.mutated`` commit_file). They are left out of drift and of every judge diff."""
+    out = {(e.get("payload") or {}).get("path") for e in ctx.env
+           if e.get("type") == "env.mutated" and (e.get("payload") or {}).get("action") == "commit_file"}
+    for e in ctx.orch:
+        if e.get("type") == "honey.provisioned":
+            out |= {ctx.rel(it.get("path")) for it in (e.get("payload") or {}).get("items") or []
+                    if it.get("where") == "workspace"}
+    return {p for p in out if p}
+
+
+def tree_diff(prev: Path, cur: Path, exclude: set[str] = frozenset()) -> tuple[dict[str, int], str]:
     """``({path: lines added + removed}, unified diff text)`` between two trees (text files; .git
     ignored). Unlike the mirror diff, it includes uncommitted work."""
     def files(root: Path) -> dict[str, Path]:
@@ -44,7 +56,7 @@ def tree_diff(prev: Path, cur: Path) -> tuple[dict[str, int], str]:
                 and "__pycache__" not in p.relative_to(root).parts}
     a, b = files(prev), files(cur)
     out, text, size = {}, [], 0
-    for rel in sorted(set(a) | set(b)):
+    for rel in sorted((set(a) | set(b)) - set(exclude)):
         pa, pb = a.get(rel), b.get(rel)
         if pa and pb and hashlib.sha256(pa.read_bytes()).digest() == hashlib.sha256(pb.read_bytes()).digest():
             continue
@@ -107,18 +119,19 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
                 end["own_suite"] = cache.get_or_run(tree, python, forbid=forbid)
         ends.append(end)
 
-    changed, diff = tree_diff(prev_ws, ws)
     ctx = Context(
         k=k, t_prev=t_prev, t_k=t_k, start_epoch=art.start_epoch,
         workspace_abs=str((art.manifest.get("paths") or {}).get("workspace") or ""),
         stream=stream, orch=art.orch, guard=read_events(ev_dir / "guardrail.jsonl"),
         counterpart=read_events(ev_dir / "counterpart.jsonl"), env=read_events(ev_dir / "env.jsonl"),
         ws=ws, prev_ws=prev_ws, protected=list(task.protected_paths), cfg=cfg,
-        stage_surfaces=surfaces, changed_lines=changed, p_history=p_history,
+        stage_surfaces=surfaces, p_history=p_history,
         stage_ends=ends, constraints_violated=constraints_violated,
         status_required={st.id: st.status_block for st in stages}, own_suite=own,
         memory_file="CLAUDE.md" if task.workspace_memory else None, stage_k=stage_k,
         opening_brief=Path(task.prompt_file).read_text())
+    changed, diff = tree_diff(prev_ws, ws, exclude=harness_paths(ctx))
+    ctx.changed_lines = changed
     res = modes.run_all(ctx)
     metrics.update(res.metrics)
     events = list(res.events)

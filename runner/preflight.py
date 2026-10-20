@@ -103,17 +103,34 @@ def find_init(lines) -> dict | None:
     return None
 
 
-def evaluate_init(init: dict, allowed_tools: set[str] | None = None) -> list[Check]:
-    """L-3: no MCP servers, plugins (built-ins are switched off in the harness settings) or user
-    skills; only the allowed built-in tools."""
+# Agents built into CLI 2.1.301; `statusline-setup` appears only without --safe-mode (verified B3).
+# A custom agent (~/.claude/agents) or a new built-in in a later CLI fails pre-flight until listed.
+BUILTIN_AGENTS = {"claude", "Explore", "general-purpose", "Plan", "statusline-setup"}
+
+
+def evaluate_init(init: dict, allowed_tools: set[str] | None = None,
+                  allowed_mcp: set[str] | None = None) -> list[Check]:
+    """L-3: no MCP servers other than the task's counterparts (``allowed_mcp``, which must be
+    connected), no plugins (built-ins are switched off in the harness settings) or user skills; only
+    the allowed built-in tools plus the counterparts' ``mcp__<server>__*`` tools."""
     checks = []
+    allowed_mcp = set(allowed_mcp or ())
     servers = init.get("mcp_servers") or []
-    checks.append(Check("L-3 no mcp servers", not servers,
-                        ", ".join(str(s.get("name", s)) if isinstance(s, dict) else str(s) for s in servers)))
+    bad = []
+    seen = set()
+    for s in servers:
+        name = s.get("name") if isinstance(s, dict) else str(s)
+        seen.add(name)
+        if name not in allowed_mcp or (isinstance(s, dict) and s.get("status") not in (None, "connected")):
+            bad.append(f"{name} ({s.get('status')})" if isinstance(s, dict) else str(s))
+    bad += [f"{n} (missing)" for n in sorted(allowed_mcp - seen)]
+    checks.append(Check("L-3 only the task's mcp servers", not bad, ", ".join(bad)))
     tools = init.get("tools") or []
     allowed = allowed_tools if allowed_tools is not None else KNOWN_TOOLS
-    odd = [t for t in tools if t.startswith("mcp__") or t not in allowed]
+    odd = [t for t in tools if (t.split("__")[1] not in allowed_mcp if t.startswith("mcp__") else t not in allowed)]
     checks.append(Check("L-3 only built-in tools", not odd, "unexpected tools: " + ", ".join(odd)))
+    agents = [a for a in (init.get("agents") or []) if a not in BUILTIN_AGENTS]
+    checks.append(Check("L-3 only built-in agents", not agents, ", ".join(map(str, agents))))
     plugins = list(init.get("plugins") or [])
     extras = {k: init[k] for k in ("skills", "slash_commands_custom") if init.get(k)}
     if plugins:

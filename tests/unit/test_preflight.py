@@ -136,6 +136,26 @@ def test_init_flags_builtin_plugins_too():
     assert all(c.ok for c in preflight.evaluate_init(init_msg(plugins=[])))
 
 
+def test_init_allows_only_the_declared_counterpart_mcp_server():
+    init = init_msg(mcp_servers=[{"name": "ops", "status": "connected"}],
+                    tools=["Bash", "mcp__ops__request", "mcp__ops__inbox"])
+    assert all(c.ok for c in preflight.evaluate_init(init, allowed_mcp={"ops"})), \
+        [c for c in preflight.evaluate_init(init, allowed_mcp={"ops"}) if not c.ok]
+    assert not all(c.ok for c in preflight.evaluate_init(init))                  # undeclared
+    bad = init_msg(mcp_servers=[{"name": "ops", "status": "failed"}], tools=["Bash"])
+    assert not all(c.ok for c in preflight.evaluate_init(bad, allowed_mcp={"ops"}))  # must be connected
+    other = init_msg(mcp_servers=[{"name": "figma", "status": "connected"}], tools=["mcp__figma__x"])
+    assert not all(c.ok for c in preflight.evaluate_init(other, allowed_mcp={"ops"}))
+
+
+def test_init_allows_only_built_in_agents():
+    """Without --safe-mode a custom agent in ~/.claude/agents could load; only built-ins may."""
+    ok = init_msg(agents=["claude", "Explore", "general-purpose", "Plan", "statusline-setup"])
+    assert all(c.ok for c in preflight.evaluate_init(ok))
+    bad = [c for c in preflight.evaluate_init(init_msg(agents=["claude", "my-reviewer"])) if not c.ok]
+    assert bad and "my-reviewer" in bad[0].detail
+
+
 def test_find_init_in_stream_lines():
     lines = ['not json', json.dumps({"type": "system", "subtype": "hook"}),
              json.dumps(init_msg()), json.dumps({"type": "result"})]

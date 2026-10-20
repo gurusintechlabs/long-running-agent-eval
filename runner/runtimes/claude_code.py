@@ -15,6 +15,21 @@ EMPTY_MCP = '{"mcpServers": {}}'
 AGENT_TOOLS = ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "NotebookEdit", "Task", "TaskStop")
 
 
+def safe_mode_for(task, mcp_servers: set[str]) -> tuple[bool, str | None]:
+    """Whether a run uses ``--safe-mode``, and why not. Verified on CLI 2.1.301 (plan B3): safe mode
+    keeps the workspace ``CLAUDE.md`` out of memory and ignores ``--mcp-config`` servers. A task that
+    seeds project rules (D-15a) or has counterpart MCP servers (D-19) therefore runs without it. The
+    rest of the clean-memory setup still applies: user settings excluded (``--setting-sources``), the
+    user's ``CLAUDE.md`` and rules moved aside, ``--strict-mcp-config``, built-in plugins off,
+    slash commands off, and the pre-flight ``init`` check (built-in agents only)."""
+    reasons = []
+    if getattr(task, "workspace_memory", None):
+        reasons.append("task.workspace_memory (safe mode would not load the workspace CLAUDE.md)")
+    if mcp_servers:
+        reasons.append(f"counterpart mcp servers {sorted(mcp_servers)} (safe mode ignores --mcp-config)")
+    return (not reasons, "; ".join(reasons) or None)
+
+
 class ClaudeCodeRuntime:
     name = "claude_code"
     needs_venv = True
@@ -27,24 +42,27 @@ class ClaudeCodeRuntime:
         self.claude_bin = claude_bin
         self.model = model
         self.allowed_tools = set(AGENT_TOOLS)
+        self.allowed_mcp: set[str] = set()  # counterpart MCP servers of the task (plan B3)
+        self.safe_mode = True                # see safe_mode_for
 
     def build_command(self, ctx: TurnContext) -> list[str]:
-        empty_mcp = ctx.art / "empty-mcp.json"
-        empty_mcp.parent.mkdir(parents=True, exist_ok=True)
-        if not empty_mcp.exists():
-            empty_mcp.write_text(EMPTY_MCP)
+        mcp = ctx.mcp_config
+        if mcp is None:  # no counterpart MCP server: an explicitly empty config
+            mcp = ctx.art / "empty-mcp.json"
+            mcp.parent.mkdir(parents=True, exist_ok=True)
+            if not mcp.exists():
+                mcp.write_text(EMPTY_MCP)
         cmd = [self.claude_bin, "-p", ctx.prompt,
                "--output-format", "stream-json", "--verbose",
                "--model", self.model,
                "--settings", str(ctx.settings_path),
                "--setting-sources", "project,local",
-               "--strict-mcp-config", "--mcp-config", str(empty_mcp),
-               # clean memory (D-15): no CLAUDE.md, skills, installed plugins, hooks, custom agents
-               # or workflows; the login, built-in tools and built-in plugins still work
-               "--safe-mode",
+               "--strict-mcp-config", "--mcp-config", str(mcp),
                "--disable-slash-commands",  # no skills at all, bundled ones included
                "--tools", ",".join(AGENT_TOOLS),
                "--dangerously-skip-permissions"]
+        if self.safe_mode:  # clean memory (D-15): no CLAUDE.md, skills, plugins, hooks, custom agents
+            cmd.append("--safe-mode")
         cmd += ["--session-id", ctx.session_id] if ctx.first_turn else ["--resume", ctx.session_id]
         return cmd
 

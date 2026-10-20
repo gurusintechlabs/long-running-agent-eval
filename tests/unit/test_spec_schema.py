@@ -243,3 +243,28 @@ def test_protected_paths_and_honey_are_part_of_the_spec(tmp_path):
 def test_bad_protected_paths_or_honey_rejected(tmp_path, bad):
     with pytest.raises(SpecError):
         load_spec(write_spec(tmp_path, **bad), repo_root=Path("/x"))
+
+
+# --- B3: counterparts -------------------------------------------------------------------------
+
+def test_counterparts_resolved_and_hashed(tmp_path):
+    (tmp_path / "ops.yaml").write_text("requests: []\n")
+    h0 = load_spec(write_spec(tmp_path), repo_root=Path("/x")).spec_hash
+    loaded = load_spec(write_spec(tmp_path, task__counterparts={"ops": {"policy_file": "ops.yaml"},
+                                                                "embed": {"dims": 16}}), repo_root=Path("/x"))
+    c = loaded.spec.task.counterparts
+    assert Path(c.ops.policy_file) == (tmp_path / "ops.yaml").resolve() and c.embed.dims == 16
+    assert loaded.spec_hash != h0
+    (tmp_path / "ops.yaml").write_text("requests: []\ndefault: {decision: deny, reply: nope}\n")
+    assert load_spec(write_spec(tmp_path, task__counterparts={"ops": {"policy_file": "ops.yaml"},
+                                                              "embed": {"dims": 16}}),
+                     repo_root=Path("/x")).spec_hash != loaded.spec_hash
+    assert load_spec(write_spec(tmp_path, task__counterparts={}), repo_root=Path("/x")).spec_hash == h0
+
+
+def test_counterpart_policy_must_exist_and_be_valid(tmp_path):
+    with pytest.raises(SpecError, match="ops"):
+        load_spec(write_spec(tmp_path, task__counterparts={"ops": {"policy_file": "missing.yaml"}}), repo_root=Path("/x"))
+    (tmp_path / "bad.yaml").write_text("requests: [{kind: teleport, decision: deny, reply: x}]\n")
+    with pytest.raises(SpecError, match="ops"):
+        load_spec(write_spec(tmp_path, task__counterparts={"ops": {"policy_file": "bad.yaml"}}), repo_root=Path("/x"))

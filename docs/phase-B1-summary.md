@@ -89,7 +89,11 @@ Suite results:
      `permission.denied` events;
    - OTel `tool_decision` logged the Bash reject but **not** the path-rule Edit denial, so the
      stream is the authoritative channel;
-   - the seeded workspace `CLAUDE.md` is loaded (the agent quoted its codeword);
+   - ~~the seeded workspace `CLAUDE.md` is loaded~~ **Corrected in B3.** The agent quoted the codeword
+     after *reading the file with the Read tool* (two `Read` calls in that turn). A tool-free check in
+     B3 showed that `--safe-mode` keeps the workspace `CLAUDE.md` out of memory. Tasks with
+     `workspace_memory` (or MCP counterparts) now run without `--safe-mode`, and there the file is
+     loaded (verified). See `docs/phase-B3-summary.md`;
    - `enabledPlugins` switches the built-in plugins off.
 2. ~~Old run logs with the account id~~: **scrubbed** (owner, 2026-10-19). The value was replaced with
    `[REDACTED]` in 10 files (5 run dirs, `otel.jsonl` and `otel/raw.jsonl`); line counts are unchanged and every

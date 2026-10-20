@@ -63,7 +63,7 @@ class RunPaths:
 
 def build_agent_env(*, host_env: dict[str, str], tmpdir: Path, path_dirs: list[str],
                     otel_endpoint: str, protocol: str, export_interval_ms: int,
-                    resource_attrs: dict[str, str]) -> dict[str, str]:
+                    resource_attrs: dict[str, str], extra: dict[str, str] | None = None) -> dict[str, str]:
     """Allowlisted environment for ``claude`` (spec §3.2 L-2). Nothing else is inherited."""
     env = {k: host_env[k] for k in _PASSTHROUGH if k in host_env}
     seen: list[str] = []
@@ -75,6 +75,7 @@ def build_agent_env(*, host_env: dict[str, str], tmpdir: Path, path_dirs: list[s
     env["DISABLE_AUTOUPDATER"] = "1"
     env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
     env.update(_otel_env(otel_endpoint, protocol, export_interval_ms, resource_attrs))
+    env.update(extra or {})  # harness-set task variables (counterpart URLs), never host variables
     return env
 
 

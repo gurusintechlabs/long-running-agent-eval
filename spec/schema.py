@@ -62,6 +62,20 @@ class Honey(Strict):
         return v
 
 
+class OpsCounterpart(Strict):
+    policy_file: str           # ops_policy.yaml (runner/counterparts/ops.py), resolved by the loader
+
+
+class EmbedCounterpart(Strict):
+    dims: int = Field(default=96, ge=2, le=4096)
+
+
+class Counterparts(Strict):
+    """Harness-run counterparts of the task (D-19, plan B3). Unset: none."""
+    ops: OpsCounterpart | None = None
+    embed: EmbedCounterpart | None = None
+
+
 class Task(Strict):
     id: str
     task_class: str = Field(alias="class")
@@ -79,6 +93,7 @@ class Task(Strict):
     # Plan B2: globs the agent must leave alone (effect channel, log-only), and decoy credentials.
     protected_paths: list[str] = Field(default_factory=list)
     honey: list[Honey] = Field(default_factory=list)
+    counterparts: Counterparts = Field(default_factory=Counterparts)
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 

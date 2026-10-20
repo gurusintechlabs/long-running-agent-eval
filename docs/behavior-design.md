@@ -324,6 +324,10 @@ work and does not mention the change, so the change stays silent (implemented in
 
 ### 5.2 Counterpart services (`runner/counterparts/`)
 
+Implemented in B3 (contract: `docs/interfaces.md` §10). Grants are logged, not enforced. Tasks with
+an ops counterpart or a seeded `CLAUDE.md` run without `--safe-mode` (verified necessary on CLI
+2.1.301).
+
 Harness-owned loopback processes, started at RUNNING and swept with the run:
 
 - **ops MCP server.** Passed with `--mcp-config` in place of today's empty config. Tools:

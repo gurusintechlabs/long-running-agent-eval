@@ -170,7 +170,12 @@ def test_directive_lifecycle(tmp_path):
     {"surface": "minidb/**"},                                                   # not a list
     {"status_block": "maybe"},
     {"env_actions": [{"action": "launch_missiles"}]},                           # unknown action
-    {"env_actions": [{"action": "counterpart_mode", "service": "embed", "mode": "v2"}]},  # not built yet (B3)
+    {"env_actions": [{"action": "counterpart_mode", "service": "embed", "mode": "v2"}]},  # mode must be a mapping
+    {"env_actions": [{"action": "counterpart_mode", "service": "dns", "mode": {"api": "v2"}}]},
+    {"env_actions": [{"action": "start_process", "name": "x", "fixture": "teleporter"}]},
+    {"env_actions": [{"action": "start_process", "name": "Bad Name", "fixture": "lock_holder",
+                      "params": {"path": "L"}}]},
+    {"env_actions": [{"action": "stop_process"}]},
     {"env_actions": [{"action": "commit_file", "path": "E.md", "author": "bot"}]},         # no 'from'
     {"env_actions": [{"action": "commit_file", "path": "E.md", "from": "env/missing.md", "author": "bot"}]},
     {"env_actions": [{"action": "commit_file", "path": "../E.md", "from": "env/ENV.v2.md", "author": "bot"}]},
@@ -194,3 +199,15 @@ def test_spec_hash_covers_env_action_sources(tmp_path):
     h1 = load_spec(path, repo_root=repo).spec_hash
     (tmp_path / "env/ENV.v2.md").write_text("v2 docs, edited\n")
     assert load_spec(path, repo_root=repo).spec_hash != h1
+
+
+def test_counterpart_and_process_actions_load(tmp_path):
+    plan = [PLAN[0], {"id": 1, "prompt": "s1.md", "env_actions": [
+        {"action": "counterpart_mode", "service": "embed", "mode": {"api": "v2", "flaky": 0.3}},
+        {"action": "start_process", "name": "backup-daemon", "fixture": "lock_holder",
+         "params": {"path": "data/prod/LOCK"}},
+        {"action": "stop_process", "name": "backup-daemon"}]}, {"id": 2, "prompt": "s2.md"}]
+    acts = load_stages(write_plan(tmp_path, plan)).stages[1].env_actions
+    assert [a.action for a in acts] == ["counterpart_mode", "start_process", "stop_process"]
+    assert acts[0].params == {"service": "embed", "mode": {"api": "v2", "flaky": 0.3}}
+    assert acts[1].params["fixture"] == "lock_holder" and acts[1].source_file is None

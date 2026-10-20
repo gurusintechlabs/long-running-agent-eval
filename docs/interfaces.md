@@ -284,3 +284,61 @@ stages:
   - `task.permissions.deny`: Claude Code permission rules merged into `harness-settings.json`.
 
   Both are hashed only when set, so existing specs keep their hash.
+
+## 10. Counterparts (D-19, plan B3)
+
+`task.counterparts` (spec): `ops: {policy_file}` and/or `embed: {dims}`. They start in PREPARING,
+before the agent env is built, and stop in FINALIZING. Their events go to
+`events/counterpart.jsonl` (source `counterpart`).
+
+- **Ops** (`runner/counterparts/ops.py`): an in-process loopback HTTP service with a deterministic
+  `ops_policy.yaml`:
+  - `requests` is a list of `{kind, decision: grant|deny, reply, max_grants?, require_justification?
+    (regex), deny_reply?, effect?}`; the first rule for the kind decides;
+  - `default` must be a deny;
+  - `checkins: {every_n_turns, text}` queues a supervisor message in the inbox.
+
+  The agent reaches it through the stdio MCP server `ops_mcp_server.py`, which is copied into
+  `<work_dir>/<run_id>-svc/`, run by an interpreter outside the repo, and passed as `--mcp-config`
+  (`runs/<id>/mcp.json`). Its tools are `mcp__ops__request {kind, justification, target?}`,
+  `mcp__ops__message {text}` and `mcp__ops__inbox {}`. Events:
+  - `ops.request {kind, target, justification, decision, reply, rule, effect?, source: mcp|http|direct}`;
+  - `ops.message {text, source}`, `ops.inbox {delivered, source}`;
+  - `ops.checkin_queued {turn, text}`, `ops.inbound {sender, text}`, `ops.error {tool, error, source}`;
+  - `ops.started {url}`.
+
+  Grants are logged, not enforced.
+- **Mock embedding API** (`runner/counterparts/embed.py`): the agent env carries `EMBED_URL` and
+  `EMBED_API_KEY`.
+  - Mode `{api: v1|v2, flaky: p, rate_limit_rps: n|null}`.
+  - v1 is `POST /v1/embed {texts}`. v2 is `POST /v2/embeddings {input}` with `X-Api-Version: 2`; once
+    `api: v2`, v1 answers `410` and the request is logged `deprecated: true`.
+  - Faults are `503` (seeded from `run.seed`) and `429` + `Retry-After: 1`.
+  - Vectors are deterministic and not normalised.
+  - Events: `embed.mode {api, flaky, rate_limit_rps}` and `embed.request {method, path, status, api,
+    auth: valid|missing|invalid|honey:<id>, n_texts, deprecated, fault}`. No key or token is ever
+    logged.
+- **Fixtures** (`runner/counterparts/fixtures.py`): `lock_holder {path}` (exclusive `flock`, a
+  "backup daemon") and `port_holder {port}` (a "legacy service" answering HTTP).
+  - Each runs as a standalone script in the svc dir, in its own session, using a non-repo
+    interpreter.
+  - Events: `fixture.started {name, kind, pid, params}` and `fixture.stopped {name, pid}`.
+  - procmon reports a death the harness did not cause (`fixture-killed`).
+- **Stage env actions** (§9.1):
+  - `counterpart_mode {service: embed, mode: {...}}` merges into the current mode;
+  - `start_process {name, fixture, params}`;
+  - `stop_process {name}`.
+
+  Their `env.mutated` payloads are `{service, mode}`, `{name, fixture, pid}` and `{name}`.
+- **Safe mode:** a run with `task.workspace_memory` or an ops counterpart runs without `--safe-mode`
+  (spec §6.2, CLI 2.1.301). Orchestrator event `agent.safe_mode {enabled, reason}`; manifest
+  `safe_mode`.
+- **Pre-flight L-3:** `evaluate_init(init, allowed_tools, allowed_mcp)`. MCP servers must be exactly
+  the task's, all `connected`, and their tools `mcp__<server>__*` are allowed. Agents must be built-in
+  (`BUILTIN_AGENTS`).
+- **Scripted agent:**
+  - `mcp_call {server, tool, arguments}` runs the server from `--mcp-config` over stdio, the way the
+    CLI does, and emits `tool_use` / `tool_result`;
+  - `http {method, url, headers?, json?}` fills `{VAR}` from the env and emits no tool event.
+- **Resume:** counterpart modes and fixtures are not rebuilt for stages delivered before the restored
+  checkpoint (known gap; see the B3 summary).

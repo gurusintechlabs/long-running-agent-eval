@@ -141,6 +141,9 @@ class Run:
         self._stages: StageScheduler | None = None
         self.end_reason: str | None = None  # task_done | deadline (guardrail ends set censored_reason)
         self._honey: HoneyPot | None = None
+        self._cps = None    # runner.counterparts.manager.Counterparts (plan B3)
+        self._cpev: EventWriter | None = None
+        self._envev: EventWriter | None = None
         # Harness-owned fixture processes, name -> Popen (plan B3 starts them; tests inject them).
         self._fixtures: dict = dict(self.guard_opts.get("fixtures", {}))
 
@@ -233,6 +236,10 @@ class Run:
 
         self._receiver = OtlpReceiver(self.paths.otel_raw / "raw.jsonl", self._otel)
         self._receiver.start()
+        # decoys, then counterparts (they know the decoy tokens), then the agent env (counterpart URLs)
+        self._honey = self._provision_honey()
+        self._cps = self._start_counterparts()
+        self._choose_safe_mode()
         attrs = {"lrae.run_id": self.run_id, "lrae.config": self.config_name, "lrae.repeat": str(self.repeat)}
         tel = self.spec.telemetry
         settings = harness_settings(otel_endpoint=self._receiver.endpoint, protocol=tel.protocol,
@@ -246,9 +253,8 @@ class Run:
             path_dirs.append(str(Path(git_bin).parent))
         self._env = build_agent_env(host_env=self.host_env, tmpdir=self.paths.tmp, path_dirs=path_dirs,
                                     otel_endpoint=self._receiver.endpoint, protocol=tel.protocol,
-                                    export_interval_ms=tel.export_interval_ms, resource_attrs=attrs)
-
-        self._honey = self._provision_honey()
+                                    export_interval_ms=tel.export_interval_ms, resource_attrs=attrs,
+                                    extra=self._cps.env() if self._cps else None)
         self._preflight()
         self._setup_guardrails()
         if self.runtime.uses_real_agent:
@@ -286,6 +292,38 @@ class Run:
         self._ev.emit("honey.provisioned", {"items": [{"id": i.id, "where": i.where,
                                                         "path": str(i.path)} for i in pot.items]})
         return pot
+
+    def _start_counterparts(self):
+        """The task's counterparts (D-19, plan B3), or None. Also needed when only the stages use
+        fixtures."""
+        cfg = self.spec.task.counterparts
+        uses_fixtures = self._stage_plan and any(a.action in ("start_process", "stop_process")
+                                                 for s in self._stage_plan.stages for a in s.env_actions)
+        if cfg.ops is None and cfg.embed is None and not uses_fixtures:
+            return None
+        from runner.counterparts.manager import Counterparts
+        self._cpev = EventWriter(self.paths.events / "counterpart.jsonl", self.run_id, "counterpart")
+        honey = {i.token: i.id for i in self._honey.items} if self._honey else {}
+        cps = Counterparts(cfg, workspace=self.paths.workspace,
+                           svc_dir=Path(self.spec.isolation.work_dir) / f"{self.run_id}-svc", art=self.paths.art,
+                           seed=self.spec.run.seed, emit=self._cpev.emit, honey_tokens=honey).start()
+        if hasattr(self.runtime, "allowed_mcp"):
+            self.runtime.allowed_mcp = set(cps.mcp_servers)
+        return cps
+
+    def _choose_safe_mode(self) -> None:
+        """``--safe-mode`` for every task except those that need the workspace CLAUDE.md or MCP
+        counterparts (runner/runtimes/claude_code.py:safe_mode_for). Recorded in the manifest."""
+        if not hasattr(self.runtime, "safe_mode"):
+            return
+        from runner.runtimes.claude_code import safe_mode_for
+        on, reason = safe_mode_for(self.spec.task, self._cps.mcp_servers if self._cps else set())
+        self.runtime.safe_mode = on
+        self._ev.emit("agent.safe_mode", {"enabled": on, "reason": reason})
+        mf.update(self.paths.manifest, safe_mode={"enabled": on, "reason": reason})
+
+    def _all_fixtures(self) -> dict:
+        return {**self._fixtures, **(self._cps.fixtures.processes() if self._cps else {})}
 
     def _task_policy(self, policy):
         """The policy file plus the task's own log-only rules: protected paths, the seeded project
@@ -332,7 +370,7 @@ class Run:
             effect_interval=o.get("effect_interval_s", 30.0),
             lag_threshold_s=o.get("stall_lag_s", 10.0),
             silence_threshold_s=o.get("stall_silence_s", 60.0),
-            procmon=ProcMon(roots=self._agent_roots, fixtures=lambda: self._fixtures,
+            procmon=ProcMon(roots=self._agent_roots, fixtures=self._all_fixtures,
                             allow_loopback=o.get("procmon_allow_loopback", True)),
             procmon_interval=o.get("procmon_interval_s", 2.0), honey=self._honey)
         self._ev.emit("guardrails", {"policy_sha256": policy.sha256})
@@ -419,7 +457,8 @@ class Run:
         """One cheap real turn proving L-3 (no MCP/plugins/skills) and L-5 (telemetry arrives)."""
         result = run_probe(runtime=self.runtime, env=self._env, receiver=self._receiver,
                            probe_dir=self.paths.work / "probe", art=self.paths.art,
-                           settings_path=self.paths.harness_settings, claude_home=self.claude_home)
+                           settings_path=self.paths.harness_settings, claude_home=self.claude_home,
+                           mcp_config=self._cps.mcp_config() if self._cps else None)
         self._ev.emit("preflight.probe", {"checks": [c.__dict__ for c in result.checks],
                                           "cost_usd": result.cost_usd,
                                           "note": "preflight spend; excluded from run cost"})
@@ -541,7 +580,7 @@ class Run:
         turns, under the snapshot lock so no checkpoint sees half of them), then the delivery and
         directive events. The returned message is the next turn's prompt."""
         if stage.env_actions:
-            mut = EnvMutator(self.paths.workspace)
+            mut = EnvMutator(self.paths.workspace, counterparts=self._cps)
             with self.snap_lock:
                 for i, act in enumerate(stage.env_actions):
                     self._envev.emit("env.mutated", {"stage": stage.id, "index": i, **mut.apply(act)})
@@ -558,12 +597,15 @@ class Run:
         if self._monitor:
             self._monitor.set_agent_active(False)
         self._ev.emit("turn.end", {"turn": n, "returncode": rc})
+        if self._cps:
+            self._cps.on_turn(n)
 
     def _spawn_turn(self, prompt: str, first: bool) -> TurnHandle:
         ctx = TurnContext(prompt=prompt, session_id=self._session_id, first_turn=first,
                           workspace=self.paths.workspace, art=self.paths.art,
                           settings_path=self.paths.harness_settings, otel_endpoint=self._receiver.endpoint,
-                          run_start_epoch=self._start_epoch_run, state_dir=self.state_dir)
+                          run_start_epoch=self._start_epoch_run, state_dir=self.state_dir,
+                          mcp_config=self._cps.mcp_config() if self._cps else None)
         cmd = self.runtime.build_command(ctx)
         self._ev.emit("turn.start", {"first": first, "session_id": self._session_id,
                                      "prompt_chars": len(prompt), "prompt_sha256": sha256_text(prompt)})
@@ -658,6 +700,7 @@ class Run:
             ("sweep orphans", lambda: procs.sweep(self.paths.work, since=self._start_epoch - 1)),
             ("stop guardrail monitor", lambda: self._monitor and self._monitor.stop()),
             ("remove decoy dir", lambda: self._honey and self._honey.cleanup()),
+            ("stop counterparts", lambda: self._cps and self._cps.stop()),
             ("flush telemetry", self._flush_receiver),
             ("delete agent state dir", lambda: memory.delete_state(self.state_dir)),
             ("restore user memory", lambda: self._guard and self._guard.restore()),
@@ -683,7 +726,7 @@ class Run:
             self._ev.emit("state", {"from": "FINALIZING", "to": final.value})
         if self._scorer:  # the agent is gone; the scorer reads only the artifact dir
             self._scorer.drain()
-        for w in (self._ev, self._stream, self._otel, self._gev):
+        for w in (self._ev, self._stream, self._otel, self._gev, self._envev, self._cpev):
             if w:
                 w.close()
         if self._stderr:

@@ -39,8 +39,9 @@ def _sha256(path: Path) -> str:
 
 
 class EnvMutator:
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, counterparts=None):
         self.workspace = Path(workspace)
+        self.counterparts = counterparts  # runner.counterparts.manager.Counterparts (plan B3)
 
     def apply(self, act: EnvAction) -> dict:
         handler = getattr(self, f"_do_{act.action}", None)
@@ -86,3 +87,21 @@ class EnvMutator:
         self._git("commit", "-q", "--no-verify", "-m", message, "--", rel, author=(name, email))
         return {"path": rel, "author": email, "sha": self._git("rev-parse", "HEAD"),
                 "content_sha256": _sha256(dest), "clobbered_local_change": clobbered}
+
+    def _need_counterparts(self, act: EnvAction):
+        if self.counterparts is None:
+            raise EnvMutationError(f"env action {act.action!r} needs the task's counterparts")
+        return self.counterparts
+
+    def _do_counterpart_mode(self, act: EnvAction) -> dict:
+        mode = self._need_counterparts(act).set_mode(act.params["service"], act.params["mode"])
+        return {"service": act.params["service"], "mode": mode}
+
+    def _do_start_process(self, act: EnvAction) -> dict:
+        proc = self._need_counterparts(act).fixtures.start(act.params["name"], act.params["fixture"],
+                                                           act.params.get("params", {}))
+        return {"name": act.params["name"], "fixture": act.params["fixture"], "pid": proc.pid}
+
+    def _do_stop_process(self, act: EnvAction) -> dict:
+        self._need_counterparts(act).fixtures.stop(act.params["name"])
+        return {"name": act.params["name"]}

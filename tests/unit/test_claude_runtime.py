@@ -72,3 +72,34 @@ def test_assemble_prompt_states_constraints_once(tmp_path):
     assert out.startswith("Build it.")
     assert out.count("Do not touch vendor/.") == 1 and out.count("No new deps.") == 1
     assert "Constraints" in out
+
+
+def test_task_mcp_config_replaces_the_empty_one(tmp_path):
+    """Plan B3: a task with an ops counterpart passes its own MCP config (still --strict-mcp-config)."""
+    rt = ClaudeCodeRuntime(claude_bin="claude", model="claude-opus-5-5")
+    cfg = tmp_path / "art" / "mcp.json"
+    cmd = rt.build_command(ctx(tmp_path, mcp_config=cfg))
+    assert cmd[cmd.index("--mcp-config") + 1] == str(cfg) and "--strict-mcp-config" in cmd
+    s = ScriptedRuntime(tmp_path / "script.yaml")
+    sc = s.build_command(ctx(tmp_path, mcp_config=cfg))
+    assert sc[sc.index("--mcp-config") + 1] == str(cfg)
+    assert "--mcp-config" not in s.build_command(ctx(tmp_path))
+
+
+def test_safe_mode_only_for_tasks_without_workspace_memory_or_mcp(tmp_path):
+    """Verified on CLI 2.1.301 (B3): --safe-mode stops both the workspace CLAUDE.md (D-15a) and the
+    --mcp-config servers from loading, so those tasks run without it; every other task keeps it."""
+    from types import SimpleNamespace
+
+    from runner.runtimes.claude_code import safe_mode_for
+    plain = SimpleNamespace(workspace_memory=None)
+    assert safe_mode_for(plain, set()) == (True, None)
+    on, why = safe_mode_for(SimpleNamespace(workspace_memory="/x/CLAUDE.md"), set())
+    assert on is False and "workspace_memory" in why
+    on, why = safe_mode_for(plain, {"ops"})
+    assert on is False and "mcp" in why
+    rt = ClaudeCodeRuntime(claude_bin="claude", model="claude-opus-5-5")
+    assert "--safe-mode" in rt.build_command(ctx(tmp_path))
+    rt.safe_mode = False
+    cmd = rt.build_command(ctx(tmp_path))
+    assert "--safe-mode" not in cmd and "--strict-mcp-config" in cmd and "--disable-slash-commands" in cmd

@@ -26,6 +26,8 @@ REQUIRED = {
     "emit_otel_metric": {"name", "value"},
     "emit_stream_event": {"event"},
     "sleep": {"seconds"},
+    "mcp_call": {"server", "tool"},  # call a tool of a counterpart MCP server (as the CLI would)
+    "http": {"method", "url"},       # a request to a counterpart; {VAR} in url/headers from the env
     "end_turn": set(),   # finish this turn (the agent declares its current work done)
     "fail_turn": set(),  # end this turn with a non-zero exit (crash / API error)
 }
@@ -88,7 +90,7 @@ def otlp_metric_payload(name: str, value: float, attrs: dict) -> dict:
 class ScriptedAgent:
     def __init__(self, script: dict, *, workspace: Path, otel_endpoint: str | None,
                  run_start_epoch: float, session_id: str, out, state_path: Path,
-                 clock=time.time, sleep=time.sleep):
+                 clock=time.time, sleep=time.sleep, mcp_config: Path | None = None):
         self.script = script
         self.workspace = Path(workspace).resolve()
         self.endpoint = otel_endpoint
@@ -99,6 +101,7 @@ class ScriptedAgent:
         self.clock = clock
         self.sleep = sleep
         self.max_actions_per_turn: int | None = None
+        self.mcp_config = Path(mcp_config) if mcp_config else None
         self.cost_total = 0.0
         self._n = 0
 
@@ -172,6 +175,50 @@ class ScriptedAgent:
             self._emit(dict(act["event"]))
         elif kind == "sleep":
             self.sleep(float(act["seconds"]))
+        elif kind == "mcp_call":
+            self._mcp_call(act["server"], act["tool"], act.get("arguments") or {})
+        elif kind == "http":
+            self._http(act)
+
+    def _mcp_call(self, server: str, tool: str, arguments: dict) -> None:
+        """Start the server from the run's MCP config and speak JSON-RPC over stdio, as the CLI does."""
+        if self.mcp_config is None:
+            raise ScriptError("mcp_call needs --mcp-config")
+        cfg = json.loads(self.mcp_config.read_text())["mcpServers"][server]
+        self._tool_use(f"mcp__{server}__{tool}", arguments)
+        use_id = f"toolu_{self._n:04d}"
+        proc = subprocess.Popen([cfg["command"], *cfg.get("args", [])], stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE, text=True, env={**os.environ, **cfg.get("env", {})})
+        try:
+            def rpc(msg):
+                proc.stdin.write(json.dumps(msg) + "\n")
+                proc.stdin.flush()
+                return json.loads(proc.stdout.readline()) if "id" in msg else None
+            rpc({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+                "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "scripted", "version": "0"}}})
+            rpc({"jsonrpc": "2.0", "method": "notifications/initialized"})
+            out = rpc({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                       "params": {"name": tool, "arguments": arguments}})["result"]
+        finally:
+            proc.stdin.close()
+            proc.wait(timeout=10)
+        self._emit({"type": "user", "message": {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": use_id, "is_error": bool(out.get("isError")),
+             "content": out["content"]}]}})
+
+    def _http(self, act: dict) -> None:
+        """A request to a counterpart (e.g. ``{EMBED_URL}/v1/embed``); only the effect, no tool event."""
+        fmt = lambda s: str(s).format(**os.environ)  # noqa: E731
+        data = json.dumps(act["json"]).encode() if "json" in act else None
+        req = urllib.request.Request(fmt(act["url"]), data=data, method=act["method"],
+                                     headers={"Content-Type": "application/json",
+                                              **{k: fmt(v) for k, v in (act.get("headers") or {}).items()}})
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        try:
+            with opener.open(req, timeout=10):
+                pass
+        except OSError:  # 4xx/5xx are the counterpart's answer; the scripted agent just moves on
+            pass
 
     def run(self) -> int:
         """Replay actions up to the next ``end_turn``/``fail_turn`` (or the end). Returns the exit code."""
@@ -215,10 +262,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--run-start", type=float, required=True)
     ap.add_argument("--session-id", required=True)
     ap.add_argument("--state", required=True)
+    ap.add_argument("--mcp-config", default=None)
     args = ap.parse_args(argv)
     agent = ScriptedAgent(load_script(args.script), workspace=Path(args.workspace),
                           otel_endpoint=args.otel, run_start_epoch=args.run_start,
-                          session_id=args.session_id, out=sys.stdout, state_path=Path(args.state))
+                          session_id=args.session_id, out=sys.stdout, state_path=Path(args.state),
+                          mcp_config=args.mcp_config)
     return agent.run()
 
 

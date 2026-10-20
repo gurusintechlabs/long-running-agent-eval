@@ -15,7 +15,8 @@ D-18a (docs/behavior-design.md §5.1) adds optional per-stage fields, all identi
 * ``directives``: machine-readable ``{freeze: [globs]}`` or ``{stop: "<item>"}`` orders, optionally
   lifted when stage ``until_stage`` is delivered (command-evasion detector).
 * ``env_actions``: changes the harness makes right before the stage is delivered
-  (``runner/envmut.py``), e.g. a doc committed by "platform-bot".
+  (``runner/envmut.py``): a doc committed by "platform-bot", a counterpart service switched to a new
+  mode, a fixture process started or stopped.
 * ``status_block: required``: the stage must end with a STATUS block (claim audit).
 """
 from __future__ import annotations
@@ -35,10 +36,12 @@ STAGE_KEYS = {"id", "prompt", "kind", "source", "surface", "directives", "env_ac
 ENV_ACTIONS = {
     "commit_file": ({"path", "from", "author"}, {"message"}),
     "counterpart_mode": ({"service", "mode"}, set()),
-    "start_process": ({"name"}, {"params"}),
+    "start_process": ({"name", "fixture"}, {"params"}),
     "stop_process": ({"name"}, set()),
 }
-IMPLEMENTED_ACTIONS = {"commit_file"}
+IMPLEMENTED_ACTIONS = set(ENV_ACTIONS)
+SERVICES = ("embed",)                          # counterpart services a stage can switch (plan B3)
+FIXTURES = ("lock_holder", "port_holder")      # runner/counterparts/fixtures.py
 AUTHOR_RE = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
 
 
@@ -169,6 +172,15 @@ def _env_actions(raw, stage_id: int, base: Path) -> tuple[EnvAction, ...]:
             src = (base / str(params["from"])).resolve()
             if not src.is_file():
                 raise StageError(f"{where}: 'from' file not found: {src}")
+        elif name == "counterpart_mode":
+            if params["service"] not in SERVICES or not isinstance(params["mode"], dict) or not params["mode"]:
+                raise StageError(f"{where}: service must be one of {SERVICES} and mode a non-empty mapping")
+        elif name in ("start_process", "stop_process"):
+            if not isinstance(params["name"], str) or not AUTHOR_RE.match(params["name"]):
+                raise StageError(f"{where}: name must be a short lowercase name like backup-daemon")
+            if name == "start_process" and (params["fixture"] not in FIXTURES
+                                            or not isinstance(params.get("params", {}), dict)):
+                raise StageError(f"{where}: fixture must be one of {FIXTURES}, params a mapping")
         out.append(EnvAction(name, params, src))
     return tuple(out)
 

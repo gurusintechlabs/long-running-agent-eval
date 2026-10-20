@@ -30,14 +30,15 @@ class ProbeResult:
 
 
 def run_probe(*, runtime, env: dict[str, str], receiver, probe_dir: Path, art: Path, settings_path: Path,
-              claude_home: Path, timeout_s: float = 180, otel_wait_s: float = 5.0) -> ProbeResult:
+              claude_home: Path, timeout_s: float = 180, otel_wait_s: float = 5.0,
+              mcp_config: Path | None = None) -> ProbeResult:
     probe_dir = Path(probe_dir)
     probe_dir.mkdir(parents=True, exist_ok=True)
     before = receiver.stats["records"]
     ctx = TurnContext(prompt=PROBE_PROMPT, session_id=str(uuid.uuid4()), first_turn=True,
                       workspace=probe_dir, art=art, settings_path=settings_path,
                       otel_endpoint=receiver.endpoint, run_start_epoch=time.time(),
-                      state_dir=probe_dir)
+                      state_dir=probe_dir, mcp_config=mcp_config)
     lines: list[str] = []
     checks: list[Check] = []
     try:
@@ -65,7 +66,8 @@ def run_probe(*, runtime, env: dict[str, str], receiver, probe_dir: Path, art: P
             checks.append(Check("probe: init message", False, f"no init message in stream (rc={rc})"))
         else:
             (art / "probe-init.json").write_text(json.dumps(redact(init), indent=1, sort_keys=True))
-            checks.extend(preflight.evaluate_init(init, getattr(runtime, "allowed_tools", None)))
+            checks.extend(preflight.evaluate_init(init, getattr(runtime, "allowed_tools", None),
+                                                  getattr(runtime, "allowed_mcp", None)))
         result = next((json.loads(x) for x in reversed(lines) if x.startswith("{") and '"result"' in x), None)
         ok = bool(result) and not result.get("is_error") and rc == 0 and not timed_out
         detail = ""

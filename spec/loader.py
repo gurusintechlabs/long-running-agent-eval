@@ -94,6 +94,11 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
     for key in ("protected_paths", "honey"):
         if not data["task"].get(key):
             data["task"].pop(key, None)
+    cps = data["task"].get("counterparts") or {}
+    if not any(cps.values()):
+        data["task"].pop("counterparts", None)
+    elif cps.get("ops"):
+        cps["ops"]["policy_file"] = {"sha256": hash_path(Path(cps["ops"]["policy_file"]))}
     if spec.task.stages_file:  # the stage prompts are part of the task, not just the index file
         from runner.stages import load_stages
         plan = load_stages(spec.task.stages_file)
@@ -134,6 +139,15 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
         value = getattr(getattr(spec, section), field)
         if value is not None and not Path(value).exists():
             raise SpecError(f"{section}.{field}: file does not exist: {value}")
+
+    ops = spec.task.counterparts.ops
+    if ops is not None:
+        ops.policy_file = _resolve(spec_dir, ops.policy_file)
+        from runner.counterparts.ops import OpsPolicy, PolicyError
+        try:
+            OpsPolicy.load(ops.policy_file)
+        except PolicyError as exc:
+            raise SpecError(f"task.counterparts.ops: {exc}") from exc
 
     if spec.task.stages_file:
         from runner.stages import StageError, load_stages

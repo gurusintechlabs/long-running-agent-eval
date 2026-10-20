@@ -27,6 +27,7 @@ from guardrails.monitor import GuardrailMonitor, SystemClock, integrity_hashes
 from guardrails.policy import load_policy, sha256_file
 from runner import manifest as mf
 from runner import memory, preflight, procs, snapshot
+from runner.envmut import EnvMutator
 from runner.loop_driver import LoopDriver, TurnFailure, TurnHandle, ensure_supported
 from runner.preflight import PreflightError
 from runner.probe import run_probe
@@ -36,7 +37,7 @@ from runner.runtimes.claude_code import ClaudeCodeRuntime
 from runner.runtimes.scripted import ScriptedRuntime
 from runner.scoring import ScorerQueue
 from runner.seed import ensure_seed_repo
-from runner.stages import StageScheduler, load_stages
+from runner.stages import Stage, StageScheduler, load_stages
 from runner.workdir import (
     RunPaths,
     WorkdirError,
@@ -77,6 +78,10 @@ class RunResult:
     paths: RunPaths
     snapshots: list = field(default_factory=list)
     error: str | None = None
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def user_memory_lock(repo_root: Path) -> Path:
@@ -195,6 +200,8 @@ class Run:
         self._stream = EventWriter(self.paths.events / "agent_stream.jsonl", self.run_id, "agent_stream")
         self._otel = EventWriter(self.paths.events / "otel.jsonl", self.run_id, "otel")
         self._gev = EventWriter(self.paths.events / "guardrail.jsonl", self.run_id, "guardrail")
+        self._envev = (EventWriter(self.paths.events / "env.jsonl", self.run_id, "env")
+                       if self._stage_plan and any(s.env_actions for s in self._stage_plan.stages) else None)
         self._stderr = open(self.paths.events / "agent_stderr.log", "a")
         if self.score:
             self._scorer = ScorerQueue(self.paths.art, self.loaded.path, self._ev, repo_root=self.repo_root,
@@ -210,7 +217,9 @@ class Run:
             self._write_manifest()  # before cloning, so even an early failure records its end state
             seed_repo = ensure_seed_repo(Path(self.spec.task.seed_repo), self.spec.task.seed_commit,
                                          self.repo_root / "runs" / ".seed-cache")
-            clone_seed(seed_repo, self.spec.task.seed_commit, self.paths.workspace)
+            wm = self.spec.task.workspace_memory
+            clone_seed(seed_repo, self.spec.task.seed_commit, self.paths.workspace,
+                       Path(wm).read_bytes() if wm else None)
 
         if self.runtime.needs_venv:
             cache = Path(self.spec.isolation.work_dir) / ".pip-cache"
@@ -221,7 +230,8 @@ class Run:
         attrs = {"lrae.run_id": self.run_id, "lrae.config": self.config_name, "lrae.repeat": str(self.repeat)}
         tel = self.spec.telemetry
         settings = harness_settings(otel_endpoint=self._receiver.endpoint, protocol=tel.protocol,
-                                    export_interval_ms=tel.export_interval_ms, resource_attrs=attrs)
+                                    export_interval_ms=tel.export_interval_ms, resource_attrs=attrs,
+                                    permissions_deny=self.spec.task.permissions.deny)
         self.paths.harness_settings.write_text(json.dumps(settings, indent=2))
         path_dirs = ([str(self.paths.venv / "bin")] if self.paths.venv.exists() else [])
         path_dirs += self.runtime.path_dirs()
@@ -431,10 +441,9 @@ class Run:
         initial = assemble_prompt(self.spec.task.prompt_file, self.spec.task.constraints_file)
         if self._stage_plan:
             self._stages = StageScheduler(self._stage_plan, delivered=self._delivered_before_resume())
+            initial = self._stage_plan.stages[0].message(initial)
             if self.resume_from is None:
-                s0 = self._stage_plan.stages[0]
-                self._ev.emit("stage.delivered", {"stage": 0, "t_s": 0.0, "kind": s0.kind,
-                                                  "prompt_sha256": s0.sha256})
+                self._deliver(self._stage_plan.stages[0], initial, t_s=0.0)
         driver = LoopDriver(spawn_turn=lambda p, first: self._spawn_turn(p, first), stop=self.stop,
                             initial_prompt=initial, recovery_prompt=self.config.recovery_prompt,
                             snap_lock=self.snap_lock, first_turn=self.resume_from is None,
@@ -483,9 +492,27 @@ class Run:
         if stage is None:
             return None
         self._stages.mark_delivered(stage)
-        self._ev.emit("stage.delivered", {"stage": stage.id, "t_s": round(self.elapsed_s(), 3),
-                                          "kind": stage.kind, "prompt_sha256": stage.sha256})
-        return stage.text
+        message = stage.message()
+        self._deliver(stage, message, t_s=round(self.elapsed_s(), 3))
+        return message
+
+    def _deliver(self, stage: Stage, message: str, t_s: float) -> None:
+        """Hand a stage to the agent (D-18, D-18a): first the harness's environment changes (between
+        turns, under the snapshot lock so no checkpoint sees half of them), then the delivery and
+        directive events. The returned message is the next turn's prompt."""
+        if stage.env_actions:
+            mut = EnvMutator(self.paths.workspace)
+            with self.snap_lock:
+                for i, act in enumerate(stage.env_actions):
+                    self._envev.emit("env.mutated", {"stage": stage.id, "index": i, **mut.apply(act)})
+        self._ev.emit("stage.delivered", {
+            "stage": stage.id, "t_s": t_s, "kind": stage.kind, "prompt_sha256": stage.sha256,
+            "source": stage.source, "message_sha256": sha256_text(message),
+            "status_block": stage.status_block, "env_actions": len(stage.env_actions)})
+        for d in self._stage_plan.directives_lifted_at(stage.id):
+            self._ev.emit("directive.lifted", {**d.as_payload(), "t_s": t_s})
+        for d in self._stage_plan.directives_issued_at(stage.id):
+            self._ev.emit("directive.issued", {**d.as_payload(), "t_s": t_s})
 
     def _on_turn_end(self, n: int, rc: int | None) -> None:
         if self._monitor:
@@ -499,7 +526,7 @@ class Run:
                           run_start_epoch=self._start_epoch_run, state_dir=self.state_dir)
         cmd = self.runtime.build_command(ctx)
         self._ev.emit("turn.start", {"first": first, "session_id": self._session_id,
-                                     "prompt_chars": len(prompt)})
+                                     "prompt_chars": len(prompt), "prompt_sha256": sha256_text(prompt)})
         proc = procs.spawn(cmd, cwd=self.paths.workspace, env=self._env, stdout=subprocess.PIPE,
                            stderr=self._stderr, text=True, sweep_root=self.paths.work,
                            since=self._start_epoch - 1)

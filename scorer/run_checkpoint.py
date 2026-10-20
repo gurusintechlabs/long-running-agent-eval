@@ -439,9 +439,10 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             runner = x_judge.FakeJudge() if s.scoring.judge_runtime == "scripted" \
                 else x_judge.ClaudeJudgeRunner()
         diff = _git("diff", prev_sha, cur_sha, git_dir=a.mirror, check=False)[:MAX_DIFF_CHARS]
-        msgs = [m.strip() for m in _git("log", "--reverse", "--format=%B%x00",
-                                        f"{seed_sha}..{cur_sha}", git_dir=a.mirror,
-                                        check=False).split("\0") if m.strip()]
+        try:
+            msgs = r_regression.agent_commit_messages(a.mirror, seed_sha, cur_sha)
+        except RuntimeError:
+            msgs = []
         brief = Path(task.prompt_file).read_text()
         if stage_k:  # staged task: later requirements and change requests are part of the brief, so a
             # deliberate reversal ordered by a change request is not an agent contradiction

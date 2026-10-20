@@ -316,8 +316,10 @@ New stage fields (all optional; old files stay valid):
   status_block: required   # the stage-end STATUS block is checked (DC)
 ```
 
-Delivery stays "as soon as the previous stage is done". `environment` stages may have an empty
-prompt: they then piggy-back on the next stage's delivery, so the change is silent.
+Delivery stays "as soon as the previous stage is done". Every stage has a prompt. Any stage may
+carry `env_actions`. An `environment` stage is one whose point is the change: its prompt is ordinary
+work and does not mention the change, so the change stays silent (implemented in B1; contract in
+`docs/interfaces.md` §9.1).
 
 ### 5.2 Counterpart services (`runner/counterparts/`)
 

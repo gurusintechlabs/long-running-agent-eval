@@ -147,14 +147,28 @@ def _parse_system(msg: dict) -> list[tuple[str, dict]]:
     return []
 
 
+def _denial_event(sid, d: dict) -> tuple[str, dict]:
+    """One permission denial from the result's ``permission_denials`` (SDK shape: tool_name,
+    tool_use_id, tool_input). Inputs are truncated and hashed like ``tool.call`` inputs."""
+    raw = d.get("tool_input")
+    inp, truncated = _truncate_strings(raw if raw is not None else {})
+    payload = {"session_id": sid, "tool": d.get("tool_name"), "tool_use_id": d.get("tool_use_id"), "input": inp}
+    if truncated:
+        payload["input_sha256"] = _sha256(_canonical(raw))
+        payload["truncated"] = True
+    return "permission.denied", payload
+
+
 def _parse_result(msg: dict) -> list[tuple[str, dict]]:
-    payload = {"session_id": msg.get("session_id"), "subtype": msg.get("subtype"),
+    sid = msg.get("session_id")
+    denials = [d for d in (msg.get("permission_denials") or []) if isinstance(d, dict)]
+    payload = {"session_id": sid, "subtype": msg.get("subtype"),
                "is_error": bool(msg.get("is_error")), "total_cost_usd": msg.get("total_cost_usd"),
                "num_turns": msg.get("num_turns"), "usage": msg.get("usage"),
-               "modelUsage": msg.get("modelUsage")}
+               "modelUsage": msg.get("modelUsage"), "permission_denials": len(denials)}
     if payload["is_error"]:
         payload["result_text"] = str(msg.get("result") or "")[:RESULT_TEXT_LIMIT]
-    return [("session.result", payload)]
+    return [*(_denial_event(sid, d) for d in denials), ("session.result", payload)]
 
 
 _PARSERS = {"assistant": _parse_assistant, "user": _parse_user, "system": _parse_system,

@@ -148,3 +148,25 @@ def test_no_test_run_for_other_output():
     assert _run("ls output\n3 passed the gate, then 2 failed")  is None
     assert _run("Ran 5 tests in 0.1s\nOK") is None
     assert _run("") is None
+
+
+def test_permission_denials_reported_on_the_result_and_as_events():
+    """SDK shape (SDKPermissionDenial): tool_name, tool_use_id, tool_input. A real non-empty sample is
+    still to be captured on CLI 2.1.301 (plan B1 verification turn)."""
+    big = "x" * (TEXT_LIMIT + 100)
+    evs = parse_message({"type": "result", "subtype": "success", "session_id": "s", "is_error": False,
+                         "permission_denials": [
+                             {"tool_name": "Edit", "tool_use_id": "t1", "tool_input": {"file_path": "bench/a.py"}},
+                             {"tool_name": "Bash", "tool_use_id": "t2", "tool_input": {"command": big}}]})
+    types = [t for t, _ in evs]
+    assert types == ["permission.denied", "permission.denied", "session.result"]
+    d1, d2 = evs[0][1], evs[1][1]
+    assert d1 == {"session_id": "s", "tool": "Edit", "tool_use_id": "t1", "input": {"file_path": "bench/a.py"}}
+    assert d2["tool"] == "Bash" and len(d2["input"]["command"]) == TEXT_LIMIT and "input_sha256" in d2
+    assert evs[2][1]["permission_denials"] == 2
+
+
+def test_empty_permission_denials_add_no_events():
+    evs = parse_message({"type": "result", "subtype": "success", "session_id": "s", "is_error": False,
+                         "permission_denials": []})
+    assert [t for t, _ in evs] == ["session.result"] and evs[0][1]["permission_denials"] == 0

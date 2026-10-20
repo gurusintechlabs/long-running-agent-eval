@@ -104,3 +104,93 @@ def test_prompt_file_must_be_stage_zero(tmp_path):
     repo.mkdir()
     with pytest.raises(SpecError):
         load_spec(path, repo_root=repo)
+
+
+# --- behaviour-track stage fields (D-18a, docs/behavior-design.md §5.1) ----------------------
+
+def write_env_source(tmp_path, rel="env/ENV.v2.md", text="v2 docs\n"):
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text)
+    return rel
+
+
+def rich_plan(tmp_path):
+    src = write_env_source(tmp_path)
+    return [
+        {"id": 0, "prompt": "s0.md", "source": "product_owner", "surface": ["minidb/**"]},
+        {"id": 1, "prompt": "s1.md", "kind": "directive", "source": "product_owner",
+         "directives": [{"freeze": ["minidb/index/**"], "until_stage": 3}, {"stop": "the CSV exporter"}]},
+        {"id": 2, "prompt": "s2.md", "env_actions": [
+            {"action": "commit_file", "path": "ENVIRONMENT.md", "from": src, "author": "platform-bot",
+             "message": "Update environment"}]},
+        {"id": 3, "prompt": "s3.md", "kind": "inbound", "source": "ops"},
+        {"id": 4, "prompt": "s4.md", "kind": "release", "status_block": "required"},
+    ]
+
+
+def test_rich_fields_load(tmp_path):
+    plan = load_stages(write_plan(tmp_path, rich_plan(tmp_path)))
+    s0, s1, s2, s3, s4 = plan.stages
+    assert s0.source == "product_owner" and s0.surface == ("minidb/**",)
+    assert s1.kind == "directive" and len(s1.directives) == 2
+    assert s1.directives[0].freeze == ("minidb/index/**",) and s1.directives[0].until_stage == 3
+    assert s1.directives[1].stop == "the CSV exporter" and s1.directives[1].until_stage is None
+    assert s1.directives[0].id == "s1-d0" and s1.directives[1].id == "s1-d1"
+    act = s2.env_actions[0]
+    assert act.action == "commit_file" and act.params["path"] == "ENVIRONMENT.md"
+    assert act.source_file == (tmp_path / "env/ENV.v2.md").resolve()
+    assert s3.kind == "inbound" and s3.source == "ops"
+    assert s4.kind == "release" and s4.status_block is True
+    assert s0.status_block is False and s2.source is None and s2.directives == () and s3.env_actions == ()
+
+
+def test_message_header_names_the_source_only_when_declared(tmp_path):
+    plan = load_stages(write_plan(tmp_path, rich_plan(tmp_path)))
+    assert plan.stages[0].message() == "From: product owner\n\nbrief 0\n"
+    assert plan.stages[3].message() == "From: ops channel\n\nbrief 3\n"
+    assert plan.stages[2].message() == "brief 2\n"  # no source: the text is sent unchanged (v2 tasks)
+    assert plan.stages[0].message("assembled\n") == "From: product owner\n\nassembled\n"
+
+
+def test_directive_lifecycle(tmp_path):
+    plan = load_stages(write_plan(tmp_path, rich_plan(tmp_path)))
+    assert [d.id for d in plan.directives_issued_at(1)] == ["s1-d0", "s1-d1"]
+    assert [d.id for d in plan.directives_lifted_at(3)] == ["s1-d0"]
+    assert plan.directives_lifted_at(4) == [] and plan.directives_issued_at(2) == []
+
+
+@pytest.mark.parametrize("patch", [
+    {"source": "ceo"},                                                          # unknown source
+    {"directives": [{"freeze": ["a/**"], "stop": "x"}]},                        # both freeze and stop
+    {"directives": [{"until_stage": 2}]},                                       # neither
+    {"directives": [{"freeze": ["a/**"], "until_stage": 1}]},                   # lifted at its own stage
+    {"directives": [{"freeze": ["a/**"], "until_stage": 9}]},                   # no such stage
+    {"directives": [{"freeze": [], "until_stage": 2}]},                         # empty freeze
+    {"surface": "minidb/**"},                                                   # not a list
+    {"status_block": "maybe"},
+    {"env_actions": [{"action": "launch_missiles"}]},                           # unknown action
+    {"env_actions": [{"action": "counterpart_mode", "service": "embed", "mode": "v2"}]},  # not built yet (B3)
+    {"env_actions": [{"action": "commit_file", "path": "E.md", "author": "bot"}]},         # no 'from'
+    {"env_actions": [{"action": "commit_file", "path": "E.md", "from": "env/missing.md", "author": "bot"}]},
+    {"env_actions": [{"action": "commit_file", "path": "../E.md", "from": "env/ENV.v2.md", "author": "bot"}]},
+    {"env_actions": [{"action": "commit_file", "path": "/tmp/E.md", "from": "env/ENV.v2.md", "author": "bot"}]},
+    {"env_actions": [{"action": "commit_file", "path": "E.md", "from": "env/ENV.v2.md", "author": "Bad Name!"}]},
+    {"env_actions": [{"action": "commit_file", "path": "E.md", "from": "env/ENV.v2.md", "author": "bot",
+                      "surprise": 1}]},
+])
+def test_invalid_rich_fields(tmp_path, patch):
+    write_env_source(tmp_path)
+    plan = [PLAN[0], {"id": 1, "prompt": "s1.md", **patch}, {"id": 2, "prompt": "s2.md"}]
+    with pytest.raises(StageError):
+        load_stages(write_plan(tmp_path, plan))
+
+
+def test_spec_hash_covers_env_action_sources(tmp_path):
+    write_plan(tmp_path, rich_plan(tmp_path))
+    path = _spec(tmp_path, "stages.yaml")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    h1 = load_spec(path, repo_root=repo).spec_hash
+    (tmp_path / "env/ENV.v2.md").write_text("v2 docs, edited\n")
+    assert load_spec(path, repo_root=repo).spec_hash != h1

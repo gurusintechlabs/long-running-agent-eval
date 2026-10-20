@@ -226,9 +226,23 @@ def _git(git_dir: Path, *args: str, check: bool = True) -> str:
     return out.stdout.strip()
 
 
+def _agent_log(mirror: Path, rev_range: str, fmt: str) -> list[tuple[str, str]]:
+    """``(author email, formatted)`` per commit in ``rev_range``, oldest first, harness commits
+    (environment stages, ``runner/envmut.py``) left out: they are never the agent's work."""
+    from runner.envmut import is_harness_email
+    out = _git(mirror, "log", "--reverse", f"--format=%ae%x1f{fmt}%x1e", rev_range)
+    rows = [r.strip("\n").split("\x1f", 1) for r in out.split("\x1e") if r.strip()]
+    return [(email, val) for email, val in rows if not is_harness_email(email)]
+
+
 def commits_between(mirror: Path, prev_sha: str, cur_sha: str) -> list[str]:
-    out = _git(mirror, "rev-list", "--reverse", f"{prev_sha}..{cur_sha}")
-    return out.split() if out else []
+    """The agent's commits in ``(prev, cur]``, oldest first."""
+    return [sha for _, sha in _agent_log(mirror, f"{prev_sha}..{cur_sha}", "%H")]
+
+
+def agent_commit_messages(mirror: Path, base_sha: str, cur_sha: str) -> list[str]:
+    """Messages of the agent's commits in ``(base, cur]``, oldest first."""
+    return [m.strip() for _, m in _agent_log(mirror, f"{base_sha}..{cur_sha}", "%B") if m.strip()]
 
 
 def sample_evenly(items: list, limit: int = MAX_SAMPLED_COMMITS) -> list:

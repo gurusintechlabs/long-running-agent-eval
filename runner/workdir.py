@@ -107,7 +107,7 @@ def _git(cwd: Path | None, *args: str) -> str:
     return proc.stdout.strip()
 
 
-def clone_seed(seed_repo: Path, seed_commit: str, workspace: Path) -> None:
+def clone_seed(seed_repo: Path, seed_commit: str, workspace: Path, workspace_memory: bytes | None = None) -> None:
     """Clone the seed at an exact commit into ``workspace``; sever any link back to the fixture."""
     try:
         _git(None, "clone", "-q", "--no-hardlinks", str(seed_repo), str(workspace))
@@ -123,7 +123,7 @@ def clone_seed(seed_repo: Path, seed_commit: str, workspace: Path) -> None:
     _git(workspace, "config", "--local", "user.email", "agent@lrae.local")
     _git(workspace, "checkout", "-q", "-B", "main")
     try:
-        check_seed_checkout(workspace)
+        check_seed_checkout(workspace, workspace_memory)
     except Exception:
         shutil.rmtree(workspace, ignore_errors=True)
         raise

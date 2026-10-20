@@ -22,6 +22,18 @@ def _check_model_id(v: str) -> str:
     return v
 
 
+class Permissions(Strict):
+    """Task-owned Claude Code permission rules, merged into ``harness-settings.json`` (D-18a)."""
+    deny: list[str] = Field(default_factory=list)
+
+    @field_validator("deny")
+    @classmethod
+    def _rules(cls, v: list[str]) -> list[str]:
+        if any(not r.strip() for r in v):
+            raise ValueError("permission rules must be non-empty strings")
+        return v
+
+
 class Task(Strict):
     id: str
     task_class: str = Field(alias="class")
@@ -33,6 +45,9 @@ class Task(Strict):
     hidden_tests: str
     # Optional staged brief (docs/interfaces.md §9, proposed D-18). Stage 0's prompt must be prompt_file.
     stages_file: str | None = None
+    # D-15a: the task's own CLAUDE.md, committed at the seed's root; L-3 checks the seed copy equals it.
+    workspace_memory: str | None = None
+    permissions: Permissions = Field(default_factory=Permissions)
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 

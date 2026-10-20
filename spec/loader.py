@@ -23,6 +23,7 @@ _PATH_FIELDS = [
     ("guardrails", "policy_file"),
     ("agent", "script"),
     ("task", "stages_file"),
+    ("task", "workspace_memory"),
 ]
 
 
@@ -84,9 +85,18 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
         if value is not None:
             data[section][field] = {"sha256": hash_path(Path(value))}
     data["task"].pop("seed_repo")  # identified by seed_commit
+    # Behaviour-track fields (D-15a, D-18a) are left out while unset, so the hash (and run ids) of
+    # every spec written before them stays the same.
+    if data["task"].get("workspace_memory") is None:
+        data["task"].pop("workspace_memory", None)
+    if not spec.task.permissions.deny:
+        data["task"].pop("permissions", None)
     if spec.task.stages_file:  # the stage prompts are part of the task, not just the index file
         from runner.stages import load_stages
-        data["task"]["stages_prompts"] = [hash_path(s.prompt) for s in load_stages(spec.task.stages_file).stages]
+        plan = load_stages(spec.task.stages_file)
+        data["task"]["stages_prompts"] = [hash_path(s.prompt) for s in plan.stages]
+        if plan.referenced_files:  # files the harness puts into the workspace (env actions)
+            data["task"]["stages_env_files"] = [hash_path(f) for f in plan.referenced_files]
     if extra_files:
         data["_extra_files"] = {k: hash_path(p) for k, p in sorted(extra_files.items())}
     canonical = json.dumps(data, sort_keys=True, separators=(",", ":"))

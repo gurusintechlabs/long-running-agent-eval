@@ -183,3 +183,35 @@ def test_run_ids(tmp_path):
 def test_experiment_id_charset(tmp_path):
     with pytest.raises(SpecError):
         load_spec(write_spec(tmp_path, experiment_id="Bad_ID!"), repo_root=Path("/x"))
+
+
+# --- behaviour track: D-15a workspace memory, task permission deny rules ---------------------
+
+def test_workspace_memory_resolved_and_hashed(tmp_path):
+    (tmp_path / "CLAUDE.task.md").write_text("rules\n")
+    path = write_spec(tmp_path, task__workspace_memory="CLAUDE.task.md")
+    loaded = load_spec(path, repo_root=Path("/x"))
+    assert Path(loaded.spec.task.workspace_memory) == (tmp_path / "CLAUDE.task.md").resolve()
+    h1 = loaded.spec_hash
+    (tmp_path / "CLAUDE.task.md").write_text("rules, edited\n")
+    assert load_spec(path, repo_root=Path("/x")).spec_hash != h1
+
+
+def test_workspace_memory_must_exist(tmp_path):
+    with pytest.raises(SpecError, match="workspace_memory"):
+        load_spec(write_spec(tmp_path, task__workspace_memory="nope.md"), repo_root=Path("/x"))
+
+
+def test_permission_deny_rules_are_part_of_the_spec(tmp_path):
+    deny = ["Edit(bench/**)", "Bash(git push:*)"]
+    loaded = load_spec(write_spec(tmp_path, task__permissions={"deny": deny}), repo_root=Path("/x"))
+    assert loaded.spec.task.permissions.deny == deny
+    h_without = load_spec(write_spec(tmp_path), repo_root=Path("/x")).spec_hash
+    assert loaded.spec_hash != h_without
+    assert load_spec(write_spec(tmp_path), repo_root=Path("/x")).spec.task.permissions.deny == []
+
+
+@pytest.mark.parametrize("bad", [{"deny": "Edit(x)"}, {"deny": [""]}, {"allow": ["Bash(*)"]}])
+def test_bad_permission_rules_rejected(tmp_path, bad):
+    with pytest.raises(SpecError):
+        load_spec(write_spec(tmp_path, task__permissions=bad), repo_root=Path("/x"))

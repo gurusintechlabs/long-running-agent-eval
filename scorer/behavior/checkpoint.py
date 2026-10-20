@@ -28,14 +28,22 @@ def _text(p: Path) -> list[str] | None:
         return None
 
 
+MAX_DIFF_CHARS = 200_000
+
+
 def changed_lines(prev: Path, cur: Path) -> dict[str, int]:
-    """``{path: lines added + removed}`` between two trees (text files; .git ignored)."""
+    return tree_diff(prev, cur)[0]
+
+
+def tree_diff(prev: Path, cur: Path) -> tuple[dict[str, int], str]:
+    """``({path: lines added + removed}, unified diff text)`` between two trees (text files; .git
+    ignored). Unlike the mirror diff, it includes uncommitted work."""
     def files(root: Path) -> dict[str, Path]:
         return {p.relative_to(root).as_posix(): p for p in sorted(root.rglob("*"))
                 if p.is_file() and not p.is_symlink() and ".git" not in p.relative_to(root).parts
                 and "__pycache__" not in p.relative_to(root).parts}
     a, b = files(prev), files(cur)
-    out = {}
+    out, text, size = {}, [], 0
     for rel in sorted(set(a) | set(b)):
         pa, pb = a.get(rel), b.get(rel)
         if pa and pb and hashlib.sha256(pa.read_bytes()).digest() == hashlib.sha256(pb.read_bytes()).digest():
@@ -44,11 +52,15 @@ def changed_lines(prev: Path, cur: Path) -> dict[str, int]:
         new = _text(pb) if pb else []
         if old is None or new is None:
             continue
-        n = sum(1 for ln in difflib.unified_diff(old, new, lineterm="", n=0)
-                if ln[:1] in "+-" and not ln.startswith(("+++", "---")))
+        lines = list(difflib.unified_diff(old, new, f"a/{rel}", f"b/{rel}", lineterm="", n=1))
+        n = sum(1 for ln in lines if ln[:1] in "+-" and not ln.startswith(("+++", "---")))
         if n:
             out[rel] = n
-    return out
+            if size < MAX_DIFF_CHARS:
+                chunk = "\n".join(lines)
+                text.append(chunk)
+                size += len(chunk)
+    return out, "\n".join(text)[:MAX_DIFF_CHARS]
 
 
 def _stage_starts(orch: list[dict]) -> dict[int, float]:
@@ -62,7 +74,7 @@ def _stage_starts(orch: list[dict]) -> dict[int, float]:
 
 def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float, t_k: float, python: Path,
                    forbid: list[Path], p_history: list[dict], stage_k: int | None, stage_prev: int | None,
-                   constraints_violated: int | None, read_events) -> tuple[dict[str, dict], list[dict]]:
+                   constraints_violated: int | None, read_events, judge_runner=None) -> tuple[dict[str, dict], list[dict]]:
     """``(metrics, events)``; events carry ``k`` and their mode's hazard flag."""
     s = spec.spec
     cfg, task = s.scoring.behavior, s.task
@@ -95,18 +107,44 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
                 end["own_suite"] = cache.get_or_run(tree, python, forbid=forbid)
         ends.append(end)
 
+    changed, diff = tree_diff(prev_ws, ws)
     ctx = Context(
         k=k, t_prev=t_prev, t_k=t_k, start_epoch=art.start_epoch,
         workspace_abs=str((art.manifest.get("paths") or {}).get("workspace") or ""),
         stream=stream, orch=art.orch, guard=read_events(ev_dir / "guardrail.jsonl"),
         counterpart=read_events(ev_dir / "counterpart.jsonl"), env=read_events(ev_dir / "env.jsonl"),
         ws=ws, prev_ws=prev_ws, protected=list(task.protected_paths), cfg=cfg,
-        stage_surfaces=surfaces, changed_lines=changed_lines(prev_ws, ws), p_history=p_history,
+        stage_surfaces=surfaces, changed_lines=changed, p_history=p_history,
         stage_ends=ends, constraints_violated=constraints_violated,
         status_required={st.id: st.status_block for st in stages}, own_suite=own,
-        memory_file="CLAUDE.md" if task.workspace_memory else None, stage_k=stage_k)
+        memory_file="CLAUDE.md" if task.workspace_memory else None, stage_k=stage_k,
+        opening_brief=Path(task.prompt_file).read_text())
     res = modes.run_all(ctx)
     metrics.update(res.metrics)
-    events = [{"k": k, **e, "dimension": MODE_DIMENSION[e["mode"]]} for e in res.events]
+    events = list(res.events)
+    if cfg.judges:
+        from scorer.judges.behavior import run_judges
+        rules = Path(task.workspace_memory).read_text() if task.workspace_memory else ""
+        jm, je = run_judges(ctx, stages=stages, rules=rules, diff=diff, det_events=res.events, names=cfg.judges,
+                            model=s.scoring.judge_model, runner=behavior_judge_runner(s, judge_runner),
+                            cache_dir=art.scorer_dir / "judge-cache")
+        metrics.update(jm)
+        events = sorted(events + je, key=lambda e: (e["t_s"], e["mode"], e["detector"]))
+    events = [{"k": k, **e, "dimension": MODE_DIMENSION[e["mode"]]} for e in events]
     return metrics, events
+
+
+def behavior_judge_runner(s, judge_runner=None):
+    """scripted: the recorded answers (``judge_fixtures``) or the clean fake; otherwise the X judge's
+    runner (the installed CLI, behind the spend gate). A test runner may carry its own ``behavior``."""
+    if judge_runner is not None and getattr(judge_runner, "behavior", None) is not None:
+        return judge_runner.behavior
+    if s.scoring.judge_runtime == "scripted":
+        from scorer.judges.base import FakeBehaviorJudge, RecordedJudge
+        fx = s.scoring.behavior.judge_fixtures
+        return RecordedJudge(Path(fx)) if fx else FakeBehaviorJudge()
+    if judge_runner is not None:
+        return judge_runner
+    from scorer.metrics.x_judge import ClaudeJudgeRunner
+    return ClaudeJudgeRunner()
 

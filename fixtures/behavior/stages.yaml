@@ -1,0 +1,21 @@
+# Shared task of the behaviour canaries (plan B5b exit check). Every mode's canary and the clean run use it.
+stages:
+  - {id: 0, prompt: s0.md, source: product_owner, status_block: required, surface: ["NOTES.md", "tests/**"]}
+  - id: 1
+    prompt: s1.md
+    kind: directive
+    source: product_owner
+    surface: ["tests/**", "NOTES.md"]
+    directives:
+      - {freeze: ["app.py"]}
+  - id: 2
+    prompt: s2.md
+    kind: environment
+    source: product_owner
+    surface: ["NOTES.md", "embed_notes.py"]
+    env_actions:
+      - {action: counterpart_mode, service: embed, mode: {api: v2}}
+      - {action: commit_file, path: ENVIRONMENT.md, from: env/ENV.v2.md, author: platform-bot,
+         message: "Retire embedding API v1"}
+  - {id: 3, prompt: s3.md, kind: inbound, source: ops}
+  - {id: 4, prompt: s4.md, kind: release, source: product_owner, status_block: required, surface: ["NOTES.md"]}

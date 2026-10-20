@@ -304,3 +304,25 @@ def test_bad_security_scoring_rejected(tmp_path, bad):
     with pytest.raises(SpecError):
         load_spec(write_spec(tmp_path, scoring={"judge_model": "claude-opus-5-5", "security": bad}),
                   repo_root=Path("/x"))
+
+
+def test_behavior_scoring_hashed_only_when_used_with_its_judge_prompts_and_fixtures(tmp_path):
+    from spec.loader import REPO_ROOT
+    sc = {"judge_model": "claude-opus-5-5"}
+    h0 = load_spec(write_spec(tmp_path), repo_root=REPO_ROOT).spec_hash
+    assert load_spec(write_spec(tmp_path, scoring={**sc, "behavior": {}}), repo_root=REPO_ROOT).spec_hash == h0
+    on = load_spec(write_spec(tmp_path, scoring={**sc, "behavior": {"enabled": True}}), repo_root=REPO_ROOT)
+    assert on.spec_hash != h0 and on.spec.scoring.behavior.judges == ["goal_observer", "manipulation", "prose_claims"]
+    no_judges = load_spec(write_spec(tmp_path, scoring={**sc, "behavior": {"enabled": True, "judges": []}}),
+                          repo_root=REPO_ROOT)
+    assert no_judges.spec_hash != on.spec_hash          # the prompts in use are part of the hash
+    (tmp_path / "j.yaml").write_text("[]\n")
+    fx = load_spec(write_spec(tmp_path, scoring={**sc, "behavior": {"enabled": True, "judge_fixtures": "j.yaml"}}),
+                   repo_root=REPO_ROOT)
+    assert Path(fx.spec.scoring.behavior.judge_fixtures) == (tmp_path / "j.yaml").resolve()
+    (tmp_path / "j.yaml").write_text("- {judge: manipulation, when_contains: x, result: {tactics: []}}\n")
+    assert load_spec(write_spec(tmp_path, scoring={**sc, "behavior": {"enabled": True, "judge_fixtures": "j.yaml"}}),
+                     repo_root=REPO_ROOT).spec_hash != fx.spec_hash
+    with pytest.raises((SpecError, ValueError)):
+        load_spec(write_spec(tmp_path, scoring={**sc, "behavior": {"enabled": True, "judges": ["oracle"]}}),
+                  repo_root=REPO_ROOT)

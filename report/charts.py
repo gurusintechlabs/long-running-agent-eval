@@ -19,7 +19,8 @@ from analysis.trends import CORE_METRICS, Series, median_by_k
 
 # Okabe-Ito: colour-blind safe, distinct in light and print.
 PALETTE = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#7a7a7a"]
-HAZARD_COLOR = {"quality": "#D55E00", "context": "#CC79A7", "cost": "#E69F00", "safety": "#b00020"}
+HAZARD_COLOR = {"quality": "#D55E00", "context": "#CC79A7", "cost": "#E69F00", "safety": "#b00020",
+                "security": "#56B4E9", "integrity": "#009E73"}
 METRIC_LABEL = {"P": "P hidden pass rate", "R": "R regressions", "D": "D defect density",
                 "C": "C constraint violations", "W": "W repeat-work ratio", "X": "X contradictions",
                 "S": "S cost / accepted commit ($, est.)"}
@@ -312,5 +313,76 @@ def belief_gap_chart(rows: list[dict], out: Path, *, title: str = "") -> Path:
     ax.set_title(title or "Belief gap: what the agent saw vs what the hidden suite said (shaded: gap)",
                  fontsize=10, loc="left", color=INK)
     ax.legend(fontsize=7, frameon=False, loc="upper left", bbox_to_anchor=(0, 0.92))
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+# ---- behaviour and security (analysis.behavior, plan B5b) ----------------------------------------
+MODES = ("RH", "GM", "AF", "CE", "ED", "CP", "CF", "OK", "DC", "SE", "UA", "VI")
+MARKER_STYLE = {"stage": ("#0072B2", "-"), "directive": ("#CC79A7", "--"), "env": ("#E69F00", ":")}
+
+
+def behavior_timeline(tl: dict, out: Path, *, title: str = "") -> Path:
+    """One row per mode. Filled markers: hazards; hollow: tracked signals; diamonds: judge findings.
+    Vertical lines: stage deliveries (solid), directives (dashed), environment changes (dotted)."""
+    fig = Figure(figsize=(9.0, 4.2))
+    ax = fig.add_subplot(111)
+    _style(ax)
+    y = {m: i for i, m in enumerate(MODES)}
+    for mk in tl.get("markers", []):
+        col, ls = MARKER_STYLE.get(mk["kind"], ("#888", "-"))
+        ax.axvline(mk["t_s"] / 60.0, color=col, ls=ls, lw=0.9, alpha=0.7)
+    for e in tl.get("events", []):
+        if e["mode"] not in y:
+            continue
+        hz = e["severity"] == "hazard"
+        judged = not e["deterministic"]
+        ax.plot([e["t_s"] / 60.0], [y[e["mode"]]], "D" if judged else "o", ms=7 if hz else 5,
+                mfc=(HAZARD_COLOR["safety"] if hz else "none"), mec=(HAZARD_COLOR["safety"] if hz else INK), mew=1.1)
+    ax.set_yticks(range(len(MODES)))
+    ax.set_yticklabels(MODES, fontsize=8)
+    ax.set_ylim(-0.6, len(MODES) - 0.4)
+    ax.invert_yaxis()
+    dur = tl.get("duration_s")
+    ax.set_xlim(0, (dur / 60.0) if dur else None)
+    if not tl.get("events"):
+        ax.text(0.5, 0.5, "no behaviour events", ha="center", va="center", transform=ax.transAxes, color="#777")
+    ax.set_xlabel("run time (min)", fontsize=9)
+    ax.set_title(title or "Behaviour timeline (filled: hazard; hollow: signal; diamond: judge; lines: stage, "
+                 "directive, env change)", fontsize=9, loc="left", color=INK)
+    fig.tight_layout()
+    return _save(fig, out)
+
+
+def security_trend_chart(rows: list[dict], out: Path, *, title: str = "") -> Path:
+    """Stacked bars: new SAST findings by severity per checkpoint; line: failed exploit tests;
+    crosses: AI-review High/Critical findings."""
+    fig = Figure(figsize=(7.0, 3.6))
+    ax = fig.add_subplot(111)
+    _style(ax)
+    scored = [r for r in rows if r["new_high"] is not None or r["exploits_failed"] is not None]
+    if not scored:
+        _empty(ax, "no security scoring")
+    else:
+        x = np.arange(len(rows))
+        bottom = np.zeros(len(rows))
+        for key, col, label in (("new_high", "#b00020", "new high"), ("new_medium", "#E69F00", "new medium"),
+                                ("new_low", FAINT, "new low")):
+            v = np.array([r[key] or 0 for r in rows], dtype=float)
+            ax.bar(x, v, bottom=bottom, color=col, width=0.6, label=label)
+            bottom += v
+        ex = [r["exploits_failed"] for r in rows]
+        if any(v is not None for v in ex):
+            ax.plot(x, [np.nan if v is None else v for v in ex], color=INK, marker="o", ms=4, lw=1.5,
+                    label="failed exploit tests")
+        ai = [(i, r["ai_findings"]) for i, r in enumerate(rows) if r["ai_findings"]]
+        if ai:
+            ax.plot([i for i, _ in ai], [v for _, v in ai], "x", color="#0072B2", ms=8, mew=2, label="AI review findings")
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"t{r['k']}" for r in rows], fontsize=8)
+        ax.legend(fontsize=7, frameon=False, loc="upper left")
+    ax.set_xlabel("checkpoint", fontsize=9)
+    ax.set_ylabel("count", fontsize=9)
+    ax.set_title(title or "Security trend", fontsize=10, loc="left", color=INK)
     fig.tight_layout()
     return _save(fig, out)

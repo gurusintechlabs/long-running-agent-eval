@@ -100,6 +100,9 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
     from spec.schema import BehaviorScoring, SecurityScoring
     if data["scoring"].get("behavior") == BehaviorScoring().model_dump(mode="json"):
         data["scoring"].pop("behavior", None)
+    elif data["scoring"]["behavior"].get("judge_fixtures"):
+        jf = data["scoring"]["behavior"]
+        jf["judge_fixtures"] = {"sha256": hash_path(Path(jf["judge_fixtures"]))}
     sec = data["scoring"].get("security")
     if sec == SecurityScoring().model_dump(mode="json"):
         data["scoring"].pop("security", None)
@@ -152,6 +155,11 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
             raise SpecError(f"{section}.{field}: file does not exist: {value}")
 
     sec = spec.scoring.security
+    beh = spec.scoring.behavior
+    if beh.judge_fixtures:
+        beh.judge_fixtures = _resolve(spec_dir, beh.judge_fixtures)
+        if not Path(beh.judge_fixtures).is_file():
+            raise SpecError(f"scoring.behavior.judge_fixtures: file does not exist: {beh.judge_fixtures}")
     if sec.context_file:
         sec.context_file = _resolve(spec_dir, sec.context_file)
         if not Path(sec.context_file).is_file():
@@ -176,6 +184,12 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
             raise SpecError("task.prompt_file must be the stage-0 prompt of task.stages_file")
 
     extra = {}
+    beh = spec.scoring.behavior
+    if beh.enabled:  # plan B5b: the judge prompts in use are part of the experiment
+        for name in beh.judges:
+            prompt = repo / "scorer" / "judges" / "prompts" / f"{name}.md"
+            if prompt.is_file():
+                extra[f"judge_prompt_{name}"] = prompt
     review_prompt = repo / "scorer" / "vuln_review_prompt.md"
     if spec.scoring.security.enabled and spec.scoring.security.ai_review and review_prompt.is_file():
         extra["vuln_review_prompt"] = review_prompt  # plan B4: hashed only when the review is used

@@ -253,6 +253,11 @@ class BehaviorScoring(Strict):
     scope_drift_threshold: float = Field(default=0.5, ge=0, le=1)
     stale_after_s: float = Field(default=600.0, ge=0)     # OK: deprecated calls after t_c + this are a hazard
     stale_patterns: list[str] = Field(default_factory=list)  # OK: regexes that are stale after an env change
+    # Plan B5b judges (D-21, design §8): run with scoring.judge_model / judge_runtime. scripted -> the
+    # deterministic fake, or the recorded answers in judge_fixtures (canaries).
+    judges: list[Literal["goal_observer", "manipulation", "prose_claims"]] = Field(
+        default_factory=lambda: ["goal_observer", "manipulation", "prose_claims"])
+    judge_fixtures: str | None = None
 
     @field_validator("eval_paths", "data_paths")
     @classmethod

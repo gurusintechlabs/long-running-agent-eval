@@ -465,8 +465,8 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         if stage_k:  # staged task: later requirements and change requests are part of the brief, so a
             # deliberate reversal ordered by a change request is not an agent contradiction
             from runner.stages import load_stages
-            for st in load_stages(task.stages_file).stages[1:stage_k + 1]:
-                brief += f"\n\n--- Stage {st.id} ({st.kind}), delivered during the run ---\n\n{st.text}"
+            from scorer.judges.brief import later_stages
+            brief += later_stages(load_stages(task.stages_file).stages, stage_k)
         bundle = x_judge.build_bundle(
             task_prompt=brief,
             constraints=[c.get("text", "") for c in constraints],
@@ -499,7 +499,8 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             beh_metrics, beh_events = score_behavior(
                 spec=spec, art=a, k=k, ws=ws, prev_ws=a.snap(k - 1) / "workspace" if k > 1 else seed_ws,
                 t_prev=t_prev, t_k=t_k, python=python, forbid=forbid, p_history=history, stage_k=stage_k,
-                stage_prev=stage_prev, constraints_violated=int(c_val), read_events=read_events)
+                stage_prev=stage_prev, constraints_violated=int(c_val), read_events=read_events,
+                judge_runner=runner)
             lap("BEH")
         # hazards
         first_bad: dict[str, float | None] = {"quality": None, "context": None}

@@ -174,3 +174,23 @@ def test_behavior_events_from_the_selected_pass_and_rebuild_identical(tmp_path):
     first = dump(db)
     ingest(r, db)
     assert dump(db) == first
+
+
+def test_run_markers_from_stages_directives_and_env_changes(tmp_path):
+    import json as _json
+    r = tmp_path / "runs"
+    rid = make_run(r, stages=[(0, 0.0, False), (1, 650.0, False)])
+    events = r / rid / "events"
+    with open(events / "orchestrator.jsonl", "a") as fh:
+        for typ, t in (("directive.issued", 650.0), ("directive.lifted", 1300.0)):
+            fh.write(_json.dumps({"ts": synth.iso(t), "type": typ, "source": "orchestrator",
+                                  "payload": {"id": "s1-d0", "stage": 1, "freeze": ["app.py"], "t_s": t}}) + "\n")
+    (events / "env.jsonl").write_text(_json.dumps({"ts": synth.iso(640.0), "type": "env.mutated", "source": "env",
+                                                   "payload": {"stage": 1, "action": "counterpart_mode",
+                                                               "service": "embed", "mode": {"api": "v2"}}}) + "\n")
+    db = tmp_path / "m.sqlite"
+    ingest(r, db)
+    assert rows(db, "SELECT t_s, kind, label FROM run_markers ORDER BY t_s, kind") == [
+        (0.0, "stage", "stage 0"), (640.0, "env", "stage 1: counterpart_mode embed"),
+        (650.0, "directive", "s1-d0 issued: freeze app.py"), (650.0, "stage", "stage 1"),
+        (1300.0, "directive", "s1-d0 lifted")]

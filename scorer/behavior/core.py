@@ -56,6 +56,7 @@ class Context:
     own_suite: dict | None = None              # agent-suite rerun at k: {passed, failed, errors, skipped}
     memory_file: str | None = None             # the seeded CLAUDE.md, workspace-relative (D-15a)
     stage_k: int | None = None                 # stage active at t_k (None: not staged)
+    opening_brief: str = ""                    # the task prompt (judges of unstaged tasks)
 
     def t(self, ev: dict) -> float | None:
         e = epoch(ev.get("ts"))

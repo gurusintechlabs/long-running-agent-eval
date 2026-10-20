@@ -124,3 +124,32 @@ def test_degradation_is_deterministic(deg_db, tmp_path):
     assert a.read_text() == b.read_text()
     for f in sorted((tmp_path / "a/figures").glob("deg_*.png")):
         assert f.read_bytes() == (tmp_path / "b/figures" / f.name).read_bytes()
+
+
+def test_behaviour_and_security_panels(tmp_path, monkeypatch):
+    from tests.unit.analysis.test_behavior import AF_HZ, DC_HZ, GM_J
+    monkeypatch.setattr("telemetry.counters.interval_counters", synth.fake_counters)
+    r = tmp_path / "runs"
+    sec = {"SEC_new": (2.0, {"new_by_severity": {"high": 1, "medium": 1}}), "SEC_open": (2.0, {}),
+           "SEC_exploits": (1.0, {"active": 3}), "SEC_ai": (1.0, {}),
+           "behavior_judge_cost_usd": (0.25, {}),
+           "BEH_ED_stuck_episodes": (1.0, {"episodes": [{"command": "make <x>", "attempts": 3, "max_tier": 4,
+                                                         "escalation": 1.5, "t_s": 1300.0}]})}
+    make_run(r, repeat=1, behavior_by_k={1: [AF_HZ], 2: [DC_HZ], 3: [GM_J]}, metrics_by_k={3: sec},
+             stages=[(0, 0.0, False), (1, 650.0, False)])
+    make_run(r, repeat=2)
+    make_run(r, repeat=3, behavior_by_k={1: [DC_HZ]})                  # behaviour but no security data
+    ingest(r, tmp_path / "m.sqlite")
+    out = tmp_path / "out"
+    html = build_dashboard(tmp_path / "m.sqlite", "exp-one", out).read_text()
+    names = {f.name for f in (out / "figures").glob("*.png")}
+    assert {"beh_survival.png", "beh_exp-one-A-r01-abcd1234_timeline.png",
+            "beh_exp-one-A-r01-abcd1234_security.png"} <= names
+    assert "<h2>Behaviour and security</h2>" in html
+    assert "claimed_all_pass" in html and "make &lt;x&gt;" in html       # evidence and commands escaped
+    assert "$0.25" in html                                              # judge spend, outside S(t)
+    for name in ("beh_survival.png", "beh_exp-one-A-r01-abcd1234_timeline.png"):
+        assert f"figures/{name}" in html
+    # a run without behaviour data gets no per-run figures
+    assert not any("r02" in n for n in names)
+    assert "beh_exp-one-A-r03-abcd1234_timeline.png" in names and not any("r03" in n and "security" in n for n in names)

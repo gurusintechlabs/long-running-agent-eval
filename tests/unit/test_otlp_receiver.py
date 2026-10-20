@@ -200,7 +200,9 @@ def test_truncated_chunked_body_is_400_not_a_hang(rx):
 # --- shapes observed live from Claude Code CLI 1.0.126 ---------------------------------------
 
 SENSITIVE = {"user.email": "someone@example.com", "user.account_uuid": "9583a392-ed68-4723-be22",
-             "user.id": "2abfd159d971cc63", "organization.id": "522f75bc-1158-47d8"}
+             "user.id": "2abfd159d971cc63", "organization.id": "522f75bc-1158-47d8",
+             # added by CLI 2.1.301 (seen unredacted in a real run), and a hypothetical future key
+             "user.account_id": "user_01KTqN5ndjrP4B5zXy985Aj5", "organization.name": "Some Org"}
 
 
 def real_log(attrs=None):

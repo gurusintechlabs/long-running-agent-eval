@@ -18,9 +18,16 @@ _SECRET_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),
 ]
 REDACTED = "[REDACTED]"
-# Claude Code stamps every telemetry record with account identifiers (observed live, CLI 1.0.126).
-# They are never needed for any metric, so they are dropped on the way in.
+# Claude Code stamps every telemetry record with account identifiers (observed live, CLI 1.0.126;
+# CLI 2.1.301 added ``user.account_id``). They are never needed for any metric, so they are dropped
+# on the way in: the listed keys, and every key in the ``user.`` / ``organization.`` namespaces, so
+# an identifier added by a future CLI cannot slip through.
 SENSITIVE_KEYS = frozenset({"user.email", "user.account_uuid", "user.id", "organization.id"})
+SENSITIVE_PREFIXES = ("user.", "organization.")
+
+
+def is_sensitive_key(key: Any) -> bool:
+    return isinstance(key, str) and (key in SENSITIVE_KEYS or key.startswith(SENSITIVE_PREFIXES))
 
 
 def redact(obj: Any) -> Any:
@@ -30,7 +37,7 @@ def redact(obj: Any) -> Any:
             obj = pat.sub(REDACTED, obj)
         return obj
     if isinstance(obj, dict):
-        return {k: (REDACTED if k in SENSITIVE_KEYS else redact(v)) for k, v in obj.items()}
+        return {k: (REDACTED if is_sensitive_key(k) else redact(v)) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
         return [redact(v) for v in obj]
     return obj
@@ -42,7 +49,7 @@ def scrub_otlp(doc: Any) -> Any:
     OTLP attributes are ``{"key": ..., "value": {...}}`` pairs, which :func:`redact` cannot see.
     """
     if isinstance(doc, dict):
-        if doc.get("key") in SENSITIVE_KEYS and "value" in doc:
+        if is_sensitive_key(doc.get("key")) and "value" in doc:
             return {**doc, "value": {"stringValue": REDACTED}}
         return {k: scrub_otlp(v) for k, v in doc.items()}
     if isinstance(doc, list):

@@ -86,6 +86,18 @@ def test_account_identifier_keys_redacted_in_nested_dicts():
                                  "user.account_uuid": "[REDACTED]", "user.id": "[REDACTED]"}
 
 
+def test_whole_user_and_organization_namespaces_are_redacted():
+    """CLI 2.1.301 added ``user.account_id``; any identity key in these namespaces must be dropped."""
+    from telemetry.events import scrub_otlp
+    out = redact({"user.account_id": "user_01X", "organization.name": "O", "user_prompt": "kept",
+                  "user": "kept", "users.count": "kept"})
+    assert out == {"user.account_id": "[REDACTED]", "organization.name": "[REDACTED]",
+                   "user_prompt": "kept", "user": "kept", "users.count": "kept"}
+    doc = scrub_otlp([{"key": "user.account_id", "value": {"stringValue": "user_01X"}},
+                      {"key": "model", "value": {"stringValue": "m"}}])
+    assert doc[0]["value"] == {"stringValue": "[REDACTED]"} and doc[1]["value"] == {"stringValue": "m"}
+
+
 def test_scrub_otlp_attribute_lists():
     from telemetry.events import scrub_otlp
     doc = {"resourceLogs": [{"scopeLogs": [{"logRecords": [{"attributes": [

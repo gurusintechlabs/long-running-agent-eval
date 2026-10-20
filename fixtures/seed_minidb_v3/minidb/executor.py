@@ -1,0 +1,1089 @@
+"""Query execution: name resolution, expression compilation, SELECT and set operations.
+
+Expressions are compiled once per statement into closures ``f(env) -> value``. Name resolution
+happens at compile time, so unknown or ambiguous names fail before any row is read. An ``Env``
+holds the current row (a tuple with one entry per FROM source; ``None`` for a NULL-extended
+LEFT JOIN side), the enclosing query's env (correlated subqueries), and aggregate values.
+"""
+from __future__ import annotations
+
+import dataclasses
+from dataclasses import dataclass
+from typing import Any, Callable
+
+from minidb import functions, planner, windows
+from minidb import nodes as n
+from minidb.protocol import SQLNameError, SQLRuntimeError, SQLSyntaxError, SQLTypeError
+from minidb.storage import CIDict, Database, same
+from minidb.values import (
+    arith,
+    check_int,
+    check_real,
+    compare,
+    compare_op,
+    concat,
+    family,
+    hash_key,
+    is_number,
+    kind,
+    like,
+    negate,
+    to_wire,
+    truth,
+    type_name,
+)
+
+AGGREGATES = frozenset({"count", "sum", "avg", "min", "max"})
+
+Fn = Callable[["Env"], Any]
+
+
+class Env:
+    __slots__ = ("row", "outer", "aggs", "win")
+
+    def __init__(self, row: tuple, outer: Env | None = None, aggs: list | None = None) -> None:
+        self.row, self.outer, self.aggs, self.win = row, outer, aggs, None
+
+
+@dataclass
+class Source:
+    exposed: str
+    name: str | None               # table name (None for a derived table)
+    columns: list[str]
+    table: str | None = None       # set for base tables
+    query: Any = None              # PreparedQuery of a derived table or view
+    cte: Any = None                # CteDef of a WITH name
+    self_ref: bool = False         # the recursive step's reference to its own WITH name
+
+
+class Scope:
+    """The table references of one query, linked to the enclosing query's scope."""
+
+    def __init__(self, sources: list[Source], outer: Scope | None = None,
+                 level: int | None = None) -> None:
+        self.sources, self.outer = sources, outer
+        self.level = level if level is not None else (outer.level + 1 if outer else 0)
+        self.restrict: set | None = None   # grouping columns while compiling grouped items
+
+    def resolve(self, ref: n.ColumnRef) -> tuple[int, int, int, Scope]:
+        """``(depth, source index, column index, scope)`` for a column reference."""
+        level, depth = self, 0
+        label = f"{ref.table}.{ref.name}" if ref.table else ref.name
+        key = ref.name.lower()
+        while level is not None:
+            if ref.table is not None:
+                srcs = [i for i, s in enumerate(level.sources) if same(s.exposed, ref.table)]
+                if srcs:
+                    cols = [i for i, c in enumerate(level.sources[srcs[0]].columns) if c.lower() == key]
+                    if len(cols) > 1:
+                        raise SQLNameError(f"column reference {label} is ambiguous")
+                    if cols:
+                        return depth, srcs[0], cols[0], level
+            else:
+                found = [(si, ci) for si, s in enumerate(level.sources)
+                         for ci, c in enumerate(s.columns) if c.lower() == key]
+                if len(found) > 1:
+                    raise SQLNameError(f"column reference {label} is ambiguous")
+                if found:
+                    return depth, found[0][0], found[0][1], level
+            level, depth = level.outer, depth + 1
+        raise SQLNameError(f"no such column: {label}")
+
+
+def accessor(depth: int, si: int, ci: int) -> Fn:
+    if depth == 0:
+        def get0(env: Env) -> Any:
+            r = env.row[si]
+            return None if r is None else r[ci]
+        return get0
+
+    def get(env: Env) -> Any:
+        for _ in range(depth):
+            env = env.outer
+        r = env.row[si]
+        return None if r is None else r[ci]
+    return get
+
+
+def contains_aggregate(e: Any) -> bool:
+    """True if ``e`` has an aggregate of its own query (not counting subqueries)."""
+    if isinstance(e, n.WindowFunc):
+        return any(contains_aggregate(x) for x in [*e.args, *e.partition, *(o.expr for o in e.order)])
+    if isinstance(e, n.Func):
+        return e.name in AGGREGATES or any(contains_aggregate(a) for a in e.args)
+    if isinstance(e, (n.Literal, n.ColumnRef, n.Star, n.ScalarSubquery, n.Exists)) or e is None:
+        return False
+    if isinstance(e, n.InSubquery):
+        return contains_aggregate(e.operand)
+    if isinstance(e, n.Unary):
+        return contains_aggregate(e.operand)
+    if isinstance(e, n.Binary):
+        return contains_aggregate(e.left) or contains_aggregate(e.right)
+    if isinstance(e, n.IsNull):
+        return contains_aggregate(e.operand)
+    if isinstance(e, n.Between):
+        return any(contains_aggregate(x) for x in (e.operand, e.low, e.high))
+    if isinstance(e, n.InList):
+        return contains_aggregate(e.operand) or any(contains_aggregate(x) for x in e.items)
+    if isinstance(e, n.Like):
+        return contains_aggregate(e.operand) or contains_aggregate(e.pattern)
+    if isinstance(e, n.Case):
+        parts = [e.operand, e.else_] + [x for pair in e.whens for x in pair]
+        return any(contains_aggregate(x) for x in parts)
+    if isinstance(e, n.Cast):
+        return contains_aggregate(e.expr)
+    return False
+
+
+def _not3(v: Any) -> Any:
+    return None if v is None else not v
+
+
+def _and3(a: Any, b: Any) -> Any:
+    if a is False or b is False:
+        return False
+    return None if a is None or b is None else True
+
+
+class ValueSet:
+    """The values of an uncorrelated ``IN (SELECT ...)``, hashed once. ``contains`` gives exactly
+    the result (or TypeError) of comparing ``x`` with the values one by one, as ``IN`` is defined."""
+
+    def __init__(self, values: list) -> None:
+        self.n = len(values)
+        self.first: dict = {}
+        self.null_pos: int | None = None
+        self.family_first: dict[str, int] = {}
+        for i, v in enumerate(values):
+            if v is None:
+                if self.null_pos is None:
+                    self.null_pos = i
+                continue
+            self.first.setdefault(hash_key(v), i)
+            self.family_first.setdefault(family(v), i)
+
+    def contains(self, x: Any) -> Any:
+        if not self.n:
+            return False
+        if x is None:
+            return None
+        fam = family(x)
+        clash = min((p for f, p in self.family_first.items() if f != fam), default=None)
+        pos = self.first.get(hash_key(x))
+        if pos is not None and (clash is None or pos < clash):
+            return True
+        if clash is not None:
+            raise SQLTypeError("IN compares values of incomparable types")
+        return None if self.null_pos is not None else False
+
+
+def _in_values(x: Any, values) -> Any:
+    saw_null = False
+    for v in values:
+        c = compare_op("=", x, v)
+        if c is True:
+            return True
+        if c is None:
+            saw_null = True
+    return None if saw_null else False
+
+
+def output_name(e: Any) -> str:
+    if isinstance(e, (n.ColumnRef, n.Func, n.WindowFunc)):
+        return e.name
+    if isinstance(e, n.Exists):
+        return "exists"
+    if isinstance(e, n.Case):
+        return "case"
+    if isinstance(e, n.Cast):
+        return "cast"
+    return "?column?"
+
+
+# ------------------------------------------------------------------ aggregates
+
+
+@dataclass
+class AggSpec:
+    name: str
+    arg: Fn | None
+    distinct: bool
+
+
+def distinct_values(vals: list) -> list:
+    seen, out = set(), []
+    for v in vals:
+        k = hash_key(v)
+        if k not in seen:
+            seen.add(k)
+            out.append(v)
+    return out
+
+
+def aggregate_values(name: str, vals: list) -> Any:
+    """Aggregate ``vals`` (non-NULL inputs in input order)."""
+    if name == "count":
+        return len(vals)
+    if name in ("sum", "avg"):
+        for v in vals:
+            if not is_number(v):
+                raise SQLTypeError(f"{name.upper()} needs numbers, got {type_name(v)}")
+        if not vals:
+            return None
+        if all(isinstance(v, int) for v in vals):
+            total = sum(vals)
+            return check_int(total) if name == "sum" else total / len(vals)
+        acc = 0.0
+        for v in vals:
+            acc += v
+        check_real(acc)
+        return acc if name == "sum" else check_real(acc / len(vals))
+    best = None
+    for v in vals:
+        if best is None:
+            best = v
+            continue
+        c = compare(v, best)
+        if (c < 0 and name == "min") or (c > 0 and name == "max"):
+            best = v
+    return best
+
+
+def compute_aggregate(a: AggSpec, rows: list, outer: Env | None) -> Any:
+    if a.arg is None:  # COUNT(*)
+        return len(rows)
+    vals = [v for v in (a.arg(Env(r, outer)) for r in rows) if v is not None]
+    if a.distinct:
+        vals = distinct_values(vals)
+    return aggregate_values(a.name, vals)
+
+
+# ------------------------------------------------------------------ compiler
+
+
+class Compiler:
+    """Compiles expressions against a scope. ``ctx`` is 'row' (no aggregates), 'group' (grouped
+    query output: aggregates allowed, bare columns must be grouping columns) or 'agg' (inside
+    an aggregate's argument)."""
+
+    def __init__(self, executor: Executor, scope: Scope) -> None:
+        self.ex, self.scope = executor, scope
+        self.aggs: list[AggSpec] = []
+        self.wins: list[windows.WinSpec] = []
+        self.allow_window = False
+
+    def compile(self, e: Any, ctx: str = "row") -> Fn:
+        m = getattr(self, "_c_" + type(e).__name__, None)
+        if m is None:
+            raise SQLSyntaxError(f"unsupported expression {type(e).__name__}")
+        return m(e, ctx)
+
+    def _c_Literal(self, e: n.Literal, ctx: str) -> Fn:
+        v = e.value
+        return lambda env: v
+
+    def _c_Star(self, e: n.Star, ctx: str) -> Fn:
+        raise SQLSyntaxError("* is only allowed in the select list")
+
+    def _c_ColumnRef(self, e: n.ColumnRef, ctx: str) -> Fn:
+        depth, si, ci, scope = self.scope.resolve(e)
+        self.ex.resolved_levels.append(scope.level)
+        if scope.restrict is not None and (si, ci) not in scope.restrict:
+            raise SQLSyntaxError(f"column {e.name} must appear in GROUP BY or in an aggregate")
+        return accessor(depth, si, ci)
+
+    def _c_Unary(self, e: n.Unary, ctx: str) -> Fn:
+        f = self.compile(e.operand, ctx)
+        if e.op == "-":
+            return lambda env: negate(f(env))
+        if e.op == "+":
+            def plus(env):
+                v = f(env)
+                if v is not None and not is_number(v):
+                    raise SQLTypeError(f"cannot apply unary + to {type_name(v)}")
+                return v
+            return plus
+        return lambda env: _not3(truth(f(env), "NOT operand"))
+
+    def _c_Binary(self, e: n.Binary, ctx: str) -> Fn:
+        lf, rf, op = self.compile(e.left, ctx), self.compile(e.right, ctx), e.op
+        if op == "AND":
+            def and_(env):
+                a = truth(lf(env), "AND operand")
+                if a is False:
+                    return False
+                return _and3(a, truth(rf(env), "AND operand"))
+            return and_
+        if op == "OR":
+            def or_(env):
+                a = truth(lf(env), "OR operand")
+                if a is True:
+                    return True
+                b = truth(rf(env), "OR operand")
+                if b is True:
+                    return True
+                return None if a is None or b is None else False
+            return or_
+        if op == "||":
+            return lambda env: concat(lf(env), rf(env))
+        if op in ("+", "-", "*", "/", "%"):
+            return lambda env: arith(op, lf(env), rf(env))
+        return lambda env: compare_op(op, lf(env), rf(env))
+
+    def _c_IsNull(self, e: n.IsNull, ctx: str) -> Fn:
+        f, neg = self.compile(e.operand, ctx), e.negated
+        return lambda env: (f(env) is None) != neg
+
+    def _c_Between(self, e: n.Between, ctx: str) -> Fn:
+        f, lo, hi = (self.compile(x, ctx) for x in (e.operand, e.low, e.high))
+        neg = e.negated
+
+        def between(env):
+            x, a, b = f(env), lo(env), hi(env)
+            r = _and3(compare_op(">=", x, a), compare_op("<=", x, b))
+            return _not3(r) if neg else r
+        return between
+
+    def _c_InList(self, e: n.InList, ctx: str) -> Fn:
+        f, items, neg = self.compile(e.operand, ctx), [self.compile(x, ctx) for x in e.items], e.negated
+
+        def in_list(env):
+            x = f(env)
+            r = _in_values(x, [g(env) for g in items])
+            return _not3(r) if neg else r
+        return in_list
+
+    def _c_Like(self, e: n.Like, ctx: str) -> Fn:
+        f, p, neg = self.compile(e.operand, ctx), self.compile(e.pattern, ctx), e.negated
+
+        def like_(env):
+            r = like(f(env), p(env))
+            return _not3(r) if neg else r
+        return like_
+
+    # -- subqueries
+
+    def _subquery(self, query: Any, ncols: int | None) -> Callable[[Env], list]:
+        """Rows of a subquery for an env; uncorrelated ones are run once, when first needed."""
+        sub, correlated = self.ex.prepare_sub(query, self.scope)
+        if ncols is not None and len(sub.columns) != ncols:
+            raise SQLSyntaxError("subquery must return exactly one column")
+        if correlated:
+            return sub.run
+        cache: list = []
+
+        def once(env: Env) -> list:
+            if not cache:
+                cache.append(sub.run(env))
+            return cache[0]
+        return once
+
+    def _c_InSubquery(self, e: n.InSubquery, ctx: str) -> Fn:
+        f, neg = self.compile(e.operand, ctx), e.negated
+        sub, correlated = self.ex.prepare_sub(e.query, self.scope)
+        if len(sub.columns) != 1:
+            raise SQLSyntaxError("subquery must return exactly one column")
+        if correlated:
+            def in_sub(env):
+                x = f(env)
+                r = _in_values(x, (row[0] for row in sub.run(env)))
+                return _not3(r) if neg else r
+            return in_sub
+        cache: list = []
+
+        def in_set(env):
+            x = f(env)
+            if not cache:
+                cache.append(ValueSet([row[0] for row in sub.run(env)]))
+            r = cache[0].contains(x)
+            return _not3(r) if neg else r
+        return in_set
+
+    def _c_ScalarSubquery(self, e: n.ScalarSubquery, ctx: str) -> Fn:
+        rows = self._subquery(e.query, 1)
+
+        def scalar(env):
+            rs = rows(env)
+            if len(rs) > 1:
+                raise SQLRuntimeError("scalar subquery returned more than one row")
+            return rs[0][0] if rs else None
+        return scalar
+
+    def _c_Exists(self, e: n.Exists, ctx: str) -> Fn:
+        rows = self._subquery(e.query, None)
+        return lambda env: bool(rows(env))
+
+    # -- CASE / CAST / functions
+
+    def _c_Case(self, e: n.Case, ctx: str) -> Fn:
+        operand = self.compile(e.operand, ctx) if e.operand is not None else None
+        whens = [(self.compile(c, ctx), self.compile(r, ctx)) for c, r in e.whens]
+        else_ = self.compile(e.else_, ctx) if e.else_ is not None else None
+
+        def case(env):
+            if operand is None:
+                for cond, res in whens:
+                    if truth(cond(env), "CASE condition") is True:
+                        return res(env)
+            else:
+                x = operand(env)
+                for val, res in whens:
+                    if compare_op("=", x, val(env)) is True:
+                        return res(env)
+            return else_(env) if else_ is not None else None
+        return case
+
+    def _c_Cast(self, e: n.Cast, ctx: str) -> Fn:
+        f, ty = self.compile(e.expr, ctx), e.type
+        return lambda env: functions.cast(f(env), ty)
+
+    def _c_WindowFunc(self, e: n.WindowFunc, ctx: str) -> Fn:
+        name = e.name
+        if not self.allow_window or ctx == "agg":
+            raise SQLSyntaxError(f"window function {name.upper()} is not allowed here")
+        if name not in windows.WINDOW_ONLY and name not in AGGREGATES:
+            raise SQLNameError(f"no such window function: {name}")
+        nargs = len(e.args)
+        if name in windows.RANKING and nargs:
+            raise SQLSyntaxError(f"{name.upper()} takes no arguments")
+        if name in windows.OFFSET and not 1 <= nargs <= 3:
+            raise SQLSyntaxError(f"wrong number of arguments to {name.upper()}")
+        if name in AGGREGATES and not e.star and nargs != 1:
+            raise SQLSyntaxError(f"{name.upper()} takes exactly one argument")
+        offset = 1
+        if name in windows.OFFSET and nargs >= 2:
+            lit = e.args[1]
+            if not (isinstance(lit, n.Literal) and kind(lit.value) == "int"):
+                raise SQLSyntaxError(f"the offset of {name.upper()} must be a non-negative integer literal")
+            offset = lit.value
+        self.allow_window = False
+        try:
+            args = [self.compile(e.args[0], ctx)] if e.args and name not in windows.RANKING else []
+            default = self.compile(e.args[2], ctx) if name in windows.OFFSET and nargs == 3 else None
+            partition = [self.compile(x, ctx) for x in e.partition]
+            order = [(self.compile(o.expr, ctx), o) for o in e.order]
+        finally:
+            self.allow_window = True
+        slot = len(self.wins)
+        self.wins.append(windows.WinSpec(name, e.star, args, partition, order, offset, default))
+        return lambda env: env.win[slot]
+
+    def _c_Func(self, e: n.Func, ctx: str) -> Fn:
+        name = e.name
+        if name in windows.WINDOW_ONLY:
+            raise SQLSyntaxError(f"{name.upper()} needs an OVER clause")
+        if name in AGGREGATES:
+            if ctx != "group":
+                raise SQLSyntaxError(f"aggregate {name.upper()} is not allowed here")
+            if not e.star and len(e.args) != 1:
+                raise SQLSyntaxError(f"{name.upper()} takes exactly one argument")
+            saved, self.scope.restrict = self.scope.restrict, None
+            saved_w, self.allow_window = self.allow_window, False
+            try:
+                arg = None if e.star else self.compile(e.args[0], "agg")
+            finally:
+                self.scope.restrict, self.allow_window = saved, saved_w
+            slot = len(self.aggs)
+            self.aggs.append(AggSpec(name, arg, e.distinct))
+            return lambda env: env.aggs[slot]
+        spec = functions.SCALARS.get(name)
+        if spec is None:
+            raise SQLNameError(f"no such function: {name}")
+        lo, hi, impl = spec
+        if len(e.args) < lo or (hi is not None and len(e.args) > hi):
+            raise SQLSyntaxError(f"wrong number of arguments to {name.upper()}")
+        args = [self.compile(a, ctx) for a in e.args]
+        if name == "coalesce":
+            def coalesce(env):
+                for g in args:
+                    v = g(env)
+                    if v is not None:
+                        return v
+                return None
+            return coalesce
+        if name in functions.NULL_AWARE:
+            return lambda env: impl(*[g(env) for g in args])
+
+        def call(env):
+            vals = [g(env) for g in args]
+            if any(v is None for v in vals):
+                return None
+            return impl(*vals)
+        return call
+
+
+# ------------------------------------------------------------------ sorting
+
+
+def sort_rows(out: list, specs: list[tuple[bool, bool]]) -> None:
+    """Stable sort of ``(values, keys)`` pairs by ``keys``; ``specs`` holds (descending, NULLs
+    first) per key."""
+    for i in range(len(specs)):
+        fams = set()
+        for _, keys in out:
+            v = keys[i]
+            if v is not None:
+                fams.add(family(v))
+        if len(fams) > 1:
+            raise SQLTypeError("ORDER BY compares values of incomparable types")
+    for i in reversed(range(len(specs))):
+        desc, null_first = specs[i]
+        null_key = (0 if null_first != desc else 2, 0)
+        out.sort(key=lambda item: null_key if item[1][i] is None else (1, item[1][i]),
+                 reverse=desc)
+
+
+def apply_limit(rows: list, limit: int | None, offset: int) -> list:
+    end = None if limit is None else offset + limit
+    return rows[offset:end]
+
+
+# ------------------------------------------------------------------ SELECT
+
+
+class PreparedSelect:
+    def __init__(self, ex: Executor, q: n.Select, outer: Scope | None,
+                 level: int | None = None) -> None:
+        self.ex, self.q = ex, q
+        db = ex.db
+        self.sources: list[Source] = []
+        self.scope = Scope(self.sources, outer, level)
+        refs = ([q.from_] + [j.table for j in q.joins]) if q.from_ else []
+        for ref in refs:
+            cte = ex.find_cte(ref.name) if ref.query is None else None
+            if ref.query is not None:
+                # a derived table sees the enclosing queries, not its sibling references
+                sub = ex.prepare(ref.query, outer, level=self.scope.level + 1)
+                src = Source(ref.exposed, ref.exposed, list(sub.columns), query=sub)
+            elif cte is not None:
+                src = Source(ref.exposed, cte.name, list(cte.columns), cte=cte, self_ref=cte.building)
+            elif ref.name in db.views:
+                view = db.views[ref.name]
+                sub = ex.prepare_view(view, self.scope.level + 1)
+                src = Source(ref.exposed, view.name, list(view.columns or sub.columns), query=sub)
+            elif ref.name in db.tables:
+                t = db.tables[ref.name]
+                src = Source(ref.exposed, t.name, [c.name for c in t.columns], table=t.name)
+            else:
+                raise SQLNameError(f"no such table: {ref.name}")
+            if any(same(s.exposed, src.exposed) for s in self.sources):
+                raise SQLNameError(f"table name {src.exposed} specified more than once")
+            self.sources.append(src)
+        comp = Compiler(ex, self.scope)
+
+        self.joins = []
+        for j, join in enumerate(q.joins):
+            on, jp = None, planner.JoinPlan("scan")
+            if join.on is not None:
+                on_scope = Scope(self.sources[:j + 2], outer, self.scope.level)
+                on = Compiler(ex, on_scope).compile(join.on)
+                if join.kind != "cross":
+                    jp = planner.choose_join(db, self.sources[j + 1], j + 1, join.on,
+                                             lambda r, sc=on_scope: sc.resolve(r)[:3])
+            self.joins.append((join.kind, on, jp))
+        self.where = comp.compile(q.where) if q.where is not None else None
+        self.access = None
+        if self.sources and self.sources[0].table is not None:
+            self.access = planner.choose_access(db, self.sources[0].table, q.where,
+                                                self._first_source_column)
+
+        self.grouped = bool(q.group_by) or q.having is not None or any(
+            contains_aggregate(it.expr) for it in q.items) or any(
+            contains_aggregate(o.expr) for o in q.order_by)
+        self.group_keys: list[Fn] = []
+        if self.grouped:
+            group_cols = set()
+            for ref in q.group_by:
+                depth, si, ci, _ = self.scope.resolve(ref)
+                if depth != 0:
+                    raise SQLNameError(f"GROUP BY column {ref.name} is not in FROM")
+                group_cols.add((si, ci))
+                self.group_keys.append(accessor(0, si, ci))
+            self.scope.restrict = group_cols
+        ctx = "group" if self.grouped else "row"
+
+        # select list (window functions are allowed here and in ORDER BY)
+        comp.allow_window = True
+        self.columns: list[str] = []
+        self.items: list[Fn] = []
+        for it in q.items:
+            if isinstance(it.expr, n.Star):
+                if self.grouped:
+                    raise SQLSyntaxError("* is not allowed in a grouped query")
+                if it.expr.table is not None and not any(
+                        same(s.exposed, it.expr.table) for s in self.sources):
+                    raise SQLNameError(f"no such table: {it.expr.table}")
+                for si, src in enumerate(self.sources):
+                    if it.expr.table is None or same(src.exposed, it.expr.table):
+                        for ci, cname in enumerate(src.columns):
+                            self.columns.append(cname)
+                            self.items.append(accessor(0, si, ci))
+                continue
+            self.items.append(comp.compile(it.expr, ctx))
+            self.columns.append(it.alias or self._output_name(it.expr))
+        comp.allow_window = False
+        self.having = comp.compile(q.having, ctx) if q.having is not None else None
+        comp.allow_window = True
+
+        # ORDER BY: ('out', index) or ('expr', fn)
+        self.order: list[tuple[str, Any, n.OrderItem]] = []
+        for o in q.order_by:
+            e = o.expr
+            if isinstance(e, n.Literal) and kind(e.value) == "int":
+                if not 1 <= e.value <= len(self.columns):
+                    raise SQLSyntaxError(f"ORDER BY position {e.value} is out of range")
+                self.order.append(("out", e.value - 1, o))
+                continue
+            lowered = [c.lower() for c in self.columns]
+            if isinstance(e, n.ColumnRef) and e.table is None and e.name.lower() in lowered:
+                if lowered.count(e.name.lower()) > 1:
+                    raise SQLNameError(f"ORDER BY {e.name} is ambiguous")
+                self.order.append(("out", lowered.index(e.name.lower()), o))
+                continue
+            if q.distinct:
+                raise SQLSyntaxError("with DISTINCT, ORDER BY must refer to output columns")
+            self.order.append(("expr", comp.compile(e, ctx), o))
+        comp.allow_window = False
+        self.scope.restrict = None
+        self.aggs = comp.aggs
+        self.wins = comp.wins
+
+    # -------------------------------------------------------------- plan
+
+    def _output_name(self, e: Any) -> str:
+        """CR-4: a column reference is named with the spelling of the column's definition."""
+        if isinstance(e, n.ColumnRef):
+            _, si, ci, scope = self.scope.resolve(e)
+            return scope.sources[si].columns[ci]
+        return output_name(e)
+
+    def _first_source_column(self, e: Any) -> str | None:
+        if not isinstance(e, n.ColumnRef):
+            return None
+        try:
+            depth, si, ci, _ = self.scope.resolve(e)
+        except SQLNameError:
+            return None
+        return self.sources[0].columns[ci] if depth == 0 and si == 0 else None
+
+    def explain(self) -> list[list[str]]:
+        rows = []
+        for i, s in enumerate(self.sources):
+            if i == 0:
+                if self.access is not None:
+                    rows.append([f"SEARCH {s.name} USING INDEX {self.access.index.name} "
+                                 f"{self.access.label}"])
+                else:
+                    rows.append([f"SCAN {s.name}"])
+                continue
+            jp = self.joins[i - 1][2]
+            if jp.kind == "search":
+                rows.append([f"SEARCH {s.name} USING INDEX {jp.index.name} ({jp.column} = ?)"])
+            elif jp.kind == "hash":
+                rows.append([f"HASH JOIN {s.name} ({jp.column})"])
+            else:
+                rows.append([f"SCAN {s.name}"])
+        return rows
+
+    # -------------------------------------------------------------- execution
+
+    def _source_rows(self, i: int, outer: Env | None) -> list:
+        src = self.sources[i]
+        if src.cte is not None:
+            return src.cte.working if src.self_ref else src.cte.rows
+        if src.query is not None:
+            return src.query.run(outer)
+        table = self.ex.db.tables[src.table]
+        if i == 0 and self.access is not None:
+            rowids = self.access.rowids()
+            if rowids is not None:
+                rows = table.rows
+                return [rows[r] for r in rowids]
+        return list(table.rows.values())
+
+    def _join(self, rows: list, j: int, outer: Env | None) -> list:
+        kind_, on, jp = self.joins[j]
+        i = j + 1
+        joined: list = []
+        if jp.kind == "scan":
+            right = self._source_rows(i, outer)
+            for left in rows:
+                matched = False
+                for rr in right:
+                    combo = left + (rr,)
+                    if on is None or truth(on(Env(combo, outer)), "ON condition") is True:
+                        joined.append(combo)
+                        matched = True
+                if kind_ == "left" and not matched:
+                    joined.append(left + (None,))
+            return joined
+        lsi, lci = jp.left
+        lkeys, lfam = [], set()
+        for left in rows:
+            src = left[lsi]
+            k = None if src is None else src[lci]
+            lkeys.append(k)
+            if k is not None:
+                lfam.add(family(k))
+        if jp.kind == "hash":
+            buckets: dict = {}
+            rfam: set = set()
+            rci = jp.right_ci
+            for rr in self._source_rows(i, outer):
+                k = rr[rci]
+                if k is not None:
+                    rfam.add(family(k))
+                    buckets.setdefault(hash_key(k), []).append(rr)
+            planner.check_key_families(lfam, rfam)
+
+            def partners(k):
+                return buckets.get(hash_key(k), ())
+        else:
+            table = self.ex.db.tables[self.sources[i].table]
+            ix = jp.index
+            ctype = table.columns[table.col_index(jp.column)].type
+            planner.check_key_families(lfam, {planner.COLUMN_FAMILY[ctype]} if len(ix) else set())
+            trows = table.rows
+
+            def partners(k):
+                return [trows[r] for r in ix.eq(k)]
+        for left, k in zip(rows, lkeys, strict=True):
+            matched = False
+            if k is not None:
+                for rr in partners(k):
+                    combo = left + (rr,)
+                    if truth(on(Env(combo, outer)), "ON condition") is True:
+                        joined.append(combo)
+                        matched = True
+            if kind_ == "left" and not matched:
+                joined.append(left + (None,))
+        return joined
+
+    def run(self, outer: Env | None = None) -> list[list]:
+        if not self.sources:
+            rows = [()]
+        else:
+            rows = [(r,) for r in self._source_rows(0, outer)]
+            for j in range(len(self.joins)):
+                rows = self._join(rows, j, outer)
+        if self.where is not None:
+            where = self.where
+            rows = [r for r in rows if truth(where(Env(r, outer)), "WHERE condition") is True]
+
+        envs: list[Env] = []
+        if self.grouped:
+            groups: dict[tuple, list] = {}
+            if self.group_keys:
+                keys = self.group_keys
+                for r in rows:
+                    env = Env(r, outer)
+                    key = tuple(hash_key(g(env)) for g in keys)
+                    grp = groups.get(key)
+                    if grp is None:
+                        groups[key] = [r]
+                    else:
+                        grp.append(r)
+            else:
+                groups[()] = rows
+            null_row = tuple(None for _ in self.sources)
+            for grows in groups.values():
+                aggs = [compute_aggregate(a, grows, outer) for a in self.aggs]
+                env = Env(grows[0] if grows else null_row, outer, aggs)
+                if self.having is not None and truth(self.having(env), "HAVING condition") is not True:
+                    continue
+                envs.append(env)
+        else:
+            envs = [Env(r, outer) for r in rows]
+        if self.wins:
+            windows.compute(envs, self.wins, sort_rows)
+        out = [self._project(env) for env in envs]
+
+        if self.q.distinct:
+            seen, unique = set(), []
+            for vals, keys in out:
+                k = tuple(hash_key(v) for v in vals)
+                if k not in seen:
+                    seen.add(k)
+                    unique.append((vals, keys))
+            out = unique
+        if self.order:
+            sort_rows(out, [(o.desc, o.null_first) for _, _, o in self.order])
+        return apply_limit([vals for vals, _ in out], self.q.limit, self.q.offset)
+
+    def _project(self, env: Env) -> tuple[list, list]:
+        vals = [f(env) for f in self.items]
+        keys = [vals[x] if how == "out" else x(env) for how, x, _ in self.order]
+        return vals, keys
+
+
+class PreparedSetOp:
+    def __init__(self, ex: Executor, q: n.SetOp, outer: Scope | None, level: int | None) -> None:
+        self.q = q
+        self.left = ex.prepare(q.left, outer, level)
+        self.right = ex.prepare(q.right, outer, level)
+        if len(self.left.columns) != len(self.right.columns):
+            raise SQLSyntaxError("set operation operands have different numbers of columns")
+        self.columns = list(self.left.columns)
+        self.order: list[tuple[int, n.OrderItem]] = []
+        for o in q.order_by:
+            e = o.expr
+            if isinstance(e, n.Literal) and kind(e.value) == "int":
+                if not 1 <= e.value <= len(self.columns):
+                    raise SQLSyntaxError(f"ORDER BY position {e.value} is out of range")
+                self.order.append((e.value - 1, o))
+            elif isinstance(e, n.ColumnRef) and e.table is None and e.name.lower() in (
+                    lowered := [c.lower() for c in self.columns]):
+                if lowered.count(e.name.lower()) > 1:
+                    raise SQLNameError(f"ORDER BY {e.name} is ambiguous")
+                self.order.append((lowered.index(e.name.lower()), o))
+            else:
+                raise SQLSyntaxError("ORDER BY of a set operation must name an output column")
+
+    def explain(self) -> list[list[str]]:
+        return self.left.explain() + self.right.explain()
+
+    def run(self, outer: Env | None = None) -> list[list]:
+        left, right = self.left.run(outer), self.right.run(outer)
+        op = self.q.op
+        if op == "union" and self.q.all:
+            rows = left + right
+        else:
+            key = lambda row: tuple(hash_key(v) for v in row)  # noqa: E731
+            seen: set = set()
+            rows = []
+            if op == "union":
+                for row in left + right:
+                    k = key(row)
+                    if k not in seen:
+                        seen.add(k)
+                        rows.append(row)
+            else:
+                other = {key(row) for row in right}
+                for row in left:
+                    k = key(row)
+                    if k not in seen and ((k in other) == (op == "intersect")):
+                        rows.append(row)
+                    seen.add(k)
+        if self.order:
+            out = [(row, [row[i] for i, _ in self.order]) for row in rows]
+            sort_rows(out, [(o.desc, o.null_first) for _, o in self.order])
+            rows = [row for row, _ in out]
+        return apply_limit(rows, self.q.limit, self.q.offset)
+
+
+# ------------------------------------------------------------------ WITH
+
+MAX_RECURSIVE_ROWS = 100_000
+
+
+def _refs(node: Any, name: str, nested: bool, out: list) -> None:
+    """Collect references to table name ``name``: False for a direct FROM reference of the query
+    being walked, True for one inside a subquery, derived table or nested WITH."""
+    if isinstance(node, n.TableRef):
+        if node.query is not None:
+            _refs(node.query, name, True, out)
+        elif same(node.name, name):
+            out.append(nested)
+        return
+    if isinstance(node, n.Select):
+        for ref in ([node.from_] + [j.table for j in node.joins]) if node.from_ else []:
+            _refs(ref, name, nested, out)
+        for part in (node.items, [j.on for j in node.joins], node.where, node.having, node.order_by):
+            _refs(part, name, True, out)
+        return
+    if isinstance(node, n.SetOp):
+        _refs(node.left, name, nested, out)
+        _refs(node.right, name, nested, out)
+        return
+    if isinstance(node, (list, tuple)):
+        for x in node:
+            _refs(x, name, nested, out)
+        return
+    if dataclasses.is_dataclass(node):
+        for f in dataclasses.fields(node):
+            _refs(getattr(node, f.name), name, True, out)
+
+
+class CteDef:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.columns: list[str] = []
+        self.rows: list = []
+        self.working: list = []
+        self.building = False
+        self.query: Any = None
+        self.anchor: Any = None
+        self.step: Any = None
+        self.union_all = False
+
+    def materialize(self, outer: Env | None) -> None:
+        if self.step is None:
+            self.rows = self.query.run(outer)
+            return
+        seen: set = set()
+
+        def admit(rows: list) -> list:
+            if self.union_all:
+                return list(rows)
+            fresh = []
+            for r in rows:
+                k = tuple(hash_key(v) for v in r)
+                if k not in seen:
+                    seen.add(k)
+                    fresh.append(r)
+            return fresh
+        work = admit(self.anchor.run(outer))
+        result = list(work)
+        try:
+            while work:
+                if len(result) > MAX_RECURSIVE_ROWS:
+                    raise SQLRuntimeError(f"recursive query {self.name} produced more than "
+                                          f"{MAX_RECURSIVE_ROWS} rows")
+                self.working = work
+                work = admit(self.step.run(outer))
+                result.extend(work)
+            if len(result) > MAX_RECURSIVE_ROWS:
+                raise SQLRuntimeError(f"recursive query {self.name} produced more than "
+                                      f"{MAX_RECURSIVE_ROWS} rows")
+        finally:
+            self.working = []
+        self.rows = result
+
+
+def _check_columns(cols: list[str] | None, produced: list[str], what: str) -> list[str]:
+    if cols is None:
+        return list(produced)
+    if len(cols) != len(produced):
+        raise SQLSyntaxError(f"{what} lists {len(cols)} columns but its query has {len(produced)}")
+    if len({c.lower() for c in cols}) != len(cols):
+        raise SQLNameError(f"{what} lists a column twice")
+    return list(cols)
+
+
+class PreparedWith:
+    def __init__(self, ex: Executor, q: n.With, outer: Scope | None, level: int | None) -> None:
+        own = level if level is not None else (outer.level + 1 if outer else 0)
+        frame = CIDict()
+        ex.cte_frames.append(frame)
+        self.ctes: list[CteDef] = []
+        try:
+            for c in q.ctes:
+                if c.name in frame:
+                    raise SQLNameError(f"WITH name {c.name} is defined twice")
+                cte = CteDef(c.name)
+                found: list = []
+                if q.recursive:
+                    _refs(c.query, c.name, False, found)
+                if found:
+                    self._prepare_recursive(ex, c, cte, frame, outer, own)
+                else:
+                    cte.query = ex.prepare(c.query, outer, own + 1)
+                    cte.columns = _check_columns(c.columns, cte.query.columns, f"WITH {c.name}")
+                    frame[c.name] = cte
+                self.ctes.append(cte)
+            self.body = ex.prepare(q.body, outer, level)
+        finally:
+            ex.cte_frames.pop()
+        self.columns = self.body.columns
+
+    @staticmethod
+    def _prepare_recursive(ex: Executor, c: n.Cte, cte: CteDef, frame: dict, outer: Scope | None,
+                           own: int) -> None:
+        q = c.query
+        if not (isinstance(q, n.SetOp) and q.op == "union" and isinstance(q.right, n.Select)):
+            raise SQLSyntaxError(f"recursive {c.name} must be: anchor UNION [ALL] step")
+        if q.order_by or q.limit is not None or q.offset:
+            raise SQLSyntaxError(f"recursive {c.name} cannot use ORDER BY or LIMIT")
+        in_anchor: list = []
+        _refs(q.left, c.name, False, in_anchor)
+        in_step: list = []
+        _refs(q.right, c.name, False, in_step)
+        if in_anchor or in_step != [False]:
+            raise SQLSyntaxError(f"the step of recursive {c.name} must refer to it exactly once, "
+                                 "in its own FROM clause, and the anchor not at all")
+        step = q.right
+        if step.distinct or step.group_by or step.having is not None or any(
+                contains_aggregate(it.expr) for it in step.items):
+            raise SQLSyntaxError(f"the step of recursive {c.name} cannot use aggregates, "
+                                 "GROUP BY or DISTINCT")
+        cte.anchor = ex.prepare(q.left, outer, own + 1)
+        cte.columns = _check_columns(c.columns, cte.anchor.columns, f"WITH {c.name}")
+        frame[c.name] = cte
+        cte.building = True
+        try:
+            cte.step = ex.prepare(step, outer, own + 1)
+        finally:
+            cte.building = False
+        if len(cte.step.columns) != len(cte.columns):
+            raise SQLSyntaxError("set operation operands have different numbers of columns")
+        cte.union_all = q.all
+
+    def explain(self) -> list[list[str]]:
+        return self.body.explain()
+
+    def run(self, outer: Env | None = None) -> list[list]:
+        for cte in self.ctes:
+            cte.materialize(outer)
+        return self.body.run(outer)
+
+
+class Executor:
+    def __init__(self, db: Database) -> None:
+        self.db = db
+        self.resolved_levels: list[int] = []
+        self.cte_frames: list[dict[str, CteDef]] = []
+
+    def prepare(self, q: Any, outer: Scope | None = None, level: int | None = None):
+        if isinstance(q, n.With):
+            return PreparedWith(self, q, outer, level)
+        if isinstance(q, n.SetOp):
+            return PreparedSetOp(self, q, outer, level)
+        return PreparedSelect(self, q, outer, level)
+
+    def find_cte(self, name: str) -> CteDef | None:
+        for frame in reversed(self.cte_frames):
+            if name in frame:
+                return frame[name]
+        return None
+
+    def prepare_view(self, view: Any, level: int):
+        """A view's query sees neither the using query nor its WITH names."""
+        saved, self.cte_frames = self.cte_frames, []
+        try:
+            return self.prepare(view.query, None, level)
+        finally:
+            self.cte_frames = saved
+
+    def prepare_sub(self, q: Any, outer: Scope) -> tuple[Any, bool]:
+        """Prepare a subquery; also report whether it refers to an enclosing query."""
+        mark = len(self.resolved_levels)
+        sub = self.prepare(q, outer)
+        own = outer.level + 1
+        correlated = any(lv < own for lv in self.resolved_levels[mark:])
+        return sub, correlated
+
+    def query(self, q: Any) -> dict:
+        p = self.prepare(q)
+        return {"columns": p.columns, "rows": [[to_wire(v) for v in row] for row in p.run(None)]}
+
+    def explain(self, q: Any) -> dict:
+        return {"columns": ["plan"], "rows": self.prepare(q).explain()}
+
+    def compiler(self, sources: list[Source]) -> Compiler:
+        return Compiler(self, Scope(sources))
+
+    def target_rowids(self, table: str, where: Any, scope: Scope) -> list[int]:
+        """Rows an UPDATE/DELETE must examine, in table order (index SEARCH when possible)."""
+        t = self.db.tables[table]
+
+        def col_of(e: Any) -> str | None:
+            if not isinstance(e, n.ColumnRef):
+                return None
+            try:
+                depth, _, ci, _ = scope.resolve(e)
+            except SQLNameError:
+                return None
+            return t.columns[ci].name if depth == 0 else None
+        plan = planner.choose_access(self.db, table, where, col_of)
+        rowids = plan.rowids() if plan is not None else None
+        return list(t.rows) if rowids is None else rowids

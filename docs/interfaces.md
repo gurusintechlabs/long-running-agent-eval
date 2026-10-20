@@ -165,6 +165,11 @@ The scorer reads only: `snapshots/t{k}/{workspace,meta.json,pip-freeze.txt}`,
 `hidden_tests`, `constraints_file`, seed repo. It writes only `events/scorer.jsonl` and
 `scorer/` under the artifact dir. Agent code runs only in subprocesses (I-4).
 
+Hidden-suite `scorer.yaml` (plan B6a): `suite_timeout_s` (optional, positive) caps one hidden pytest run;
+default 300 s (`p_hidden.SUITE_TIMEOUT_S`). Constraint probe `vendor_unchanged` takes optional
+`until_stage` (not checked from that stage on; `ProbeContext.stage` is the stage in force at the checkpoint,
+`None` in standalone scoring = checked) and `ignore` (file globs inside `path` written by the harness).
+
 Judge (`scorer/metrics/x_judge.py`): `JudgeRunner = Callable[[str prompt, str model], str raw_stdout]`.
 The default runs the installed `claude` CLI; `scoring.judge_runtime: scripted` selects the
 deterministic fake used by tests and scripted pilots (`scorer.metrics.x_judge.FakeJudge`).

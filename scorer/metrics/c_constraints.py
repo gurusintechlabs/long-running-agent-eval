@@ -6,6 +6,7 @@ Probes are pure functions ``(ProbeContext, params) -> ProbeResult`` registered b
 from __future__ import annotations
 
 import ast
+import fnmatch
 import hashlib
 import re
 import sys
@@ -26,6 +27,7 @@ class ProbeContext:
     seed_ws: Path                # pristine seed checkout at seed_commit
     pip_freeze_text: str | None  # snapshots/t{k}/pip-freeze.txt, if recorded
     seed_lock_text: str          # task.seed_requirements_lock contents
+    stage: int | None = None     # stage in force at the checkpoint (staged tasks), for stage-windowed probes
 
 
 @dataclass(frozen=True)
@@ -81,10 +83,21 @@ def _digest(root: Path, rel: str) -> dict[str, str]:
 
 
 def vendor_unchanged(ctx: ProbeContext, params: dict) -> ProbeResult:
-    """``params.path`` (a directory, default ``vendor``, or a single file) must equal the seed."""
+    """``params.path`` (a directory, default ``vendor``, or a single file) must equal the seed.
+
+    ``until_stage``: the constraint holds only before that stage (e.g. a product-owner change request
+    authorises the change); unknown stage (standalone scoring) = checked. ``ignore``: file globs inside
+    ``path`` that the harness itself writes (e.g. a backup daemon's ``LOCK``)."""
     rel = params.get("path", "vendor")
-    cur = _digest(ctx.snapshot_ws, rel)
-    seed = _digest(ctx.seed_ws, rel)
+    until = params.get("until_stage")
+    if until is not None and ctx.stage is not None and ctx.stage >= until:
+        return ProbeResult(False, f"{rel}: not checked from stage {until} on (now stage {ctx.stage})")
+    ign = list(params.get("ignore") or [])
+
+    def keep(d: dict[str, str]) -> dict[str, str]:
+        return {k: v for k, v in d.items() if not any(fnmatch.fnmatch(k, g) for g in ign)}
+    cur = keep(_digest(ctx.snapshot_ws, rel))
+    seed = keep(_digest(ctx.seed_ws, rel))
     if cur == seed:
         return ProbeResult(False, f"{rel} identical to seed ({len(seed)} files)")
     added = sorted(set(cur) - set(seed))

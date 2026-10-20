@@ -20,6 +20,16 @@ def test_load_config_without_app_is_allowed(tmp_path):
     assert "app_cmd" not in p_hidden.load_config(tmp_path)
 
 
+def test_suite_timeout_is_configurable(tmp_path):
+    (tmp_path / "scorer.yaml").write_text("suite_timeout_s: 1800\n")
+    assert p_hidden.suite_timeout(p_hidden.load_config(tmp_path)) == 1800
+    (tmp_path / "scorer.yaml").write_text("test_env: {}\n")
+    assert p_hidden.suite_timeout(p_hidden.load_config(tmp_path)) == p_hidden.SUITE_TIMEOUT_S
+    (tmp_path / "scorer.yaml").write_text("suite_timeout_s: -5\n")
+    with pytest.raises(ValueError):
+        p_hidden.load_config(tmp_path)
+
+
 SERVERLESS_HIDDEN = {
     "scorer.yaml": "test_env: {LRAE_WORKSPACE: '{ws}', LRAE_PYTHON: '{python}'}\n",
     "pytest.ini": "[pytest]\ntestpaths = .\n",

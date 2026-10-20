@@ -417,7 +417,8 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
 
         def probe_ctx(tree: Path) -> c_constraints.ProbeContext:
             return c_constraints.ProbeContext(snapshot_ws=tree, seed_ws=seed_ws,
-                                              pip_freeze_text=freeze_text, seed_lock_text=lock_text)
+                                              pip_freeze_text=freeze_text, seed_lock_text=lock_text,
+                                              stage=stage_k)
 
         with sandbox.temp_copy(ws, forbid=forbid) as tree:
             c_val, c_detail = c_constraints.score_constraints(probe_ctx(tree), constraints)

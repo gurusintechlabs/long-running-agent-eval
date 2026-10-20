@@ -1,0 +1,13 @@
+# How the scorer runs the minidb v3 hidden suite (docs/spec.md 8.1, 8.2; staged: interfaces.md §9).
+# There is no shared app server: tests start their own `python -m minidb serve` processes (cwd = the temp
+# copy of the snapshot) with their own data dirs, keys and fake embedding service (see _support.py).
+# The scorer adds LRAE_STAGE=<active stage>; tests outside their stage window are skipped.
+test_env:
+  LRAE_WORKSPACE: "{ws}"
+  LRAE_PYTHON: "{python}"
+per_test_timeout_s: 300
+# Index builds and full-scale tests take minutes; the default 300 s whole-suite cap is too short.
+suite_timeout_s: 2400
+# Wall-clock assertions (named *timing*): deselected in per-commit scoring, rerun once on failure at
+# checkpoints (scorer/metrics/p_hidden.py).
+timing_k: "timing"

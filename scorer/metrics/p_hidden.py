@@ -44,7 +44,16 @@ def load_config(hidden: Path) -> dict:
     cfg = yaml.safe_load((Path(hidden) / "scorer.yaml").read_text()) or {}
     if "app_cmd" in cfg and "ready_path" not in cfg:
         raise ValueError(f"{hidden}/scorer.yaml has app_cmd but no ready_path")
+    if "suite_timeout_s" in cfg and not (isinstance(cfg["suite_timeout_s"], (int, float))
+                                         and cfg["suite_timeout_s"] > 0):
+        raise ValueError(f"{hidden}/scorer.yaml: suite_timeout_s must be a positive number")
     return cfg
+
+
+def suite_timeout(cfg: dict) -> float:
+    """Wall-clock limit of one hidden pytest run: ``scorer.yaml`` ``suite_timeout_s`` (tasks whose
+    tests build large indexes need more), else ``SUITE_TIMEOUT_S``."""
+    return float(cfg.get("suite_timeout_s", SUITE_TIMEOUT_S))
 
 
 def _fmt(value: str, port: int, db: Path, ws: Path | None = None, python: Path | None = None) -> str:
@@ -148,13 +157,13 @@ def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
                     h_env = sandbox.scrubbed_env(python, home, t_env)
                     suite = run_pytest_json(
                         python, [*base, *sel, str(hidden)], cwd=hidden, env=h_env,
-                        report=scratch / "hidden.json", timeout_s=SUITE_TIMEOUT_S, label="hidden")
+                        report=scratch / "hidden.json", timeout_s=suite_timeout(cfg), label="hidden")
                     if timing and timing_k and not suite.reason:
                         failed = sorted(t for t, o in suite.outcomes.items() if o in ("failed", "error"))
                         if failed:
                             again = run_pytest_json(
                                 python, [*base, "-k", timing_k, *failed], cwd=hidden, env=h_env,
-                                report=scratch / "hidden-rerun.json", timeout_s=SUITE_TIMEOUT_S,
+                                report=scratch / "hidden-rerun.json", timeout_s=suite_timeout(cfg),
                                 label="hidden-rerun")
                             detail["timing_reruns"] = dict(sorted(again.outcomes.items()))
                             suite.outcomes.update(again.outcomes)

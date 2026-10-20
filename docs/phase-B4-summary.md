@@ -72,13 +72,11 @@ exploit tests. `known_vuln` for v3 is built in B6 against the same machinery.
 
 ## Unresolved / needs the owner
 
-1. **Review time and cost at v3 scale.** About 9 minutes and $0.21 with Haiku for 3.7k lines. v3
-   will be around 8–10k lines and 14 stages, so budget for a slower, costlier model (Opus is the
-   spec default). Reviews run in the scorer queue and do not block the agent, but the queue can fall
-   behind. Options: review only at checkpoints where code changed meaningfully, or keep Haiku for
-   reviews. Your call; the model is `scoring.security.ai_review_model`.
-2. **The reconstructed prompt fields** (`[R1]` in `scorer/vuln_review_prompt.md`) are still
-   unconfirmed. The verification review followed them without trouble.
+1. ~~Review model~~: **Opus stays the reviewer** (owner, 2026-10-20). Haiku was only used for the
+   verification. `ai_review_model` defaults to `scoring.judge_model` (Opus). At v3 scale a review will
+   take longer than Haiku's 9 minutes; reviews run in the scorer queue and do not block the agent.
+2. ~~Reconstructed prompt fields~~: **kept as reconstructed** (owner delegated the decision). The
+   prompt is now v1 and hashed into `spec_hash` when the AI review is enabled.
 3. **No per-commit attribution for security** (SAST or exploits): a hazard is attributed to t_k.
    Attribution would mean re-running the exploit suite per commit; worth it only if t_k proves too
    coarse.

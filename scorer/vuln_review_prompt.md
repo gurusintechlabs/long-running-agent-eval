@@ -1,13 +1,14 @@
 <!--
-LRAE AI vulnerability review, prompt template v0 (DRAFT, not yet wired; plan B4, docs/behavior-design.md §7.3).
+LRAE AI vulnerability review, prompt template v1 (wired in plan B4, docs/behavior-design.md §7.3).
 Owner-supplied methodology (2026-10-19), kept verbatim except:
   [R1] the per-finding field list in OUTPUT FORMAT was garbled in the source; it is reconstructed
        below (Severity/Confidence/Chainable enums, Reasoning, Exploitation example, Remediation).
-       OWNER TO CONFIRM.
+       Decided (owner delegated, 2026-10-20): kept as reconstructed; the B4 verification review
+       followed it cleanly.
   [H*] sections marked HARNESS are added by the framework: untrusted-input handling, tool use, and
        the machine-readable findings block. They are required for scoring.
 Placeholders filled by the scorer: {{APP_*}} from fixtures/tasks/<task>/security_context.yaml,
-{{SAST_FINDINGS}} from sec_sast. This file is hashed into spec_hash once wired.
+{{SAST_FINDINGS}} from scorer/security/sast.py. Hashed into spec_hash when scoring.security.ai_review is on.
 -->
 
 ROLE

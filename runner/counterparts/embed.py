@@ -140,6 +140,9 @@ class MockEmbedding:
 
     def _reply(self, h, code: int, obj: dict, *, log: dict, headers: dict | None = None) -> None:
         data = json.dumps(obj).encode()
+        # Log first: the request is on record before the caller can see the answer (no race for a
+        # reader of the log, and the agent can never act on a reply that was not recorded).
+        self.emit("embed.request", {**log, "status": code})
         h.send_response(code)
         h.send_header("Content-Type", "application/json")
         h.send_header("Content-Length", str(len(data)))
@@ -147,4 +150,3 @@ class MockEmbedding:
             h.send_header(k, v)
         h.end_headers()
         h.wfile.write(data)
-        self.emit("embed.request", {**log, "status": code})

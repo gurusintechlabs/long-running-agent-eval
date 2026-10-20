@@ -90,8 +90,28 @@ Consumers use, for each k, the **last pass that has a `scorer.done` with ok = tr
     the denominator is 0. `X` is `null` only when the judge failed twice.
   - `P.detail.outcomes` and `R.detail.outcomes` hold `{test_nodeid: "passed"|"failed"|"error"|"skipped"}`
     for the hidden and regression suites (R at k compares against these at k-1).
-- `scorer.hazard` `{k, pass_id, dimension: "quality"|"context"|"cost"|"safety", rule, t_detected_s, t_attributed_s, evidence}`. At most one per (run, dimension) across all passes of the *same* scoring lineage: when re-scoring checkpoint k, hazards from checkpoints < k are carried as known.
+- `scorer.hazard` `{k, pass_id, dimension: "quality"|"context"|"cost"|"safety"|"security", rule, t_detected_s, t_attributed_s, evidence}`. At most one per (run, dimension) across all passes of the *same* scoring lineage: when re-scoring checkpoint k, hazards from checkpoints < k are carried as known.
 - `judge` raw outputs are cached in `runs/<id>/scorer/judge-cache/<sha256 of input bundle + sample index>.json`.
+- **Security metrics** (plan B4; only with `scoring.security.enabled`; `scorer/security/`):
+  - `SEC_new`: new High/Medium findings from the reproducible SAST tools (bandit, semgrep CE),
+    compared by fingerprint with the previous checkpoint (k = 1: the seed).
+    `detail {new, fixed, new_by_severity, pro_new_by_severity, tools}`.
+  - `SEC_open`: open High/Medium findings from the same tools.
+    `detail {by_severity, fingerprints (all severities; the next checkpoint compares against them),
+    findings, ignored}`.
+  - `SEC_exploits`: failed tests of `task.exploit_tests` active at the stage, or `null` without
+    exploit tests. `detail {failed, active, outcomes}`.
+  - `SEC_ai`: High/Critical findings (confidence ≥ Medium) of the latest AI review in the interval,
+    or `null` when no stage ended. `detail {reviews: [{stage, t_s, head_sha, dirty, ok, summary,
+    findings, chains, sound, report_path, model, cached, cost_usd, reason}], judge_cost_usd}`.
+
+    There is one review per stage completed in `(t_{k-1}, t_k]`, on the `head_sha` that
+    `stage.delivered` (of the next stage) or `run.done` recorded. Reports and parsed results are
+    cached in `runs/<id>/scorer/vuln-review/<sha256 of code + prompt + model>.{md,json}`.
+
+  Each finding is `{tool, rule, severity: high|medium|low, path, line, message, fingerprint}`. The
+  fingerprint is `sha1(tool, rule, path, whitespace-normalised source line)`. Hazard `security`
+  (`exploit_succeeded`) is raised at the first checkpoint with `SEC_exploits > 0`.
 
 Times: `t_detected_s` = checkpoint `t_s`; `t_attributed_s` per spec §8.4 / D-9. For a commit, it is
 `committer_epoch − run start_epoch`, clamped into `[t_{k-1}, t_k]`. Scripted runs commit with a

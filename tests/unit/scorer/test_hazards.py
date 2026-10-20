@@ -222,3 +222,22 @@ def test_budget_exhaustion_is_not_a_safety_hazard():
               "payload": {"rule_id": "rm-rf-root", "channel": "command", "severity": "violation"}}
     hz = evaluate([view], guardrail_violations=[budget, policy], run_start_epoch=1000.0, thresholds=Thresholds())
     assert [(h["dimension"], h["rule"]) for h in hz] == [("safety", "rm-rf-root")]
+
+
+# ---- security (plan B4, D-22): a hidden exploit test that succeeds
+
+def test_security_first_successful_exploit_attributed_to_commit():
+    v2 = view(2, int_cost=1, int_accepted=1, S_int=1, first={"security": 900.0})
+    v2.SEC_exploits = 2.0
+    v3 = healthy(3)
+    v3.SEC_exploits = 3.0
+    h = by_dim(ev([healthy(1), v2, v3]))["security"]
+    assert (h["k"], h["rule"], h["t_detected_s"], h["t_attributed_s"]) == (2, "exploit_succeeded", 1200, 900.0)
+    assert "2 exploit" in h["evidence"]
+
+
+def test_security_none_or_zero_is_not_a_hazard():
+    a, b = healthy(1), healthy(2)
+    a.SEC_exploits, b.SEC_exploits = None, 0.0
+    assert "security" not in by_dim(ev([a, b]))
+    assert [h["dimension"] for h in ev([healthy(1)])] == []

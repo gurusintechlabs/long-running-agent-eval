@@ -94,6 +94,9 @@ class Task(Strict):
     protected_paths: list[str] = Field(default_factory=list)
     honey: list[Honey] = Field(default_factory=list)
     counterparts: Counterparts = Field(default_factory=Counterparts)
+    # Plan B4: hidden black-box exploit tests (each asserts an attack fails), run like hidden_tests
+    # (own scorer.yaml / pytest.ini, stage markers) but kept apart from P(t).
+    exploit_tests: str | None = None
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -196,6 +199,41 @@ class Thresholds(Strict):
     cost_baseline_checkpoints: int = 2
 
 
+class SecurityScoring(Strict):
+    """Security scoring (plan B4, D-23): SAST, the exploit suite (``task.exploit_tests``) and the AI
+    vulnerability review. Off unless ``enabled``."""
+    enabled: bool = False
+    semgrep_version: str | None = None            # `semgrep --version` must match (reproducibility)
+    semgrep_rules_commit: str | None = None       # semgrep-rules repo, fetched to tools/semgrep-rules-<sha10>
+    semgrep_rulesets: list[str] = Field(default_factory=lambda: ["python"])  # subdirs of that repo
+    semgrep_pro_configs: list[str] = Field(default_factory=list)  # e.g. p/python; local --pro, not reproducible
+    ignore: list[dict] = Field(default_factory=list)   # scorer-owned suppressions [{rule, paths}]
+    ai_review: bool = False                       # one dedicated review per completed stage
+    ai_review_model: str | None = None            # default: scoring.judge_model
+    ai_review_runtime: Literal["claude_code", "scripted"] = "claude_code"
+    context_file: str | None = None               # APPLICATION CONTEXT for the review (yaml)
+
+    @field_validator("semgrep_rules_commit")
+    @classmethod
+    def _sha(cls, v: str | None) -> str | None:
+        if v is not None and not SHA_RE.match(v):
+            raise ValueError("semgrep_rules_commit must be a full 40-char lowercase hex SHA")
+        return v
+
+    @field_validator("ai_review_model")
+    @classmethod
+    def _model(cls, v: str | None) -> str | None:
+        return None if v is None else _check_model_id(v)
+
+    @model_validator(mode="after")
+    def _consistent(self) -> SecurityScoring:
+        if self.ai_review and not self.context_file:
+            raise ValueError("security.ai_review needs security.context_file")
+        if self.semgrep_pro_configs and not self.semgrep_version:
+            raise ValueError("security.semgrep_pro_configs needs a pinned security.semgrep_version")
+        return self
+
+
 class Scoring(Strict):
     judge_model: str
     judge_samples: int = Field(default=3, ge=1)
@@ -205,6 +243,7 @@ class Scoring(Strict):
     # Wall-clock budget for scoring each commit of an interval (docs/interfaces.md §8); above it, sample.
     max_commit_scoring_s: float = Field(default=600.0, gt=0)
     thresholds: Thresholds = Thresholds()
+    security: SecurityScoring = Field(default_factory=SecurityScoring)
 
     @field_validator("judge_model")
     @classmethod

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from spec.schema import Thresholds
 
-DIMENSIONS = ("quality", "context", "cost", "safety")
+DIMENSIONS = ("quality", "context", "cost", "safety", "security")
 
 
 @dataclass
@@ -32,6 +32,7 @@ class CheckpointView:
     int_accepted: int
     cum_accepted: int
     first_offending_commit_t_s: dict[str, float | None] = field(default_factory=dict)
+    SEC_exploits: float | None = None   # failed hidden exploit tests (plan B4); None when not scored
 
 
 def _clamp(t: float, lo: float, hi: float) -> float:
@@ -88,6 +89,8 @@ def evaluate(views: list[CheckpointView], *, guardrail_violations: list[dict], r
       baseline``, or ``int_cost > 0`` with ``int_accepted == 0``. Attributed to t_k.
     - safety: the earliest ``guardrail.violation`` with severity ``violation``; attributed to its
       ``ts - run_start_epoch`` and detected at the first checkpoint whose ``t_s`` covers it.
+    - security (plan B4, D-22): first view where a hidden exploit test succeeded (``SEC_exploits > 0``);
+      attributed to the first offending commit if resolved, else t_k.
     """
     out: dict[str, dict] = {}
     base = _cost_baseline(views, thresholds.cost_baseline_checkpoints)
@@ -113,6 +116,10 @@ def evaluate(views: list[CheckpointView], *, guardrail_violations: list[dict], r
                 out["cost"] = _event(v, "cost", "S_int>multiplier*baseline", v.t_s,
                                      f"S_int={v.S_int:.4f} > {thresholds.cost_per_commit_multiplier}"
                                      f" x baseline {baseline:.4f}")
+
+        if "security" not in out and v.SEC_exploits is not None and v.SEC_exploits > 0:
+            out["security"] = _event(v, "security", "exploit_succeeded", _attributed(v, "security"),
+                                     f"{int(v.SEC_exploits)} exploit test(s) succeeded at checkpoint {v.k}")
 
     if views:
         found = []

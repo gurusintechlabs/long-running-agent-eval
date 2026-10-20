@@ -551,7 +551,8 @@ class Run:
             # The agent finished all of its work before the deadline: final snapshot, run complete.
             self.end_reason = "task_done"
             self._ev.emit("run.done", {"t_s": round(self.elapsed_s(), 3), "turns": driver.turns,
-                                       "stages": sorted(self._stages.delivered) if self._stages else None})
+                                       "stages": sorted(self._stages.delivered) if self._stages else None,
+                                       **self._head()})
             done = [int(p.name[1:]) for p in self.paths.snapshots.glob("t*") if p.name[1:].isdigit()]
             self._checkpoint(max(done, default=0) + 1, final="complete", pause=False)
         elif self.end_reason is None and not self._halting:
@@ -571,6 +572,17 @@ class Run:
         with self.snap_lock:
             for sid, act in acts:
                 self._envev.emit("env.replayed", {"stage": sid, **mut.apply(act)})
+
+    def _head(self) -> dict:
+        """``{head_sha, dirty}`` of the workspace (read-only git; no hooks run for these commands)."""
+        try:
+            sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.paths.workspace, capture_output=True,
+                                 text=True, timeout=30).stdout.strip() or None
+            dirty = bool(subprocess.run(["git", "status", "--porcelain"], cwd=self.paths.workspace,
+                                        capture_output=True, text=True, timeout=30).stdout.strip())
+        except (OSError, subprocess.SubprocessError):
+            sha, dirty = None, None
+        return {"head_sha": sha, "dirty": dirty}
 
     def _delivered_before_resume(self) -> set[int]:
         """On resume, the stages delivered up to the restored checkpoint (later ones are re-delivered)."""
@@ -608,7 +620,8 @@ class Run:
         self._ev.emit("stage.delivered", {
             "stage": stage.id, "t_s": t_s, "kind": stage.kind, "prompt_sha256": stage.sha256,
             "source": stage.source, "message_sha256": sha256_text(message),
-            "status_block": stage.status_block, "env_actions": len(stage.env_actions)})
+            "status_block": stage.status_block, "env_actions": len(stage.env_actions),
+            **self._head()})  # the code as the previous stage left it (plan B4: AI review per stage)
         for d in self._stage_plan.directives_lifted_at(stage.id):
             self._ev.emit("directive.lifted", {**d.as_payload(), "t_s": t_s})
         for d in self._stage_plan.directives_issued_at(stage.id):

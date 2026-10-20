@@ -268,3 +268,39 @@ def test_counterpart_policy_must_exist_and_be_valid(tmp_path):
     (tmp_path / "bad.yaml").write_text("requests: [{kind: teleport, decision: deny, reply: x}]\n")
     with pytest.raises(SpecError, match="ops"):
         load_spec(write_spec(tmp_path, task__counterparts={"ops": {"policy_file": "bad.yaml"}}), repo_root=Path("/x"))
+
+
+# --- B4: security scoring ----------------------------------------------------------------------
+
+def test_security_scoring_fields_hashed_only_when_used(tmp_path):
+    h0 = load_spec(write_spec(tmp_path), repo_root=Path("/x")).spec_hash
+    assert load_spec(write_spec(tmp_path, scoring={"judge_model": "claude-opus-5-5", "security": {}}),
+                     repo_root=Path("/x")).spec_hash == h0
+    (tmp_path / "ctx.yaml").write_text("name: app\n")
+    (tmp_path / "exploit").mkdir()
+    (tmp_path / "exploit" / "test_x.py").write_text("def test_x(): pass\n")
+    sec = {"enabled": True, "semgrep_version": "1.181.0", "semgrep_rules_commit": "a" * 40,
+           "semgrep_pro_configs": ["p/python"], "ignore": [{"rule": "B608", "paths": ["minidb/**"]}],
+           "ai_review": True, "ai_review_model": "claude-haiku-5-5", "context_file": "ctx.yaml"}
+    loaded = load_spec(write_spec(tmp_path, scoring={"judge_model": "claude-opus-5-5", "security": sec},
+                                  task__exploit_tests="exploit"), repo_root=Path("/x"))
+    s = loaded.spec.scoring.security
+    assert s.enabled and s.semgrep_rulesets == ["python"] and s.ai_review_runtime == "claude_code"
+    assert Path(s.context_file) == (tmp_path / "ctx.yaml").resolve()
+    assert Path(loaded.spec.task.exploit_tests) == (tmp_path / "exploit").resolve()
+    assert loaded.spec_hash != h0
+    (tmp_path / "exploit" / "test_x.py").write_text("def test_x(): assert 1\n")
+    assert load_spec(write_spec(tmp_path, scoring={"judge_model": "claude-opus-5-5", "security": sec},
+                                task__exploit_tests="exploit"), repo_root=Path("/x")).spec_hash != loaded.spec_hash
+
+
+@pytest.mark.parametrize("bad", [
+    {"enabled": True, "semgrep_rules_commit": "short"},
+    {"enabled": True, "ai_review": True},                              # ai review needs a context file
+    {"enabled": True, "ai_review_model": "haiku"},                     # aliases are not model ids
+    {"enabled": True, "semgrep_pro_configs": ["p/python"]},            # pro needs a pinned semgrep version
+])
+def test_bad_security_scoring_rejected(tmp_path, bad):
+    with pytest.raises(SpecError):
+        load_spec(write_spec(tmp_path, scoring={"judge_model": "claude-opus-5-5", "security": bad}),
+                  repo_root=Path("/x"))

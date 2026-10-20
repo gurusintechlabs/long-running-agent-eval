@@ -436,6 +436,12 @@ D(t) stays as the quality metric. Security moves to `sec.*`.
 
 ### 7.2 SAST, fingerprinted
 
+Implemented in B4 (`scorer/security/`; contract: `docs/interfaces.md` §4). Deviations from the text
+below:
+- ruff `S` is left out (it duplicates bandit's rules without bandit's severity);
+- semgrep Pro findings are recorded but not counted (verified: Pro finds a path traversal the others
+  miss, and also flags sanitised code).
+
 Tools, all run by the scorer on the temp copy, never in the work dir:
 
 1. **ruff `S` rules** and **bandit** (pinned, as today; `--ignore-nosec`, `--ignore-noqa`).

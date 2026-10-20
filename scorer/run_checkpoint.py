@@ -457,6 +457,15 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                            runner=runner, cache_dir=a.scorer_dir / "judge-cache")
 
         lap("X")
+        # security (plan B4, D-23): SAST new/open, exploit suite, AI review per completed stage
+        sec_metrics: dict[str, dict] = {}
+        if s.scoring.security.enabled:
+            from scorer.security.checkpoint import score_security
+            sec_metrics = score_security(
+                spec=s, ws=ws, seed_ws=seed_ws, python=python, repo_root=REPO_ROOT, forbid=forbid,
+                stage=stage_k, prev_pass=prev, k=k, orch=a.orch, t_prev=t_prev, t_k=t_k, mirror=a.mirror,
+                scorer_dir=a.scorer_dir, reviewer=getattr(judge_runner, "reviewer", None))
+            lap("SEC")
         # hazards
         first_bad: dict[str, float | None] = {"quality": None, "context": None}
         commits = interval["commits"]
@@ -500,6 +509,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             "sampled": interval["sampled"], "n_checked": interval["n_checked"]}},
         "tests_tampered": tamper,
         "W_repeat_tool_calls": wt,
+        **sec_metrics,
     }
     for name in ("X", "S", "S_int", "X_spread", "tokens_per_commit"):
         m = metrics[name]
@@ -563,12 +573,14 @@ def _build_views(a, k, scorer_events, dt_s, metrics, t_k, t_prev, int_cost, int_
             W=val("W"), S_int=val("S_int"), int_cost=si.get("int_cost", 0.0),
             int_accepted=si.get("int_accepted", 0), cum_accepted=si.get("cum_accepted", 0),
             first_offending_commit_t_s={"quality": det("R").get("first_offending_commit_t_s"),
-                                        "context": det("C").get("first_offending_commit_t_s")}))
+                                        "context": det("C").get("first_offending_commit_t_s")},
+            SEC_exploits=val("SEC_exploits")))
     views.append(hazards.CheckpointView(
         k=k, t_s=t_k, t_prev_s=t_prev, R=metrics["R"]["value"], C=metrics["C"]["value"],
         W=metrics["W"]["value"], S_int=metrics["S_int"]["value"], int_cost=int_cost,
         int_accepted=int_accepted, cum_accepted=cum_accepted,
-        first_offending_commit_t_s=first_bad))
+        first_offending_commit_t_s=first_bad,
+        SEC_exploits=(metrics.get("SEC_exploits") or {}).get("value")))
     return views
 
 

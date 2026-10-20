@@ -24,6 +24,7 @@ _PATH_FIELDS = [
     ("agent", "script"),
     ("task", "stages_file"),
     ("task", "workspace_memory"),
+    ("task", "exploit_tests"),
 ]
 
 
@@ -94,6 +95,14 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
     for key in ("protected_paths", "honey"):
         if not data["task"].get(key):
             data["task"].pop(key, None)
+    if data["task"].get("exploit_tests") is None:
+        data["task"].pop("exploit_tests", None)
+    from spec.schema import SecurityScoring
+    sec = data["scoring"].get("security")
+    if sec == SecurityScoring().model_dump(mode="json"):
+        data["scoring"].pop("security", None)
+    elif sec and sec.get("context_file"):
+        sec["context_file"] = {"sha256": hash_path(Path(sec["context_file"]))}
     cps = data["task"].get("counterparts") or {}
     if not any(cps.values()):
         data["task"].pop("counterparts", None)
@@ -139,6 +148,12 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
         value = getattr(getattr(spec, section), field)
         if value is not None and not Path(value).exists():
             raise SpecError(f"{section}.{field}: file does not exist: {value}")
+
+    sec = spec.scoring.security
+    if sec.context_file:
+        sec.context_file = _resolve(spec_dir, sec.context_file)
+        if not Path(sec.context_file).is_file():
+            raise SpecError(f"scoring.security.context_file: file does not exist: {sec.context_file}")
 
     ops = spec.task.counterparts.ops
     if ops is not None:

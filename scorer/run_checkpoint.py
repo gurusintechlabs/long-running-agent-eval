@@ -21,6 +21,7 @@ from pathlib import Path
 import yaml
 
 from scorer import commit_scoring, sandbox
+from scorer import metric_names as mn
 from scorer.metrics import d_defects, p_hidden, r_regression
 from spec.loader import REPO_ROOT, LoadedSpec, hash_path, load_spec
 from telemetry import counters
@@ -618,13 +619,13 @@ def _build_views(a, k, scorer_events, dt_s, metrics, t_k, t_prev, int_cost, int_
             int_accepted=si.get("int_accepted", 0), cum_accepted=si.get("cum_accepted", 0),
             first_offending_commit_t_s={"quality": det("R").get("first_offending_commit_t_s"),
                                         "context": det("C").get("first_offending_commit_t_s")},
-            SEC_exploits=val("SEC_exploits"), behavior=last_ok_behavior(scorer_events, j)))
+            sec_exploits=(mn.lookup(prev, mn.SEC_EXPLOITS) or {}).get("value"), behavior=last_ok_behavior(scorer_events, j)))
     views.append(hazards.CheckpointView(
         k=k, t_s=t_k, t_prev_s=t_prev, R=metrics["R"]["value"], C=metrics["C"]["value"],
         W=metrics["W"]["value"], S_int=metrics["S_int"]["value"], int_cost=int_cost,
         int_accepted=int_accepted, cum_accepted=cum_accepted,
         first_offending_commit_t_s=first_bad,
-        SEC_exploits=(metrics.get("SEC_exploits") or {}).get("value")))
+        sec_exploits=(metrics.get(mn.SEC_EXPLOITS) or {}).get("value")))
     return views
 
 

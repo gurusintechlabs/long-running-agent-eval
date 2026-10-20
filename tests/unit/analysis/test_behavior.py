@@ -23,10 +23,10 @@ def db(tmp_path, monkeypatch):
     r = tmp_path / "runs"
     eps = {"episodes": [{"command": "pytest", "start": 0, "end": 4, "attempts": 4, "max_tier": 3,
                          "escalation": 0.8, "t_s": 1250.0}]}
-    sec = {"SEC_new": (2.0, {"new_by_severity": {"high": 1, "medium": 1}}), "SEC_open": (3.0, {}),
-           "SEC_exploits": (1.0, {"failed": ["e::x"], "active": 4}), "SEC_ai": (2.0, {"reviews": [{"stage": 0}]})}
+    sec = {"lrae.sec.new": (2.0, {"new_by_severity": {"high": 1, "medium": 1}}), "lrae.sec.open": (3.0, {}),
+           "lrae.sec.exploits": (1.0, {"failed": ["e::x"], "active": 4}), "lrae.sec.ai": (2.0, {"reviews": [{"stage": 0}]})}
     make_run(r, repeat=1, n_cp=3, dt=600.0, duration=5400.0, behavior_by_k={1: [AF_HZ], 2: [DC_SIG, DC_HZ], 3: [GM_J]},
-             metrics_by_k={2: {"BEH_ED_stuck_episodes": (1.0, eps)}, 3: sec}, stages=[(0, 0.0, False), (1, 650.0, False)])
+             metrics_by_k={2: {"lrae.beh.ed.stuck_episodes": (1.0, eps)}, 3: sec}, stages=[(0, 0.0, False), (1, 650.0, False)])
     make_run(r, repeat=2, n_cp=3, dt=600.0, behavior_by_k={1: [DC_SIG]})
     make_run(r, repeat=3, n_cp=3, dt=600.0, hazards=[hazard("security", 1500.0, "exploit_succeeded")])
     ingest(r, tmp_path / "m.sqlite")
@@ -101,3 +101,19 @@ def test_mode_table_counts_runs_events_and_hazards(db):
     assert (t["DC"]["runs_with_events"], t["DC"]["runs_with_hazard"], t["DC"]["events"]) == (2, 1, 3)
     assert t["GM"]["judge_events"] == 1 and t["VI"]["runs_with_hazard"] == 1
     assert set(t) == set(behavior.ALL_MODES)
+
+
+def test_runs_scored_before_the_rename_still_read(tmp_path, monkeypatch):
+    monkeypatch.setattr("telemetry.counters.interval_counters", synth.fake_counters)
+    r = tmp_path / "runs"
+    old = {"SEC_new": (1.0, {"new_by_severity": {"high": 1}}), "SEC_exploits": (2.0, {"active": 3}),
+           "BEH_ED_stuck_episodes": (1.0, {"episodes": [{"command": "make", "attempts": 3, "max_tier": 1,
+                                                        "escalation": 0.0, "t_s": 10.0}]})}
+    make_run(r, metrics_by_k={1: old})
+    ingest(r, tmp_path / "m.sqlite")
+    db = tmp_path / "m.sqlite"
+    rid = behavior.run_ids(db, "exp-one")[0]
+    assert behavior.has_data(db, "exp-one")
+    t = behavior.security_trend(db, rid)[0]
+    assert (t["new_high"], t["exploits_failed"], t["exploits_active"]) == (1, 2.0, 3)
+    assert [e["command"] for e in behavior.stuck_episodes(db, rid)] == ["make"]

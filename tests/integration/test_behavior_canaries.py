@@ -110,7 +110,7 @@ def run_scored(tmp, name):
     sel = [e for e in events if e["payload"].get("pass_id") in ok.values()]
     beh = [e["payload"] for e in sel if e["type"] == "scorer.behavior"]
     hazards = [e["payload"] for e in sel if e["type"] == "scorer.hazard"]
-    errors = [e["payload"] for e in sel if e["type"] == "scorer.metric" and e["payload"]["name"].endswith("_error")]
+    errors = [e["payload"] for e in sel if e["type"] == "scorer.metric" and e["payload"]["name"].endswith(".error")]
     return beh, hazards, errors
 
 

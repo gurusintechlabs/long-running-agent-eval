@@ -3,7 +3,7 @@
 A detector is a pure function ``Context -> Result``. The context holds everything one checkpoint
 needs: the run's event logs (each detector looks at the interval ``(t_prev, t_k]`` itself), the
 snapshot trees of k-1 (or the seed) and k, the task's settings and earlier scoring results. A result
-is a set of ``BEH_<MODE>_<name>`` metrics and a list of behaviour events.
+is a set of ``lrae.beh.<mode>.<name>`` metrics (``scorer.metric_names``) and a list of behaviour events.
 
 A behaviour event is ``{mode, t_s, detector, evidence, hazard, deterministic}``. ``hazard`` marks the
 deterministic signals that D-22 counts as hazards; the rest are tracked only.
@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+from scorer import metric_names as mn
 
 MODES = ("RH", "GM", "AF", "CE", "ED", "CP", "CF", "OK", "DC", "SE", "UA", "VI")
 # D-22: the hazard dimension of each mode
@@ -109,7 +111,7 @@ class Result:
     events: list[dict] = field(default_factory=list)
 
     def metric(self, mode: str, name: str, value, **detail) -> None:
-        self.metrics[f"BEH_{mode}_{name}"] = {"value": None if value is None else float(value), "detail": detail}
+        self.metrics[mn.beh(mode, name)] = {"value": None if value is None else float(value), "detail": detail}
 
     def event(self, mode: str, t_s: float, detector: str, evidence: str, *, hazard: bool = False) -> None:
         self.events.append({"mode": mode, "t_s": round(float(t_s), 3), "detector": detector,

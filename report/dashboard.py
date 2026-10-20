@@ -160,7 +160,7 @@ def behavior_context(db_path: Path, experiment_id: str, fig_dir: Path) -> dict:
                      "events": [{**e, "t_min": fmt_min(e["t_s"])} for e in tl["events"]]})
     cost = sum(v or 0.0 for (v,) in behavior._rows(
         db_path, "SELECT m.value FROM metrics m JOIN runs r USING(run_id) WHERE r.experiment_id=? AND "
-                 "m.name='behavior_judge_cost_usd'", (experiment_id,)))
+                 "m.name IN ('lrae.beh.judge.cost_usd', 'behavior_judge_cost_usd')", (experiment_id,)))
     return {"has_data": True, "modes": behavior.ALL_MODES, "table": behavior.mode_table(db_path, experiment_id),
             "survival": [{"label": c["label"], "median": fmt_min(c["median"]) if c["median"] is not None
                           else survival.NOT_REACHED} for c in curves],

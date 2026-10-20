@@ -12,7 +12,7 @@ and ``runs`` tables written by ``analysis.ingest``. Every result is derived from
 * **AF anomalies**: tool calls per minute per checkpoint interval, flagged against the prior intervals
   (robust z from median/MAD for spikes; a drop below ``drop_frac`` of the prior median, which covers
   the design's "under 10% of the baseline rate" stall); plus the run's AF loop and stall events.
-* **Stuck episodes and risk escalation**: the ED detector's episodes (``BEH_ED_stuck_episodes``) with
+* **Stuck episodes and risk escalation**: the ED detector's episodes (``lrae.beh.ed.stuck_episodes``) with
   their escalation slope (risk tier against attempt number).
 * **Security trend**: new SAST findings by severity, open findings, exploit-test failures and AI-review
   findings per checkpoint.
@@ -27,6 +27,7 @@ from statistics import median
 
 from analysis import survival
 from analysis.degradation import FILL_BINS
+from scorer import metric_names as mn
 
 ALL_MODES = ("RH", "GM", "AF", "CE", "ED", "CP", "CF", "OK", "DC", "SE", "UA", "VI")
 
@@ -50,7 +51,8 @@ def has_data(db_path: Path, experiment_id: str) -> bool:
     return bool(_rows(db_path, "SELECT 1 FROM behavior_events b JOIN runs r USING(run_id) WHERE r.experiment_id=? "
                                "LIMIT 1", (experiment_id,)) or
                 _rows(db_path, "SELECT 1 FROM metrics m JOIN runs r USING(run_id) WHERE r.experiment_id=? AND "
-                               "(m.name LIKE 'BEH_%' OR m.name LIKE 'SEC_%') LIMIT 1", (experiment_id,)))
+                               "(m.name LIKE 'lrae.beh.%' OR m.name LIKE 'lrae.sec.%' OR m.name LIKE 'BEH\\_%' ESCAPE '\\' "
+                               "OR m.name LIKE 'SEC\\_%' ESCAPE '\\') LIMIT 1", (experiment_id,)))
 
 
 # --- per-mode survival -----------------------------------------------------------------------------
@@ -201,7 +203,7 @@ def af_anomalies(db_path: Path, run_id: str, *, window: int = 6, z: float = 4.0,
 def stuck_episodes(db_path: Path, run_id: str) -> list[dict]:
     out = []
     for k, detail in _rows(db_path, "SELECT k, detail_json FROM metrics WHERE run_id=? AND "
-                                    "name='BEH_ED_stuck_episodes' ORDER BY k", (run_id,)):
+                                    "name IN ('lrae.beh.ed.stuck_episodes', 'BEH_ED_stuck_episodes') ORDER BY k", (run_id,)):
         for ep in (json.loads(detail or "{}").get("episodes") or []):
             out.append({"k": k, "t_s": ep.get("t_s"), "command": ep.get("command"), "attempts": ep.get("attempts"),
                         "max_tier": ep.get("max_tier"), "escalation": ep.get("escalation")})
@@ -224,18 +226,20 @@ def security_trend(db_path: Path, run_id: str) -> list[dict]:
         rows[k] = {"k": k, "t_s": t, "new_high": None, "new_medium": None, "new_low": None, "open": None,
                    "exploits_failed": None, "exploits_active": None, "ai_findings": None}
     for k, name, v, detail in _rows(db_path, "SELECT k, name, value, detail_json FROM metrics WHERE run_id=? AND "
-                                             "name IN ('SEC_new','SEC_open','SEC_exploits','SEC_ai')", (run_id,)):
+                                             "name IN ('lrae.sec.new','lrae.sec.open','lrae.sec.exploits','lrae.sec.ai',"
+                                             "'SEC_new','SEC_open','SEC_exploits','SEC_ai')", (run_id,)):
         r = rows.get(k)
         if r is None:
             continue
         d = json.loads(detail or "{}")
-        if name == "SEC_new":
+        name = name if name.startswith(mn.SEC_PREFIX) else "lrae.sec." + name[4:]
+        if name == mn.SEC_NEW:
             sev = d.get("new_by_severity") or {}
             r.update(new_high=int(sev.get("high", 0)), new_medium=int(sev.get("medium", 0)),
                      new_low=int(sev.get("low", 0)))
-        elif name == "SEC_open":
+        elif name == mn.SEC_OPEN:
             r["open"] = v
-        elif name == "SEC_exploits":
+        elif name == mn.SEC_EXPLOITS:
             r.update(exploits_failed=v, exploits_active=d.get("active"))
         else:
             r["ai_findings"] = v

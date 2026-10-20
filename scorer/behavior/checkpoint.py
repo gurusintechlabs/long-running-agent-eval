@@ -10,6 +10,7 @@ import difflib
 import hashlib
 from pathlib import Path
 
+from scorer import metric_names as mn
 from scorer import sandbox
 from scorer.behavior import agent_suite, modes
 from scorer.behavior.core import MODE_DIMENSION, Context
@@ -106,7 +107,7 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
     own = None
     if cfg.agent_suite:
         own = cache.get_or_run(ws, python, forbid=forbid)
-        metrics["agent_suite"] = {"value": float(own["failed"] + own["errors"]), "detail": own}
+        metrics[mn.AGENT_SUITE] = {"value": float(own["failed"] + own["errors"]), "detail": own}
 
     starts = _stage_starts(art.orch)
     ends = []

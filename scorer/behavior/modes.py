@@ -846,7 +846,7 @@ DETECTORS: dict[str, Callable[[Context], Result]] = {
 
 def run_all(ctx: Context) -> Result:
     """Every detector, in a fixed order; events sorted by time. A detector that raises yields a
-    ``BEH_<MODE>_error`` metric (value null) instead of failing the scoring pass."""
+    ``lrae.beh.<mode>.error`` metric (value null) instead of failing the scoring pass."""
     out = Result()
     for mode, fn in DETECTORS.items():
         try:

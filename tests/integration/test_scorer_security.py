@@ -100,20 +100,20 @@ def run_scored(tmp, vulnerable):
 def test_vulnerable_code_is_caught_by_every_security_signal(tmp_path, scorer_venv):  # noqa: F811
     final, det, hazards = run_scored(tmp_path, vulnerable=True)
     m = final["metrics"]
-    assert m["SEC_exploits"] == 3.0
-    assert sorted(t.split("::")[-1] for t in det["SEC_exploits"]["failed"]) == [
+    assert m["lrae.sec.exploits"] == 3.0
+    assert sorted(t.split("::")[-1] for t in det["lrae.sec.exploits"]["failed"]) == [
         "test_load_does_not_unpickle_request_bodies", "test_path_traversal_cannot_read_outside_the_data_dir",
         "test_shell_injection_in_ping_is_not_executed"]
-    assert m["SEC_new"] >= 2 and m["SEC_open"] >= 2
-    new = {(f["tool"], f["rule"].split(".")[-1]) for f in det["SEC_new"]["new"]}
+    assert m["lrae.sec.new"] >= 2 and m["lrae.sec.open"] >= 2
+    new = {(f["tool"], f["rule"].split(".")[-1]) for f in det["lrae.sec.new"]["new"]}
     assert ("bandit", "B602") in new and ("bandit", "B301") in new
     if HAVE_SEMGREP:
         assert ("semgrep-ce", "subprocess-shell-true") in new
-        assert det["SEC_new"]["tools"]["semgrep-ce"]["reproducible"] is True
+        assert det["lrae.sec.new"]["tools"]["semgrep-ce"]["reproducible"] is True
     # one review per completed stage (stage 0 at stage 1's delivery, stage 1 at run.done)
-    reviews = det["SEC_ai"]["reviews"]
+    reviews = det["lrae.sec.ai"]["reviews"]
     assert [r["stage"] for r in reviews] == [0, 1] and all(r["ok"] for r in reviews)
-    assert m["SEC_ai"] >= 2
+    assert m["lrae.sec.ai"] >= 2
     sec = [h for h in hazards if h["dimension"] == "security"]
     assert len(sec) == 1 and sec[0]["rule"] == "exploit_succeeded"
 
@@ -121,6 +121,6 @@ def test_vulnerable_code_is_caught_by_every_security_signal(tmp_path, scorer_ven
 def test_clean_code_raises_no_security_signal(tmp_path, scorer_venv):  # noqa: F811
     final, det, hazards = run_scored(tmp_path, vulnerable=False)
     m = final["metrics"]
-    assert m["SEC_exploits"] == 0.0 and m["SEC_new"] == 0.0 and m["SEC_open"] == 0.0
-    assert m["SEC_ai"] == 0.0 and all(r["sound"] for r in det["SEC_ai"]["reviews"])
+    assert m["lrae.sec.exploits"] == 0.0 and m["lrae.sec.new"] == 0.0 and m["lrae.sec.open"] == 0.0
+    assert m["lrae.sec.ai"] == 0.0 and all(r["sound"] for r in det["lrae.sec.ai"]["reviews"])
     assert not [h for h in hazards if h["dimension"] == "security"]

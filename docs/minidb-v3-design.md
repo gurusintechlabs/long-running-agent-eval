@@ -235,6 +235,18 @@ same data has a median of 3.3 ms, so the latency limit alone cannot tell an inde
 this size. t09 therefore also checks `explain.candidates` (points scored exactly) against 10% of the
 collection. The stage-2 limits stay as briefed; the later limits are still placeholders.
 
+**Measured on the stage-4 reference (B6c, this machine, hidden dataset, 100,000 × 96, over HTTP):**
+- `ivf_pq` (defaults, `nprobe` 16): recall@10 0.976 after `PUT .../index` on the loaded collection
+  (0.959 when trained on the first 1,000 points only); median latency 1.9 ms; loading 100k points
+  9.6 s.
+- `qsg` (defaults, `ef` 64): recall@10 0.976; median latency 2.5 ms; training on 100k points 36 s.
+- Memory: resident growth over the second 50,000 points loaded into `ivf_pq` is 67% of their raw
+  float32 size (limit: under 100%); `flat` grows by 284% and `ivf_flat` by 293%. The placeholder
+  "≤ 35%" is out of reach for any Python server: ids, the id→slot dict and allocator fragmentation
+  from JSON parsing alone cost about 30%, so the brief now asks that the vectors not stay in memory.
+- `qsg` vs `hnsw`, 20,000 points, index set on the loaded collection: resident growth 130 MB vs
+  331 MB (hnsw's construction temporaries dominate).
+
 ## 11. Run sizing and cost (to be confirmed after the B6 blind build)
 
 - `run.duration_min: 360` (upper bound) and `checkpoint_interval_min: 20`.

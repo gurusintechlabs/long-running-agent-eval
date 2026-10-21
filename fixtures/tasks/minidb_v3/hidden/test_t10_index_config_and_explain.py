@@ -9,6 +9,11 @@ from _support import Server, clustered, expect_error, server, shared, stage, uni
 HNSW_DEFAULTS = {"type": "hnsw", "m": 16, "ef_construction": 200}
 
 
+def _stage2(explain):
+    """The stage-2 fields of an explain object (later stages add more)."""
+    return {k: explain.get(k) for k in ("index", "exact", "ef", "candidates")}
+
+
 def _search(srv, name, body):
     r = srv.post(f"/v1/collections/{name}/search", body)
     assert r.status == 200, r
@@ -19,11 +24,13 @@ def _search(srv, name, body):
 def small(tmp_path_factory):
     """A 3,000-point hnsw collection with payloads."""
     srv = Server(tmp_path_factory.mktemp("t10"))
-    base, queries = clustered(3000, queries=40, seed=1010)
-    srv.put("/v1/collections/small", {"dim": base.shape[1], "index": {"type": "hnsw", "m": 8, "ef_construction": 64}})
-    upsert_all(srv, "small", base, payload=lambda i: {"parity": i % 2, "bucket": i % 10})
-    yield srv, base, queries
-    srv.close()
+    try:
+        base, queries = clustered(3000, queries=40, seed=1010)
+        srv.put("/v1/collections/small", {"dim": base.shape[1], "index": {"type": "hnsw", "m": 8, "ef_construction": 64}})
+        upsert_all(srv, "small", base, payload=lambda i: {"parity": i % 2, "bucket": i % 10})
+        yield srv, base, queries
+    finally:
+        srv.close()
 
 
 @stage(2)
@@ -67,7 +74,7 @@ def test_put_index_switches_the_index_of_a_populated_collection(server):  # noqa
     upsert_all(server, "sw", base)
     q = queries[0].tolist()
     exact = _search(server, "sw", {"vector": q, "k": 10, "explain": True})
-    assert exact["explain"] == {"index": "flat", "exact": True, "ef": None, "candidates": 1500}
+    assert _stage2(exact["explain"]) == {"index": "flat", "exact": True, "ef": None, "candidates": 1500}
     r = server.put("/v1/collections/sw/index", {"type": "hnsw", "m": 8})
     assert r.status == 200 and r.json()["index"] == {"type": "hnsw", "m": 8, "ef_construction": 200}
     assert r.json()["points"] == 1500 and r.json()["name"] == "sw"
@@ -101,7 +108,7 @@ def test_flat_ignores_ef(shared):  # noqa: F811
     shared.put(f"/v1/collections/{name}/points", {"points": [{"id": i, "vector": [i, 0]} for i in range(30)]})
     out = _search(shared, name, {"vector": [0, 0], "k": 5, "params": {"ef": 1}, "explain": True})
     assert [r["id"] for r in out["results"]] == [0, 1, 2, 3, 4]
-    assert out["explain"] == {"index": "flat", "exact": True, "ef": None, "candidates": 30}
+    assert _stage2(out["explain"]) == {"index": "flat", "exact": True, "ef": None, "candidates": 30}
     assert "explain" not in _search(shared, name, {"vector": [0, 0]})
 
 

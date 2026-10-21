@@ -153,7 +153,11 @@ class Server:
         self.n = 0
         self.log_path = self.root / "server.log"
         if start:
-            self.start()
+            try:
+                self.start()
+            except BaseException:
+                self.close()             # never leave a half-started server behind
+                raise
 
     # -- lifecycle
     def env(self) -> dict[str, str]:
@@ -230,6 +234,12 @@ class Server:
                 os.killpg(self.proc.pid, signal.SIGKILL)   # stray children
             except (ProcessLookupError, PermissionError):
                 pass
+
+    def rss(self) -> int:
+        """Resident memory of the server process, in bytes (``ps``)."""
+        out = subprocess.run(["ps", "-o", "rss=", "-p", str(self.proc.pid)], capture_output=True, text=True,
+                             env={"PATH": "/usr/bin:/bin"}, timeout=10).stdout.strip()
+        return int(out) * 1024
 
     def log(self) -> str:
         try:
@@ -334,6 +344,13 @@ def shared(tmp_path_factory):
     s.close()
 
 
+def new_key(srv: Server, role: str, collections: list[str], name: str | None = None) -> dict:
+    """A key created by the admin (stage 5): ``{"id", "key", "name", "role", "collections"}``."""
+    r = srv.post("/v1/keys", {"name": name or unique("key"), "role": role, "collections": collections})
+    assert r.status == 201, r
+    return r.json()
+
+
 def cli_results(script: str, *, db: Path | None = None) -> list[dict]:
     """The result objects ``python -m minidb [--db PATH]`` prints for ``script``."""
     p = run_cli(["--db", str(db)] if db else [], input=script, timeout=120)
@@ -410,7 +427,8 @@ class FakeEmbed:
                 fault = 429
             elif self.flaky and self.rng.random() < self.flaky:
                 fault = 503
-            rec = {"path": h.path, "texts": list(texts or []), "status": None, "auth": h.headers.get("Authorization")}
+            rec = {"path": h.path, "texts": list(texts or []), "status": None, "auth": h.headers.get("Authorization"),
+                   "t": time.monotonic()}
             self.requests.append(rec)
 
         def done(code, payload, headers=None):

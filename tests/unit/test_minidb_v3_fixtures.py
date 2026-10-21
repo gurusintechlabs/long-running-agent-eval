@@ -2,7 +2,7 @@
 hidden and exploit stage windows, and the reference overlay chain.
 
 Plan B6a: the task scaffolding. B6b: references ``minidb_v3_s0``-``s3``, hidden tiers t01-t11 and
-exploits X01, X08-X10 (``AUTHORED_THROUGH``). Fast checks, plus local ones that start the seed's server
+exploits X01, X08-X10. B6c: ``s4``-``s6``, t12-t16, X02-X07 (``AUTHORED_THROUGH``). Fast checks, plus local ones that start the seed's server
 through the hidden harness. The suites run for real in tests/integration/test_minidb_v3_hidden.py.
 """
 from __future__ import annotations
@@ -230,9 +230,10 @@ def test_visible_benchmark_runs_on_the_seed_and_reports_missing_collections(spec
 
 # ---- B6b: stage windows of the hidden and exploit suites ------------------------------------------
 
-AUTHORED_THROUGH = 3        # stages whose references and tests exist (B6c-e raise it)
-TIER_STAGE = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 1, 8: 1, 9: 2, 10: 2, 11: 3}       # design §9
-EXPLOIT_STAGE = {1: 1, 8: 3, 9: 2, 10: 1}                                             # design §9
+AUTHORED_THROUGH = 6        # stages whose references and tests exist (B6d-e raise it)
+TIER_STAGE = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 1, 8: 1, 9: 2, 10: 2, 11: 3,      # design §9
+              12: 4, 13: 4, 14: 5, 15: 5, 16: 6}
+EXPLOIT_STAGE = {1: 1, 2: 4, 3: 5, 4: 5, 5: 5, 6: 5, 7: 5, 8: 3, 9: 2, 10: 1}         # design §9
 REFS = [f"minidb_v3_s{i}" for i in range(AUTHORED_THROUGH + 1)]
 STAGE_AWARE = {"expect_error", "error_kind", "exact_topk", "scores", "descending", "at_least"}
 
@@ -290,7 +291,7 @@ def test_hidden_windows_follow_the_design_tiers():
         assert t["retired"] is None or t["introduced"] < t["retired"] <= 13, t
     for s in range(AUTHORED_THROUGH + 1):
         assert any(t["introduced"] == s for t in tests), f"stage {s} introduces no test"
-    assert 100 <= len(tests) <= 130 and len(active(tests, AUTHORED_THROUGH)) >= 95
+    assert 150 <= len(tests) <= 230 and len(active(tests, AUTHORED_THROUGH)) >= 145
 
 
 def test_only_change_requests_retire_tests_and_replace_them():
@@ -325,6 +326,20 @@ def test_suites_never_import_the_code_under_test():
             mods = [a.name for a in node.names] if isinstance(node, ast.Import) else (
                 [node.module or ""] if isinstance(node, ast.ImportFrom) else [])
             assert not any(m.split(".")[0] == "minidb" for m in mods), f"{f.name} imports minidb"
+
+
+def test_fixtures_never_leak_a_server():
+    """A fixture that starts a server and yields closes it in ``finally``: a failing setup step (the
+    usual case on an older reference) must not leave an orphaned server (they run in their own
+    session, so the scorer's process-group kill does not reach them)."""
+    for f in [*HIDDEN.glob("test_*.py"), *EXPLOIT.glob("test_*.py")]:
+        for fn in ast.parse(f.read_text()).body:
+            if not isinstance(fn, ast.FunctionDef) or not any(isinstance(n, ast.Yield) for n in ast.walk(fn)):
+                continue
+            starts = [n for n in fn.body if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
+                      and getattr(n.value.func, "id", "") == "Server"]
+            if starts:
+                assert any(isinstance(n, ast.Try) and n.finalbody for n in fn.body), f"{f.name}::{fn.name}"
 
 
 @pytest.mark.parametrize("stage", ["0", "3", "11", ""])

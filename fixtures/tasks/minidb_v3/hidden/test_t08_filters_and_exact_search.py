@@ -26,17 +26,19 @@ def _payload(i):
 def data(tmp_path_factory):
     from _support import Server
     srv = Server(tmp_path_factory.mktemp("t08"))
-    rng = np.random.default_rng(808)
-    base = rng.normal(size=(N, DIM)).astype(np.float32)
-    names = {}
-    for metric in ("l2", "cosine", "dot"):
-        name = unique(metric)
-        assert srv.put(f"/v1/collections/{name}", {"dim": DIM, "metric": metric}).status == 201
-        pts = [{"id": i, "vector": base[i].tolist(), "payload": _payload(i)} for i in range(N)]
-        assert srv.put(f"/v1/collections/{name}/points", {"points": pts}).status == 200
-        names[metric] = name
-    yield srv, base, names, rng.normal(size=(5, DIM)).astype(np.float32)
-    srv.close()
+    try:
+        rng = np.random.default_rng(808)
+        base = rng.normal(size=(N, DIM)).astype(np.float32)
+        names = {}
+        for metric in ("l2", "cosine", "dot"):
+            name = unique(metric)
+            assert srv.put(f"/v1/collections/{name}", {"dim": DIM, "metric": metric}).status == 201
+            pts = [{"id": i, "vector": base[i].tolist(), "payload": _payload(i)} for i in range(N)]
+            assert srv.put(f"/v1/collections/{name}/points", {"points": pts}).status == 200
+            names[metric] = name
+        yield srv, base, names, rng.normal(size=(5, DIM)).astype(np.float32)
+    finally:
+        srv.close()
 
 
 def _search(srv, name, body):

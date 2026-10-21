@@ -21,16 +21,18 @@ UPSERT_MAX_S = 60.0
 @pytest.fixture(scope="module")
 def hnsw(tmp_path_factory):
     srv = Server(tmp_path_factory.mktemp("t09"))
-    base, queries = clustered(N, queries=QUERIES)
-    r = srv.put("/v1/collections/hidden", {"dim": base.shape[1], "metric": "l2", "index": {"type": "hnsw"}})
-    assert r.status == 201, r
-    assert r.json().get("index", {}).get("type") == "hnsw", r
-    t0 = time.monotonic()
-    upsert_all(srv, "hidden", base)
-    upsert_s = time.monotonic() - t0
-    truth = [[i for i, _ in exact_topk(base, q, 10)] for q in queries]
-    yield {"srv": srv, "base": base, "queries": queries, "truth": truth, "upsert_s": upsert_s}
-    srv.close()
+    try:
+        base, queries = clustered(N, queries=QUERIES)
+        r = srv.put("/v1/collections/hidden", {"dim": base.shape[1], "metric": "l2", "index": {"type": "hnsw"}})
+        assert r.status == 201, r
+        assert r.json().get("index", {}).get("type") == "hnsw", r
+        t0 = time.monotonic()
+        upsert_all(srv, "hidden", base)
+        upsert_s = time.monotonic() - t0
+        truth = [[i for i, _ in exact_topk(base, q, 10)] for q in queries]
+        yield {"srv": srv, "base": base, "queries": queries, "truth": truth, "upsert_s": upsert_s}
+    finally:
+        srv.close()
 
 
 def _search(srv, q, **extra):

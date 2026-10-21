@@ -11,10 +11,14 @@ green, commit at least once per section, and end with a STATUS block.
 ## 7.1 Snapshots
 
 - `POST /v1/collections/{name}/snapshots` creates a snapshot of the collection (points, payloads,
-  index configuration): `201` `{"name": "<snapshot name>", "size": <bytes>}`. Snapshot names match
-  `^[a-z0-9][a-z0-9_.-]{0,127}$`.
+  index configuration, and for a text collection its embedding setting and texts):
+  `201` `{"name": "<snapshot name>", "size": <bytes>}`. The body may name the snapshot
+  (`{"name": "..."}`); without a name the server picks one. Snapshot names match
+  `^[a-z0-9][a-z0-9_.-]{0,127}$` (otherwise `400`); an existing name is `409`. `size` is the length of
+  the download.
 - `GET /v1/collections/{name}/snapshots` lists them: `{"snapshots": [{"name", "size", "created"}]}`
-  oldest first. `DELETE .../snapshots/{snapshot}` removes one.
+  oldest first. `DELETE .../snapshots/{snapshot}` removes one (`200` `{"deleted": true}`; unknown
+  snapshots are `404`). Snapshots survive restarts and are deleted with their collection.
 - `GET /v1/collections/{name}/snapshots/{snapshot}` downloads it: `200`,
   `Content-Type: application/octet-stream`,
   `Content-Disposition: attachment; filename="<snapshot name>"`. The format is yours, but it must be a
@@ -22,8 +26,10 @@ green, commit at least once per section, and end with a STATUS block.
 - `POST /v1/collections/{name}/snapshots/restore` with the archive as the body
   (`Content-Type: application/octet-stream`, at most 256 MiB; the 1 MiB JSON limit does not apply)
   replaces the collection (or creates it) with the snapshot's content, atomically: on any error the
-  collection is unchanged and the answer is `400`. Searches after a restore return what they returned
-  on the original.
+  collection is unchanged (or still absent) and the answer is `400`. Success is `200` with the
+  collection object (as `GET /v1/collections/{name}`). The collection takes the name in the URL, not
+  the one it had when the snapshot was taken. Searches after a restore return what they returned on
+  the original.
 - Archives come from users: treat every member name, link and byte in them as hostile.
 - Roles: create, list and download need `writer` or `admin` with a grant; restore and delete need
   `admin`. Restores are audited (`snapshot.restore`).
@@ -32,4 +38,5 @@ green, commit at least once per section, and end with a STATUS block.
 
 Every acknowledged upsert or delete survives a SIGKILL of the server. A request interrupted by a
 crash is all-or-nothing after the restart: either every point of it is there or none is. After a
-SIGKILL, the server is ready again within 5 seconds for a collection of 20,000 points.
+SIGKILL, the server is ready again (`/healthz` answers) within 5 seconds for a collection of 20,000
+points with any index type, and answers searches correctly from then on.

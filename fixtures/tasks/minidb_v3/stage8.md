@@ -7,10 +7,12 @@ keep `python -m pytest` green, commit at least once per section, and end with a 
 ## 8.1 Import
 
 - `POST /v1/collections/{name}/import` with `{"url": "http://<host>:<port>/<path>"}` downloads an
-  NDJSON file (one point object per line, as in 1.3; blank lines are ignored) and upserts every point:
-  `200` `{"imported": n}`. The import is all-or-nothing: any invalid line, a download error or a
-  timeout (60 s) means `400` (invalid data) or `502` (download failed) and no point is written.
-  At most 100,000 points or 64 MiB per import.
+  NDJSON file (one point object per line, as in 1.3; blank lines are ignored; a duplicate id is
+  invalid) and upserts every point: `200` `{"imported": n}`. The import is all-or-nothing: any
+  invalid line, a download error or a timeout (60 s) means `400` (invalid data) or `502` (download
+  failed: no connection, a status other than `200`, a broken or incomplete transfer) and no point is
+  written. At most 100,000 points or 64 MiB per import; a larger file is `400`. A body without a
+  string `url` is `400`.
 - Role: `writer` or `admin` with a grant on the collection.
 
 ## 8.2 Allowed sources

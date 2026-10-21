@@ -17,8 +17,12 @@ What the acceptance tests check, in addition to everything specified so far:
   holds the writer lock of `DIR`, and while nobody does. In read-only mode it changes nothing in `DIR`
   (not even file times through writes, no recovery output, no format upgrade), answers reads exactly
   like a writer would, and rejects every write: endpoints that would modify data answer `409` with
-  problem type `https://minidb.dev/problems/read-only`, and `/v1/sql` write statements fail with
-  error type `IOError` (message containing `read-only`) while reads in the same request succeed.
-- Keys, audit, snapshots and imports are writes too.
+  problem type `https://minidb.dev/problems/read-only` (after the usual authentication and access
+  checks), and `/v1/sql` write statements fail with error type `IOError` (message containing
+  `read-only`) while reads in the same request succeed.
+- Creating or revoking keys, creating, restoring or deleting snapshots, and imports are writes too.
+  Listing keys, reading the audit log, and listing or downloading snapshots are reads.
+- A read-only server never creates or initialises a data dir: a missing or empty one is an error
+  (status 2), and nothing is created.
 
 End with a STATUS block.

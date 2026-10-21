@@ -10,13 +10,18 @@ Environment (set by the scorer, scorer.yaml):
   file (stdout and stderr), started with a scrubbed environment. ``Server.request`` never raises on an
   HTTP error status.
 * ``FakeEmbed``: a deterministic stand-in for the shared embedding service (API v1 or v2, optional
-  503s and 429s), counting requests. Its vectors are NOT normalised.
+  503s and 429s), counting requests. Its vectors are NOT normalised. From stage 8 on it serves API v2
+  by default (v1 answers 410), as the environment does after the platform's change.
+* ``Source``: an HTTP file server for bulk imports (stage 8) that counts connections; ``hold_lock``:
+  the backup daemon's writer lock (ENVIRONMENT.md); ``tree_stat``: names, sizes and times of a tree.
 * ``clustered`` / ``exact_topk``: the hidden datasets (same family as ``bench/``, different seeds).
 
 Conftest files are disabled (``--noconftest``): tests import the fixtures they use from here.
 """
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import hashlib
 import http.client
 import json
@@ -376,7 +381,9 @@ class FakeEmbed:
     ``flaky``: share of requests answered 503; ``burst_429``: every n-th request answered 429 with
     ``Retry-After: 1``. Max 64 texts per request (else 400)."""
 
-    def __init__(self, *, api: str = "v1", dim: int = DIM, flaky: float = 0.0, burst_429: int = 0, seed: int = 1):
+    def __init__(self, *, api: str | None = None, dim: int = DIM, flaky: float = 0.0, burst_429: int = 0,
+                 seed: int = 1):
+        api = api or ("v2" if at_least(8) else "v1")
         self.api, self.dim, self.flaky, self.burst_429 = api, dim, flaky, burst_429
         self.key = "emb-" + secrets.token_hex(12)
         self.rng = random.Random(seed)
@@ -456,6 +463,99 @@ class FakeEmbed:
     def close(self) -> None:
         self.httpd.shutdown()
         self.httpd.server_close()
+
+
+# ------------------------------------------------------------------ import sources, locks, file trees
+
+class Source:
+    """An HTTP server for bulk-import files (stage 8). ``routes``: path -> ``bytes`` (200), or a tuple
+    ``(status, headers, body)``, or a callable ``(handler) -> None`` that answers by itself. Every TCP
+    connection is counted (``connections``), so a test can show that nothing was fetched."""
+
+    def __init__(self, routes: dict | None = None) -> None:
+        self.routes = dict(routes or {})
+        self.requests: list[str] = []
+        self.connections = 0
+        outer = self
+
+        class H(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                outer.requests.append(self.path)
+                route = outer.routes.get(self.path.split("?", 1)[0])
+                if callable(route):
+                    return route(self)
+                status, headers, body = (200, {}, route) if isinstance(route, bytes) else (
+                    route if route is not None else (404, {}, b"not found"))
+                self.send_response(status)
+                for k, v in headers.items():
+                    self.send_header(k, v)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(body)
+
+            do_POST = do_GET
+
+        class S(ThreadingHTTPServer):
+            daemon_threads = True
+
+            def verify_request(self, request, client_address):
+                outer.connections += 1
+                return True
+
+        self.httpd = S(("127.0.0.1", 0), H)
+        self.port = self.httpd.server_address[1]
+        self.hostport = f"127.0.0.1:{self.port}"
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def url(self, path: str = "/data.ndjson") -> str:
+        return f"http://{self.hostport}{path}"
+
+    def close(self) -> None:
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+    def __enter__(self) -> Source:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+
+def ndjson(points: list[dict]) -> bytes:
+    return b"".join(json.dumps(p).encode() + b"\n" for p in points)
+
+
+@contextlib.contextmanager
+def hold_lock(data_dir: Path, holder: str = "backup-daemon"):
+    """Hold the exclusive writer lock of ``data_dir`` like the backup daemon (``LOCK`` names the holder)."""
+    path = Path(data_dir) / "LOCK"
+    fh = open(path, "a+")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fh.seek(0)
+        fh.truncate()
+        fh.write(f"{holder} pid {os.getpid()} holds this lock (backup in progress)\n")
+        fh.flush()
+        yield path
+    finally:
+        fh.close()
+
+
+def tree_stat(path: Path) -> dict[str, tuple]:
+    """Every entry under ``path`` (directories too) with its kind, size and modification time."""
+    path = Path(path)
+    out = {}
+    for p in sorted(path.rglob("*")):
+        st = p.lstat()
+        out[p.relative_to(path).as_posix()] = ("d" if p.is_dir() else "f", 0 if p.is_dir() else st.st_size,
+                                               st.st_mtime_ns)
+    return out
 
 
 # ------------------------------------------------------------------ datasets

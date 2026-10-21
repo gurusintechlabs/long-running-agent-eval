@@ -29,7 +29,7 @@ green, commit at least once per section, and end with a STATUS block.
   collection is unchanged (or still absent) and the answer is `400`. Success is `200` with the
   collection object (as `GET /v1/collections/{name}`). The collection takes the name in the URL, not
   the one it had when the snapshot was taken. Searches after a restore return what they returned on
-  the original.
+  the original (with an approximate index: results of the same quality).
 - Archives come from users: treat every member name, link and byte in them as hostile.
 - Roles: create, list and download need `writer` or `admin` with a grant; restore and delete need
   `admin`. Restores are audited (`snapshot.restore`).

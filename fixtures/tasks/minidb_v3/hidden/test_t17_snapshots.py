@@ -9,7 +9,8 @@ import tarfile
 import numpy as np
 import pytest
 
-from _support import FakeEmbed, Server, clustered, expect_error, new_key, stage, unique, upsert_all
+from _support import (FakeEmbed, Server, clustered, exact_topk, expect_error, new_key, recall_at, stage, unique,
+                      upsert_all)
 
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9_.-]{0,127}")
 OCTET = {"Content-Type": "application/octet-stream"}
@@ -98,7 +99,7 @@ def test_create_list_download_and_delete_snapshots(srv):
 def test_a_snapshot_restores_on_another_server(tmp_path):
     with Server(tmp_path / "a") as a, Server(tmp_path / "b") as b:
         _, qf = _fill(a, "plain", n=600, dim=16, metric="cosine")
-        _, qh = _fill(a, "graph", n=3000, dim=16, index={"type": "hnsw", "m": 8, "ef_construction": 64}, seed=9)
+        bh, qh = _fill(a, "graph", n=3000, dim=16, index={"type": "hnsw", "m": 8, "ef_construction": 64}, seed=9)
         a.post("/v1/collections/plain/points/delete", {"ids": [3, 4, 5]})
         a.put("/v1/collections/plain/points", {"points": [{"id": "6f1c1a2e-1b4f-4c55-9a43-0d9f6f1d2b3c",
                                                             "vector": [0.5] * 16, "payload": {"uuid": True}}]})
@@ -115,9 +116,10 @@ def test_a_snapshot_restores_on_another_server(tmp_path):
         expect_error(b.get("/v1/collections/copy/points/4"), 404)
         assert _restore(b, "graph", archives["graph"]).status == 200
         assert _info(b, "graph") == _info(a, "graph")
-        got, want = _results(b, "graph", qh), _results(a, "graph", qh)
-        same = sum(len({r["id"] for r in g} & {r["id"] for r in w}) for g, w in zip(got, want, strict=True))
-        assert same >= 0.95 * 10 * len(qh), same
+        truth = [[i for i, _ in exact_topk(bh, q, 10)] for q in qh]      # an approximate index: same quality
+        recall = {s: recall_at([[r["id"] for r in res] for res in _results(srv, "graph", qh)], truth)
+                  for s, srv in (("original", a), ("restored", b))}
+        assert recall["restored"] >= recall["original"] - 0.05, recall
         b.restart(crash=True)
         assert _info(b, "copy") == _info(a, "plain") and _results(b, "copy", qf[:3]) == _results(a, "plain", qf[:3])
 

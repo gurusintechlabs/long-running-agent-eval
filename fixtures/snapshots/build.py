@@ -92,7 +92,8 @@ def materialize(name: str, dest: Path, repo_root: Path) -> Path:
     _git(dest, "config", "--local", "user.email", "agent@lrae.local")
     _git(dest, "config", "--local", "core.filemode", "false")
     _git(dest, "add", "-A")
-    _git(dest, "commit", "-q", "--no-gpg-sign", "-m", chain[-1][1]["commit_message"])
+    # --allow-empty: a stage whose right answer is to change nothing (minidb_v3_s10) has no overlay
+    _git(dest, "commit", "-q", "--no-gpg-sign", "--allow-empty", "-m", chain[-1][1]["commit_message"])
     return dest
 
 

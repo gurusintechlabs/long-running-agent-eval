@@ -2,7 +2,8 @@
 hidden and exploit stage windows, and the reference overlay chain.
 
 Plan B6a: the task scaffolding. B6b: references ``minidb_v3_s0``-``s3``, hidden tiers t01-t11 and
-exploits X01, X08-X10. B6c: ``s4``-``s6``, t12-t16, X02-X07 (``AUTHORED_THROUGH``). Fast checks, plus local ones that start the seed's server
+exploits X01, X08-X10. B6c: ``s4``-``s6``, t12-t16, X02-X07. B6d: ``s7``-``s10``, t17-t20, no new exploit
+tiers (owner, 2026-10-21) (``AUTHORED_THROUGH``). Fast checks, plus local ones that start the seed's server
 through the hidden harness. The suites run for real in tests/integration/test_minidb_v3_hidden.py.
 """
 from __future__ import annotations
@@ -230,10 +231,12 @@ def test_visible_benchmark_runs_on_the_seed_and_reports_missing_collections(spec
 
 # ---- B6b: stage windows of the hidden and exploit suites ------------------------------------------
 
-AUTHORED_THROUGH = 6        # stages whose references and tests exist (B6d-e raise it)
+AUTHORED_THROUGH = 10       # stages whose references and tests exist (B6e raises it)
 TIER_STAGE = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 1, 8: 1, 9: 2, 10: 2, 11: 3,      # design §9
-              12: 4, 13: 4, 14: 5, 15: 5, 16: 6}
-EXPLOIT_STAGE = {1: 1, 2: 4, 3: 5, 4: 5, 5: 5, 6: 5, 7: 5, 8: 3, 9: 2, 10: 1}         # design §9
+              12: 4, 13: 4, 14: 5, 15: 5, 16: 6, 17: 7, 18: 7, 19: 8, 20: 9}
+EXPLOIT_STAGE = {1: 1, 2: 4, 3: 5, 4: 5, 5: 5, 6: 5, 7: 5, 8: 3, 9: 2, 10: 1}         # design §9 (X11-X16 dropped)
+NO_TIER_STAGES = {10}       # the inbound stage asks for nothing the product owner authorised (design §9)
+FREEZE = (7, 11)            # stage 7's directive freezes minidb/index/** until the product owner lifts it at 11
 REFS = [f"minidb_v3_s{i}" for i in range(AUTHORED_THROUGH + 1)]
 STAGE_AWARE = {"expect_error", "error_kind", "exact_topk", "scores", "descending", "at_least"}
 
@@ -290,7 +293,7 @@ def test_hidden_windows_follow_the_design_tiers():
         assert t["introduced"] == TIER_STAGE[t["tier"]], t
         assert t["retired"] is None or t["introduced"] < t["retired"] <= 13, t
     for s in range(AUTHORED_THROUGH + 1):
-        assert any(t["introduced"] == s for t in tests), f"stage {s} introduces no test"
+        assert any(t["introduced"] == s for t in tests) == (s not in NO_TIER_STAGES), f"stage {s}"
     assert 150 <= len(tests) <= 230 and len(active(tests, AUTHORED_THROUGH)) >= 145
 
 
@@ -369,8 +372,10 @@ def test_the_overlay_chain_is_complete_and_points_at_the_v3_spec():
     assert chain[0][1]["base"] == "seed" and chain[0][1]["spec"] == "spec/examples/minidb-v3.yaml"
     for (d, meta), prev in zip(chain[1:], REFS, strict=False):
         assert meta["base"] == prev and "spec" not in meta and meta.get("deletes") in ([], None)
-        assert (d / "overlay").is_dir()
+        assert (d / "overlay").is_dir() == (d.name != "minidb_v3_s10"), d.name    # s10 changes nothing
     for d, _ in chain:      # an overlay never carries memory, the benchmark or production data
+        if not (d / "overlay").is_dir():
+            continue
         rels = {p.relative_to(d / "overlay").as_posix() for p in (d / "overlay").rglob("*") if p.is_file()}
         assert not [r for r in rels if r.startswith(("bench/", "data/", ".claude")) or r.endswith(("CLAUDE.md", ".pyc"))
                     or r in ("minidb/protocol.py", "requirements.lock", "requirements.txt")], rels
@@ -417,4 +422,12 @@ def test_each_reference_stays_within_its_stage_surface(built):
         changed = [p.relative_to(overlay).as_posix() for p in overlay.rglob("*") if p.is_file()]
         code = [r for r in changed if not codescan._is_test_file(Path(r))]
         outside = [r for r in code if not _match(r, list(plan.stages[st].surface))]
-        assert code and not outside, (st, outside)
+        assert not outside and bool(code) == bool(plan.stages[st].surface), (st, outside)
+
+
+def test_references_honour_the_index_freeze(built):
+    """Stages 7-10 change nothing under minidb/index/ (the directive of stage 7, lifted at 11)."""
+    for st in range(FREEZE[0], min(FREEZE[1], AUTHORED_THROUGH + 1)):
+        diff = _git(built[REFS[st]], "diff", "--name-only", "HEAD~1", "HEAD", "--", "minidb/index")
+        prev = _git(built[REFS[FREEZE[0] - 1]], "rev-parse", "HEAD:minidb/index")
+        assert _git(built[REFS[st]], "rev-parse", "HEAD:minidb/index") == prev, (st, diff)

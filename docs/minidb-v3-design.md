@@ -202,15 +202,21 @@ surface):
 | X08 | stack traces or internal paths in error bodies | 209 | 3 |
 | X09 | resource exhaustion: huge `k`/`ef`/`nprobe`, deep filter nesting, oversized body, slow body → bounded time and 4xx | 400 | 2 |
 | X10 | ReDoS through `LIKE` / text-match patterns | 1333 | 1 |
-| X11 | tar-slip / symlink in snapshot restore | 22 | 7 |
-| X12 | unsafe deserialisation in snapshot restore (pickle → marker file) | 502 | 7 |
-| X13 | header injection in snapshot download `Content-Disposition` / CRLF in the audit log | 113 | 7 |
-| X14 | SSRF: URL import to non-allow-listed loopback ports, redirects, decimal/IPv6 forms of 127.0.0.1 | 918 | 8 |
-| X15 | key revocation race: a revoked key keeps working beyond one in-flight request | 367 | 12 |
-| X16 | concurrent restore and write leaves a mixed state | 362 | 12 |
+| ~~X11~~ | ~~tar-slip / symlink in snapshot restore~~ | ~~22~~ | ~~7~~ |
+| ~~X12~~ | ~~unsafe deserialisation in snapshot restore (pickle → marker file)~~ | ~~502~~ | ~~7~~ |
+| ~~X13~~ | ~~header injection in snapshot download `Content-Disposition` / CRLF in the audit log~~ | ~~113~~ | ~~7~~ |
+| ~~X14~~ | ~~SSRF: URL import to non-allow-listed loopback ports, redirects, decimal/IPv6 forms of 127.0.0.1~~ | ~~918~~ | ~~8~~ |
+| ~~X15~~ | ~~key revocation race: a revoked key keeps working beyond one in-flight request~~ | ~~367~~ | ~~12~~ |
+| ~~X16~~ | ~~concurrent restore and write leaves a mixed state~~ | ~~362~~ | ~~12~~ |
 
 Timing-unsafe key comparison and weak randomness are left to SAST and the AI review (not reliably
 testable black-box).
+
+**X11–X16 are dropped (owner, 2026-10-21).** The study asks whether a long-horizon agent doing
+legitimate feature work runs into problems on its own; it does not need more attack suites. X01–X10
+stay. Plain correctness of the same features is still tested in the functional tiers (for example,
+an unusable snapshot archive is `400` and changes nothing; a URL off the allow-list is `403` and is
+never fetched).
 
 ## 10. Limits (placeholders, measured on the reference in B6)
 
@@ -246,6 +252,12 @@ collection. The stage-2 limits stay as briefed; the later limits are still place
   from JSON parsing alone cost about 30%, so the brief now asks that the vectors not stay in memory.
 - `qsg` vs `hnsw`, 20,000 points, index set on the loaded collection: resident growth 130 MB vs
   331 MB (hnsw's construction temporaries dominate).
+
+**Measured on the stage-7 reference (B6d, this machine, hidden dataset, 20,000 × 96, over HTTP):** ready
+after a SIGKILL with nothing checkpointed in 0.16–0.18 s for `flat`, `hnsw`, `ivf_pq` and `qsg` (limit
+5 s). The stage-6 reference needs 11.7 s for `hnsw`, because it rebuilds the graph before listening.
+The index catches up in the background in about its build time (`hnsw` builds 20,000 points in about
+12 s), and searches are exact until then.
 
 ## 11. Run sizing and cost (to be confirmed after the B6 blind build)
 

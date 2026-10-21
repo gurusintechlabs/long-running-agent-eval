@@ -13,7 +13,7 @@ Plan B6 exit check, for the stages authored so far (``AUTHORED_THROUGH``):
 
 Every suite run is a subprocess like the scorer's; they run in parallel with the wall-clock tests
 (``*timing*``) deselected, which then run once, alone, against the final reference. Local processes
-only, no API spend (B6c, through stage 6: about 20 minutes).
+only, no API spend (B6d, through stage 10: about 15 minutes with 3 workers).
 """
 from __future__ import annotations
 

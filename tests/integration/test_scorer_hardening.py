@@ -115,5 +115,6 @@ def test_hung_command_is_killed_by_timeout(tmp_path):
                       timeout_s=1)
     assert res.timed_out
     assert sandbox.reap_leftovers() == []
-    out = subprocess.run(["pgrep", "-f", "sleep 60"], capture_output=True, text=True)
+    # -x: the whole command line, so an unrelated "sleep 600" elsewhere on the machine does not match
+    out = subprocess.run(["pgrep", "-fx", "sleep 60"], capture_output=True, text=True)
     assert out.stdout.strip() == ""

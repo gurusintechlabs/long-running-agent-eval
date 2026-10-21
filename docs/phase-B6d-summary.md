@@ -175,9 +175,12 @@ been flagged for scope drift.
   request at a time takes about 54 s. t18 uses `hnsw` for the timing test for that reason.
 - **Suite runtime:** the integration exit check takes 15 min with 3 workers. The new t19 stall test
   (60 s) and the t18 restart test (about 20 s) are named `*timing*`, so per-commit scoring skips them.
-- **15 orphaned `minidb serve` processes from earlier sessions** are still running (all about 13 h
-  old, in pytest garbage dirs, started before B6c's fixture fix). This session's runs left none. I did
-  not kill them; `pkill -f "minidb serve --data-dir /private/var/folders"` plus the two under
-  `/private/tmp/claude-502/rh.*` would clear them.
-- **`test_hung_command_is_killed_by_timeout`** would be more robust with `pgrep -fx "sleep 60"` (exact
-  match). Not changed in this phase.
+- **Leftover `minidb serve` processes from earlier sessions** (14 at the end; all at least 15 h old,
+  in pytest garbage dirs, started before B6c's fixture fix) were stopped with the owner's OK. This
+  session's runs left none.
+- **`test_hung_command_is_killed_by_timeout`** now uses `pgrep -fx "sleep 60"` (the whole command
+  line), so an unrelated `sleep 600` no longer fails it. It passes with a `sleep 600` decoy running and
+  still finds real `sleep 60` children.
+
+**Owner review (2026-10-21):** the B6e plan for the t01 format test and the widened stage-7 and
+stage-9 surfaces are accepted.

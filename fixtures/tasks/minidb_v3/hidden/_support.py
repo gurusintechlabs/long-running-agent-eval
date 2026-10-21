@@ -115,6 +115,21 @@ class Response:
         return f"<Response {self.status} {self.body[:300]!r}>"
 
 
+class RawReply:
+    """What came back on a raw connection: the bytes, whether the server closed it, and when."""
+
+    def __init__(self, data: bytes, closed: bool, elapsed: float) -> None:
+        self.data, self.closed, self.elapsed = data, closed, elapsed
+
+    @property
+    def status(self) -> int | None:
+        line = self.data.split(b"\r\n", 1)[0].split()
+        return int(line[1]) if len(line) >= 2 and line[0].startswith(b"HTTP/") and line[1].isdigit() else None
+
+    def __repr__(self) -> str:
+        return f"<RawReply closed={self.closed} after {self.elapsed:.1f}s {self.data[:200]!r}>"
+
+
 class ServerExited(RuntimeError):
     pass
 
@@ -259,6 +274,44 @@ class Server:
         assert r.status == 200, r
         return r.json()["results"]
 
+    def declared_body(self, method: str, path: str, length: int, *, key: str | None | type = ...,
+                      timeout: float = 10) -> RawReply:
+        """Headers announcing a body of ``length`` bytes, and no body: the size check must not wait."""
+        k = self.admin_key if key is ... else key
+        auth = f"Authorization: Bearer {k}\r\n" if k is not None else ""
+        return self.raw(f"{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\n{auth}Content-Type: application/json\r\n"
+                        f"Content-Length: {length}\r\nConnection: close\r\n\r\n".encode(), timeout=timeout)
+
+    def raw(self, data: bytes, *, timeout: float = 15, then_wait: float = 0.0) -> RawReply:
+        """Send raw bytes on a fresh connection; read until the server closes it or ``timeout``."""
+        t0 = time.monotonic()
+        s = socket.create_connection(("127.0.0.1", self.port), timeout=timeout)
+        try:
+            s.sendall(data)
+            if then_wait:
+                time.sleep(then_wait)
+            buf = b""
+            closed = False
+            while True:
+                left = timeout - (time.monotonic() - t0)
+                if left <= 0:
+                    break
+                s.settimeout(left)
+                try:
+                    chunk = s.recv(65536)
+                except TimeoutError:
+                    break
+                except OSError:
+                    closed = True
+                    break
+                if not chunk:
+                    closed = True
+                    break
+                buf += chunk
+            return RawReply(buf, closed, time.monotonic() - t0)
+        finally:
+            s.close()
+
     def __enter__(self) -> Server:
         return self
 
@@ -271,6 +324,31 @@ def server(tmp_path):
     s = Server(tmp_path / "srv")
     yield s
     s.close()
+
+
+@pytest.fixture(scope="module")
+def shared(tmp_path_factory):
+    """One server per test module (tests use their own table / collection names)."""
+    s = Server(tmp_path_factory.mktemp("shared"))
+    yield s
+    s.close()
+
+
+def cli_results(script: str, *, db: Path | None = None) -> list[dict]:
+    """The result objects ``python -m minidb [--db PATH]`` prints for ``script``."""
+    p = run_cli(["--db", str(db)] if db else [], input=script, timeout=120)
+    assert p.returncode == 0, p.stderr[-2000:]
+    return [json.loads(line) for line in p.stdout.splitlines() if line.strip()]
+
+
+def tree_state(path: Path) -> dict[str, bytes]:
+    """Every file under ``path`` with its bytes (to show that nothing changed)."""
+    path = Path(path)
+    return {p.relative_to(path).as_posix(): p.read_bytes() for p in sorted(path.rglob("*")) if p.is_file()}
+
+
+def unique(prefix: str = "t") -> str:
+    return f"{prefix}_{secrets.token_hex(4)}"
 
 
 # ------------------------------------------------------------------ fake embedding service

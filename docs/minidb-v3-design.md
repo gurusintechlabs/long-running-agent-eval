@@ -228,6 +228,13 @@ testable black-box).
 Limits must be fair (comfortably met by the reference) and discriminating (missed by the naive design
 of the previous stage), as in v2.
 
+**Measured on the stage-2 reference (B6b, this machine, hidden dataset, 20,000 × 96, `hnsw` defaults,
+over HTTP):** upsert 16.4 s (limit 60 s); recall@10 at `ef` 64 1.000 (limit 0.95; 0.983 at `ef` 16);
+median latency 1.9 ms (limit 15 ms); a clean restart is ready in 0.4 s. Exact (`flat`) search on the
+same data has a median of 3.3 ms, so the latency limit alone cannot tell an index from an exact scan at
+this size. t09 therefore also checks `explain.candidates` (points scored exactly) against 10% of the
+collection. The stage-2 limits stay as briefed; the later limits are still placeholders.
+
 ## 11. Run sizing and cost (to be confirmed after the B6 blind build)
 
 - `run.duration_min: 360` (upper bound) and `checkpoint_interval_min: 20`.

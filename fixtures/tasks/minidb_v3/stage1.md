@@ -7,9 +7,10 @@ pytest` green, commit at least once per section, and end with a STATUS block.
 ## 1.1 The `VECTOR` SQL type
 
 - Column type `VECTOR(n)`, 1 <= n <= 4096. A literal is `VECTOR '[1, 2.5, -3]'` (a JSON array of
-  numbers inside a string). On the wire a vector is a JSON array of floats (`[1.0, 2.5, -3.0]`).
-  Storing a vector of another length in a `VECTOR(n)` column is a `TypeError`; so is a malformed
-  literal or an empty array.
+  numbers inside a string). The result protocol carries scalars only, so in query results (stdin and
+  `/v1/sql`) a vector value is the text of a JSON array of floats (`"[1.0, 2.5, -3.0]"`); `typeof`
+  of a vector is `'VECTOR'`. Storing a vector of another length in a `VECTOR(n)` column is a
+  `TypeError`; so is a malformed literal or an empty array.
 - Functions `l2_distance(a, b)` (Euclidean distance), `cosine_distance(a, b)` (`1 - cos(a, b)`) and
   `inner_product(a, b)`, all returning `REAL`. Different lengths, or a non-vector argument, are a
   `TypeError`; `NULL` in gives `NULL`; `cosine_distance` with a zero vector is a `RuntimeError`.
@@ -36,9 +37,12 @@ A collection holds points `{"id", "vector", "payload"}` of one dimension and one
 - `PUT /v1/collections/{name}/points` with `{"points": [{"id": 7, "vector": [...], "payload": {...}}]}`
   inserts or replaces points: `200` `{"upserted": n}`. Ids are non-negative integers below 2^63.
   `payload` is a JSON object or `null`/absent (stored as `null`), at most 65,536 bytes as JSON. At most
-  1,000 points per request. A request is validated as a whole: if any point is invalid (wrong
-  dimension, bad id, non-finite number, oversized payload, a duplicate id within the request, a zero
-  vector in a `cosine` collection), it is `400` and nothing is written.
+  1,000 points per request, and the body of this request may be up to 8 MiB (8,388,608 bytes; the
+  1 MiB limit of 0.2 still applies to every other request). A request is validated as a whole: if
+  any point is invalid (wrong dimension, bad id, non-finite number, oversized payload, a duplicate id
+  within the request, a zero vector in a `cosine` collection), it is `400` and nothing is written.
+- Vector components are stored as 32-bit floats: a point's vector comes back rounded to the nearest
+  float32, and scores are computed from the stored values.
 - `GET /v1/collections/{name}/points/{id}` answers the point; an unknown id is `404`.
 - `POST /v1/collections/{name}/points/delete` with `{"ids": [...]}` deletes them (unknown ids are
   ignored): `200` `{"deleted": <number actually deleted>}`.

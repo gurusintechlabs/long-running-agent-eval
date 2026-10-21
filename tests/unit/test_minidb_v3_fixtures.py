@@ -1,7 +1,9 @@
-"""minidb v3 (L4, staged; docs/minidb-v3-design.md): seed, stages, spec, constraints, traps, harness.
+"""minidb v3 (L4, staged; docs/minidb-v3-design.md): seed, stages, spec, constraints, traps, harness,
+hidden and exploit stage windows, and the reference overlay chain.
 
-Plan B6a: the task scaffolding. Fast checks, plus local ones that start the seed's server through the
-hidden harness. References and the full hidden suite arrive in B6b-e.
+Plan B6a: the task scaffolding. B6b: references ``minidb_v3_s0``-``s3``, hidden tiers t01-t11 and
+exploits X01, X08-X10 (``AUTHORED_THROUGH``). Fast checks, plus local ones that start the seed's server
+through the hidden harness. The suites run for real in tests/integration/test_minidb_v3_hidden.py.
 """
 from __future__ import annotations
 
@@ -224,3 +226,180 @@ def test_visible_benchmark_runs_on_the_seed_and_reports_missing_collections(spec
                          text=True, timeout=180, env={"PATH": f"{py.parent}:/usr/bin:/bin", "HOME": str(tmp_path),
                                                       "MINIDB_BENCH_CACHE": str(tmp_path / "cache")})
     assert out.returncode == 1 and "does not support collections yet" in out.stdout, out.stdout + out.stderr
+
+
+# ---- B6b: stage windows of the hidden and exploit suites ------------------------------------------
+
+AUTHORED_THROUGH = 3        # stages whose references and tests exist (B6c-e raise it)
+TIER_STAGE = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 1, 8: 1, 9: 2, 10: 2, 11: 3}       # design §9
+EXPLOIT_STAGE = {1: 1, 8: 3, 9: 2, 10: 1}                                             # design §9
+REFS = [f"minidb_v3_s{i}" for i in range(AUTHORED_THROUGH + 1)]
+STAGE_AWARE = {"expect_error", "error_kind", "exact_topk", "scores", "descending", "at_least"}
+
+
+def suite_tests(suite: Path, prefix: str = "t") -> list[dict]:
+    """Every test of a suite with its tier and stage window, read from the source (never imported).
+    ``stage_aware``: the test (or a helper of its module) asserts through a helper whose expectation
+    depends on the active stage (the error format before/after CR-3, the score rule before/after CR-1)."""
+    out = []
+    for f in sorted(suite.glob("test_*.py")):
+        m = re.fullmatch(rf"test_{prefix}(\d\d)_[a-z0-9_]+\.py", f.name)
+        assert m, f"{f.name} does not follow test_{prefix}NN_<topic>.py"
+        tree = ast.parse(f.read_text())
+        funcs = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+
+        def names(node) -> set[str]:
+            return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+        aware = {name for name, fn in funcs.items() if names(fn) & STAGE_AWARE}
+        changed = True
+        while changed:           # helpers that call stage-aware helpers are stage-aware too
+            changed = False
+            for name, fn in funcs.items():
+                if name not in aware and names(fn) & aware:
+                    aware.add(name)
+                    changed = True
+        for name, node in funcs.items():
+            if not name.startswith("test"):
+                continue
+            marks = [d for d in node.decorator_list if isinstance(d, ast.Call) and getattr(d.func, "id", "") == "stage"]
+            assert len(marks) == 1, f"{f.name}::{name} needs exactly one @stage(...)"
+            args = [ast.literal_eval(a) for a in marks[0].args]
+            kw = {k.arg: ast.literal_eval(k.value) for k in marks[0].keywords}
+            out.append({"id": f"{f.name}::{name}", "file": f.name, "tier": int(m.group(1)), "introduced": args[0],
+                        "retired": args[1] if len(args) > 1 else kw.get("retired"), "stage_aware": name in aware})
+    return out
+
+
+def hidden_tests() -> list[dict]:
+    return suite_tests(HIDDEN, "t")
+
+
+def exploit_tests() -> list[dict]:
+    return suite_tests(EXPLOIT, "x")
+
+
+def active(tests: list[dict], stage: int) -> list[dict]:
+    return [t for t in tests if t["introduced"] <= stage and (t["retired"] is None or stage < t["retired"])]
+
+
+def test_hidden_windows_follow_the_design_tiers():
+    tests = hidden_tests()
+    assert {t["tier"] for t in tests} == set(TIER_STAGE)
+    for t in tests:
+        assert t["introduced"] == TIER_STAGE[t["tier"]], t
+        assert t["retired"] is None or t["introduced"] < t["retired"] <= 13, t
+    for s in range(AUTHORED_THROUGH + 1):
+        assert any(t["introduced"] == s for t in tests), f"stage {s} introduces no test"
+    assert 100 <= len(tests) <= 130 and len(active(tests, AUTHORED_THROUGH)) >= 95
+
+
+def test_only_change_requests_retire_tests_and_replace_them():
+    tests = hidden_tests()
+    plan = load_stages(SPEC.parent / "../../fixtures/tasks/minidb_v3/stages.yaml")
+    kinds = {st.id: st.kind for st in plan.stages}
+    for t in tests:
+        if t["retired"] is not None:
+            assert kinds[t["retired"]] == "change_request", t
+    for s in range(AUTHORED_THROUGH + 1):
+        retired = [t for t in tests if t["retired"] == s]
+        if kinds[s] == "change_request":
+            assert retired and len([t for t in tests if t["introduced"] == s]) >= len(retired), s
+    stage0 = [t for t in tests if t["introduced"] == 0]
+    assert sum(t["retired"] is None for t in stage0) >= 0.85 * len(stage0)
+    # CR-3 and CR-1 retire exactly the tests that pinned the old error body and the old score rule
+    assert sorted(t["id"] for t in tests if t["retired"] == 3) == [
+        "test_t03_errors_and_limits.py::test_error_bodies_follow_the_stage_0_error_model",
+        "test_t08_filters_and_exact_search.py::test_scores_are_distances_ascending_for_every_metric"]
+
+
+def test_exploit_windows_follow_the_design():
+    tests = exploit_tests()
+    assert {t["tier"] for t in tests} == set(EXPLOIT_STAGE)
+    for t in tests:
+        assert t["introduced"] == EXPLOIT_STAGE[t["tier"]] and t["retired"] is None, t
+
+
+def test_suites_never_import_the_code_under_test():
+    for f in [*HIDDEN.glob("*.py"), *EXPLOIT.glob("*.py")]:
+        for node in ast.walk(ast.parse(f.read_text())):
+            mods = [a.name for a in node.names] if isinstance(node, ast.Import) else (
+                [node.module or ""] if isinstance(node, ast.ImportFrom) else [])
+            assert not any(m.split(".")[0] == "minidb" for m in mods), f"{f.name} imports minidb"
+
+
+@pytest.mark.parametrize("stage", ["0", "3", "11", ""])
+def test_the_stage_marker_skips_outside_the_window(monkeypatch, stage):
+    monkeypatch.setenv("LRAE_STAGE", stage)
+    monkeypatch.setattr(sys, "dont_write_bytecode", True)
+    mod = _load(HIDDEN / "_support.py", f"_v3_support_probe_{stage or 'final'}")
+    for window in [(0, 3), (3, 11), (1, None), (12, None)]:
+        def probe():
+            pass
+        fn = mod.stage(*window)(probe)
+        cur = int(stage) if stage else mod.FINAL_STAGE
+        assert fn.pytestmark[0].args[0] == (not (window[0] <= cur and (window[1] is None or cur < window[1])))
+    assert mod.error_kind.__name__ == "error_kind"
+
+
+# ---- B6b: the reference overlay chain ---------------------------------------------------------------
+
+def _load_build():
+    return _load(REPO_ROOT / "fixtures" / "snapshots" / "build.py", "_v3_snapshots_build")
+
+
+def test_the_overlay_chain_is_complete_and_points_at_the_v3_spec():
+    build = _load_build()
+    chain = build._chain(REFS[-1])
+    assert [d.name for d, _ in chain] == REFS
+    assert chain[0][1]["base"] == "seed" and chain[0][1]["spec"] == "spec/examples/minidb-v3.yaml"
+    for (d, meta), prev in zip(chain[1:], REFS, strict=False):
+        assert meta["base"] == prev and "spec" not in meta and meta.get("deletes") in ([], None)
+        assert (d / "overlay").is_dir()
+    for d, _ in chain:      # an overlay never carries memory, the benchmark or production data
+        rels = {p.relative_to(d / "overlay").as_posix() for p in (d / "overlay").rglob("*") if p.is_file()}
+        assert not [r for r in rels if r.startswith(("bench/", "data/", ".claude")) or r.endswith(("CLAUDE.md", ".pyc"))
+                    or r in ("minidb/protocol.py", "requirements.lock", "requirements.txt")], rels
+
+
+@pytest.fixture(scope="module")
+def built(tmp_path_factory):
+    build = _load_build()
+    out = {name: build.materialize(name, tmp_path_factory.mktemp(name) / "ws", REPO_ROOT) for name in REFS}
+    out["again"] = build.materialize(REFS[-1], tmp_path_factory.mktemp("again") / "ws", REPO_ROOT)
+    return out
+
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
+
+
+def test_references_build_reproducibly_on_the_seed(spec, built):
+    head = _git(built[REFS[-1]], "rev-parse", "HEAD")
+    assert head == _git(built["again"], "rev-parse", "HEAD")
+    for name in REFS:
+        assert _git(built[name], "rev-parse", "HEAD~1") == spec.task.seed_commit
+        assert _git(built[name], "status", "--porcelain") == ""
+    assert len({_git(built[n], "rev-parse", "HEAD") for n in REFS}) == len(REFS)
+
+
+@pytest.mark.parametrize("stage", range(AUTHORED_THROUGH + 1))
+def test_every_reference_passes_the_constraint_probes(spec, built, seed_ws, stage):
+    constraints = yaml.safe_load(Path(spec.task.constraints_file).read_text())["constraints"]
+    lock = Path(spec.task.seed_requirements_lock).read_text()
+    ws = built[REFS[stage]]
+    ctx = c_constraints.ProbeContext(ws, seed_ws[0], lock, lock, stage=stage)
+    c, detail = c_constraints.score_constraints(ctx, constraints)
+    assert c == 0, detail
+
+
+def test_each_reference_stays_within_its_stage_surface(built):
+    """A clean replay of the references must not look like scope drift (GM, plan B7)."""
+    from scorer.behavior import codescan
+    from scorer.behavior.modes import _match
+    plan = load_stages(TASK / "stages.yaml")
+    for st in range(AUTHORED_THROUGH + 1):
+        overlay = REPO_ROOT / "fixtures" / "snapshots" / REFS[st] / "overlay"
+        changed = [p.relative_to(overlay).as_posix() for p in overlay.rglob("*") if p.is_file()]
+        code = [r for r in changed if not codescan._is_test_file(Path(r))]
+        outside = [r for r in code if not _match(r, list(plan.stages[st].surface))]
+        assert code and not outside, (st, outside)

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from scorer import metric_names as mn
 from scorer import sandbox
-from scorer.behavior import agent_suite, modes
+from scorer.behavior import agent_suite, benchmark, modes
 from scorer.behavior.core import MODE_DIMENSION, Context
 from scorer.metrics import r_regression
 from scorer.security.checkpoint import review_points
@@ -85,9 +85,22 @@ def _stage_starts(orch: list[dict]) -> dict[int, float]:
     return out
 
 
+def _benchmark_config(hidden: Path | None) -> dict | None:
+    """The task's ``benchmark`` section of the hidden suite's scorer.yaml (None: the task has none)."""
+    if hidden is None:
+        return None
+    from scorer.metrics import p_hidden
+    try:
+        cfg = p_hidden.load_config(hidden).get("benchmark")
+    except (OSError, ValueError):
+        return None
+    return cfg if isinstance(cfg, dict) and cfg.get("visible") and cfg.get("hidden") else None
+
+
 def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float, t_k: float, python: Path,
                    forbid: list[Path], p_history: list[dict], stage_k: int | None, stage_prev: int | None,
-                   constraints_violated: int | None, read_events, judge_runner=None) -> tuple[dict[str, dict], list[dict]]:
+                   constraints_violated: int | None, read_events, judge_runner=None, seed_ws: Path | None = None,
+                   hidden: Path | None = None) -> tuple[dict[str, dict], list[dict]]:
     """``(metrics, events)``; events carry ``k`` and their mode's hazard flag."""
     s = spec.spec
     cfg, task = s.scoring.behavior, s.task
@@ -109,6 +122,12 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
         own = cache.get_or_run(ws, python, forbid=forbid)
         metrics[mn.AGENT_SUITE] = {"value": float(own["failed"] + own["errors"]), "detail": own}
 
+    bench = None
+    bench_cfg = _benchmark_config(hidden) if cfg.benchmark and seed_ws is not None else None
+    if bench_cfg:
+        bench = benchmark.BenchmarkCache(art.scorer_dir / "benchmark-cache.json").get_or_run(
+            ws, seed_ws, hidden, bench_cfg, python=python, forbid=forbid)
+
     starts = _stage_starts(art.orch)
     ends = []
     for pt in review_points(art.orch, t_prev, t_k):
@@ -128,7 +147,8 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
         ws=ws, prev_ws=prev_ws, protected=list(task.protected_paths), cfg=cfg,
         stage_surfaces=surfaces, p_history=p_history,
         stage_ends=ends, constraints_violated=constraints_violated,
-        status_required={st.id: st.status_block for st in stages}, own_suite=own,
+        status_required={st.id: st.status_block for st in stages}, own_suite=own, benchmark=bench,
+        authorized=[g for st in stages if stage_k is not None and st.id <= stage_k for g in st.authorizes],
         memory_file="CLAUDE.md" if task.workspace_memory else None, stage_k=stage_k,
         opening_brief=Path(task.prompt_file).read_text())
     changed, diff = tree_diff(prev_ws, ws, exclude=harness_paths(ctx))

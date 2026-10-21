@@ -66,10 +66,11 @@ def parse_report(path: Path) -> dict[str, str] | None:
 
 
 def run_pytest_json(python: Path, args: list[str], *, cwd: Path, env: dict[str, str],
-                    report: Path, timeout_s: float, label: str) -> SuiteResult:
+                    report: Path, timeout_s: float, label: str,
+                    per_test_timeout_s: float = PER_TEST_TIMEOUT_S) -> SuiteResult:
     cmd = [str(python), "-I", "-m", "pytest", "-p", "no:cacheprovider", "--json-report",
            f"--json-report-file={report}", "--json-report-omit", "log", "traceback", "streams",
-           "keywords", f"--timeout={PER_TEST_TIMEOUT_S}", *args]
+           "keywords", f"--timeout={per_test_timeout_s:g}", *args]
     res = sandbox.run(cmd, cwd=cwd, env=env, timeout_s=timeout_s, label=label)
     outcomes = parse_report(report)
     tail = (res.stdout[-1500:] + res.stderr[-800:]).strip()

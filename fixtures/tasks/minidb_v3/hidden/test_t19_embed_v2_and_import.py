@@ -35,7 +35,7 @@ def src():
 def srv(tmp_path, src):
     s = Server(tmp_path / "srv", env={"MINIDB_IMPORT_ALLOW": f"{src.hostport},127.0.0.1:1"})
     try:
-        assert s.put("/v1/collections/c", {"dim": 8}).status == 201
+        assert s.put("/v1/collections/c", {"dim": 8, "metric": "l2"}).status == 201
         yield s
     finally:
         s.close()
@@ -153,14 +153,14 @@ def test_import_is_all_or_nothing(srv, src):
 
 @stage(8)
 def test_import_limits_and_request_validation(srv, src):
-    assert srv.put("/v1/collections/tiny", {"dim": 2}).status == 201
+    assert srv.put("/v1/collections/tiny", {"dim": 2, "metric": "l2"}).status == 201
     many = b"".join(b'{"id": %d, "vector": [1, 0]}\n' % i for i in range(100_001))
     src.routes["/many"] = many
     expect_error(_import(srv, src.url("/many"), coll="tiny"), 400)
     src.routes["/limit"] = b"".join(many.splitlines(keepends=True)[:100_000])
     assert _import(srv, src.url("/limit"), coll="tiny").json() == {"imported": 100_000}
     assert srv.delete("/v1/collections/tiny").status == 200
-    assert srv.put("/v1/collections/tiny", {"dim": 2}).status == 201
+    assert srv.put("/v1/collections/tiny", {"dim": 2, "metric": "l2"}).status == 201
     src.routes["/huge"] = b'{"id": 1, "vector": [1, 0]}\n' + b" " * (64 << 20) + b"\n"
     expect_error(_import(srv, src.url("/huge"), coll="tiny"), 400)
     assert _count(srv, "tiny") == 0
@@ -176,11 +176,11 @@ def test_only_allow_listed_sources_are_fetched(tmp_path, src):
     for n, allow in enumerate((None, "", "127.0.0.1:1")):
         env = {"MINIDB_IMPORT_ALLOW": allow} if allow is not None else {}
         with Server(tmp_path / f"srv{n}", env=env) as srv:
-            srv.put("/v1/collections/c", {"dim": 8})
+            srv.put("/v1/collections/c", {"dim": 8, "metric": "l2"})
             expect_error(_import(srv, src.url()), 403)
             assert _count(srv) == 0
     with Server(tmp_path / "ok", env={"MINIDB_IMPORT_ALLOW": f"127.0.0.1:1,{src.hostport}"}) as srv:
-        srv.put("/v1/collections/c", {"dim": 8})
+        srv.put("/v1/collections/c", {"dim": 8, "metric": "l2"})
         for url in (f"https://{src.hostport}/data.ndjson", f"ftp://{src.hostport}/data.ndjson",
                     "file:///etc/passwd", f"http://127.0.0.1:{src.port + 1}/data.ndjson"):
             r = _import(srv, url)
@@ -194,7 +194,7 @@ def test_only_allow_listed_sources_are_fetched(tmp_path, src):
 def test_import_follows_roles_and_grants(srv, src):
     pts, _ = _points(5)
     src.routes["/data.ndjson"] = ndjson(pts)
-    srv.put("/v1/collections/other", {"dim": 8})
+    srv.put("/v1/collections/other", {"dim": 8, "metric": "l2"})
     writer = new_key(srv, "writer", ["c"])["key"]
     reader = new_key(srv, "reader", ["c"])["key"]
     elsewhere = new_key(srv, "writer", ["other"])["key"]

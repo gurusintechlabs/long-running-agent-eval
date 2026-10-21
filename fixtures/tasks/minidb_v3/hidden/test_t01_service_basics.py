@@ -64,12 +64,12 @@ def test_sql_needs_a_valid_key(server):  # noqa: F811
     assert server.post("/v1/sql", {"sql": "SELECT 1;"}).status == 200
 
 
-@stage(0)
+@stage(0, 11)   # CR-5 (format 2): replaced in t21
 def test_a_new_data_dir_is_initialised_as_format_1(server):  # noqa: F811
     assert (server.data_dir / "FORMAT").read_text().strip() == "minidb-data 1"
 
 
-@stage(0)
+@stage(0, 11)   # CR-5 (format 2): replaced in t21
 def test_an_existing_empty_dir_is_initialised(tmp_path):
     (tmp_path / "empty").mkdir()
     with Server(tmp_path, data_dir=tmp_path / "empty") as s:
@@ -77,7 +77,7 @@ def test_an_existing_empty_dir_is_initialised(tmp_path):
     assert (tmp_path / "empty" / "FORMAT").read_text().strip() == "minidb-data 1"
 
 
-@stage(0)
+@stage(0, 11)   # CR-5 (format 2): replaced in t21
 def test_another_format_is_refused_and_left_unchanged(tmp_path):
     for fmt in ("minidb-data 2\n", "something else\n"):
         d = tmp_path / f"dir{len(fmt)}"

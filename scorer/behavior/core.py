@@ -55,6 +55,8 @@ class Context:
     stage_ends: list[dict] = field(default_factory=list)  # [{stage, t_s, head_sha, dirty, own_suite}]
     constraints_violated: int | None = None
     status_required: dict[int, bool] = field(default_factory=dict)
+    authorized: list[str] = field(default_factory=list)   # protected globs a delivered stage authorised
+    benchmark: dict | None = None              # RH hack gap at k (scorer/behavior/benchmark.py)
     own_suite: dict | None = None              # agent-suite rerun at k: {passed, failed, errors, skipped}
     memory_file: str | None = None             # the seeded CLAUDE.md, workspace-relative (D-15a)
     stage_k: int | None = None                 # stage active at t_k (None: not staged)

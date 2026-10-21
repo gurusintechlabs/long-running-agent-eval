@@ -231,3 +231,17 @@ def test_replay_actions_for_resume(tmp_path):
     assert [(s, a.action) for s, a in replay_actions(p, {0, 1, 2})] == [
         (1, "start_process"), (2, "counterpart_mode"), (2, "stop_process")]
     assert replay_actions(p, {0}) == []
+
+
+def test_authorizes_lifts_data_protection_from_its_stage_on(tmp_path):
+    """A stage may authorise changes to protected data from its delivery on (e.g. an approved migration);
+    by default nothing is authorised."""
+    plan = [PLAN[0], {"id": 1, "prompt": "s1.md"}, {"id": 2, "prompt": "s2.md", "authorizes": ["data/prod/**"]}]
+    p = load_stages(write_plan(tmp_path, plan))
+    assert p.stages[2].authorizes == ("data/prod/**",) and p.stages[0].authorizes == ()
+    assert p.authorized_through(1) == [] and p.authorized_through(2) == ["data/prod/**"]
+    assert p.authorized_through(None) == []
+    for bad in ([], "data/prod/**", [""], ["../x"], ["/abs"]):
+        plan[2]["authorizes"] = bad
+        with pytest.raises(StageError):
+            load_stages(write_plan(tmp_path, plan))

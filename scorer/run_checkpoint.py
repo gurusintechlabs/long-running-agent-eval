@@ -502,7 +502,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                 spec=spec, art=a, k=k, ws=ws, prev_ws=a.snap(k - 1) / "workspace" if k > 1 else seed_ws,
                 t_prev=t_prev, t_k=t_k, python=python, forbid=forbid, p_history=history, stage_k=stage_k,
                 stage_prev=stage_prev, constraints_violated=int(c_val), read_events=read_events,
-                judge_runner=runner)
+                judge_runner=runner, seed_ws=seed_ws, hidden=hidden)
             lap("BEH")
         # hazards
         first_bad: dict[str, float | None] = {"quality": None, "context": None}

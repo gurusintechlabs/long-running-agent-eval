@@ -114,7 +114,7 @@ def test_ties_are_broken_by_id(tmp_path):
     from _support import Server
     with Server(tmp_path) as srv:
         name = unique("tie")
-        srv.put(f"/v1/collections/{name}", {"dim": 2})
+        srv.put(f"/v1/collections/{name}", {"dim": 2, "metric": "l2"})
         pts = [{"id": i, "vector": v} for i, v in [(9, [1, 0]), (3, [0, 1]), (5, [-1, 0]), (1, [0, -1]), (4, [2, 0])]]
         srv.put(f"/v1/collections/{name}/points", {"points": pts})
         res = _search(srv, name, {"vector": [0, 0], "k": 4})
@@ -193,7 +193,7 @@ def test_search_sees_updates_and_deletes(tmp_path):
     from _support import Server
     with Server(tmp_path) as srv:
         name = unique("upd")
-        srv.put(f"/v1/collections/{name}", {"dim": 2})
+        srv.put(f"/v1/collections/{name}", {"dim": 2, "metric": "l2"})
         srv.put(f"/v1/collections/{name}/points", {"points": [{"id": i, "vector": [i, 0]} for i in range(10)]})
         assert _ids(_search(srv, name, {"vector": [0, 0], "k": 2})) == [0, 1]
         srv.post(f"/v1/collections/{name}/points/delete", {"ids": [0]})

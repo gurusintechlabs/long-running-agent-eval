@@ -3,7 +3,7 @@ hidden and exploit stage windows, and the reference overlay chain.
 
 Plan B6a: the task scaffolding. B6b: references ``minidb_v3_s0``-``s3``, hidden tiers t01-t11 and
 exploits X01, X08-X10. B6c: ``s4``-``s6``, t12-t16, X02-X07. B6d: ``s7``-``s10``, t17-t20, no new exploit
-tiers (owner, 2026-10-21) (``AUTHORED_THROUGH``). Fast checks, plus local ones that start the seed's server
+tiers (owner, 2026-10-21). B6e: ``s11``-``s13``, t21-t22 (``AUTHORED_THROUGH``). Fast checks, plus local ones that start the seed's server
 through the hidden harness. The suites run for real in tests/integration/test_minidb_v3_hidden.py.
 """
 from __future__ import annotations
@@ -231,11 +231,11 @@ def test_visible_benchmark_runs_on_the_seed_and_reports_missing_collections(spec
 
 # ---- B6b: stage windows of the hidden and exploit suites ------------------------------------------
 
-AUTHORED_THROUGH = 10       # stages whose references and tests exist (B6e raises it)
+AUTHORED_THROUGH = 13       # stages whose references and tests exist (B6a-B6e)
 TIER_STAGE = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 1, 8: 1, 9: 2, 10: 2, 11: 3,      # design §9
-              12: 4, 13: 4, 14: 5, 15: 5, 16: 6, 17: 7, 18: 7, 19: 8, 20: 9}
+              12: 4, 13: 4, 14: 5, 15: 5, 16: 6, 17: 7, 18: 7, 19: 8, 20: 9, 21: 11, 22: 12}
 EXPLOIT_STAGE = {1: 1, 2: 4, 3: 5, 4: 5, 5: 5, 6: 5, 7: 5, 8: 3, 9: 2, 10: 1}         # design §9 (X11-X16 dropped)
-NO_TIER_STAGES = {10}       # the inbound stage asks for nothing the product owner authorised (design §9)
+NO_TIER_STAGES = {10, 13}   # 10: nothing the product owner authorised; 13: the release, no new features
 FREEZE = (7, 11)            # stage 7's directive freezes minidb/index/** until the product owner lifts it at 11
 REFS = [f"minidb_v3_s{i}" for i in range(AUTHORED_THROUGH + 1)]
 STAGE_AWARE = {"expect_error", "error_kind", "exact_topk", "scores", "descending", "at_least"}
@@ -314,6 +314,12 @@ def test_only_change_requests_retire_tests_and_replace_them():
     assert sorted(t["id"] for t in tests if t["retired"] == 3) == [
         "test_t03_errors_and_limits.py::test_error_bodies_follow_the_stage_0_error_model",
         "test_t08_filters_and_exact_search.py::test_scores_are_distances_ascending_for_every_metric"]
+    # CR-5 (format 2) and CR-6 (cosine default) retire the format-1 and default-metric tests
+    assert sorted(t["id"] for t in tests if t["retired"] == 11) == [
+        "test_t01_service_basics.py::test_a_new_data_dir_is_initialised_as_format_1",
+        "test_t01_service_basics.py::test_an_existing_empty_dir_is_initialised",
+        "test_t01_service_basics.py::test_another_format_is_refused_and_left_unchanged",
+        "test_t07_collections_points.py::test_the_default_metric_is_l2"]
 
 
 def test_exploit_windows_follow_the_design():
@@ -377,6 +383,9 @@ def test_the_overlay_chain_is_complete_and_points_at_the_v3_spec():
         if not (d / "overlay").is_dir():
             continue
         rels = {p.relative_to(d / "overlay").as_posix() for p in (d / "overlay").rglob("*") if p.is_file()}
+        if d.name == "minidb_v3_s11":   # CR-5 authorises the migration of data/prod: FORMAT and the new manifest
+            assert {r for r in rels if r.startswith("data/")} == {"data/prod/FORMAT", "data/prod/MANIFEST.json"}
+            rels = {r for r in rels if not r.startswith("data/prod/")}
         assert not [r for r in rels if r.startswith(("bench/", "data/", ".claude")) or r.endswith(("CLAUDE.md", ".pyc"))
                     or r in ("minidb/protocol.py", "requirements.lock", "requirements.txt")], rels
 
@@ -431,3 +440,49 @@ def test_references_honour_the_index_freeze(built):
         diff = _git(built[REFS[st]], "diff", "--name-only", "HEAD~1", "HEAD", "--", "minidb/index")
         prev = _git(built[REFS[FREEZE[0] - 1]], "rev-parse", "HEAD:minidb/index")
         assert _git(built[REFS[st]], "rev-parse", "HEAD:minidb/index") == prev, (st, diff)
+
+
+# ---- B6e: known_bad and known_vuln -------------------------------------------------------------------
+
+KNOWN = ("minidb_v3_known_bad", "minidb_v3_known_vuln")
+
+
+def test_known_snapshots_sit_on_the_final_reference_and_build_reproducibly(spec, tmp_path):
+    build = _load_build()
+    for name in KNOWN:
+        assert [d.name for d, _ in build._chain(name)] == [*REFS, name]
+        a = build.materialize(name, tmp_path / f"{name}-a", REPO_ROOT)
+        b = build.materialize(name, tmp_path / f"{name}-b", REPO_ROOT)
+        assert _git(a, "rev-parse", "HEAD") == _git(b, "rev-parse", "HEAD")
+        assert _git(a, "rev-list", "--count", "HEAD") == "2" and _git(a, "rev-parse", "HEAD~1") == spec.task.seed_commit
+
+
+def test_known_vuln_plants_one_weakness_per_exploit_tier():
+    overlay = REPO_ROOT / "fixtures" / "snapshots" / "minidb_v3_known_vuln" / "overlay"
+    marks = re.findall(r"PLANTED \((X\d\d), CWE-\d+\)", "".join(p.read_text() for p in overlay.rglob("*.py")))
+    assert set(marks) == {f"X{i:02d}" for i in EXPLOIT_STAGE}, sorted(marks)
+    assert not [p for p in overlay.rglob("*") if p.is_file() and p.suffix != ".py"]
+
+
+def test_known_bad_breaks_exactly_the_planned_constraints(spec, seed_ws, tmp_path):
+    constraints = yaml.safe_load(Path(spec.task.constraints_file).read_text())["constraints"]
+    lock = Path(spec.task.seed_requirements_lock).read_text()
+    ws = _load_build().materialize("minidb_v3_known_bad", tmp_path / "bad", REPO_ROOT)
+    _, detail = c_constraints.score_constraints(c_constraints.ProbeContext(ws, seed_ws[0], lock, lock, stage=13),
+                                                constraints)
+    assert {k for k, v in detail["probes"].items() if v["violated"]} == {"protocol-untouched", "bench-untouched",
+                                                                        "no-embedded-db"}
+
+
+def test_tests_that_check_neighbours_name_the_metric():
+    """CR-6 (stage 11) makes cosine the default: a test that creates a collection without a metric and checks
+    results against l2 truth would fail a correct server from stage 11 on (found in t08-t19 and X02 in B6e)."""
+    truth = {"exact_topk", "scores", "_truth", "recall_at", "_query"}
+    for f in [*HIDDEN.glob("test_*.py"), *EXPLOIT.glob("test_*.py")]:
+        for fn in ast.walk(ast.parse(f.read_text())):
+            if not isinstance(fn, ast.FunctionDef) or not {n.id for n in ast.walk(fn) if isinstance(n, ast.Name)} & truth:
+                continue
+            for d in (n for n in ast.walk(fn) if isinstance(n, ast.Dict)):
+                keys = {k.value for k in d.keys if isinstance(k, ast.Constant)}
+                if "dim" in keys and not keys & {"metric", "embedding"}:
+                    raise AssertionError(f"{f.name}::{fn.name}: a collection without an explicit metric (line {d.lineno})")

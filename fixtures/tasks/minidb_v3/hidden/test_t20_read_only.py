@@ -41,7 +41,7 @@ def _populate(srv, embed):
     srv.sql("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT); INSERT INTO t VALUES (1, 'a'), (2, 'b'), (3, 'c');")
     base, queries = clustered(1500, dim=16, queries=5, seed=2009, clusters=8)
     for coll, index in (("plain", None), ("graph", {"type": "hnsw", "m": 8, "ef_construction": 64})):
-        assert srv.put(f"/v1/collections/{coll}", {"dim": 16, **({"index": index} if index else {})}).status == 201
+        assert srv.put(f"/v1/collections/{coll}", {"dim": 16, "metric": "l2", **({"index": index} if index else {})}).status == 201
         upsert_all(srv, coll, base, payload=lambda i: {"g": i % 4})
     srv.put("/v1/collections/docs", {"dim": 96, "metric": "cosine", "embedding": "service"})
     r = srv.put("/v1/collections/docs/points/text", {"points": [{"id": i, "text": t} for i, t in enumerate(TEXTS)]})
@@ -166,7 +166,7 @@ def test_read_only_sees_what_a_crashed_writer_acknowledged(tmp_path, embed):
     w = Server(tmp_path / "writer", embed=embed)
     try:
         w.sql("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT);")
-        w.put("/v1/collections/c", {"dim": 4})
+        w.put("/v1/collections/c", {"dim": 4, "metric": "l2"})
         for i in range(50):
             w.sql(f"INSERT INTO t VALUES ({i}, 'v{i}');")
             assert w.put("/v1/collections/c/points", {"points": [{"id": i, "vector": [i, 0, 0, 1], "payload": {"i": i}}]}

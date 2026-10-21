@@ -39,7 +39,7 @@ def small(tmp_path_factory):
     try:
         base, queries = clustered(4000, queries=30, seed=1212)
         for kind in TYPES:
-            srv.put(f"/v1/collections/{kind}", {"dim": base.shape[1]})
+            srv.put(f"/v1/collections/{kind}", {"dim": base.shape[1], "metric": "l2"})
             upsert_all(srv, kind, base, payload=lambda i: {"parity": i % 2})
             r = srv.put(f"/v1/collections/{kind}/index", _small_index(kind), timeout=600)
             assert r.status == 200, r
@@ -54,10 +54,10 @@ def big(tmp_path_factory):
     try:
         base, queries = clustered(N, queries=100)
         warm, _ = clustered(2000, seed=5)                  # the server's own code paths, before measuring
-        srv.put("/v1/collections/warm", {"dim": 96})
+        srv.put("/v1/collections/warm", {"dim": 96, "metric": "l2"})
         upsert_all(srv, "warm", warm)
         srv.delete("/v1/collections/warm")
-        r = srv.put("/v1/collections/big", {"dim": 96, "index": {"type": "ivf_pq"}})
+        r = srv.put("/v1/collections/big", {"dim": 96, "metric": "l2", "index": {"type": "ivf_pq"}})
         assert r.status == 201, r
         upsert_all(srv, "big", base[: N // 2])
         half = srv.rss()
@@ -81,11 +81,11 @@ def _recall(h, params):
 def test_new_index_objects_fill_in_defaults(shared):  # noqa: F811
     for kind, full in DEFAULTS.items():
         name = unique("c")
-        r = shared.put(f"/v1/collections/{name}", {"dim": 32, "index": {"type": kind}})
+        r = shared.put(f"/v1/collections/{name}", {"dim": 32, "metric": "l2", "index": {"type": kind}})
         assert r.status == 201 and r.json()["index"] == full, r
         assert shared.get(f"/v1/collections/{name}").json()["index"] == full
     name = unique("c")
-    r = shared.put(f"/v1/collections/{name}", {"dim": 8, "index": {"type": "ivf_pq", "nlist": 4, "m": 4, "nbits": 4}})
+    r = shared.put(f"/v1/collections/{name}", {"dim": 8, "metric": "l2", "index": {"type": "ivf_pq", "nlist": 4, "m": 4, "nbits": 4}})
     assert r.status == 201 and r.json()["index"] == {"type": "ivf_pq", "nlist": 4, "m": 4, "nbits": 4}, r
     r = shared.put(f"/v1/collections/{name}/index", {"type": "qsg", "m": 8})
     assert r.status == 200 and r.json()["index"] == {"type": "qsg", "degree": 32, "m": 8}, r
@@ -101,7 +101,7 @@ def test_invalid_new_index_objects_are_400(shared):  # noqa: F811
         expect_error(shared.put(f"/v1/collections/{unique('c')}", {"dim": 32, "index": idx}), 400)
     expect_error(shared.put(f"/v1/collections/{unique('c')}", {"dim": 30, "index": {"type": "ivf_pq"}}), 400)
     name = unique("c")
-    shared.put(f"/v1/collections/{name}", {"dim": 32, "index": {"type": "ivf_flat", "nlist": 8}})
+    shared.put(f"/v1/collections/{name}", {"dim": 32, "metric": "l2", "index": {"type": "ivf_flat", "nlist": 8}})
     for idx in bad:
         expect_error(shared.put(f"/v1/collections/{name}/index", idx), 400)
     q = [0.5] * 32
@@ -115,7 +115,7 @@ def test_invalid_new_index_objects_are_400(shared):  # noqa: F811
 @stage(4)
 def test_an_untrained_index_searches_exactly_until_it_has_enough_points(server):  # noqa: F811
     base, queries = clustered(1500, queries=5, seed=33)
-    server.put("/v1/collections/u", {"dim": 96, "index": {"type": "ivf_pq", "nlist": 16}})
+    server.put("/v1/collections/u", {"dim": 96, "metric": "l2", "index": {"type": "ivf_pq", "nlist": 16}})
     upsert_all(server, "u", base[:600])
     q = queries[0]
     out = _search(server, "u", {"vector": q.tolist(), "k": 10, "explain": True})
@@ -188,7 +188,7 @@ def test_new_indexes_survive_a_restart_and_a_crash(tmp_path):
     base, queries = clustered(3000, queries=10, seed=77)
     with Server(tmp_path) as srv:
         for kind in TYPES:
-            srv.put(f"/v1/collections/{kind}", {"dim": 96, "index": _small_index(kind)})
+            srv.put(f"/v1/collections/{kind}", {"dim": 96, "metric": "l2", "index": _small_index(kind)})
             upsert_all(srv, kind, base)
         before = {kind: [_search(srv, kind, {"vector": q.tolist(), "k": 10})["results"] for q in queries] for kind in TYPES}
         for crash in (False, True):
@@ -263,11 +263,11 @@ def test_qsg_uses_less_memory_than_hnsw(tmp_path):
     for kind in ("hnsw", "qsg"):
         with Server(tmp_path / kind) as srv:
             warm, _ = clustered(2000, seed=5)
-            srv.put("/v1/collections/warm", {"dim": 96})
+            srv.put("/v1/collections/warm", {"dim": 96, "metric": "l2"})
             upsert_all(srv, "warm", warm)
             srv.delete("/v1/collections/warm")
             before = srv.rss()
-            srv.put("/v1/collections/c", {"dim": 96})
+            srv.put("/v1/collections/c", {"dim": 96, "metric": "l2"})
             upsert_all(srv, "c", base)
             assert srv.put("/v1/collections/c/index", {"type": kind}, timeout=900).status == 200
             found = [[x["id"] for x in _search(srv, "c", {"vector": q.tolist(), "k": 10})["results"]] for q in queries]

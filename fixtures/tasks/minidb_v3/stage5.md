@@ -35,7 +35,9 @@ section, and end with a STATUS block.
 
 Each key may make at most `MINIDB_RATE_LIMIT` requests per second (environment variable, default 50;
 a token bucket with that rate and burst). Over the limit: `429` with a `Retry-After` header (whole
-seconds, at least 1). The limit is per key, whatever address or headers the client sends.
+seconds, at least 1). The limit is per key, whatever address or headers the client sends. The
+benchmark in `bench/` sends requests faster than the default allows: run it with `MINIDB_RATE_LIMIT`
+raised (it passes its environment to the server it starts).
 
 ## 5.4 Audit log
 

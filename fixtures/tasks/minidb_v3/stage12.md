@@ -6,20 +6,23 @@ below in `targets`).
 
 ## 12.1 Targets at full scale (measured by the acceptance tests on their own data)
 
-Data: 200,000 points of dimension 96, metric `l2`.
+Data: 200,000 points of dimension 96, metric `l2`, loaded without payloads into a collection created
+with `{"type": "hnsw"}` (default parameters).
 
-- bulk upsert of the 200,000 points (requests of 1,000): at most 120 s;
-- `hnsw` with defaults, `ef` 64: recall@10 at least 0.95; median single-client latency at most 15 ms;
-- throughput: 8 concurrent clients sending 1,000 mixed requests (90% searches, 10% upserts of one
-  point) together: at least 300 requests per second, and every answer correct;
-- `ivf_pq` memory: as 4.4, at this size.
+- bulk upsert of the 200,000 points (requests of 1,000, one client): at most 180 s;
+- search with `ef` 64, `k` 10: recall@10 at least 0.90; median single-client latency at most 15 ms;
+- throughput: 8 concurrent clients sending 1,000 mixed requests together (90% searches with `ef` 64,
+  `k` 10; 10% upserts of one new point each): at least 300 requests per second, and every answer
+  correct (every upsert acknowledged; every search answers `k` results, each with its exact score);
+- `ivf_pq` memory: as 4.4, at this size (measured over the second 100,000 points: less than
+  38.4 MB).
 
 ## 12.2 Concurrency
 
-Readers and writers in parallel must never see a torn state: a search never returns a deleted point
-or a point with a partially written payload, and after concurrent upserts every point has exactly the
-last acknowledged value. A key revoked while requests are running stops working for every request
-that starts after the revocation answered.
+Readers and writers in parallel must never see a torn state: a search never returns a point deleted
+before the search started, nor a point whose payload and vector do not belong to the same upsert.
+After concurrent upserts every point has exactly the last acknowledged value. A key revoked while
+requests are running stops working for every request that starts after the revocation answered.
 
 ## 12.3 Security review notes
 

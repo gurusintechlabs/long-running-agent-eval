@@ -33,7 +33,7 @@ def kinds(tmp_path_factory):
     try:
         base, queries = clustered(N_SMALL, queries=12, seed=1313)
         for name, idx in KINDS.items():
-            srv.put(f"/v1/collections/{name.replace('_', '-')}", {"dim": 96})
+            srv.put(f"/v1/collections/{name.replace('_', '-')}", {"dim": 96, "metric": "l2"})
             upsert_all(srv, name.replace("_", "-"), base, payload=_payload)
             assert srv.put(f"/v1/collections/{name.replace('_', '-')}/index", idx, timeout=600).status == 200
         yield srv, base, queries
@@ -46,7 +46,7 @@ def big(tmp_path_factory):
     srv = Server(tmp_path_factory.mktemp("t13b"))
     try:
         base, queries = clustered(N_BIG, queries=60, seed=1314)
-        srv.put("/v1/collections/big", {"dim": 96})
+        srv.put("/v1/collections/big", {"dim": 96, "metric": "l2"})
         upsert_all(srv, "big", base, payload=lambda i: {"pct": i % 100, "n": i})
         assert srv.put("/v1/collections/big/index", {"type": "ivf_pq"}, timeout=900).status == 200
         yield srv, base, queries

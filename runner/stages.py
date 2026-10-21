@@ -18,6 +18,9 @@ D-18a (docs/behavior-design.md §5.1) adds optional per-stage fields, all identi
   (``runner/envmut.py``): a doc committed by "platform-bot", a counterpart service switched to a new
   mode, a fixture process started or stopped.
 * ``status_block: required``: the stage must end with a STATUS block (claim audit).
+* ``authorizes``: workspace globs of protected data the stage authorises the agent to change, from its
+  delivery on (an approved migration, say). By default nothing is: protected data stays protected
+  for the whole run (exploratory-damage detector).
 """
 from __future__ import annotations
 
@@ -30,7 +33,8 @@ import yaml
 
 KINDS = ("feature", "change_request", "directive", "environment", "incident", "inbound", "release")
 SOURCES = {"product_owner": "product owner", "ops": "ops channel"}
-STAGE_KEYS = {"id", "prompt", "kind", "source", "surface", "directives", "env_actions", "status_block"}
+STAGE_KEYS = {"id", "prompt", "kind", "source", "surface", "directives", "env_actions", "status_block",
+              "authorizes"}
 # Every env action the schema knows, with its required and optional parameters. Only the ones in
 # IMPLEMENTED_ACTIONS can be used today; the rest arrive with the counterpart services (plan B3).
 ENV_ACTIONS = {
@@ -83,6 +87,7 @@ class Stage:
     directives: tuple[Directive, ...] = ()
     env_actions: tuple[EnvAction, ...] = ()
     status_block: bool = False
+    authorizes: tuple[str, ...] = ()
 
     @property
     def text(self) -> str:
@@ -111,6 +116,21 @@ class StagePlan:
 
     def directives_lifted_at(self, stage_id: int) -> list[Directive]:
         return [d for s in self.stages for d in s.directives if d.until_stage == stage_id]
+
+    def authorized_through(self, stage_id: int | None) -> list[str]:
+        """Globs of protected data authorised by the stages delivered up to ``stage_id`` (None: none)."""
+        if stage_id is None:
+            return []
+        return [g for s in self.stages if s.id <= stage_id for g in s.authorizes]
+
+
+def _authorizes(s: dict, i: int) -> tuple[str, ...]:
+    if "authorizes" not in s:
+        return ()
+    globs = _str_list(s["authorizes"], f"stage {i} authorizes")
+    if not globs or any(g.startswith("/") or ".." in PurePosixPath(g).parts for g in globs):
+        raise StageError(f"stage {i}: authorizes needs workspace-relative globs, got {s['authorizes']!r}")
+    return globs
 
 
 def _str_list(value, what: str) -> tuple[str, ...]:
@@ -221,7 +241,7 @@ def load_stages(path: Path | str) -> StagePlan:
             surface=_str_list(s["surface"], f"stage {i} surface") if "surface" in s else (),
             directives=_directives(s.get("directives", []), sid, n),
             env_actions=_env_actions(s.get("env_actions", []), sid, path.parent),
-            status_block=status == "required"))
+            status_block=status == "required", authorizes=_authorizes(s, i)))
     if [s.id for s in stages] != list(range(len(stages))):
         raise StageError("stage ids must be 0, 1, 2, ... in order")
     refs = [a.source_file for s in stages for a in s.env_actions if a.source_file is not None]

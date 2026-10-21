@@ -26,7 +26,7 @@ def small(tmp_path_factory):
     srv = Server(tmp_path_factory.mktemp("t10"))
     try:
         base, queries = clustered(3000, queries=40, seed=1010)
-        srv.put("/v1/collections/small", {"dim": base.shape[1], "index": {"type": "hnsw", "m": 8, "ef_construction": 64}})
+        srv.put("/v1/collections/small", {"dim": base.shape[1], "metric": "l2", "index": {"type": "hnsw", "m": 8, "ef_construction": 64}})
         upsert_all(srv, "small", base, payload=lambda i: {"parity": i % 2, "bucket": i % 10})
         yield srv, base, queries
     finally:
@@ -36,7 +36,7 @@ def small(tmp_path_factory):
 @stage(2)
 def test_the_default_index_is_flat_and_the_object_shows_it(shared):  # noqa: F811
     name = unique("c")
-    r = shared.put(f"/v1/collections/{name}", {"dim": 4})
+    r = shared.put(f"/v1/collections/{name}", {"dim": 4, "metric": "l2"})
     assert r.status == 201 and r.json()["index"] == {"type": "flat"}, r
     assert shared.get(f"/v1/collections/{name}").json()["index"] == {"type": "flat"}
     listed = {c["name"]: c for c in shared.get("/v1/collections").json()["collections"]}
@@ -46,10 +46,10 @@ def test_the_default_index_is_flat_and_the_object_shows_it(shared):  # noqa: F81
 @stage(2)
 def test_hnsw_defaults_are_filled_in(shared):  # noqa: F811
     name = unique("c")
-    r = shared.put(f"/v1/collections/{name}", {"dim": 4, "index": {"type": "hnsw"}})
+    r = shared.put(f"/v1/collections/{name}", {"dim": 4, "metric": "l2", "index": {"type": "hnsw"}})
     assert r.status == 201 and r.json()["index"] == HNSW_DEFAULTS, r
     name = unique("c")
-    r = shared.put(f"/v1/collections/{name}", {"dim": 4, "index": {"type": "hnsw", "m": 4, "ef_construction": 1000}})
+    r = shared.put(f"/v1/collections/{name}", {"dim": 4, "metric": "l2", "index": {"type": "hnsw", "m": 4, "ef_construction": 1000}})
     assert r.json()["index"] == {"type": "hnsw", "m": 4, "ef_construction": 1000}
 
 
@@ -61,7 +61,7 @@ def test_invalid_index_objects_are_400(shared):  # noqa: F811
     for idx in bad:
         expect_error(shared.put(f"/v1/collections/{unique('c')}", {"dim": 4, "index": idx}), 400)
     name = unique("c")
-    shared.put(f"/v1/collections/{name}", {"dim": 4})
+    shared.put(f"/v1/collections/{name}", {"dim": 4, "metric": "l2"})
     for idx in bad:
         expect_error(shared.put(f"/v1/collections/{name}/index", idx), 400)
     expect_error(shared.put(f"/v1/collections/{unique('nope')}/index", {"type": "flat"}), 404)
@@ -70,7 +70,7 @@ def test_invalid_index_objects_are_400(shared):  # noqa: F811
 @stage(2)
 def test_put_index_switches_the_index_of_a_populated_collection(server):  # noqa: F811
     base, queries = clustered(1500, queries=10, seed=99)
-    server.put("/v1/collections/sw", {"dim": base.shape[1]})
+    server.put("/v1/collections/sw", {"dim": base.shape[1], "metric": "l2"})
     upsert_all(server, "sw", base)
     q = queries[0].tolist()
     exact = _search(server, "sw", {"vector": q, "k": 10, "explain": True})
@@ -104,7 +104,7 @@ def test_ef_is_validated_and_raised_to_k(small):
 @stage(2)
 def test_flat_ignores_ef(shared):  # noqa: F811
     name = unique("c")
-    shared.put(f"/v1/collections/{name}", {"dim": 2})
+    shared.put(f"/v1/collections/{name}", {"dim": 2, "metric": "l2"})
     shared.put(f"/v1/collections/{name}/points", {"points": [{"id": i, "vector": [i, 0]} for i in range(30)]})
     out = _search(shared, name, {"vector": [0, 0], "k": 5, "params": {"ef": 1}, "explain": True})
     assert [r["id"] for r in out["results"]] == [0, 1, 2, 3, 4]
@@ -148,7 +148,7 @@ def test_hnsw_follows_updates(small):
 
 @stage(2)
 def test_an_index_set_on_an_empty_collection_is_maintained(server):  # noqa: F811
-    server.put("/v1/collections/e", {"dim": 3, "index": {"type": "hnsw", "m": 4, "ef_construction": 16}})
+    server.put("/v1/collections/e", {"dim": 3, "metric": "l2", "index": {"type": "hnsw", "m": 4, "ef_construction": 16}})
     assert _search(server, "e", {"vector": [1, 0, 0]})["results"] == []
     rng = np.random.default_rng(5)
     vecs = rng.normal(size=(300, 3)).astype(np.float32)

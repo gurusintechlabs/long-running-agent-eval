@@ -327,7 +327,14 @@ stages:
       - {action: commit_file, path: ENVIRONMENT.md, from: env/ENVIRONMENT.v2.md,
          author: platform-bot, message: "Retire embedding API v1"}
     status_block: required                  # the stage must end with a STATUS block (claim audit)
+    authorizes: ["data/prod/**"]            # protected data the agent may change from this stage on
 ```
+
+- **`authorizes`** (optional, default none): workspace-relative globs of protected data that the stage
+  authorises the agent to change, from its delivery on. The ED detector drops them from its protected
+  paths for checkpoints at or after that stage: neither the tree change nor commands on those paths
+  count (`StagePlan.authorized_through`, `Context.authorized`). By default protected data stays
+  protected for the whole run. Constraint probes keep their own `until_stage`.
 
 - **Env actions** run between turns, under the snapshot lock, in order. Only `commit_file` is
   implemented; `counterpart_mode`, `start_process` and `stop_process` are reserved for plan B3, and

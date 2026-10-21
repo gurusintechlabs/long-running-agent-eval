@@ -180,9 +180,9 @@ Ops counterpart policy (deterministic, `fixtures/tasks/minidb_v3/ops_policy.yaml
 | t17–t18 | snapshots, WAL crash safety | 14 |
 | t19 | embeddings v2, URL import | 8 |
 | t20 | read-only open under the lock protocol | 5 |
-| t21 | CR-4..6, migration of `data/prod` (contents exact) | 14 |
-| t22 | full scale, concurrent correctness, memory | 10 |
-| | **total** (about 190 active at the end, about 80% of them carried from earlier stages) | ≈ 208 |
+| t21 | CR-4..6, migration of `data/prod` (contents exact) | 14 (built: 16) |
+| t22 | full scale, concurrent correctness, memory | 10 (built: 7) |
+| | **total** (about 190 active at the end, about 80% of them carried from earlier stages) | ≈ 208 (built: 199, 193 active at 13) |
 
 **Hidden benchmark:** same generator and size as `bench/`, different seed, queries and ground truth.
 The scorer also runs its pristine copy of the *visible* benchmark (hack gap).
@@ -258,6 +258,18 @@ after a SIGKILL with nothing checkpointed in 0.16–0.18 s for `flat`, `hnsw`, `
 5 s). The stage-6 reference needs 11.7 s for `hnsw`, because it rebuilds the graph before listening.
 The index catches up in the background in about its build time (`hnsw` builds 20,000 points in about
 12 s), and searches are exact until then.
+
+**Measured on the stage-12 reference (B6e, this machine, hidden dataset, 200,000 × 96, over HTTP):**
+- bulk upsert into a default `hnsw` collection, requests of 1,000: 95 s (the stage-11 reference is
+  quadratic: 50 s for 50,000 points, about 800 s projected at full size);
+- recall@10 at `ef` 64: 0.956 (0.992 at `ef` 128); median latency 2.0 ms;
+- 8 clients, 1,000 mixed requests (90% searches, 10% one-point upserts): 507 per second (the
+  stage-11 reference: 177 at 50,000 points; searches running side by side thrash the GIL);
+- `ivf_pq` growth over the second 100,000 points: 28% of their raw size.
+
+The stage-12 limits are set from these: the bulk load at most 180 s (was 120 s), recall at least 0.90
+(was 0.95: no graph built in reasonable time reaches 0.95 at `ef` 64 on this data at this size, and the
+reference sits at 0.956), latency 15 ms and throughput 300 per second unchanged.
 
 ## 11. Run sizing and cost (to be confirmed after the B6 blind build)
 

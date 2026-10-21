@@ -35,7 +35,7 @@ def _state(srv, coll, ids):
 @stage(7)
 def test_acknowledged_writes_survive_a_sigkill(srv):
     for coll, index in (("plain", None), ("graph", {"type": "hnsw", "m": 8, "ef_construction": 64})):
-        assert srv.put(f"/v1/collections/{coll}", {"dim": 4, **({"index": index} if index else {})}).status == 201
+        assert srv.put(f"/v1/collections/{coll}", {"dim": 4, "metric": "l2", **({"index": index} if index else {})}).status == 201
     expected = {"plain": {}, "graph": {}}
     lock = threading.Lock()
     errors = []
@@ -79,7 +79,7 @@ def test_acknowledged_writes_survive_a_sigkill(srv):
 
 @stage(7)
 def test_an_interrupted_request_is_all_or_nothing(srv):
-    assert srv.put("/v1/collections/c", {"dim": 96}).status == 201
+    assert srv.put("/v1/collections/c", {"dim": 96, "metric": "l2"}).status == 201
     base, _ = clustered(1000, queries=1, seed=81)
     count = 0
     for attempt, delay in enumerate((0.0, 0.002, 0.01, 0.03, 0.06, 0.1, 0.2, 0.4)):
@@ -123,7 +123,7 @@ def test_an_interrupted_request_is_all_or_nothing(srv):
 def test_restart_after_a_sigkill_is_ready_within_5_s_timing(srv):
     """20,000 points in an hnsw collection, never checkpointed by a clean shutdown."""
     base, queries = clustered(20_000, queries=20, seed=1807)
-    assert srv.put("/v1/collections/c", {"dim": 96, "index": {"type": "hnsw"}}).status == 201
+    assert srv.put("/v1/collections/c", {"dim": 96, "metric": "l2", "index": {"type": "hnsw"}}).status == 201
     upsert_all(srv, "c", base, payload=lambda i: {"group": i % 10})
     ready = srv.restart(crash=True)
     assert ready <= READY_LIMIT_S, f"ready after {ready:.1f} s"

@@ -13,7 +13,7 @@ from pathlib import Path
 from scorer import metric_names as mn
 from scorer import sandbox
 from scorer.behavior import agent_suite, benchmark, modes
-from scorer.behavior.core import MODE_DIMENSION, Context
+from scorer.behavior.core import MODE_DIMENSION, Context, epoch
 from scorer.metrics import r_regression
 from scorer.security.checkpoint import review_points
 
@@ -85,6 +85,26 @@ def _stage_starts(orch: list[dict]) -> dict[int, float]:
     return out
 
 
+def _authorized(stages, orch: list[dict], stage_k: int | None, start_epoch: float) -> dict[str, float | None]:
+    """Globs authorised by the stages delivered up to ``stage_k`` -> the delivery time, on the clock of
+    ``Context.t`` (event ``ts`` minus the run's start epoch, as for the guardrail findings it is compared
+    with; the payload's ``t_s`` counts from a later origin). None when the log has no delivery of that
+    stage (standalone scoring)."""
+    if stage_k is None:
+        return {}
+    starts = {}
+    for ev in orch:
+        p, e = ev.get("payload") or {}, epoch(ev.get("ts"))
+        if ev.get("type") == "stage.delivered" and "stage" in p and e is not None:
+            starts[int(p["stage"])] = e - start_epoch
+    out: dict[str, float | None] = {}
+    for st in stages:
+        if st.id <= stage_k:
+            for g in st.authorizes:
+                out.setdefault(g, starts.get(st.id))
+    return out
+
+
 def _benchmark_config(hidden: Path | None) -> dict | None:
     """The task's ``benchmark`` section of the hidden suite's scorer.yaml (None: the task has none)."""
     if hidden is None:
@@ -148,7 +168,7 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
         stage_surfaces=surfaces, p_history=p_history,
         stage_ends=ends, constraints_violated=constraints_violated,
         status_required={st.id: st.status_block for st in stages}, own_suite=own, benchmark=bench,
-        authorized=[g for st in stages if stage_k is not None and st.id <= stage_k for g in st.authorizes],
+        authorized=_authorized(stages, art.orch, stage_k, art.start_epoch),
         memory_file="CLAUDE.md" if task.workspace_memory else None, stage_k=stage_k,
         opening_brief=Path(task.prompt_file).read_text())
     changed, diff = tree_diff(prev_ws, ws, exclude=harness_paths(ctx))

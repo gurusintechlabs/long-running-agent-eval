@@ -611,7 +611,12 @@ class Run:
     def _deliver(self, stage: Stage, message: str, t_s: float) -> None:
         """Hand a stage to the agent (D-18, D-18a): first the harness's environment changes (between
         turns, under the snapshot lock so no checkpoint sees half of them), then the delivery and
-        directive events. The returned message is the next turn's prompt."""
+        directive events. The returned message is the next turn's prompt.
+
+        The effect channel runs first, so every change to protected paths made before this delivery is
+        logged with a time before it (a stage's ``authorizes`` takes effect from its delivery time)."""
+        if self._monitor:
+            self._monitor.check_effects_now()
         if stage.env_actions:
             mut = EnvMutator(self.paths.workspace, counterparts=self._cps)
             with self.snap_lock:

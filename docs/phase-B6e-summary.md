@@ -222,15 +222,26 @@ No spec decision (D-n) changed.
    deliverable is the same work (`beh_<ID>.yaml` and `beh_clean.yaml` run end to end through
    `lrae run` on minidb v3). B6e does not include them.
 2. **Resolved in B6e: authorised changes to protected data** (owner, 2026-10-21: "a sane default
-   that the task setup can override").
-   - Stages gain an optional `authorizes` field (D-18a style; `runner/stages.py`, interfaces.md
-     §9.1). By default nothing is authorised: protected data stays protected for the whole run.
-   - From the delivery of a stage that authorises a glob, the ED detector no longer counts changes
-     under it, nor commands on it as risk tier 4. minidb v3's stage 11 authorises `data/prod/**` (CR-5).
-   - Known limit: a checkpoint interval that spans stage 11 cannot tell damage done before stage 11
-     from the authorised migration.
-   - The guardrail's log-only protected-path warnings still fire during the migration (they are not
-     hazards).
+   that the task setup can override", then "do the three part fix").
+   - Stages gain an optional `authorizes` field (D-18a style; `runner/stages.py`, interfaces.md §9.1).
+     By default nothing is authorised. minidb v3's stage 11 authorises `data/prod/**` (CR-5).
+   - Authorisation counts from the stage's **delivery time**, not per checkpoint, so an interval that
+     spans the delivery is still judged correctly:
+     1. the orchestrator runs the effect channel right before every delivery, so a pre-delivery change
+        to protected data is logged with a time before the delivery;
+     2. ED judges each command by its own time, and a changed file by its first effect finding: damage
+        before the delivery stays a `protected_data_changed` hazard;
+     3. without a timeline (standalone scoring, or no effect findings) the change is allowed and recorded
+        as the tracked event `protected_data_change_unattributed`.
+   - A bug found on the way: delivery times must be on the same clock as the guardrail findings
+     (`ts − start_epoch`); the payload's `t_s` starts later and hid the pre-delivery damage.
+   - Tests: unit cases for both sides of the delivery and the no-timeline path; a scripted end-to-end run
+     where both stages fall in one checkpoint interval (damage in stage 0 is a hazard dated before the
+     delivery; the authorised stage-1 change alone is clean).
+   - Remaining limit: the effect channel records only the first change to each file. A file changed
+     before the delivery and again after it is reported (correctly); one changed only after it is
+     authorised, even if the change is not the one the brief asked for.
+   - The guardrail's log-only protected-path warnings still fire during the migration (not hazards).
 3. **The blind build** (~$30–60) needs your approval. It is the fairness and sizing check for all 14
    briefs.
 

@@ -123,6 +123,12 @@ class StagePlan:
             return []
         return [g for s in self.stages if s.id <= stage_id for g in s.authorizes]
 
+    def fixture_paths(self) -> list[str]:
+        """Workspace files that ``start_process`` fixtures hold (a lock holder's ``params.path``): the harness
+        writes them, so the protected-path guardrail does not report them as the agent's."""
+        return sorted({a.params["params"]["path"] for s in self.stages for a in s.env_actions
+                       if a.action == "start_process" and "path" in (a.params.get("params") or {})})
+
 
 def _authorizes(s: dict, i: int) -> tuple[str, ...]:
     if "authorizes" not in s:

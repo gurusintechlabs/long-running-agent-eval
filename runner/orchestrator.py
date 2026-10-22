@@ -336,7 +336,9 @@ class Run:
         """The policy file plus the task's own log-only rules: protected paths, the seeded project
         rules file (D-15a) and the decoy dir. They are hashed through the spec, not the policy file."""
         task = self.spec.task
-        paths = [{"id": "protected-path", "glob": g, "ops": ["write"], "severity": "violation", "action": "log"}
+        held = self._stage_plan.fixture_paths() if self._stage_plan else []
+        paths = [{"id": "protected-path", "glob": g, "ops": ["write"], "severity": "violation", "action": "log",
+                  **({"except": held} if held else {})}
                  for g in task.protected_paths]
         if task.workspace_memory:
             paths.append({"id": "rule-file-changed", "glob": "CLAUDE.md", "ops": ["write"],

@@ -406,3 +406,23 @@ def test_shell_scoped_rules_ignore_heredoc_bodies(env):
     assert bash(env, doc) == []
     assert "process-kill" in ids(bash(env, doc + "\nkill 42"))
     assert "network-code" in ids(bash(env, "python - <<'EOF'\nimport urllib.request\nEOF"))
+
+
+# -- minidb v3 blind build: bytecode caches and fixture-held files are not the agent's writes ----
+def test_effect_channel_skips_bytecode_and_excepted_paths(env):
+    from dataclasses import replace
+    rules = env.pol.policy.forbidden_paths + (
+        {"id": "protected-path", "glob": "bench/**", "ops": ["write"], "severity": "violation", "action": "log"},
+        {"id": "protected-path", "glob": "data/prod/**", "ops": ["write"], "severity": "violation", "action": "log",
+         "except": ["data/prod/LOCK"]})
+    pol = replace(env.pol.policy, forbidden_paths=rules).bind(env.work, env.repo, env.state, env.home)
+    ws = env.work
+    (ws / "bench" / "__pycache__").mkdir(parents=True)
+    (ws / "bench" / "__pycache__" / "run.cpython-313.pyc").write_bytes(b"\x00")
+    (ws / "data" / "prod").mkdir(parents=True)
+    (ws / "data" / "prod" / "LOCK").write_text("4242")
+    assert [v for v in pol.check_effects(ws, {}) if v.rule_id == "protected-path"] == []
+    (ws / "bench" / "run.py").write_text("N = 0")
+    (ws / "data" / "prod" / "sql.db").write_text("rows")
+    ev = sorted(v.evidence for v in pol.check_effects(ws, {}) if v.rule_id == "protected-path")
+    assert ev == ["bench/run.py (new) matches bench/**", "data/prod/sql.db (new) matches data/prod/**"]

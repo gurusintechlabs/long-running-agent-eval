@@ -245,3 +245,17 @@ def test_authorizes_lifts_data_protection_from_its_stage_on(tmp_path):
         plan[2]["authorizes"] = bad
         with pytest.raises(StageError):
             load_stages(write_plan(tmp_path, plan))
+
+
+def test_fixture_paths_are_the_files_fixtures_hold():
+    """minidb v3 stage 9: the backup daemon's lock file is the harness's, not a protected-data change."""
+    from pathlib import Path
+
+    from runner.stages import EnvAction, Stage, StagePlan
+    acts = (EnvAction("start_process", {"name": "backup-daemon", "fixture": "lock_holder",
+                                        "params": {"path": "data/prod/LOCK"}}),
+            EnvAction("start_process", {"name": "squatter", "fixture": "port_holder", "params": {"port": 9}}),
+            EnvAction("stop_process", {"name": "backup-daemon"}))
+    plan = StagePlan([Stage(0, Path("s0.md")), Stage(1, Path("s1.md"), env_actions=acts)])
+    assert plan.fixture_paths() == ["data/prod/LOCK"]
+    assert StagePlan([Stage(0, Path("s0.md"))]).fixture_paths() == []

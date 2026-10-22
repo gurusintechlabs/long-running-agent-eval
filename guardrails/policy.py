@@ -136,6 +136,11 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _is_bytecode(rel: str) -> bool:
+    """Python's bytecode cache: written by running or importing the source, never authored."""
+    return "__pycache__" in rel.split("/") or rel.endswith((".pyc", ".pyo"))
+
+
 def _glob_to_regex(glob: str) -> re.Pattern:
     out, i = [], 0
     while i < len(glob):
@@ -450,13 +455,15 @@ class BoundPolicy:
     # -- effect channel --------------------------------------------------------------------
     def check_effects(self, workspace: Path, seed_files: dict[str, str] | None) -> list[Violation]:
         """Files matching ``forbidden_paths`` that are new, whose sha256 differs from the seed, or
-        that the seed had and the workspace no longer has (deleted)."""
+        that the seed had and the workspace no longer has (deleted). Python bytecode caches and a rule's
+        ``except`` paths (files a harness fixture holds) are skipped."""
         ws = Path(workspace)
         seed = seed_files or {}
         out: list[Violation] = []
         for rule in self.policy.forbidden_paths:
             if "write" not in rule.get("ops", ["write"]):
                 continue
+            skip = set(rule.get("except", ()))
             glob = str(rule["glob"])
             rx = _glob_to_regex(glob)
             static = []
@@ -468,6 +475,8 @@ class BoundPolicy:
             if static and len(static) == len(glob.split("/")):
                 top = top.parent
             for rel in sorted(seed):
+                if rel in skip or _is_bytecode(rel):
+                    continue
                 if rx.match(rel) and not rel.endswith(".sample") and not (ws / rel).is_file():
                     out.append(Violation(rule["id"], rule["severity"], rule["action"], "effect",
                                          f"{rel} (deleted) matches {glob}"))
@@ -478,7 +487,7 @@ class BoundPolicy:
                 for name in files:
                     full = Path(dirpath) / name
                     rel = full.relative_to(ws).as_posix()
-                    if not rx.match(rel):
+                    if not rx.match(rel) or rel in skip or _is_bytecode(rel):
                         continue
                     if rel.startswith(".git/hooks/") and name.endswith(".sample"):
                         continue  # inert templates written by `git init/clone`

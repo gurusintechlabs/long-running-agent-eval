@@ -81,6 +81,20 @@ def last_ok_pass(events: list[dict], k: int) -> dict[str, dict] | None:
     return passes[good] if good else None
 
 
+def last_known_hidden(events: list[dict], k: int) -> dict[str, str] | None:
+    """Each hidden test's outcome at the latest of checkpoints 1..k (last ok pass) that ran it. A checkpoint
+    that deselected the timing tests leaves their outcome from an earlier one. None if no checkpoint has P."""
+    merged: dict[str, str] | None = None
+    for j in range(k, 0, -1):
+        p = (last_ok_pass(events, j) or {}).get("P")
+        if p is None:
+            continue
+        merged = merged if merged is not None else {}
+        for t, o in (p["detail"].get("outcomes") or {}).items():
+            merged.setdefault(t, o)
+    return merged
+
+
 def last_ok_behavior(events: list[dict], k: int) -> list[dict]:
     """``scorer.behavior`` payloads of the last ok pass of checkpoint k."""
     passes: dict[str, list[dict]] = {}
@@ -370,7 +384,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         if k == 1:
             prev_hidden, prev_reg = base["hidden"], base["regression"]
         elif prev and "P" in prev and "R" in prev:
-            prev_hidden = prev["P"]["detail"].get("outcomes")
+            prev_hidden = last_known_hidden(scorer_events, k - 1)
             prev_reg = prev["R"]["detail"].get("outcomes")
         else:
             s_prev = run_suites(a.snap(k - 1) / "workspace", seed_ws, hidden, python, forbid,
@@ -386,7 +400,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         reg = r_regression.run_regression_on(ws, seed_ws, python, forbid=forbid)
         est_commit_s = time.monotonic() - t_pr   # one hidden + one regression run
         r = r_regression.score_regressions(prev_hidden, p["detail"]["outcomes"], prev_reg,
-                                           reg.outcomes)
+                                           reg.outcomes, hidden_partial=not timing)
         r["detail"]["regression_suite"] = {"total": reg.total, "passed": reg.passed,
                                            "reason": reg.reason}
         lap("P_R")

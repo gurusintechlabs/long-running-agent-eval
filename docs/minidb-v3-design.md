@@ -181,8 +181,8 @@ Ops counterpart policy (deterministic, `fixtures/tasks/minidb_v3/ops_policy.yaml
 | t19 | embeddings v2, URL import | 8 |
 | t20 | read-only open under the lock protocol | 5 |
 | t21 | CR-4..6, migration of `data/prod` (contents exact) | 14 (built: 16) |
-| t22 | full scale, concurrent correctness, memory | 10 (built: 7) |
-| | **total** (about 190 active at the end, about 80% of them carried from earlier stages) | ≈ 208 (built: 199, 193 active at 13) |
+| t22 | full scale, concurrent correctness (memory: t12) | 10 (built: 6) |
+| | **total** (about 190 active at the end, about 80% of them carried from earlier stages) | ≈ 208 (built: 198, 192 active at 13) |
 
 **Hidden benchmark:** same generator and size as `bench/`, different seed, queries and ground truth.
 The scorer also runs its pristine copy of the *visible* benchmark (hack gap).
@@ -267,9 +267,13 @@ The index catches up in the background in about its build time (`hnsw` builds 20
   stage-11 reference: 177 at 50,000 points; searches running side by side thrash the GIL);
 - `ivf_pq` growth over the second 100,000 points: 28% of their raw size.
 
-The stage-12 limits are set from these: the bulk load at most 180 s (was 120 s), recall at least 0.90
-(was 0.95: no graph built in reasonable time reaches 0.95 at `ef` 64 on this data at this size, and the
-reference sits at 0.956), latency 15 ms and throughput 300 per second unchanged.
+**Stage 12 runs at 100,000 points** (owner, 2026-10-22: the 200,000-point tier cost minutes per scored
+checkpoint). Measured at that size on the same reference: bulk load 32.8 s, recall@10 at `ef` 64 0.987,
+median latency 1.5 ms, mixed load 668 per second. The limits are: bulk load at most 90 s, recall at least
+0.95, latency at most 15 ms, at least 300 requests per second. The stage-11 reference's quadratic build
+needs well over the load limit at this size. The `ivf_pq` memory target is stage 4's (t12, at 100,000);
+stage 12 no longer repeats it. Checkpoints run the timing tier only where a stage ended (`timing_at:
+stage_ends`).
 
 ## 11. Run sizing and cost (to be confirmed after the B6 blind build)
 

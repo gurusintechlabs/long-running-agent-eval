@@ -46,7 +46,7 @@ TASK = REPO_ROOT / "fixtures" / "tasks" / "minidb_v3"
 HIDDEN, EXPLOIT = TASK / "hidden", TASK / "exploit"
 CRS = (3, 11)
 SCALE_STAGE = 12            # its new work is the full-scale (timing) tier
-BULK_LOAD = "test_t22_scale_and_concurrency.py::test_bulk_load_of_200000_points_timing"
+BULK_LOAD = "test_t22_scale_and_concurrency.py::test_bulk_load_of_100000_points_timing"
 SEED_PASSES = {"test_t01_service_basics.py::test_healthz_without_a_key",
                "test_t01_service_basics.py::test_a_port_in_use_is_an_error_not_a_hang",
                "test_t05_inherited_engine.py::test_the_stdin_protocol_is_unchanged",

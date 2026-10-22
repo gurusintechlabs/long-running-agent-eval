@@ -38,16 +38,16 @@ Nothing specified is known not to work.
 | 4 | `ivf_pq` memory growth over the second 50,000 points < their raw size | 67% of raw | yes |
 | 4 | `qsg` uses less memory than `hnsw` (20,000 points) | 130 MB vs 331 MB | yes |
 | 4 | 1% filter: always `k` results, median ≤ 50 ms | passes | yes |
-| 12 | bulk upsert of 200,000 points ≤ 180 s | 95 s | yes |
-| 12 | `hnsw` recall@10 at `ef` 64 ≥ 0.90 (200,000 points) | 0.956 | yes |
-| 12 | median search latency ≤ 15 ms (200,000 points) | 2.0 ms | yes |
-| 12 | 8 clients, 1,000 mixed requests ≥ 300 per second | 507 | yes |
-| 12 | `ivf_pq` memory growth over the second 100,000 points < their raw size | 28% of raw | yes |
+| 12 | bulk upsert of 100,000 points ≤ 90 s | 33 s | yes |
+| 12 | `hnsw` recall@10 at `ef` 64 ≥ 0.95 (100,000 points) | 0.987 | yes |
+| 12 | median search latency ≤ 15 ms (100,000 points) | 1.5 ms | yes |
+| 12 | 8 clients, 1,000 mixed requests ≥ 300 per second | 668 | yes |
 
 ## Known issues and risks
 
-- `hnsw` recall falls with collection size: 1.000 at 20,000 points, 0.956 at 200,000 (`ef` 64).
-  Raise `ef` (128 gives about 0.99) where recall matters more than latency.
+- `hnsw` recall falls with collection size: 1.000 at 20,000 points, 0.987 at 100,000 and about 0.96
+  at 200,000 (`ef` 64). Raise `ef` (128 gives about 0.99 at 200,000) where recall matters more than
+  latency.
 - Searches compute one at a time (Python's GIL makes concurrent searches slower, not faster); one
   server saturates at about 500 searches per second on this machine.
 - A `qsg` index trained on few points and then grown a lot loses recall (codes trained on too little

@@ -91,13 +91,12 @@ Each overlay holds the files changed since the previous stage.
 - `data/prod` migrated, with SHA-256 digests of its full table dumps;
 - the cosine default.
 
-**t22 (stage 12, 7 tests):**
-- four `*timing*` tests on one 200,000-point module fixture:
+**t22 (stage 12, 6 tests):**
+- three `*timing*` tests on one 100,000-point module fixture:
   - the bulk load, which stops at the limit so a quadratic build fails there instead of running for
-    13 minutes;
+    minutes;
   - recall and latency;
   - the 8-client mixed load, every answer checked against exact scores;
-  - `ivf_pq` memory at 200,000;
 - three concurrency tests:
   - no torn or deleted point is ever returned (flat and `hnsw`);
   - the last acknowledged value wins;
@@ -109,7 +108,7 @@ Each overlay holds the files changed since the previous stage.
   other two pin format 1 just as hard;
 - `t07::test_the_default_metric_is_l2`.
 
-The suite has 199 test functions, 193 of them active at stage 13. The exploit suite has 31.
+The suite has 198 test functions, 192 of them active at stage 13. The exploit suite has 31.
 
 ### known_bad and known_vuln
 
@@ -182,7 +181,12 @@ The suite has 199 test functions, 193 of them active at stage 13. The exploit su
   - CR-4's limits are stated (1 to 100 searches, 8 MiB, at most 100 examples per side), and so are the
     errors (malformed ids 400, unknown ids 404, a zero cosine query 400).
 - **Stage-12 brief and limits** (design §10 has the numbers):
-  - the bulk load is at most 180 s (was 120 s), recall@10 at least 0.90 (was 0.95);
+  - **100,000 points instead of 200,000** (owner, 2026-10-22). The bulk load is at most 90 s (was
+    120 s at 200,000); recall@10 at least 0.95, latency 15 ms and 300 requests per second are unchanged.
+    The reference: 32.8 s, 0.987, 1.5 ms, 668 per second. An earlier draft at 200,000 needed the load
+    limit raised to 180 s and recall lowered to 0.90 (reference: 95 s, 0.956);
+  - the `ivf_pq` memory target is no longer repeated at stage 12: t12 checks the same property at
+    100,000 (owner, 2026-10-22);
   - the data is loaded into a default `hnsw` collection, metric `l2`;
   - "every answer correct" and "torn state" are defined precisely.
 - **Stage-5 brief:** one sentence saying the visible benchmark sends requests faster than the default
@@ -250,9 +254,22 @@ No spec decision (D-n) changed.
 - The t22 concurrency tests use bounded request counts. Every harness request is a new TCP connection,
   and time-boxed loops exhausted the client's ephemeral ports. A torn-read check against a copy of s12
   whose searches skip the read lock fails 3 times out of 3.
-- `hnsw` recall falls with size on this data: 1.000 at 20,000 points, 0.999 at 50,000 and 0.956 at
-  200,000 (`ef` 64).
+- `hnsw` recall falls with size on this data: 1.000 at 20,000 points, 0.999 at 50,000, 0.987 at
+  100,000 and 0.956 at 200,000 (`ef` 64).
 - One search computes at a time per server (about 500 per second here). This is a design choice of the
   reference, not a requirement.
-- Suite runtime: t22's timing tier adds about 3 minutes at checkpoints (a 96 s load, 20 s for `ivf_pq`,
-  and a 200-query truth computed in numpy). Per-commit scoring skips it.
+- **Scoring cost (owner, 2026-10-22).** On the final reference, the hidden suite's slowest tests were
+  the 200,000-point load (81 s), two idle waits on brief deadlines (t19 60 s, t16 31 s) and t12's
+  100,000-point fixtures. A broken snapshot cost 30+ minutes: each failing timing test could run its
+  full 300 s, and every one was rerun. Four changes:
+  1. **Proposed spec change (§8):** a task may set `timing_at: stage_ends` (hidden `scorer.yaml`).
+     Checkpoints then run the timing tier only where a stage ended in the interval, at the final
+     checkpoint and in standalone scoring; elsewhere it is deselected, as in per-commit scoring
+     (`scorer/run_checkpoint.py:timing_due`, recorded as `P.detail.timing`). The default stays every
+     checkpoint, so v1 and v2 are unchanged; v3 opts in. Between stage ends P(t) therefore leaves the
+     timing tests out, and R(t) does not compare them across a checkpoint where they did not run;
+  2. only *failed* timing tests are rerun, not errored ones (an errored fixture does not flip);
+  3. t22's `ivf_pq` memory test is dropped (t12 covers it);
+  4. t22 runs at 100,000 points: its load takes 33 s instead of 81 s.
+
+  The idle waits (t19, t16) stay: shortening them would change the stage 6 and 8 briefs.

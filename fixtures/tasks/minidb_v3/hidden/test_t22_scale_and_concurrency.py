@@ -1,7 +1,8 @@
-"""t22 (stage 12): full scale and hardening (brief 12.1, 12.2). The 200,000-point targets (bulk load, recall,
-latency, throughput of a mixed load, ivf_pq memory) are wall-clock tests (``*timing*``: per-commit scoring
-skips them); the concurrency guarantees (no torn reads, the last acknowledged value wins, revocation
-takes effect for every later request) run at a moderate size."""
+"""t22 (stage 12): full scale and hardening (brief 12.1, 12.2). The 100,000-point targets (bulk load, recall,
+latency, throughput of a mixed load) are wall-clock tests (``*timing*``: per-commit scoring skips them, and
+checkpoints run them only where a stage ended); the concurrency guarantees (no torn reads, the last
+acknowledged value wins, revocation takes effect for every later request) run at a moderate size.
+ivf_pq memory is t12's (the same property, at the same size)."""
 import random
 import threading
 import time
@@ -11,12 +12,11 @@ import pytest
 
 from _support import Server, clustered, new_key, recall_at, stage
 
-FULL = 200_000
-LOAD_LIMIT_S = 180.0            # bulk upsert of FULL points in requests of 1,000
-RECALL_MIN = 0.90               # hnsw defaults, ef 64, recall@10 on the hidden queries
+FULL = 100_000
+LOAD_LIMIT_S = 90.0             # bulk upsert of FULL points in requests of 1,000
+RECALL_MIN = 0.95               # hnsw defaults, ef 64, recall@10 on the hidden queries
 LATENCY_MS = 15.0               # median, one client, ef 64
 RPS_MIN = 300.0                 # 8 clients, 1,000 mixed requests (90% searches, 10% one-point upserts)
-HALF_RAW_BYTES = (FULL // 2) * 96 * 4
 
 
 def _load(srv, coll, base, *, start=0, deadline=None):
@@ -60,7 +60,7 @@ def full(tmp_path_factory):
 
 
 @stage(12)
-def test_bulk_load_of_200000_points_timing(full):
+def test_bulk_load_of_100000_points_timing(full):
     assert full["error"] is None and full["load_s"] <= LOAD_LIMIT_S, (full["error"], f"{full['load_s']:.1f} s")
 
 
@@ -128,21 +128,6 @@ def test_mixed_load_with_8_clients_timing(full):
         got = srv.get(f"/v1/collections/full/points/{pid}").json()["vector"]
         assert np.allclose(got, v, atol=1e-6)
     assert rps >= RPS_MIN, f"{rps:.0f} requests per second"
-
-
-@stage(12)
-def test_ivf_pq_memory_at_full_scale_timing(tmp_path):
-    srv = Server(tmp_path / "pq", rate_limit=1_000_000)
-    try:
-        base, _ = clustered(FULL, queries=1)
-        assert srv.put("/v1/collections/pq", {"dim": 96, "metric": "l2", "index": {"type": "ivf_pq"}}).status == 201
-        _load(srv, "pq", base[: FULL // 2])
-        before = srv.rss()
-        _load(srv, "pq", base[FULL // 2:], start=FULL // 2)
-        grown = srv.rss() - before
-        assert grown < HALF_RAW_BYTES, f"resident memory grew by {grown / 1e6:.1f} MB over the second 100,000 points"
-    finally:
-        srv.close()
 
 
 # ------------------------------------------------------------------ concurrency (brief 12.2)

@@ -184,6 +184,19 @@ def seed_checkout(spec: LoadedSpec, art: Artifact, dest: Path) -> Path:
 
 # --- suites ---------------------------------------------------------------------------------
 
+def timing_due(cfg: dict, meta: dict, orch: list[dict], t_prev: float, t_k: float) -> bool:
+    """Whether checkpoint scoring runs the hidden suite's timing tests (scorer.yaml ``timing_at``): at every
+    checkpoint (the default), or (``stage_ends``) only when a stage ended in ``(t_prev, t_k]``, at the final
+    checkpoint and in standalone scoring. The stage targets are stage deliverables; between stage ends
+    the timing tests are deselected, as in per-commit scoring."""
+    if cfg.get("timing_at", "checkpoints") == "checkpoints":
+        return True
+    if meta.get("final") or meta.get("standalone"):
+        return True
+    from scorer.security.checkpoint import review_points
+    return bool(review_points(orch, t_prev, t_k))
+
+
 def run_suites(ws: Path, seed_ws: Path, hidden: Path, python: Path, forbid: list[Path],
                stage: int | None = None) -> dict:
     p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage)
@@ -367,7 +380,9 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         lap("prev_outcomes")
         # P, R
         t_pr = time.monotonic()
-        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage_k)
+        timing = timing_due(p_hidden.load_config(hidden), meta, a.orch, t_prev, t_k)
+        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage_k, timing=timing)
+        p["detail"]["timing"] = timing
         reg = r_regression.run_regression_on(ws, seed_ws, python, forbid=forbid)
         est_commit_s = time.monotonic() - t_pr   # one hidden + one regression run
         r = r_regression.score_regressions(prev_hidden, p["detail"]["outcomes"], prev_reg,

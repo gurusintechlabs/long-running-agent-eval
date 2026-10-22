@@ -48,7 +48,14 @@ def load_config(hidden: Path) -> dict:
         if key in cfg and not (isinstance(cfg[key], (int, float)) and not isinstance(cfg[key], bool)
                                and cfg[key] > 0):
             raise ValueError(f"{hidden}/scorer.yaml: {key} must be a positive number")
+    if cfg.get("timing_at", "checkpoints") not in TIMING_AT:
+        raise ValueError(f"{hidden}/scorer.yaml: timing_at must be one of {', '.join(TIMING_AT)}")
     return cfg
+
+
+# When checkpoints run the timing tests (``timing_k``): at every checkpoint, or only where a stage ended in the
+# interval, at the final checkpoint and in standalone scoring (``scorer.run_checkpoint.timing_due``).
+TIMING_AT = ("checkpoints", "stage_ends")
 
 
 def per_test_timeout(cfg: dict) -> float:
@@ -167,7 +174,8 @@ def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
                         report=scratch / "hidden.json", timeout_s=suite_timeout(cfg), label="hidden",
                         per_test_timeout_s=per_test_timeout(cfg))
                     if timing and timing_k and not suite.reason:
-                        failed = sorted(t for t, o in suite.outcomes.items() if o in ("failed", "error"))
+                        # failed only: an errored test (a fixture that missed its deadline) does not flip
+                        failed = sorted(t for t, o in suite.outcomes.items() if o == "failed")
                         if failed:
                             again = run_pytest_json(
                                 python, [*base, "-k", timing_k, *failed], cwd=hidden, env=h_env,

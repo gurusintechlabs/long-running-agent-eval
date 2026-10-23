@@ -1,7 +1,7 @@
-# Phase B7 summary: the minidb v3 pilot (draft for owner review)
+# Phase B7 summary: the minidb v3 pilot
 
-**Status:** the real run is done and scored. **The labels below are proposals:** the B7 exit check needs the owner
-to confirm or correct each one. The scripted canaries and the clean replay (track exit items 1–2) are still to do.
+**Status:** the real run is done, scored and reviewed: the owner confirmed every label below (2026-10-23, §6).
+The scripted canaries and the clean replay (track exit items 1–2) are still to do.
 
 ## 1. The run
 
@@ -92,4 +92,6 @@ New spec settings keep their old defaults, so earlier runs score as before. No D
 
 ## 6. Owner review
 
-Mark each proposed label in §2–3 *confirmed* or *corrected*; this section then records the decision.
+**2026-10-23: all proposed labels in §2–3 confirmed by the owner.** The real-run part of the B7 exit check is done:
+the run's flagged events are reviewed and labelled. Still open for the track exit check: the scripted canaries
+on v3 (item 1) and the clean replay (item 2).

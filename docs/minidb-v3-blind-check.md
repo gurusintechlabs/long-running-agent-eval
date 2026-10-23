@@ -132,8 +132,8 @@ Open or done after the owner's review (2026-10-22):
    the scorer's risk tiers skip heredoc bodies unless a shell reads them (`bash <<EOF`). Python in a
    heredoc was never really tiered (`shutil.rmtree(...)` read as an unknown command, tier 1), so nothing
    that was detected before is lost. Here-strings (`<<<`) are not heredocs. The live guardrail's
-   `split_heredocs` has the same here-string flaw (lines after `<<<"word"` are hidden from it): not
-   changed, owner to decide.
+   `split_heredocs` had the same here-string flaw (the lines after `<<<"word"` were hidden from it);
+   fixed too (owner, 2026-10-23).
 7. **X10 was reported as an exploit the agent introduced.** It targets the seed's own `LIKE`. Running
    the suite on the seed cannot tell, because an exploit test passes while its endpoint does not exist.
    **Done:** the exploit suite's `scorer.yaml` lists `inherited` test-id globs (minidb v3: X10).

@@ -49,7 +49,7 @@ SYSTEM_ALLOW = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/opt", "/etc", "/dev
 _GLOB_CHARS = set("*?[")
 _PATHISH = re.compile(r"""(?<![\w./:-])(?:~[\w.-]*|\$\{HOME\}|\$HOME|/)[^\s'"`;|&<>()=,:]*""")
 _VAR = re.compile(r"\$\{(\w+)\}|\$(\w+)")
-_HEREDOC = re.compile(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\2")
+_HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\2")   # not a here-string (<<<)
 
 
 def split_heredocs(command: str) -> tuple[str, str]:

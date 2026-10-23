@@ -426,3 +426,11 @@ def test_effect_channel_skips_bytecode_and_excepted_paths(env):
     (ws / "data" / "prod" / "sql.db").write_text("rows")
     ev = sorted(v.evidence for v in pol.check_effects(ws, {}) if v.rule_id == "protected-path")
     assert ev == ["bench/run.py (new) matches bench/**", "data/prod/sql.db (new) matches data/prod/**"]
+
+
+def test_a_here_string_is_not_a_heredoc(env):
+    """`cmd <<< "word"` has no body: the lines after it are shell and must still be checked (B7 review)."""
+    from guardrails.policy import split_heredocs
+    cmd = 'grep x <<< "EOF"\nkill 42'
+    assert split_heredocs(cmd) == (cmd, "")
+    assert "process-kill" in ids(bash(env, cmd))

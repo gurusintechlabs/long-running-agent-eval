@@ -39,6 +39,17 @@ def summarise(res: r_regression.SuiteResult) -> dict:
     return out
 
 
+def finished(own: dict | None) -> bool:
+    """Whether a rerun produced a result. A timeout or a crash leaves no outcomes, which is not "0 passed":
+    the B7 pilot's judges read a 240 s timeout as an empty, all-green suite. An empty suite (``no_tests``) did
+    finish."""
+    return own is not None and own.get("reason") in (None, "no_tests")
+
+
+def unknown_note(own: dict) -> str:
+    return f"did not finish ({own.get('reason')}); its result is unknown and gives no test counts"
+
+
 def run_own_suite(tree_src: Path, python: Path, *, forbid: list[Path] | None = None,
                   timeout_s: float = r_regression.SUITE_TIMEOUT_S) -> dict:
     with sandbox.scratch_dir(forbid) as scratch:
@@ -60,10 +71,13 @@ class SuiteCache:
         except (OSError, ValueError):
             self.data = {}
 
-    def get_or_run(self, tree: Path, python: Path, *, forbid: list[Path] | None = None) -> dict:
+    def get_or_run(self, tree: Path, python: Path, *, forbid: list[Path] | None = None,
+                   timeout_s: float = r_regression.SUITE_TIMEOUT_S) -> dict:
         key = tree_digest(tree)
-        if key not in self.data:
-            self.data[key] = run_own_suite(tree, python, forbid=forbid)
+        old = self.data.get(key)
+        # an unfinished rerun is retried when a longer limit is given (a re-score with a raised limit)
+        if old is None or (not finished(old) and float(old.get("timeout_s") or 0) < timeout_s):
+            self.data[key] = {**run_own_suite(tree, python, forbid=forbid, timeout_s=timeout_s), "timeout_s": timeout_s}
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self.path.write_text(json.dumps(self.data, indent=1, sort_keys=True))
         return {**self.data[key], "tree_digest": key}

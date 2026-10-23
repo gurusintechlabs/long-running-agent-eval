@@ -109,7 +109,8 @@ def split_inherited(failed: list[str], globs: list[str]) -> tuple[list[str], lis
 
 def score_security(*, spec, ws: Path, seed_ws: Path, python: Path, repo_root: Path, forbid, stage: int | None,
                    prev_pass: dict | None, k: int, orch: list[dict], t_prev: float, t_k: float, mirror: Path,
-                   scorer_dir: Path, reviewer=None) -> dict[str, dict]:
+                   scorer_dir: Path, reviewer=None, ai: dict | None = None) -> dict[str, dict]:
+    """``ai``: the ``lrae.sec.ai`` metric if checkpoint scoring already computed it alongside the tests."""
     sec = spec.scoring.security
     task = spec.task
     out: dict[str, dict] = {}
@@ -149,40 +150,49 @@ def score_security(*, spec, ws: Path, seed_ws: Path, python: Path, repo_root: Pa
         out[mn.SEC_EXPLOITS] = {"value": None, "detail": {"reason": "no exploit tests"}}
         out[mn.SEC_EXPLOITS_INHERITED] = {"value": None, "detail": {"reason": "no exploit tests"}}
 
-    # AI review: one per stage completed in the interval
     if sec.ai_review:
-        points = review_points(orch, t_prev, t_k)
-        reviews = []
-        runner, why_not = reviewer, None
-        if points and runner is None:
-            try:
-                runner = reviewer_for(sec)
-            except Exception as exc:  # noqa: BLE001 - e.g. spend not confirmed: a null review, not a crash
-                why_not = str(exc)[:300]
-        if points and runner is not None:
-            ctx = yaml.safe_load(Path(sec.context_file).read_text()) or {}
-            model = sec.ai_review_model or spec.scoring.judge_model
-            for pt in points:
-                rec = {**pt}
-                sha = pt.get("head_sha")
-                with tempfile.TemporaryDirectory(prefix="lrae-sec-review-") as tmp:
-                    tree = Path(tmp) / "tree"
-                    try:
-                        from scorer.metrics.r_regression import materialize_commit
-                        materialize_commit(mirror, sha, tree)
-                    except Exception as exc:  # noqa: BLE001 - e.g. history rewritten by the agent
-                        rec.update(ok=False, reason=f"cannot materialise {sha}: {exc}"[:300])
-                        reviews.append(rec)
-                        continue
-                    known = scan_tree(tree, sec=sec, python=python, repo_root=repo_root)["findings"]
-                    res = ai_review.review(tree, model=model, runner=runner, cache_dir=scorer_dir / "vuln-review",
-                                           context=ctx, sast_findings=[f for f in known if f["severity"] in COUNTED])
-                rec.update({k_: res[k_] for k_ in ("ok", "key", "summary", "findings", "chains", "sound",
-                                                     "report_path", "reason", "model", "cached", "cost_usd")})
-                reviews.append(rec)
-        ok = [r for r in reviews if r.get("ok")]
-        out[mn.SEC_AI] = {"value": float(ok[-1]["summary"]["high_or_critical"]) if ok else None, "detail": {
-            "reviews": reviews, "judge_cost_usd": sum(r.get("cost_usd") or 0.0 for r in reviews),
-            **({} if ok else {"reason": "no stage ended in this interval" if not points
-                              else (why_not or "review failed")})}}
+        out[mn.SEC_AI] = ai_review_metric(spec=spec, orch=orch, t_prev=t_prev, t_k=t_k, mirror=mirror,
+                                          python=python, repo_root=repo_root, scorer_dir=scorer_dir,
+                                          reviewer=reviewer) if ai is None else ai
     return out
+
+
+def ai_review_metric(*, spec, orch: list[dict], t_prev: float, t_k: float, mirror: Path, python: Path,
+                     repo_root: Path, scorer_dir: Path, reviewer=None) -> dict:
+    """``lrae.sec.ai``: one AI review per stage completed in the interval. It reads only the stage-end commits
+    and calls the model, so checkpoint scoring runs it alongside the test suites (run_checkpoint)."""
+    sec = spec.scoring.security
+    points = review_points(orch, t_prev, t_k)
+    reviews = []
+    runner, why_not = reviewer, None
+    if points and runner is None:
+        try:
+            runner = reviewer_for(sec)
+        except Exception as exc:  # noqa: BLE001 - e.g. spend not confirmed: a null review, not a crash
+            why_not = str(exc)[:300]
+    if points and runner is not None:
+        ctx = yaml.safe_load(Path(sec.context_file).read_text()) or {}
+        model = sec.ai_review_model or spec.scoring.judge_model
+        for pt in points:
+            rec = {**pt}
+            sha = pt.get("head_sha")
+            with tempfile.TemporaryDirectory(prefix="lrae-sec-review-") as tmp:
+                tree = Path(tmp) / "tree"
+                try:
+                    from scorer.metrics.r_regression import materialize_commit
+                    materialize_commit(mirror, sha, tree)
+                except Exception as exc:  # noqa: BLE001 - e.g. history rewritten by the agent
+                    rec.update(ok=False, reason=f"cannot materialise {sha}: {exc}"[:300])
+                    reviews.append(rec)
+                    continue
+                known = scan_tree(tree, sec=sec, python=python, repo_root=repo_root)["findings"]
+                res = ai_review.review(tree, model=model, runner=runner, cache_dir=scorer_dir / "vuln-review",
+                                       context=ctx, sast_findings=[f for f in known if f["severity"] in COUNTED])
+            rec.update({k_: res[k_] for k_ in ("ok", "key", "summary", "findings", "chains", "sound",
+                                                 "report_path", "reason", "model", "cached", "cost_usd")})
+            reviews.append(rec)
+    ok = [r for r in reviews if r.get("ok")]
+    return {"value": float(ok[-1]["summary"]["high_or_critical"]) if ok else None, "detail": {
+        "reviews": reviews, "judge_cost_usd": sum(r.get("cost_usd") or 0.0 for r in reviews),
+        **({} if ok else {"reason": "no stage ended in this interval" if not points
+                          else (why_not or "review failed")})}}

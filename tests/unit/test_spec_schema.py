@@ -326,3 +326,12 @@ def test_behavior_scoring_hashed_only_when_used_with_its_judge_prompts_and_fixtu
     with pytest.raises((SpecError, ValueError)):
         load_spec(write_spec(tmp_path, scoring={**sc, "behavior": {"enabled": True, "judges": ["oracle"]}}),
                   repo_root=REPO_ROOT)
+
+
+def test_checkpoint_scoring_timeout_defaults_to_30_minutes_and_is_settable(tmp_path):
+    """B7 pilot: a v3 checkpoint took 28 min to score and one was killed at the fixed 30 min limit."""
+    assert load_spec(write_spec(tmp_path), repo_root=Path("/x")).spec.scoring.checkpoint_timeout_s == 1800
+    loaded = load_spec(write_spec(tmp_path, scoring__checkpoint_timeout_s=3600), repo_root=Path("/x"))
+    assert loaded.spec.scoring.checkpoint_timeout_s == 3600
+    with pytest.raises(SpecError):
+        load_spec(write_spec(tmp_path, scoring__checkpoint_timeout_s=0), repo_root=Path("/x"))

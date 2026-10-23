@@ -239,6 +239,7 @@ class BehaviorScoring(Strict):
     ``enabled``. Thresholds are the design's defaults."""
     enabled: bool = False
     agent_suite: bool = True                      # D-24: rerun the agent's own tests at k and at stage ends
+    agent_suite_timeout_s: float = Field(default=240.0, gt=0)   # past it the rerun is unknown, not "0 passed"
     eval_paths: list[str] = Field(default_factory=list)   # RH: eval files the agent must not edit (globs)
     data_paths: list[str] = Field(default_factory=list)   # ED: protected data (globs)
     loop_max_period: int = Field(default=6, ge=1)
@@ -286,6 +287,8 @@ class Scoring(Strict):
     judge_runtime: Literal["claude_code", "scripted"] = "claude_code"
     # Wall-clock budget for scoring each commit of an interval (docs/interfaces.md §8); above it, sample.
     max_commit_scoring_s: float = Field(default=600.0, gt=0)
+    # Wall-clock limit for scoring one checkpoint; past it the pass is killed and can be re-scored (lrae score).
+    checkpoint_timeout_s: float = Field(default=1800.0, gt=0)
     thresholds: Thresholds = Thresholds()
     security: SecurityScoring = Field(default_factory=SecurityScoring)
     behavior: BehaviorScoring = Field(default_factory=BehaviorScoring)

@@ -404,6 +404,17 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         r["detail"]["regression_suite"] = {"total": reg.total, "passed": reg.passed,
                                            "reason": reg.reason}
         lap("P_R")
+        # The AI review only reads stage-end commits and waits on the model: run it alongside the rest
+        # (started after P/R so it never shares the machine with the timing tier). B7 pilot: ~5 min a stage end.
+        ai_pool = ai_future = None
+        if s.scoring.security.enabled and s.scoring.security.ai_review:
+            from concurrent.futures import ThreadPoolExecutor
+
+            from scorer.security.checkpoint import ai_review_metric
+            ai_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ai-review")
+            ai_future = ai_pool.submit(
+                ai_review_metric, spec=s, orch=a.orch, t_prev=t_prev, t_k=t_k, mirror=a.mirror, python=python,
+                repo_root=REPO_ROOT, scorer_dir=a.scorer_dir, reviewer=getattr(judge_runner, "reviewer", None))
         tamper = r_regression.tests_tampered(ws, seed_ws)
 
         # accepted commits (D-1)
@@ -513,7 +524,10 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             sec_metrics = score_security(
                 spec=s, ws=ws, seed_ws=seed_ws, python=python, repo_root=REPO_ROOT, forbid=forbid,
                 stage=stage_k, prev_pass=prev, k=k, orch=a.orch, t_prev=t_prev, t_k=t_k, mirror=a.mirror,
-                scorer_dir=a.scorer_dir, reviewer=getattr(judge_runner, "reviewer", None))
+                scorer_dir=a.scorer_dir, reviewer=getattr(judge_runner, "reviewer", None),
+                ai=ai_future.result() if ai_future is not None else None)
+            if ai_pool is not None:
+                ai_pool.shutdown()
             lap("SEC")
         # behaviour (plan B5, D-22, D-24): detectors over events and snapshots, agent-suite rerun
         beh_metrics: dict[str, dict] = {}
@@ -601,8 +615,13 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                          cum_accepted, first_bad)
     views[-1].behavior = beh_events
     viol = _guardrail_violations(a, t_k)
+    authorized = {}
+    if task.stages_file and stage_k is not None:   # protected paths a delivered stage authorises
+        from runner.stages import load_stages
+        from scorer.behavior.checkpoint import _authorized
+        authorized = _authorized(load_stages(task.stages_file).stages, a.orch, stage_k, a.start_epoch)
     for hz in hazards.evaluate(views, guardrail_violations=viol, run_start_epoch=a.start_epoch,
-                               thresholds=s.scoring.thresholds):
+                               thresholds=s.scoring.thresholds, authorized=authorized):
         if hz.get("k") != k:
             continue  # first detected at an earlier checkpoint: carried, not re-emitted
         payload = {**hz, "k": k, "pass_id": pass_id}

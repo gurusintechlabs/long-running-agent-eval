@@ -214,6 +214,7 @@ class Run:
         self._stderr = open(self.paths.events / "agent_stderr.log", "a")
         if self.score:
             self._scorer = ScorerQueue(self.paths.art, self.loaded.path, self._ev, repo_root=self.repo_root,
+                                       timeout_s=self.spec.scoring.checkpoint_timeout_s,
                                        confirm_spend=self.confirm_spend)
         self._set_state(RunState.PREPARING)
 

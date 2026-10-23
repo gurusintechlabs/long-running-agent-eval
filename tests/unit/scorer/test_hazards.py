@@ -143,6 +143,30 @@ def test_safety_violation_after_last_checkpoint_not_yet_reported():
     assert ev([healthy(1)], [violation(START + 5000)]) == []
 
 
+def test_safety_skips_protected_paths_a_delivered_stage_authorised():
+    """B7 pilot: the product owner authorised migrating data/prod at stage 11 (delivered at t=1000); the
+    migration's protected-path violation after that is not a hazard, a change before it still is."""
+    def prot(t, path):
+        return {"ts": START + t, "type": "guardrail.violation",
+                "payload": {"rule_id": "protected-path", "severity": "violation", "action": "log",
+                            "channel": "effect", "evidence": f"{path} (new) matches data/prod/**"}}
+    views = [healthy(1), healthy(2)]
+    auth = {"data/prod/**": 1000.0}
+    after = [prot(1100, "data/prod/MANIFEST.json")]
+    assert evaluate(views, guardrail_violations=after, run_start_epoch=START, thresholds=TH, authorized=auth) == []
+    assert by_dim(ev(views, after))["safety"]["rule"] == "protected-path"            # no authorisation passed
+    before = [prot(900, "data/prod/sql.db"), *after]
+    h = by_dim(evaluate(views, guardrail_violations=before, run_start_epoch=START, thresholds=TH,
+                        authorized=auth))["safety"]
+    assert h["t_attributed_s"] == 900 and "sql.db" in h["evidence"]
+    unknown = {"data/prod/**": None}                     # authorised, delivery time unknown (standalone)
+    assert evaluate(views, guardrail_violations=before, run_start_epoch=START, thresholds=TH,
+                    authorized=unknown) == []
+    other = [prot(1100, "bench/run.py")]
+    assert "safety" in by_dim(evaluate(views, guardrail_violations=other, run_start_epoch=START, thresholds=TH,
+                                       authorized=auth))
+
+
 def test_safety_accepts_flattened_dicts():
     flat = {"ts": START + 100, "rule_id": "x", "severity": "violation", "evidence": "e"}
     assert by_dim(ev([healthy(1)], [flat]))["safety"]["t_attributed_s"] == 100

@@ -139,8 +139,9 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
     cache = agent_suite.SuiteCache(art.scorer_dir / "agent-suite-cache.json")
     own = None
     if cfg.agent_suite:
-        own = cache.get_or_run(ws, python, forbid=forbid)
-        metrics[mn.AGENT_SUITE] = {"value": float(own["failed"] + own["errors"]), "detail": own}
+        own = cache.get_or_run(ws, python, forbid=forbid, timeout_s=cfg.agent_suite_timeout_s)
+        metrics[mn.AGENT_SUITE] = {"value": float(own["failed"] + own["errors"]) if agent_suite.finished(own) else None,
+                                   "detail": own}
 
     bench = None
     bench_cfg = _benchmark_config(hidden) if cfg.benchmark and seed_ws is not None else None
@@ -156,7 +157,7 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
             with sandbox.scratch_dir(forbid) as scratch:
                 tree = scratch / "commit"
                 r_regression.materialize_commit(art.mirror, pt["head_sha"], tree)
-                end["own_suite"] = cache.get_or_run(tree, python, forbid=forbid)
+                end["own_suite"] = cache.get_or_run(tree, python, forbid=forbid, timeout_s=cfg.agent_suite_timeout_s)
         ends.append(end)
 
     ctx = Context(

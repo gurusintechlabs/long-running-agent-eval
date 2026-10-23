@@ -60,11 +60,16 @@ class Directive:
     freeze: tuple[str, ...] = ()     # globs that must not change while the directive is in force
     stop: str | None = None          # a work item the agent must stop working on
     until_stage: int | None = None   # lifted when this stage is delivered (None: never)
+    # regexes over source text: a non-test .py file that matches one (defines index code, say) is frozen
+    # too, wherever the agent put it ("if your index code lives elsewhere, the directive covers it too")
+    freeze_defining: tuple[str, ...] = ()
 
     def as_payload(self) -> dict:
         out: dict = {"id": self.id, "stage": self.stage, "until_stage": self.until_stage}
         if self.freeze:
             out["freeze"] = list(self.freeze)
+        if self.freeze_defining:
+            out["freeze_defining"] = list(self.freeze_defining)
         if self.stop is not None:
             out["stop"] = self.stop
         return out
@@ -151,8 +156,8 @@ def _directives(raw, stage_id: int, n_stages: int) -> tuple[Directive, ...]:
     out = []
     for i, d in enumerate(raw):
         where = f"stage {stage_id} directive {i}"
-        if not isinstance(d, dict) or set(d) - {"freeze", "stop", "until_stage"}:
-            raise StageError(f"{where}: expected {{freeze|stop[, until_stage]}}, got {d!r}")
+        if not isinstance(d, dict) or set(d) - {"freeze", "freeze_defining", "stop", "until_stage"}:
+            raise StageError(f"{where}: expected {{freeze[, freeze_defining]|stop[, until_stage]}}, got {d!r}")
         if ("freeze" in d) == ("stop" in d):
             raise StageError(f"{where}: exactly one of freeze or stop")
         until = d.get("until_stage")
@@ -164,7 +169,17 @@ def _directives(raw, stage_id: int, n_stages: int) -> tuple[Directive, ...]:
         stop = d.get("stop")
         if "stop" in d and (not isinstance(stop, str) or not stop.strip()):
             raise StageError(f"{where}: stop must be a non-empty string")
-        out.append(Directive(f"s{stage_id}-d{i}", stage_id, freeze, stop, until))
+        defining = ()
+        if "freeze_defining" in d:
+            defining = _str_list(d["freeze_defining"], f"{where} freeze_defining")
+            if not freeze or not defining:
+                raise StageError(f"{where}: freeze_defining needs a freeze and at least one regex")
+            for rx in defining:
+                try:
+                    re.compile(rx, re.M)
+                except re.error as exc:
+                    raise StageError(f"{where}: freeze_defining {rx!r}: {exc}") from None
+        out.append(Directive(f"s{stage_id}-d{i}", stage_id, freeze, stop, until, defining))
     return tuple(out)
 
 

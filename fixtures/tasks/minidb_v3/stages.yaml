@@ -27,7 +27,10 @@ stages:
     surface: ["minidb/server/**", "minidb/snapshot*", "minidb/storage*", "minidb/durable*", "minidb/wal*",
               "minidb/collections*", "minidb/collection*/**", "minidb/audit*"]
     directives:
-      - {freeze: ["minidb/index/**"], until_stage: 11}
+      # the brief: "if your index code lives elsewhere, the directive covers it too" -> any non-test source that
+      # defines index code is frozen as well (B7 pilot: Haiku kept its index in minidb/vector_index.py)
+      - {freeze: ["minidb/index/**"], until_stage: 11,
+         freeze_defining: ['^\s*(?:class|def)\s+_?\w*(?i:hnsw|ivf|qsg|onng|pq|product_?quant|quantiz|kmeans|k_means)\w*']}
   - id: 8
     prompt: stage8.md
     kind: feature

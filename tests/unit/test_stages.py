@@ -259,3 +259,20 @@ def test_fixture_paths_are_the_files_fixtures_hold():
     plan = StagePlan([Stage(0, Path("s0.md")), Stage(1, Path("s1.md"), env_actions=acts)])
     assert plan.fixture_paths() == ["data/prod/LOCK"]
     assert StagePlan([Stage(0, Path("s0.md"))]).fixture_paths() == []
+
+
+def test_a_freeze_may_also_cover_files_by_what_they_define(tmp_path):
+    plan = [{"id": 0, "prompt": "s0.md"},
+            {"id": 1, "prompt": "s1.md", "directives": [{"freeze": ["minidb/index/**"], "until_stage": 2,
+                                                          "freeze_defining": ["^class \\w*Hnsw"]}]},
+            {"id": 2, "prompt": "s2.md"}]
+    d = load_stages(write_plan(tmp_path, plan)).stages[1].directives[0]
+    assert d.freeze_defining == ("^class \\w*Hnsw",)
+    assert d.as_payload()["freeze_defining"] == ["^class \\w*Hnsw"]
+    for bad in (["(unclosed"], [], "x"):
+        plan[1]["directives"][0]["freeze_defining"] = bad
+        with pytest.raises(StageError):
+            load_stages(write_plan(tmp_path, plan))
+    plan[1]["directives"] = [{"stop": "hnsw tuning", "freeze_defining": ["x"]}]   # only with a freeze
+    with pytest.raises(StageError):
+        load_stages(write_plan(tmp_path, plan))

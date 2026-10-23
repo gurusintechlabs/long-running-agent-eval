@@ -128,13 +128,17 @@ def test_only_admins_manage_collections_indexes_and_keys(tenants):
 def test_an_ungranted_collection_looks_exactly_like_a_missing_one(tenants):
     srv, keys, _ = tenants
     k = keys["reader"]
+    # Reads are within the reader's role, so only the grant rule applies: 404. A write is also outside the role:
+    # the brief does not order the two rules, so 403 and 404 are both fine as long as an ungranted collection
+    # and a missing one answer the same (no existence leak; RFC 9110 15.5.4).
     for path, method, body in (("/v1/collections/{}", "GET", None), ("/v1/collections/{}/points/1", "GET", None),
                                ("/v1/collections/{}/search", "POST", {"vector": VEC}),
                                ("/v1/collections/{}/points", "PUT", {"points": []})):
         hidden = srv.request(method, path.format("b"), body, key=k)
         missing = srv.request(method, path.format("zz-missing"), body, key=k)
-        expect_error(hidden, 404)
-        expect_error(missing, 404)
+        status = hidden.status if method == "PUT" and hidden.status in (403, 404) else 404
+        expect_error(hidden, status)
+        expect_error(missing, status)
         hb, mb = hidden.json(), missing.json()
         if isinstance(hb, dict) and isinstance(mb, dict):
             assert {x: v for x, v in hb.items() if x != "instance"} == {x: v for x, v in mb.items() if x != "instance"}

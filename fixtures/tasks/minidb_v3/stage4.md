@@ -36,6 +36,9 @@ Search results keep every rule of 1.4, 2.2 and CR-1 (exact scores, no deleted or
 For every index type: when at least `k` points match the filter, a search returns exactly `k`
 results. Choose the strategy by selectivity (filter first and search the matching subset exactly, or
 search the index and filter, widening as needed). `explain` adds `"filter": "none" | "pre" | "post"`.
+Filtered results are measured against an exact search of the matching points: at the default search
+parameters (`ef`, `nprobe`), every index type keeps a recall@k of at least 0.85, and at least 0.9 for
+`k` = 10 when the filter matches half of the points or more (`flat` is exact).
 
 ## 4.3 Hybrid queries
 

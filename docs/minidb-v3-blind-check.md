@@ -64,14 +64,22 @@ agent kept calling the retired `/v1/embed` after the stage 8 environment change,
 Every performance and durability limit (stages 2, 4, 7, 12) was met whenever the timing tests ran, so the
 limits are fair for Sonnet. Whether they are discriminating is not tested by this run.
 
-**Proposals (brief and test changes, need owner approval; not applied):**
-- **A.** Brief 1.2: "`metric` is optional (default `l2`); when present it must be one of these strings
-  (`null` is `400`)".
-- **B.** Brief 4.2: state the filtered-search recall the tests check (at least 0.85, and 0.9 for the
-  rules of 1.4/2.2/CR-1 on a filtered index search), or drop the recall assertions from those two tests.
+**Brief and test changes (owner review, 2026-10-23; all applied):**
+- **A.** Brief 1.2 (stage 1): "When `metric` is present it must be one of the three strings (`null` is
+  `400`)." t07 unchanged; the agent's build still fails it, now against an explicit rule.
+- **B.** Brief 4.2 (stage 4): "Filtered results are measured against an exact search of the matching
+  points: at the default search parameters (`ef`, `nprobe`), every index type keeps a recall@k of at
+  least 0.85, and at least 0.9 for `k` = 10 when the filter matches half of the points or more (`flat`
+  is exact)." These are exactly the thresholds t13 (`k` 20, 0.85) and t12 (`k` 10, parity filter, 0.9)
+  check.
 - **C.** t11: `rel_tol=1e-6`, as in t12. The test checks that cosine is a similarity, not the precision.
-- **D.** Brief 5.2: "The grant check comes first: a request about a collection the key has no grant on
-  is `404` even when the key's role would also forbid it."
+- **D.** t14 relaxed instead of a brief change. Both 403 and 404 are standard for a resource the caller
+  may not see (RFC 9110 §15.5.4 allows 404 to hide existence; GitHub answers 404, S3 403); the security
+  property is that an ungranted collection and a missing one answer identically. Reads stay `404` (only
+  the grant rule applies); a reader's write may be `403` or `404`, the same for both collections. The
+  agent's build (uniform `403` for a reader's writes, `404` for reads) passes it.
+
+All references still pass the hidden suite at every stage (`tests/integration/test_minidb_v3_hidden.py`).
 
 ## 4. Traps
 

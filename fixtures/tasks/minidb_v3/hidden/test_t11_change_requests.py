@@ -45,7 +45,7 @@ def test_cosine_scores_are_similarities_descending(shared):  # noqa: F811
     b = base.astype(np.float64)
     cos = b @ q / (np.linalg.norm(b, axis=1) * np.linalg.norm(q))
     assert [r["id"] for r in res] == [int(i) for i in np.argsort(-cos, kind="stable")[:8]]
-    assert all(math.isclose(r["score"], cos[r["id"]], rel_tol=1e-9, abs_tol=1e-12) for r in res)
+    assert all(math.isclose(r["score"], cos[r["id"]], rel_tol=1e-6, abs_tol=1e-12) for r in res)   # as t12
     assert res[0]["score"] >= res[-1]["score"]
     # equal similarities: ids ascending; l2 is unchanged (distance, ascending)
     ties = _coll(shared, 2, "cosine")

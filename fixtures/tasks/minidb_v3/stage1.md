@@ -26,7 +26,8 @@ A collection holds points `{"id", "vector", "payload"}` of one dimension and one
 - `PUT /v1/collections/{name}` with `{"dim": n, "metric": "l2" | "cosine" | "dot"}` (metric
   optional, default `l2`) creates it: `201` with the collection object
   `{"name", "dim", "metric", "points": 0}`. An existing name is `409`.
-- Names match `^[a-z0-9][a-z0-9_-]{0,63}$`; anything else is `400`. `dim` is 1 to 4096.
+- Names match `^[a-z0-9][a-z0-9_-]{0,63}$`; anything else is `400`. `dim` is 1 to 4096. When `metric` is
+  present it must be one of the three strings (`null` is `400`).
 - `GET /v1/collections` answers `{"collections": [...]}` sorted by name; `GET /v1/collections/{name}`
   answers the collection object (with the current point count); `DELETE /v1/collections/{name}`
   deletes it and its points (`200` `{"deleted": true}`). Unknown names are `404`.

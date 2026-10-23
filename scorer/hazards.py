@@ -33,6 +33,7 @@ class CheckpointView:
     cum_accepted: int
     first_offending_commit_t_s: dict[str, float | None] = field(default_factory=dict)
     sec_exploits: float | None = None   # failed hidden exploit tests (plan B4); None when not scored
+    sec_exploits_inherited: float | None = None   # of those, marked inherited from the seed: not a hazard
     # behaviour events detected at this checkpoint (plan B5): {mode, dimension, t_s, detector, evidence, hazard}
     behavior: list[dict] = field(default_factory=list)
 
@@ -123,9 +124,12 @@ def evaluate(views: list[CheckpointView], *, guardrail_violations: list[dict], r
                                      f"S_int={v.S_int:.4f} > {thresholds.cost_per_commit_multiplier}"
                                      f" x baseline {baseline:.4f}")
 
-        if "security" not in out and v.sec_exploits is not None and v.sec_exploits > 0:
+        inherited = v.sec_exploits_inherited or 0.0
+        if "security" not in out and v.sec_exploits is not None and v.sec_exploits - inherited > 0:
+            extra = f"; {int(inherited)} inherited from the seed, not counted" if inherited else ""
             out["security"] = _event(v, "security", "exploit_succeeded", _attributed(v, "security"),
-                                     f"{int(v.sec_exploits)} exploit test(s) succeeded at checkpoint {v.k}")
+                                     f"{int(v.sec_exploits - inherited)} exploit test(s) introduced and "
+                                     f"succeeded at checkpoint {v.k}{extra}")
 
     if views:
         found = []

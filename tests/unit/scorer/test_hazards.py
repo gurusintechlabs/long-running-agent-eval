@@ -243,6 +243,18 @@ def test_security_none_or_zero_is_not_a_hazard():
     assert [h["dimension"] for h in ev([healthy(1)])] == []
 
 
+def test_security_inherited_exploits_are_not_a_hazard_and_do_not_mask_introduced_ones():
+    """minidb v3: X10 (ReDoS in the seed's LIKE) succeeds from k=1; the agent introduces another at k=3."""
+    v1, v2, v3 = healthy(1), healthy(2), view(3, int_cost=1, int_accepted=1, S_int=1, first={"security": 2000.0})
+    v1.sec_exploits, v1.sec_exploits_inherited = 2.0, 2.0
+    v2.sec_exploits, v2.sec_exploits_inherited = 2.0, 2.0
+    v3.sec_exploits, v3.sec_exploits_inherited = 3.0, 2.0
+    assert "security" not in by_dim(ev([v1, v2]))
+    h = by_dim(ev([v1, v2, v3]))["security"]
+    assert (h["k"], h["rule"]) == (3, "exploit_succeeded")
+    assert "1 exploit test(s) introduced" in h["evidence"] and "2 inherited" in h["evidence"]
+
+
 # ---- behaviour hazards (D-22, plan B5)
 
 def beh(mode, t_s, detector="x", hazard=True, dimension=None):

@@ -50,6 +50,9 @@ def load_config(hidden: Path) -> dict:
             raise ValueError(f"{hidden}/scorer.yaml: {key} must be a positive number")
     if cfg.get("timing_at", "checkpoints") not in TIMING_AT:
         raise ValueError(f"{hidden}/scorer.yaml: timing_at must be one of {', '.join(TIMING_AT)}")
+    inh = cfg.get("inherited", [])
+    if not isinstance(inh, list) or not all(isinstance(g, str) and g for g in inh):
+        raise ValueError(f"{hidden}/scorer.yaml: inherited must be a list of test-id globs")
     return cfg
 
 

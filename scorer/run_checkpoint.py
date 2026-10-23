@@ -648,13 +648,16 @@ def _build_views(a, k, scorer_events, dt_s, metrics, t_k, t_prev, int_cost, int_
             int_accepted=si.get("int_accepted", 0), cum_accepted=si.get("cum_accepted", 0),
             first_offending_commit_t_s={"quality": det("R").get("first_offending_commit_t_s"),
                                         "context": det("C").get("first_offending_commit_t_s")},
-            sec_exploits=(mn.lookup(prev, mn.SEC_EXPLOITS) or {}).get("value"), behavior=last_ok_behavior(scorer_events, j)))
+            sec_exploits=(mn.lookup(prev, mn.SEC_EXPLOITS) or {}).get("value"),
+            sec_exploits_inherited=(mn.lookup(prev, mn.SEC_EXPLOITS_INHERITED) or {}).get("value"),
+            behavior=last_ok_behavior(scorer_events, j)))
     views.append(hazards.CheckpointView(
         k=k, t_s=t_k, t_prev_s=t_prev, R=metrics["R"]["value"], C=metrics["C"]["value"],
         W=metrics["W"]["value"], S_int=metrics["S_int"]["value"], int_cost=int_cost,
         int_accepted=int_accepted, cum_accepted=cum_accepted,
         first_offending_commit_t_s=first_bad,
-        sec_exploits=(metrics.get(mn.SEC_EXPLOITS) or {}).get("value")))
+        sec_exploits=(metrics.get(mn.SEC_EXPLOITS) or {}).get("value"),
+        sec_exploits_inherited=(metrics.get(mn.SEC_EXPLOITS_INHERITED) or {}).get("value")))
     return views
 
 

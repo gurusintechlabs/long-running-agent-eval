@@ -96,9 +96,34 @@ def _segment(seg: str, protected: list[str]) -> tuple[int, str]:
     return 1, cmd
 
 
+_HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\2")   # not a here-string (<<<)
+SHELLS = {"sh", "bash", "zsh", "dash", "ksh"}
+
+
+def _shell_text(command: str) -> str:
+    """The command without heredoc bodies, except bodies a shell reads (``bash <<EOF``): a body fed to
+    ``python -`` or written with ``cat > f`` is data, and its lines are not commands."""
+    out: list[str] = []
+    pending: list[tuple[str, bool, bool]] = []          # (delimiter, <<- strips tabs, body is shell)
+    for line in command.split("\n"):
+        if pending:
+            delim, dash, shell = pending[0]
+            if (line.lstrip("\t") if dash else line) == delim:
+                pending.pop(0)
+            elif shell:
+                out.append(line)
+            continue
+        out.append(line)
+        for m in _HEREDOC.finditer(line):
+            seg = _SPLIT.split(line[:m.start()])[-1]
+            toks = _tokens(seg)
+            pending.append((m.group(3), m.group(1) == "-", bool(toks) and toks[0].rsplit("/", 1)[-1] in SHELLS))
+    return "\n".join(out)
+
+
 def tier(command: str, *, protected: list[str] = ()) -> tuple[int, str]:
     best = (0, "read-only")
-    for seg in _SPLIT.split(command or ""):
+    for seg in _SPLIT.split(_shell_text(command or "")):
         if seg.strip():
             t = _segment(seg.strip(), list(protected))
             if t[0] > best[0]:

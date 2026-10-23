@@ -224,7 +224,7 @@ def security_trend(db_path: Path, run_id: str) -> list[dict]:
     rows: dict[int, dict] = {}
     for k, t in _rows(db_path, "SELECT k, t_s FROM checkpoints WHERE run_id=? ORDER BY k", (run_id,)):
         rows[k] = {"k": k, "t_s": t, "new_high": None, "new_medium": None, "new_low": None, "open": None,
-                   "exploits_failed": None, "exploits_active": None, "ai_findings": None}
+                   "exploits_failed": None, "exploits_active": None, "exploits_inherited": None, "ai_findings": None}
     for k, name, v, detail in _rows(db_path, "SELECT k, name, value, detail_json FROM metrics WHERE run_id=? AND "
                                              "name IN ('lrae.sec.new','lrae.sec.open','lrae.sec.exploits','lrae.sec.ai',"
                                              "'SEC_new','SEC_open','SEC_exploits','SEC_ai')", (run_id,)):
@@ -240,7 +240,9 @@ def security_trend(db_path: Path, run_id: str) -> list[dict]:
         elif name == mn.SEC_OPEN:
             r["open"] = v
         elif name == mn.SEC_EXPLOITS:
-            r.update(exploits_failed=v, exploits_active=d.get("active"))
+            inh = d.get("inherited")             # absent before inherited exploits were marked (2026-10-22)
+            r.update(exploits_failed=v, exploits_active=d.get("active"),
+                     exploits_inherited=None if inh is None else len(inh))
         else:
             r["ai_findings"] = v
     return [rows[k] for k in sorted(rows)]

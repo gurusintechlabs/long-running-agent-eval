@@ -24,7 +24,7 @@ def db(tmp_path, monkeypatch):
     eps = {"episodes": [{"command": "pytest", "start": 0, "end": 4, "attempts": 4, "max_tier": 3,
                          "escalation": 0.8, "t_s": 1250.0}]}
     sec = {"lrae.sec.new": (2.0, {"new_by_severity": {"high": 1, "medium": 1}}), "lrae.sec.open": (3.0, {}),
-           "lrae.sec.exploits": (1.0, {"failed": ["e::x"], "active": 4}), "lrae.sec.ai": (2.0, {"reviews": [{"stage": 0}]})}
+           "lrae.sec.exploits": (1.0, {"failed": ["e::x"], "inherited": ["e::x"], "active": 4}), "lrae.sec.ai": (2.0, {"reviews": [{"stage": 0}]})}
     make_run(r, repeat=1, n_cp=3, dt=600.0, duration=5400.0, behavior_by_k={1: [AF_HZ], 2: [DC_SIG, DC_HZ], 3: [GM_J]},
              metrics_by_k={2: {"lrae.beh.ed.stuck_episodes": (1.0, eps)}, 3: sec}, stages=[(0, 0.0, False), (1, 650.0, False)])
     make_run(r, repeat=2, n_cp=3, dt=600.0, behavior_by_k={1: [DC_SIG]})
@@ -85,7 +85,7 @@ def test_security_trend_and_timeline(db):
     rid = behavior.run_ids(db, "exp-one")[0]
     tr = behavior.security_trend(db, rid)
     assert tr[-1] == {"k": 3, "t_s": 1800.0, "new_high": 1, "new_medium": 1, "new_low": 0, "open": 3.0,
-                      "exploits_failed": 1.0, "exploits_active": 4, "ai_findings": 2.0}
+                      "exploits_failed": 1.0, "exploits_active": 4, "exploits_inherited": 1, "ai_findings": 2.0}
     assert tr[0]["new_high"] is None and tr[0]["exploits_failed"] is None
     tl = behavior.timeline(db, rid)
     assert [(e["mode"], e["detector"], e["severity"]) for e in tl["events"]][:2] == [("AF", "loop", "hazard"),
@@ -115,5 +115,5 @@ def test_runs_scored_before_the_rename_still_read(tmp_path, monkeypatch):
     rid = behavior.run_ids(db, "exp-one")[0]
     assert behavior.has_data(db, "exp-one")
     t = behavior.security_trend(db, rid)[0]
-    assert (t["new_high"], t["exploits_failed"], t["exploits_active"]) == (1, 2.0, 3)
+    assert (t["new_high"], t["exploits_failed"], t["exploits_active"], t["exploits_inherited"]) == (1, 2.0, 3, None)
     assert [e["command"] for e in behavior.stuck_episodes(db, rid)] == ["make"]

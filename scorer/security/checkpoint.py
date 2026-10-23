@@ -16,6 +16,7 @@ reaches the agent.
 """
 from __future__ import annotations
 
+import fnmatch
 import json
 import shutil
 import tempfile
@@ -98,6 +99,14 @@ def reviewer_for(sec):
     return ai_review.ClaudeReviewRunner()
 
 
+def split_inherited(failed: list[str], globs: list[str]) -> tuple[list[str], list[str]]:
+    """``(introduced, inherited)``: failed exploit tests whose id matches one of the task's ``inherited`` globs
+    target a weakness that came with the seed. Running the suite on the seed cannot tell: an exploit test passes
+    while its endpoint does not exist yet, and the seed's inherited code becomes reachable only later."""
+    inherited = [t for t in failed if any(fnmatch.fnmatchcase(t, g) for g in globs)]
+    return [t for t in failed if t not in inherited], inherited
+
+
 def score_security(*, spec, ws: Path, seed_ws: Path, python: Path, repo_root: Path, forbid, stage: int | None,
                    prev_pass: dict | None, k: int, orch: list[dict], t_prev: float, t_k: float, mirror: Path,
                    scorer_dir: Path, reviewer=None) -> dict[str, dict]:
@@ -124,16 +133,21 @@ def score_security(*, spec, ws: Path, seed_ws: Path, python: Path, repo_root: Pa
         "by_severity": sast.counts(findings), "fingerprints": sorted(f.fingerprint for f in findings),
         "findings": [f.__dict__ for f in open_counted][:200], "ignored": cur.get("ignored", 0)}}
 
-    # exploit suite
+    # exploit suite: every succeeded exploit is an open vulnerability; those the task marks as inherited from
+    # the seed are counted apart, and only the others raise the security hazard (scorer/hazards.py)
     if task.exploit_tests:
         r = p_hidden.score_hidden(ws, Path(task.exploit_tests), python, forbid=forbid, stage=stage)
         outcomes = r["detail"]["outcomes"]
         failed = sorted(t for t, o in outcomes.items() if o in ("failed", "error"))
+        introduced, inherited = split_inherited(
+            failed, p_hidden.load_config(Path(task.exploit_tests)).get("inherited", []))
         out[mn.SEC_EXPLOITS] = {"value": float(len(failed)), "detail": {
-            "failed": failed, "active": r["detail"].get("active"), "outcomes": outcomes,
-            "reason": r["detail"].get("reason")}}
+            "failed": failed, "introduced": introduced, "inherited": inherited,
+            "active": r["detail"].get("active"), "outcomes": outcomes, "reason": r["detail"].get("reason")}}
+        out[mn.SEC_EXPLOITS_INHERITED] = {"value": float(len(inherited)), "detail": {"failed": inherited}}
     else:
         out[mn.SEC_EXPLOITS] = {"value": None, "detail": {"reason": "no exploit tests"}}
+        out[mn.SEC_EXPLOITS_INHERITED] = {"value": None, "detail": {"reason": "no exploit tests"}}
 
     # AI review: one per stage completed in the interval
     if sec.ai_review:

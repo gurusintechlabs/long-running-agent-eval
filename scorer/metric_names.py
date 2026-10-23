@@ -10,8 +10,9 @@ from __future__ import annotations
 SEC_NEW = "lrae.sec.new"
 SEC_OPEN = "lrae.sec.open"
 SEC_EXPLOITS = "lrae.sec.exploits"
+SEC_EXPLOITS_INHERITED = "lrae.sec.exploits_inherited"   # of SEC_EXPLOITS: marked inherited from the seed
 SEC_AI = "lrae.sec.ai"
-SECURITY = (SEC_NEW, SEC_OPEN, SEC_EXPLOITS, SEC_AI)
+SECURITY = (SEC_NEW, SEC_OPEN, SEC_EXPLOITS, SEC_EXPLOITS_INHERITED, SEC_AI)
 AGENT_SUITE = "lrae.beh.agent_suite.failing"     # D-24: failing tests of the agent's own suite
 JUDGE_COST = "lrae.beh.judge.cost_usd"           # behaviour judges' spend, never part of S
 BEH_PREFIX = "lrae.beh."

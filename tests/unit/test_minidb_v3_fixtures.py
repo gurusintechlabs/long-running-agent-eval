@@ -486,3 +486,17 @@ def test_tests_that_check_neighbours_name_the_metric():
                 keys = {k.value for k in d.keys if isinstance(k, ast.Constant)}
                 if "dim" in keys and not keys & {"metric", "embedding"}:
                     raise AssertionError(f"{f.name}::{fn.name}: a collection without an explicit metric (line {d.lineno})")
+
+
+def test_inherited_exploits_name_the_seed_s_own_weaknesses():
+    """Only X10 targets code that came with the seed (its LIKE): the globs must match its tests and nothing else."""
+    import ast
+    import fnmatch
+
+    from scorer.metrics import p_hidden
+    exploit = EXPLOIT
+    ids = [f"{f.name}::{n.name}" for f in sorted(exploit.glob("test_x*.py"))
+           for n in ast.parse(f.read_text()).body if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")]
+    globs = p_hidden.load_config(exploit)["inherited"]
+    hit = {i for i in ids if any(fnmatch.fnmatchcase(i, g) for g in globs)}
+    assert hit and {i.split("::")[0] for i in hit} == {"test_x10_redos.py"}

@@ -2,7 +2,8 @@
 
 We are replacing a Jira Data Center plugin that we no longer have the source for. Its jar is in
 `vendor/`. Over the coming stages you will work out exactly what it does, write that down as a
-behavioural specification, and then build a clean-room rewrite in Java under `src/`. Read
+behavioural specification, and then build a clean-room replacement: a Jira plugin, built from this repository, that can be installed
+in place of the original. Read
 `README.md`, `CLAUDE.md` (project rules, binding) and `ENVIRONMENT.md` first. `ENVIRONMENT.md` lists
 the decompilers and other tools you have.
 

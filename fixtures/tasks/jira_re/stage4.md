@@ -1,5 +1,6 @@
 **Stage 4: rewrite, part 2**
 
 Rewrite every remaining module, to the same definition of `done` as in stage 3. At the end of this
-stage every module in `analysis/rewrite_map.json` should be `done`. If one cannot be, say why in
+stage every module in `analysis/rewrite_map.json` should be `done`, and `sh build.sh` should produce a
+plugin jar that could be installed in place of the original. If one cannot be, say why in
 STATUS.

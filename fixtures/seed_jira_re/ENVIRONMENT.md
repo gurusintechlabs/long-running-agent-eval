@@ -1,9 +1,13 @@
 # Environment
 
-- No internet access, so no Maven or Gradle downloads. Do not install anything.
-- JDK 21 and JUnit (Jupiter, console launcher) are installed. Build and test the rewrite with
-  `sh build.sh test` (see the comments in `build.sh`). The rewrite may use the JDK and JUnit only.
-- The tools are in `~/lrae-tools/re/bin/` (not on `PATH`; call them by full path):
+- No internet access. Do not install anything.
+- **Building:** `sh build.sh` runs Maven offline (`mvn package`: compile, test, build the plugin jar in
+  `target/`); `sh build.sh test` runs the tests only; any other Maven arguments are passed through. The
+  JDK is 21. Dependencies come from a shared read-only repository that holds the Jira API of the
+  original plugin's Jira version, the original plugin's own declared dependencies, AMPS, JUnit 5 and
+  Mockito. Anything that is not there cannot be used. Calling `mvn` directly, without `build.sh`, will
+  not find that repository.
+- The reverse-engineering tools are in `~/lrae-tools/re/bin/` (not on `PATH`; call them by full path):
 
 | Tool | Command | Notes |
 |---|---|---|
@@ -13,9 +17,7 @@
 | Procyon | `~/lrae-tools/re/bin/procyon -jar vendor/<jar> -o .decompiled/procyon` | A third opinion on hard methods. |
 | javap | `~/lrae-tools/re/bin/javap -c -p -classpath vendor/<jar> <class>` | Bytecode, when decompilers disagree. |
 | jar | `~/lrae-tools/re/bin/jar tf vendor/<jar>` | List or extract the archive (e.g. `atlassian-plugin.xml`). |
-| java, javac | `~/lrae-tools/re/bin/java`, `~/lrae-tools/re/bin/javac` | JDK 21 (what `build.sh` uses). |
+| java, javac, mvn | `~/lrae-tools/re/bin/...` | JDK 21 and Maven (prefer `sh build.sh`). |
 
-- The Jira APIs the plugin compiles against are not available here. The rewrite defines its own small
-  interfaces for whatever Jira functionality it needs (see stage 2).
 - When the harness provides it, the REA reverse-engineering MCP server is available as the
   `mcp__rea__*` tools.

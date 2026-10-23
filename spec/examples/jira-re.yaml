@@ -1,13 +1,14 @@
 # Staged long-horizon task: clean-room rewrite of a Jira Data Center plugin (docs/jira-re-design.md).
 # The agent decompiles the jar in vendor/ (JADX, Vineflower, CFR, Procyon, javap; REA over MCP once
 # phase J1 wires it), writes an inventory, a behavioural spec with evidence-cited claims, and a clean-room
-# Java rewrite (JDK 21 + JUnit, offline build: build.sh). The hidden suite derives its reference from
-# the jar alone (classes, methods, plugin modules).
+# replacement: a real Jira plugin (AMPS, same Jira version as the original) built offline by build.sh.
+# The hidden suite derives its reference from the jar alone (classes, methods, plugin modules).
 #
 # Before the first run:
 #   1. bash fixtures/tasks/jira_re/tools/install_re_tools.sh      (toolchain, outside the repo)
 #   2. put the jar in fixtures/seed_jira_re/vendor/ and its name in fixtures/tasks/jira_re/target.yaml
-#   3. .venv/bin/python fixtures/tasks/jira_re/tools/prepare_seed.py   (fills in seed_commit below)
+#   3. .venv/bin/python fixtures/tasks/jira_re/tools/prepare_seed.py   (pins pom.xml, fills in seed_commit)
+#   4. .venv/bin/python fixtures/tasks/jira_re/tools/prime_maven_repo.py   (offline Maven repo; network)
 # Model and CLI version are set ONLY here. Budgets: owner expects them to be large; the figures below are
 # placeholders until the owner sets them, and every real run still needs approval of the estimated spend.
 spec_version: 1
@@ -30,6 +31,7 @@ task:
   # toolchain:
   #   dir: ~/lrae-tools/re
   #   manifest_sha256: <printed by install_re_tools.sh>
+  #   m2_manifest_sha256: <printed by prime_maven_repo.py>
   # counterparts:
   #   rea: {command: ~/lrae-tools/re/bin/rea-mcp, env_file: ~/lrae-tools/re/rea.env}
 agent:

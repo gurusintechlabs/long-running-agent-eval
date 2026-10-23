@@ -5,7 +5,14 @@ decompiled code could implement from.
 
 ## 1.1 `analysis/SPEC.md`
 
-For each module: when it runs (the trigger: a workflow transition, a REST call, an event, a schedule,
+Start with **the external contract**: everything a Jira instance, its users, other plugins or
+stored data can observe and depend on. The plugin key; each module's key, type and configuration; REST
+paths, methods, parameters, payloads and status codes; web items, servlets and their URLs; event
+listeners; scheduled jobs and their keys; stored settings, entity properties and Active Objects tables;
+and class names that Jira persists (workflow functions are referenced by class name in workflow
+definitions). The replacement must keep all of it, exactly.
+
+Then, for each module: when it runs (the trigger: a workflow transition, a REST call, an event, a schedule,
 a page view ...), its inputs, what it decides or computes, its outputs and side effects, the error
 cases, and any configuration it reads. Describe behaviour, not code: no decompiled code, no method
 bodies.

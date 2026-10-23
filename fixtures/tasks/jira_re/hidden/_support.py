@@ -20,6 +20,7 @@ from __future__ import annotations
 import functools
 import json
 import os
+import re
 import struct
 import xml.etree.ElementTree as ET
 import zipfile
@@ -230,3 +231,71 @@ def need_module(key: str) -> Module:
     if key == "<no-modules>":
         pytest.skip("the jar has no atlassian-plugin.xml modules")
     return next(m for m in ref.modules if m.key == key)
+
+
+# ---------------------------------------------------------------- the rewrite's plugin descriptor
+
+def _pom_props(pom: Path) -> dict[str, str]:
+    """``<properties>`` and ``project.*`` of the workspace pom, for ``${...}`` in the descriptor."""
+    if not pom.is_file():
+        return {}
+    try:
+        root = ET.fromstring(pom.read_text())
+    except ET.ParseError:
+        return {}
+
+    def local(tag) -> str:
+        return tag.split("}", 1)[-1] if isinstance(tag, str) else ""
+
+    props = {}
+    for el in root:
+        if local(el.tag) == "properties":
+            props.update({local(p.tag): (p.text or "").strip() for p in el})
+        elif local(el.tag) in ("groupId", "artifactId", "version", "name"):
+            props[f"project.{local(el.tag)}"] = (el.text or "").strip()
+    return props
+
+
+def _expand(value: str | None, props: dict[str, str]) -> str | None:
+    if value is None:
+        return None
+    for _ in range(5):
+        new = re.sub(r"\$\{([^}]+)\}", lambda m: props.get(m.group(1), m.group(0)), value)
+        if new == value:
+            break
+        value = new
+    return value
+
+
+@dataclass
+class Descriptor:
+    plugin_key: str | None
+    modules: dict[str, str]          # module key -> element
+
+
+def rewrite_descriptor() -> Descriptor:
+    path = WS / "src" / "main" / "resources" / "atlassian-plugin.xml"
+    if not path.is_file():
+        raise ArtefactError("src/main/resources/atlassian-plugin.xml is missing")
+    try:
+        root = ET.fromstring(path.read_text())
+    except ET.ParseError as exc:
+        raise ArtefactError(f"atlassian-plugin.xml does not parse: {exc}") from exc
+    props = _pom_props(WS / "pom.xml")
+    modules = {}
+    for el in root:
+        tag = el.tag.split("}", 1)[-1] if isinstance(el.tag, str) else ""
+        key = _expand(el.get("key"), props)
+        if tag and key and tag not in NON_MODULES:
+            modules[key] = tag
+    return Descriptor(plugin_key=_expand(root.get("key"), props), modules=modules)
+
+
+def original_plugin_key() -> str | None:
+    jar = target_jar()
+    if jar is None:
+        return None
+    with zipfile.ZipFile(jar) as z:
+        if "atlassian-plugin.xml" not in z.namelist():
+            return None
+        return ET.fromstring(z.read("atlassian-plugin.xml")).get("key")

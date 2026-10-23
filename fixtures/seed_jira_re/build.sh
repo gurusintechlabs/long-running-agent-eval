@@ -1,29 +1,15 @@
 #!/bin/sh
-# Build and test the rewrite with JDK 21 and JUnit, offline (no Maven or Gradle: there is no network).
+# Build the plugin offline with Maven and AMPS (there is no network).
 #
-#   sh build.sh compile    compile src/main/java into build/classes
-#   sh build.sh test       compile, then run every test in src/test/java (the default)
+#   sh build.sh                 compile, run the tests, build the plugin jar in target/ (= mvn package)
+#   sh build.sh test            compile and run the tests only
+#   sh build.sh <maven args>    any other Maven goals or options, e.g. sh build.sh -Dtest=Foo test
 #
-# Test reports (JUnit XML) go to build/test-results/. build/ is git-ignored.
+# Dependencies come from the shared read-only repository in ~/lrae-tools/re/m2; anything Maven writes
+# goes to .m2/ here (git-ignored). Only artifacts already in that repository can be used.
 set -eu
 TOOLS="${LRAE_RE_TOOLS:-$HOME/lrae-tools/re}"
-JAVAC="$TOOLS/bin/javac"
-JAVA="$TOOLS/bin/java"
-JUNIT="$TOOLS/lib/junit-console.jar"
 cd "$(dirname "$0")"
-
-rm -rf build
-mkdir -p build/classes build/test-classes
-find src/main/java -name '*.java' > build/main-sources.txt
-if [ -s build/main-sources.txt ]; then
-  "$JAVAC" --release 21 -Xlint:all -d build/classes @build/main-sources.txt
-fi
-[ "${1:-test}" = compile ] && exit 0
-
-find src/test/java -name '*.java' > build/test-sources.txt
-if [ -s build/test-sources.txt ]; then
-  "$JAVAC" --release 21 -d build/test-classes -cp "build/classes:$JUNIT" @build/test-sources.txt
-fi
-exec "$JAVA" -jar "$JUNIT" execute --disable-banner --details=summary \
-  --class-path "build/classes:build/test-classes" --scan-class-path build/test-classes \
-  --reports-dir build/test-results
+[ $# -gt 0 ] || set -- package
+exec "$TOOLS/bin/mvn" -o -B -ntp \
+  -Dmaven.repo.local="$PWD/.m2/repository" -Dmaven.repo.local.tail="$TOOLS/m2" "$@"

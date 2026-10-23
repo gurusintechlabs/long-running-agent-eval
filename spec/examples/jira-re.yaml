@@ -1,0 +1,73 @@
+# Staged long-horizon task: clean-room rewrite of a Jira Data Center plugin (docs/jira-re-design.md).
+# The agent decompiles the jar in vendor/ (JADX, Vineflower, CFR, Procyon, javap; REA over MCP once
+# phase J1 wires it), writes an inventory, a behavioural spec with evidence-cited claims, and a clean-room
+# Java rewrite (JDK 21 + JUnit, offline build: build.sh). The hidden suite derives its reference from
+# the jar alone (classes, methods, plugin modules).
+#
+# Before the first run:
+#   1. bash fixtures/tasks/jira_re/tools/install_re_tools.sh      (toolchain, outside the repo)
+#   2. put the jar in fixtures/seed_jira_re/vendor/ and its name in fixtures/tasks/jira_re/target.yaml
+#   3. .venv/bin/python fixtures/tasks/jira_re/tools/prepare_seed.py   (fills in seed_commit below)
+# Model and CLI version are set ONLY here. Budgets: owner expects them to be large; the figures below are
+# placeholders until the owner sets them, and every real run still needs approval of the estimated spend.
+spec_version: 1
+experiment_id: jira-re-pilot
+task:
+  id: jira-re
+  class: L3
+  prompt_file: ../../fixtures/tasks/jira_re/stage0.md
+  stages_file: ../../fixtures/tasks/jira_re/stages.yaml
+  seed_repo: ../../fixtures/seed_jira_re
+  seed_commit: "0000000000000000000000000000000000000000"   # written by prepare_seed.py (zeros: not prepared)
+  seed_requirements_lock: ../../fixtures/tasks/jira_re/requirements.lock   # harness side: agent + scorer venvs
+  constraints_file: ../../fixtures/tasks/jira_re/constraints.yaml
+  hidden_tests: ../../fixtures/tasks/jira_re/hidden
+  workspace_memory: ../../fixtures/tasks/jira_re/CLAUDE.md
+  permissions:
+    deny: ["Edit(vendor/**)", "Write(vendor/**)", "Edit(CLAUDE.md)", "Write(CLAUDE.md)", "Bash(git push:*)"]
+  protected_paths: ["vendor/**"]
+  # Phase J1 (not in spec/schema.py yet; uncomment once it is):
+  # toolchain:
+  #   dir: ~/lrae-tools/re
+  #   manifest_sha256: <printed by install_re_tools.sh>
+  # counterparts:
+  #   rea: {command: ~/lrae-tools/re/bin/rea-mcp, env_file: ~/lrae-tools/re/rea.env}
+agent:
+  runtime: claude_code
+  claude_bin: claude
+  claude_code_version: "2.1.301"       # must equal `claude --version` at run start
+  model: claude-opus-5-5               # <- CHANGE AGENT MODEL HERE
+  auto_memory: cli_default
+run:
+  duration_min: 360                    # upper bound; stages follow as soon as the previous one is done
+  checkpoint_interval_min: 20
+  repeats: 1
+  configs: [A]
+  seed: 1234
+  parallelism: 1
+budget:                                # subscription login: $ = API-equivalent estimate (D-16)
+  per_run_usd: 250.00                  # PLACEHOLDER (owner: large); set the real figure
+  experiment_usd: 250.00               # PLACEHOLDER; needs owner approval before launch
+isolation:
+  mode: local
+  work_dir: ~/lrae-work
+  keep_work_dir: false
+telemetry:
+  protocol: http/json
+  export_interval_ms: 1000
+guardrails:
+  policy_file: ../../guardrails/rules/default.yaml
+scoring:
+  judge_model: claude-opus-5-5         # <- CHANGE JUDGE MODEL HERE
+  judge_samples: 3
+  judge_runtime: claude_code
+  max_commit_scoring_s: 600
+  checkpoint_timeout_s: 1800
+  thresholds:
+    repeat_work_ratio: 0.30
+    cost_per_commit_multiplier: 2.0
+    cost_baseline_checkpoints: 2
+  behavior:
+    enabled: true
+    eval_paths: []
+    data_paths: ["vendor/**"]            # ED: the plugin under study is protected data

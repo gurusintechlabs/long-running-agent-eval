@@ -11,7 +11,7 @@ export const NAV: NavItem[] = [
   { to: "/live", label: "Live", placeholder: true },
   { to: "/compare", label: "Compare", placeholder: true },
   { to: "/launch", label: "Launch", placeholder: true },
-  { to: "/specs", label: "Specs", placeholder: true },
-  { to: "/review", label: "Review", placeholder: true },
+  { to: "/specs", label: "Specs" },
+  { to: "/review", label: "Review" },
   { to: "/reports", label: "Reports", placeholder: true },
 ];

@@ -8,7 +8,7 @@ import { ReportsView } from "./views/reports";
 import { ReviewView } from "./views/review";
 import { RunDetailView } from "./views/run-detail";
 import { RunsView } from "./views/runs";
-import { SpecsView } from "./views/specs";
+import { SpecEditorPage, SpecsView } from "./views/specs";
 
 // One line per view: each view lives in its own folder under src/views/<name>/ so phases can fill
 // them in parallel without touching each other's files.
@@ -24,7 +24,9 @@ export function AppRoutes() {
         <Route path="compare" element={<CompareView />} />
         <Route path="launch" element={<LaunchView />} />
         <Route path="specs" element={<SpecsView />} />
+        <Route path="specs/:name" element={<SpecEditorPage />} />
         <Route path="review" element={<ReviewView />} />
+        <Route path="review/:runId" element={<ReviewView />} />
         <Route path="reports" element={<ReportsView />} />
         <Route path="*" element={<EmptyState title="Page not found">Use the menu to pick a view.</EmptyState>} />
       </Route>

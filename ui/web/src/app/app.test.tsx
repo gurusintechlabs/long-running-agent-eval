@@ -34,7 +34,7 @@ describe("access", () => {
 describe("shell and stale banner", () => {
   const table = { "/runs": fx.runs, "/experiments": fx.experiments, "/ingest/status": fx.ingestStatus };
 
-  it("navigates to a labelled placeholder", async () => {
+  it("navigates to another view from the sidebar", async () => {
     resetAuth();
     initToken();
     mockFetch(table);
@@ -42,7 +42,7 @@ describe("shell and stale banner", () => {
     await screen.findByText("12 of 12 runs");
     await userEvent.click(screen.getByRole("link", { name: /Compare/ }));
     expect(await screen.findByRole("heading", { name: "Compare" })).toBeInTheDocument();
-    expect(screen.getByText("Not built yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Compare/ })).toHaveClass("active");
   });
 
   it("shows the stale banner and re-ingests with a result", async () => {

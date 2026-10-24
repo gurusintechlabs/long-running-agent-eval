@@ -303,6 +303,49 @@ async function main() {
       }
     }
 
+    // 2c. Live view: replay finished runs (haiku pilot, canary kills) when they exist in this runs dir.
+    const runIds = await evaluate(`fetch('/api/runs', { headers: { 'X-LRAE-Token': sessionStorage.getItem('lrae.token') } }).then(r => r.json()).then(j => j.runs.map(r => r.run_id))`);
+    const replay = async (id, label) => {
+      await goto(`${origin}/runs/${encodeURIComponent(id)}/live`);
+      await waitFor(async () => (await evaluate("document.querySelectorAll('[data-testid^=card-]').length")) > 3, `${label} feed cards`);
+      await waitFor(async () => (await evaluate("!!document.querySelector('.sl')")), `${label} status light`);
+      await sleep(1500); // sparklines
+      return evaluate("document.querySelector('.sl')?.dataset.status");
+    };
+    const haiku = runIds.find((r) => r.startsWith("minidb-v3-pilot-haiku"));
+    if (haiku) {
+      const st = await replay(haiku, "haiku replay");
+      const t = await text();
+      check("haiku replay: killed, 31 incidents, kill banner, budget", st === "killed" && (await evaluate("!!document.querySelector('[data-testid=kill-banner]')")) && /31/.test(t) && /Replay/.test(t));
+      await shot("live-haiku-replay-light");
+      await shot("live-haiku-replay-dark", { dark: true });
+      await shot("live-haiku-replay-narrow", { width: 420, height: 900 });
+      // expand the first incident's context
+      await evaluate(`[...document.querySelectorAll('button')].find(b => /Show context/.test(b.textContent))?.click()`);
+      await waitFor(async () => (await evaluate("document.querySelectorAll('.ctx-list li').length")) > 3, "incident context");
+      check("incident context loads inline", true);
+      await evaluate("document.querySelector('.ctx')?.scrollIntoView({block:'center'})");
+      await shot("live-haiku-incident-context-light", { height: 1100 });
+      // feed controls: warnings-only filter
+      await evaluate(`(() => { const s = document.querySelector('select[aria-label="Minimum severity"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'warning'); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+      await sleep(400);
+      check("severity filter narrows the feed", /shown of/.test(await evaluate("document.querySelector('.feed-count')?.textContent ?? ''")));
+    } else {
+      console.log("note: no haiku pilot in this runs dir; skipping its replay check");
+    }
+    for (const prefix of ["canary-forbidden", "canary-harness-read"]) {
+      const id = runIds.find((r) => r.startsWith(prefix));
+      if (!id) continue;
+      const st = await replay(id, `${prefix} replay`);
+      check(`${prefix} replay shows the kill`, st === "killed" && (await evaluate("!!document.querySelector('[data-testid=kill-banner]')")));
+      await shot(`live-${prefix}-light`);
+      await shot(`live-${prefix}-dark`, { dark: true });
+    }
+    await goto(`${origin}/live`);
+    await waitFor(async () => /(Replay a finished run|Running now)/.test(await text()), "the live run picker");
+    check("live run picker renders", true);
+    await shot("live-picker-light");
+
     // 3. A placeholder route still loads through the SPA fallback.
     await goto(`${origin}/compare`);
     await waitFor(async () => /Not built yet/.test(await text()), "the Compare placeholder");

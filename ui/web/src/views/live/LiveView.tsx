@@ -116,7 +116,7 @@ function LiveBody({ runId, mode, data, onEnded }: { runId: string; mode: FeedMod
         </div>
       </div>
 
-      <StatusStrip snap={snap} fetchedAt={at} replay={replay} />
+      <StatusStrip snap={snap} fetchedAt={at} />
       {snap.catching_up && <div className="fc-note muted">The server is still reading a large log; figures may be partial for a moment.</div>}
       <Overview snap={snap} />
 
@@ -126,7 +126,7 @@ function LiveBody({ runId, mode, data, onEnded }: { runId: string; mode: FeedMod
           <div className="lv-side-head">
             <h2>Safety</h2>
           </div>
-          <SafetyPanel runId={runId} live={live} refreshKey={handle.incidentTick} />
+          <SafetyPanel runId={runId} live={live} refreshKey={handle.incidentTick} showBudget={false} />
         </aside>
       </div>
     </div>

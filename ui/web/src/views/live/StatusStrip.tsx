@@ -30,7 +30,7 @@ function Item({ label, children }: { label: string; children: ReactNode }) {
  * The top strip: run state, elapsed, next-checkpoint ETA, scoring in flight, last-activity age. Numbers from
  * the last /live answer are advanced locally by the time since it arrived, so the clocks tick between polls.
  */
-export function StatusStrip({ snap, fetchedAt, replay }: { snap: LiveSnapshot; fetchedAt: number; replay: boolean }) {
+export function StatusStrip({ snap, fetchedAt }: { snap: LiveSnapshot; fetchedAt: number }) {
   const now = useNow(snap.live);
   const drift = snap.live ? Math.max(0, (now - fetchedAt) / 1000) : 0;
   const c = snap.clock;
@@ -47,7 +47,6 @@ export function StatusStrip({ snap, fetchedAt, replay }: { snap: LiveSnapshot; f
     <dl className="ss" aria-label="Run status">
       <Item label="State">
         <StateBadge state={snap.end?.state ?? snap.state} live={snap.live} />
-        {replay && <span className="muted"> replay</span>}
       </Item>
       <Item label="Elapsed">
         <strong>{formatDuration(elapsed)}</strong>

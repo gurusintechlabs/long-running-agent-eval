@@ -160,7 +160,7 @@ export function KillBanner({ runId, kill }: { runId: string; kill: KillInfo }) {
               )}
             </dd>
           </div>
-          <div><dt>When</dt><dd>{kill.t_s != null ? `run time ${fmtOffset(kill.t_s)}` : "before the run clock started"}{kill.ts ? ` · ${kill.ts}` : ""}</dd></div>
+          <div><dt>When</dt><dd title={kill.ts ?? undefined}>{kill.t_s != null ? `run time ${fmtOffset(kill.t_s)}` : "before the run clock started"}</dd></div>
           {kill.run_state && <div><dt>Run ended as</dt><dd>{kill.run_state.toLowerCase().replace(/_/g, " ")}</dd></div>}
           {b && (
             <div>
@@ -446,14 +446,14 @@ export function RuleLegend({ onClose }: { onClose: () => void }) {
 // ---- the panel ----------------------------------------------------------------------------------------
 
 /** Presentational: everything from one /safety answer. */
-export function SafetyPanelView({ runId, data, live }: { runId: string; data: SafetyData; live: boolean }) {
+export function SafetyPanelView({ runId, data, live, showBudget = true }: { runId: string; data: SafetyData; live: boolean; showBudget?: boolean }) {
   const [legend, setLegend] = useState(false);
   const meter = data.budget?.meter;
   return (
     <div className="sp" data-status={data.status}>
       <StatusLight data={data} />
       {data.kill && <KillBanner runId={runId} kill={data.kill} />}
-      {meter && (
+      {meter && showBudget && (
         <div className="sp-section">
           <h3 className="sp-h">Budget</h3>
           <BudgetMeter meter={meter} costUsd={meter.cost_usd} tokens={meter.tokens} />
@@ -489,6 +489,7 @@ export function SafetyPanel({
   refreshKey = 0,
   pollMs,
   badge = true,
+  showBudget = true,
 }: {
   runId: string;
   live?: boolean;
@@ -496,6 +497,8 @@ export function SafetyPanel({
   pollMs?: number;
   /** Put "(n!)" in the tab title when new violations arrive while the tab is hidden. */
   badge?: boolean;
+  /** Hide the budget meter when the page already shows one. */
+  showBudget?: boolean;
 }) {
   const { data, error, loading, reload } = useSafety(runId, live, refreshKey, pollMs);
   useTabBadge(badge && data ? data.counts.violations + data.counts.kills : null);
@@ -515,7 +518,7 @@ export function SafetyPanel({
   return (
     <>
       {error && <div className="fc-note fc-note-warn" role="status">Refresh failed ({error.message}); showing the last data.</div>}
-      <SafetyPanelView runId={runId} data={data} live={live || data.live} />
+      <SafetyPanelView runId={runId} data={data} live={live || data.live} showBudget={showBudget} />
     </>
   );
 }

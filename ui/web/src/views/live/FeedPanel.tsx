@@ -20,7 +20,7 @@ const SOURCE_ORDER = Object.keys(SOURCE_LABEL);
 function statusBadge(h: FeedHandle, replay: boolean) {
   if (replay) {
     if (h.status === "replay-error") return <Badge tone="bad">load failed</Badge>;
-    return <Badge tone="info" plain>replay</Badge>;
+    return null;
   }
   switch (h.status) {
     case "open":

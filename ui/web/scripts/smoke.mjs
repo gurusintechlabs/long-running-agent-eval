@@ -7,6 +7,9 @@
 //   node scripts/smoke.mjs                      # starts `lrae ui` itself on a free port (read-only use of runs/)
 //   node scripts/smoke.mjs --url "http://127.0.0.1:8765/#token=..."   # use an already running server
 //   options: --run <run_id>  --shots <dir>  --runs-dir <dir>
+//            --review-run <run_id>  prefer this run in the Review checks (read-only)
+//            --decide      POST review decisions with the keyboard; refused unless --runs-dir is an explicit scratch dir
+//            --write-drafts  duplicate an example into spec/drafts for the Specs screenshots, then delete it again
 //
 // Exit codes: 0 pass, 1 fail, 0 with "SKIP" if Chrome is not installed (set LRAE_CHROME to point at it).
 import { spawn } from "node:child_process";
@@ -205,12 +208,12 @@ async function main() {
     return r.result.value;
   };
   const text = () => evaluate("document.body.innerText");
-  const shot = async (name, { dark = false, width = 1360, height = 900 } = {}) => {
+  const shot = async (name, { dark = false, width = 1360, height = 900, full = true } = {}) => {
     if (!shots) return;
     await cdp.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 });
     await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: dark ? "dark" : "light" }] });
     await sleep(500);
-    const r = await cdp.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+    const r = await cdp.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: full });
     writeFileSync(path.join(shots, `${name}.png`), Buffer.from(r.data, "base64"));
   };
   const goto = async (u) => {
@@ -365,6 +368,112 @@ async function main() {
     await goto(`${origin}/compare`);
     await waitFor(async () => /Not built yet/.test(await text()), "the Compare placeholder");
     check("placeholder route renders", true);
+
+    // 4. Specs (U6): list, then the form editor on a real example with a field error shown.
+    const setValue = (id, v) =>
+      evaluate(`(() => {
+        const el = document.getElementById(${JSON.stringify(id)});
+        if (!el) return false;
+        const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, ${JSON.stringify(v)});
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      })()`);
+    const press = async (key) => {
+      await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key, text: key });
+      await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key });
+      await sleep(250);
+    };
+    const token = new URL(url).hash.match(/token=([^&]+)/)?.[1];
+    const api = (method, p, body) =>
+      fetch(`${origin}/api${p}`, { method, headers: { "X-LRAE-Token": token, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    // Creating a draft writes into spec/drafts of this checkout, so it only happens when asked for (and is removed again).
+    const draftName = "smoke-draft";
+    const writeDrafts = args.includes("--write-drafts");
+    if (writeDrafts) {
+      await api("DELETE", `/specs/${draftName}`);
+      const r = await api("POST", "/specs/pilot-scripted/duplicate", { new_name: draftName, source: "example" });
+      check("draft duplicated for the specs screenshots", r.ok, `HTTP ${r.status}`);
+    }
+    await goto(`${origin}/specs`);
+    await waitFor(async () => /Examples \(\d+\)/.test(await text()), "the specs list");
+    const specsText = await text();
+    check("specs list shows examples with validity and hashes", /valid/.test(specsText) && (await evaluate("document.querySelectorAll('tbody tr').length")) > 3);
+    await shot("specs-list-light");
+    await shot("specs-list-dark", { dark: true });
+    await shot("specs-list-narrow", { width: 420, height: 900 });
+
+    const example = (await evaluate("[...document.querySelectorAll('a[href^=\"/specs/\"]')].map(a => a.getAttribute('href')).find(h => h === '/specs/minidb-v3?source=example')")) ?? null;
+    if (example) {
+      await goto(origin + example);
+      await waitFor(async () => /Valid: what this spec will produce|problem/.test(await text()), "the spec editor");
+      check("editor renders sections, run ids and the example banner", /This is an example/.test(await text()) && /run ids/i.test(await text()));
+      await shot("spec-editor-light");
+      // break the checkpoint interval: it must not divide the duration
+      await setValue("i:run.checkpoint_interval_min", "7");
+      await waitFor(async () => /problems? to fix/.test(await text()), "field errors from live validation", 8000);
+      const inline = await evaluate("!!document.querySelector('#f\\\\:run\\\\.checkpoint_interval_min .fld-error')");
+      check("a field error is shown next to the field", inline);
+      check("editor marks unsaved changes", /unsaved changes/.test(await text()));
+      await shot("spec-editor-error-light");
+      await shot("spec-editor-error-dark", { dark: true });
+      await shot("spec-editor-error-narrow", { width: 420, height: 900 });
+      await evaluate("[...document.querySelectorAll('button[role=tab]')].find(b => b.textContent === 'YAML').click()");
+      await waitFor(async () => /experiment_id:/.test(await text()), "the YAML preview");
+      await shot("spec-editor-yaml-light");
+      // leave the dirty editor the way a user would (a raw navigation would trigger the browser's beforeunload prompt)
+      await evaluate("[...document.querySelectorAll('button')].find(b => b.textContent === 'Discard changes').click()");
+      await sleep(200);
+      await evaluate("[...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent === 'Discard').click()");
+      await waitFor(async () => !/unsaved changes/.test(await text()), "the discard to finish");
+    } else {
+      check("a minidb-v3 example exists for the editor check", false);
+    }
+    if (writeDrafts) {
+      await goto(`${origin}/specs`);
+      await waitFor(async () => (await text()).includes(draftName), "the draft in the list");
+      await shot("specs-list-with-draft-light");
+      const del = await api("DELETE", `/specs/${draftName}`);
+      check("smoke draft removed again", del.ok, `HTTP ${del.status}`);
+    }
+
+    // 5. Review (U6): overview and queue. Read-only unless --decide is given with an explicit scratch --runs-dir.
+    await goto(`${origin}/review`);
+    await waitFor(async () => /Review/.test(await text()) && !/Loading review/.test(await text()), "the review overview");
+    const reviewHref = await evaluate(`(() => {
+      const links = [...document.querySelectorAll('a[href^="/review/"]')];
+      const want = ${JSON.stringify(opt("review-run") ?? "")};
+      return (links.find(a => want && a.getAttribute('href') === '/review/' + encodeURIComponent(want)) || links[0] || {}).getAttribute?.('href') ?? null;
+    })()`);
+    if (reviewHref) {
+      await shot("review-runs-light");
+      await goto(origin + reviewHref);
+      await waitFor(async () => /pending/.test(await text()) && (await evaluate("document.querySelectorAll('.rv-card').length")) > 0, "review items");
+      check("review queue renders cards with evidence and transcript links", (await evaluate("document.querySelectorAll('.rv-card a[href*=\"tab=transcript\"]').length")) > 0);
+      await shot("review-queue-light", { full: false, height: 1100 });
+      await shot("review-queue-dark", { dark: true, full: false, height: 1100 });
+      await shot("review-queue-narrow", { width: 420, height: 1100, full: false });
+      if (args.includes("--decide")) {
+        const explicit = opt("runs-dir");
+        if (!explicit || path.resolve(explicit) === path.resolve(repoRoot, "runs")) {
+          check("--decide needs an explicit scratch --runs-dir (never the real runs/)", false);
+        } else {
+          const before = await evaluate("document.querySelectorAll('.rv-card').length");
+          await press("c");
+          await press("r");
+          await press("j");
+          await press("u");
+          const after = await evaluate("document.querySelectorAll('.rv-card').length");
+          check("keyboard decisions remove items from the pending list", after === before - 3, `${before} -> ${after}`);
+          await goto(`${origin}${reviewHref}?status=decided`);
+          await waitFor(async () => (await evaluate("document.querySelectorAll('.rv-card').length")) === 3, "the three decided items");
+          check("decided items show their latest decision and history", /History \(1\)/.test(await text()));
+          await shot("review-queue-decided-light", { full: false, height: 1100 });
+        }
+      }
+    } else {
+      console.log("note: no run with review items in this runs dir; review queue steps skipped");
+    }
   } catch (e) {
     check("smoke flow", false, e.message);
   }

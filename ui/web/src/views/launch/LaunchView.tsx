@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { controlApi, errInfo, useAsync, type ErrInfo, type LaunchRequest, type PreviewResponse, type SpecListEntry } from "../../api";
+import { controlApi, errInfo, useAsync, type ErrInfo, type LaunchRequest, type PreviewResponse, type ControlSpecEntry } from "../../api";
 import { useControlState } from "../../app/ControlBar";
 import { Badge, Card, Dialog, ErrorState, Spinner } from "../../components";
 import { formatUsd } from "../../lib/format";
@@ -25,7 +25,7 @@ export function parseRepeat(s: string): number | number[] | undefined | null {
   return nums.length === 1 ? nums[0] : nums;
 }
 
-function SpecOption({ s }: { s: SpecListEntry }) {
+function SpecOption({ s }: { s: ControlSpecEntry }) {
   return (
     <option value={s.path} disabled={!s.valid}>
       {s.name}

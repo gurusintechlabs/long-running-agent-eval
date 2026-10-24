@@ -3,6 +3,7 @@ import "./components.css";
 export * from "./Badge";
 export * from "./Card";
 export * from "./Dialog";
+export * from "./ConfirmDialog";
 export * from "./States";
 export * from "./Table";
 // The Chart wrapper pulls in ECharts (~400 kB), so it is NOT re-exported here: import it lazily with

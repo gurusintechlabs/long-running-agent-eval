@@ -3,7 +3,7 @@ import { ApiError, apiFetch } from "./client";
 
 const enc = encodeURIComponent;
 
-export interface SpecListEntry {
+export interface ControlSpecEntry {
   name: string;
   source: "example" | "draft";
   editable: boolean;
@@ -120,7 +120,7 @@ export interface ConfirmTyped {
 }
 
 export const controlApi = {
-  specs: (signal?: AbortSignal) => apiFetch<{ specs: SpecListEntry[] }>("/specs", { signal }),
+  specs: (signal?: AbortSignal) => apiFetch<{ specs: ControlSpecEntry[] }>("/specs", { signal }),
   state: (signal?: AbortSignal) => apiFetch<ControlState>("/control/state", { signal }),
   launchPreview: (req: LaunchRequest) => apiFetch<PreviewResponse>("/launch/preview", { method: "POST", body: req }),
   launch: (nonce: string, typed: ConfirmTyped) =>

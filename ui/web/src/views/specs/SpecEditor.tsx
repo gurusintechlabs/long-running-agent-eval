@@ -88,7 +88,9 @@ export function SpecEditorPage() {
       </>
     );
   }
-  if (!schemaQ.data || !specQ.data) return <Spinner label="Loading spec" />;
+  // useAsync keeps the previous result for one render after the route changes: only show data for this route
+  const fresh = specQ.data && (isNew ? specQ.data.source === "new" : specQ.data.name === name && specQ.data.source === source);
+  if (!schemaQ.data || !specQ.data || !fresh) return <Spinner label="Loading spec" />;
   return <SpecEditor key={`${source}:${name}`} schema={schemaQ.data} init={specQ.data} />;
 }
 

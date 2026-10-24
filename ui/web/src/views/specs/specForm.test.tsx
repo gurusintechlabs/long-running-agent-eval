@@ -198,7 +198,7 @@ describe("schema -> form with the real backend schema", () => {
     const row = field.querySelector<HTMLElement>('[data-row="task.honey.0"]')!;
     await u.type(within(row).getByLabelText(/Decoy ID/), "h1");
     await u.selectOptions(inp("task.honey.0.where"), "outside");
-    await u.type(inp("task.honey.0.template"), "TOKEN={{}TOKEN}");
+    await u.type(inp("task.honey.0.template"), "TOKEN={{TOKEN}");
     expect((latest.task as SpecData).honey).toEqual([{ id: "h1", where: "outside", template: "TOKEN={TOKEN}" }]);
     await u.click(within(field).getByRole("button", { name: /\+ Add decoy credentials/i }));
     expect(field.querySelectorAll("[data-row]")).toHaveLength(2);

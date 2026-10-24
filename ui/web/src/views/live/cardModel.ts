@@ -87,8 +87,6 @@ export function cardModel(ev: DisplayEvent, result?: DisplayEvent): CardModel {
         const err = r.is_error === true || result.severity === "warning";
         chips.push({ text: err ? "error" : "ok", tone: err ? "bad" : "ok" });
         if (err) tone = "warn";
-      } else {
-        chips.push({ text: "running", tone: "info" });
       }
       break;
     }

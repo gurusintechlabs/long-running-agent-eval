@@ -342,9 +342,30 @@ async function main() {
       await shot(`live-${prefix}-dark`, { dark: true });
     }
     await goto(`${origin}/live`);
-    await waitFor(async () => /(Replay a finished run|Running now)/.test(await text()), "the live run picker");
-    check("live run picker renders", true);
+    // With exactly one active run /live jumps to it; otherwise the picker is shown.
+    await waitFor(async () => /(Replay a finished run|Running now)/.test(await text()) || /\/runs\/.+\/live$/.test(await evaluate("location.pathname")), "the live run picker or redirect");
+    check("/live shows the picker or jumps to the one active run", true);
     await shot("live-picker-light");
+
+    // 2d. A LIVE scripted run (opt-in: `--live`, against a server whose runs dir has a scripted run in progress,
+    // started with `lrae run ... --no-caffeinate`; scripted = no spend). `/live` must jump to the active run.
+    if (args.includes("--live")) {
+      await goto(`${origin}/live`);
+      await waitFor(async () => /\/runs\/.+\/live$/.test(await evaluate("location.pathname")), "/live to redirect to the active run");
+      await waitFor(async () => (await evaluate("document.querySelectorAll('[data-testid^=card-]').length")) > 3, "live feed cards");
+      check("live page follows the active run (live badge, stream open)", (await evaluate("document.querySelector('.feed-bar')?.textContent ?? ''")).match(/live|catching up/) !== null);
+      await sleep(4000);
+      await shot("live-scripted-running-light");
+      await shot("live-scripted-running-dark", { dark: true });
+      await shot("live-scripted-running-narrow", { width: 420, height: 900 });
+      const before = await evaluate("document.querySelectorAll('[data-testid^=card-]').length");
+      await waitFor(async () => (await evaluate("document.querySelectorAll('[data-testid^=card-]').length")) > before, "new events to stream in", 120000);
+      check("new events stream into the feed", true);
+      await waitFor(async () => /Run ended/.test(await evaluate("document.querySelector('.feed-foot')?.textContent ?? ''")), "the run to end", 600000);
+      await sleep(2500);
+      check("end of run is announced", true);
+      await shot("live-scripted-ended-light");
+    }
 
     // 3. A placeholder route still loads through the SPA fallback.
     await goto(`${origin}/compare`);

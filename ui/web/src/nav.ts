@@ -8,7 +8,7 @@ export interface NavItem {
 // Run detail (/runs/:runId) is reached from the Runs table, so it has no entry of its own.
 export const NAV: NavItem[] = [
   { to: "/runs", label: "Runs" },
-  { to: "/live", label: "Live", placeholder: true },
+  { to: "/live", label: "Live" },
   { to: "/compare", label: "Compare" },
   { to: "/launch", label: "Launch" },
   { to: "/specs", label: "Specs" },

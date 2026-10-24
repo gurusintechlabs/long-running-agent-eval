@@ -14,6 +14,7 @@ import { RunTabs } from "./RunTabs";
 import { TestsTab } from "./tests/TestsTab";
 import { TimelineTab } from "./timeline/TimelineTab";
 import { TranscriptTab } from "./transcript/TranscriptTab";
+import { SafetyPanel } from "../live";
 import "./run-detail.css";
 import "./run-detail-u3.css";
 
@@ -89,6 +90,8 @@ export function RunDetailView() {
                 <IngestResultView result={ing.result} failure={ing.failure} onDismiss={ing.dismiss} />
               </Card>
             )}
+
+            <SafetyPanel runId={runId} live={live} />
 
             {detail.run.ingested &&
               (cpQ.error && !cpQ.data ? (

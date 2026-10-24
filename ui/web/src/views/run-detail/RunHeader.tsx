@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { RunDetail } from "../../api";
 import { Badge, Card, StateBadge } from "../../components";
@@ -37,6 +38,7 @@ export function RunHeader({ detail }: { detail: RunDetail }) {
           <div className="row rh-badges">
             <StateBadge state={run.state} live={run.live} />
             {run.live && <span className="muted">running now</span>}
+            <Link to={`/runs/${encodeURIComponent(run.run_id)}/live`} className="rh-live-link">{run.live ? "Live view" : "Replay"}</Link>
             {run.resumed && <Badge tone="neutral" plain>resumed</Badge>}
             {!run.ingested && <Badge tone="warn" plain title="Metrics and hazards need lrae ingest">not ingested</Badge>}
           </div>

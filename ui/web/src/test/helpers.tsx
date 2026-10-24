@@ -51,3 +51,16 @@ export function renderRoute(ui: ReactElement, path: string, route: string) {
     </DataVersionProvider>,
   );
 }
+
+/** Stub fetch with a router function: receives the path WITH its query string (no /api prefix). */
+export function mockRoutes(route: (path: string, init: RequestInit | undefined) => { status?: number; body: unknown } | undefined) {
+  const calls: string[] = [];
+  const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input).replace(/^\/api/, "");
+    calls.push(path);
+    const r = route(path, init) ?? { status: 404, body: { detail: "no such endpoint" } };
+    return new Response(JSON.stringify(r.body), { status: r.status ?? 200, headers: { "content-type": "application/json" } });
+  });
+  vi.stubGlobal("fetch", fn);
+  return { fn, calls };
+}

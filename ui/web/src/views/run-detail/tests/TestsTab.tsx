@@ -211,7 +211,7 @@ function FlipList({ flips }: { flips: Flip[] }) {
       <div className="picker" role="group" aria-label="Flip kind">
         {(["regression", "recovery", "all"] as const).map((k) => (
           <Chip key={k} on={kind === k} onClick={() => { setKind(k); setShown(FLIPS_STEP); }}>
-            {k === "all" ? "All flips" : `${k}s`}
+            {k === "all" ? "All flips" : k === "regression" ? "Regressions" : "Recoveries"}
           </Chip>
         ))}
       </div>

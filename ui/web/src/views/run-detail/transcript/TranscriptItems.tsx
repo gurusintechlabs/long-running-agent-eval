@@ -158,7 +158,7 @@ export function TranscriptRow({ runId, it, highlighted }: { runId: string; it: T
         {it.turn != null && <span className="muted">turn {it.turn}</span>}
         {highlighted && <Badge tone="warn" plain>target</Badge>}
         <span className="tr-spacer" />
-        <CopyButton text={it.cursor} label="Copy cursor" />
+        <CopyButton text={it.cursor} label="Copy cursor" ghost />
       </div>
       {body}
     </li>

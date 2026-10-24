@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { formatBytes } from "../../../lib/text";
 
 /** Copies `text` to the clipboard. Falls back silently (status text says so) when the API is blocked. */
-export function CopyButton({ text, label = "Copy" }: { text: string | (() => string); label?: string }) {
+export function CopyButton({ text, label = "Copy", ghost = false }: { text: string | (() => string); label?: string; ghost?: boolean }) {
   const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -17,7 +17,7 @@ export function CopyButton({ text, label = "Copy" }: { text: string | (() => str
     timer.current = setTimeout(() => setState("idle"), 1600);
   };
   return (
-    <button type="button" className="btn btn-small" onClick={() => void run()} aria-live="polite">
+    <button type="button" className={ghost ? "link-btn" : "btn btn-small"} onClick={() => void run()} aria-live="polite">
       {state === "ok" ? "Copied" : state === "fail" ? "Copy failed" : label}
     </button>
   );
@@ -55,7 +55,7 @@ export function ExpandableText({
             {open ? "Collapse" : `Show all (${formatBytes(text.length)})`}
           </button>
         )}
-        <CopyButton text={text} />
+        <CopyButton text={text} ghost />
         {note}
       </div>
     </div>

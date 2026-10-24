@@ -68,7 +68,8 @@ export interface RunManifest {
   claude_code_version?: string;
   seed_commit?: string;
   isolation_mode?: string;
-  safe_mode?: boolean | string | null;
+  /** Real manifests carry `{enabled, reason}`; older ones may lack it. */
+  safe_mode?: { enabled?: boolean; reason?: string } | boolean | null;
   framework?: { dirty?: boolean; git_sha?: string };
   host?: { machine?: string; os?: string; python?: string };
   policy_sha256?: string;

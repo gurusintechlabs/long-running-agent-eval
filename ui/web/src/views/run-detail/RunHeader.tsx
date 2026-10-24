@@ -13,15 +13,20 @@ function Item({ label, children, title }: { label: string; children: ReactNode; 
   );
 }
 
-function safeModeLabel(v: unknown): string {
-  if (v === undefined || v === null) return "not recorded";
-  if (typeof v === "boolean") return v ? "on" : "off";
-  return String(v);
+function safeModeLabel(v: unknown): { text: string; reason?: string } {
+  if (v === undefined || v === null) return { text: "not recorded" };
+  if (typeof v === "boolean") return { text: v ? "on" : "off" };
+  if (typeof v === "object") {
+    const o = v as { enabled?: unknown; reason?: unknown };
+    return { text: o.enabled === true ? "on" : o.enabled === false ? "off" : "unknown", reason: typeof o.reason === "string" ? o.reason : undefined };
+  }
+  return { text: String(v) };
 }
 
 export function RunHeader({ detail }: { detail: RunDetail }) {
   const { run, manifest: m } = detail;
   const end = m.end ?? null;
+  const safe = safeModeLabel(m.safe_mode);
   const reasons = [end?.end_reason, end?.censored_reason, end?.error].filter((x): x is string => !!x);
   return (
     <Card className="run-header">
@@ -55,7 +60,10 @@ export function RunHeader({ detail }: { detail: RunDetail }) {
           <span className="mono">{shortSha(m.seed_commit, 12)}</span>
         </Item>
         <Item label="Isolation mode">{run.isolation_mode ?? EMPTY}</Item>
-        <Item label="Safe mode">{safeModeLabel(m.safe_mode)}</Item>
+        <Item label="Safe mode" title={safe.reason}>
+          {safe.text}
+          {safe.reason && <span className="muted"> (why: {safe.reason})</span>}
+        </Item>
         <Item label="Runtime">{run.runtime ?? EMPTY}</Item>
         <Item label="Started">{formatDateTime(run.start_epoch)}</Item>
         <Item label="Duration">{formatDuration(runDuration(run))}</Item>

@@ -73,7 +73,7 @@ export function IngestBanner() {
           <div>
             <strong>The metrics store is out of date.</strong>{" "}
             <span>
-              {st.reason ?? "Stale."} {st.runs_in_store} of {st.runs_on_disk} runs are ingested; the rest show no metrics or hazards until you
+              {st.reason ?? "Stale"}. {st.runs_in_store} of {st.runs_on_disk} runs are ingested; the rest show no metrics or hazards until you
               re-ingest. Run lists and checkpoints still come straight from the logs.
             </span>
           </div>

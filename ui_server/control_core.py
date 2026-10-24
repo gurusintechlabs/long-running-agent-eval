@@ -385,6 +385,17 @@ class ControlConfig:
     spawner: Callable[..., Any] = default_spawner
     clock: Callable[[], float] = time.monotonic
 
+    @property
+    def disabled_reason(self) -> str | None:
+        """The CLI is only ever given ``--repo-root``, so it reads and writes ``<repo>/runs``. If the UI was
+        started with another ``--runs-dir``, its view of active runs, conflicts and spend would not be the
+        CLI's: control is off rather than guessing."""
+        want = (self.repo_root / "runs").resolve()
+        if self.runs_dir.resolve() != want:
+            return (f"the UI reads runs from {self.runs_dir} but lrae uses {want}; start the UI with the default "
+                    "runs dir to control runs (viewing still works)")
+        return None
+
     @classmethod
     def from_settings(cls, s: Settings) -> ControlConfig:
         root = s.repo_root.resolve()
@@ -399,6 +410,11 @@ class Control:
         self._mutex = threading.Lock()
         self.job: dict | None = None     # {kind, proc, pid, log, started, run_ids, expect_run}
         self._stop_requested: dict[int, float] = {}
+
+    def require_enabled(self) -> None:
+        why = self.cfg.disabled_reason
+        if why:
+            raise ControlError(409, "control_disabled", why)
 
     def argv(self, *tail: str) -> list[str]:
         c = self.cfg
@@ -434,9 +450,11 @@ class Control:
     def state(self) -> dict:
         act = self.active()
         j = self.job
+        off = self.cfg.disabled_reason
         return {
             "active": bool(act), "run": act[0] if act else None, "active_all": act,
-            "launch_allowed": not act,
+            "control_enabled": off is None, "control_disabled_reason": off,
+            "launch_allowed": not act and off is None,
             "reason": None if not act else f"a harness process is alive (run {act[0]['run_id']}, pid {act[0]['pid']}); "
                                            "one run at a time",
             "job": None if not j else {"kind": j["kind"], "pid": j["pid"], "started_epoch": j["started"],

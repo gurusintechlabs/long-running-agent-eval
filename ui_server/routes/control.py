@@ -105,6 +105,7 @@ def register(app: FastAPI, settings: Settings) -> None:
     # -- launch --------------------------------------------------------------------------------
     @app.post("/api/launch/preview")
     def launch_preview(body: PreviewBody):
+        C().require_enabled()
         real = cc.resolve_spec_path(C().cfg.spec_roots, C().cfg.repo_root, body.spec_path, body.draft)
         loaded = _load(real)
         est = cc.compute_estimate(loaded, C().cfg.repo_root, configs=body.config, repeats=body.repeat)
@@ -120,6 +121,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
     @app.post("/api/launch")
     def launch(body: LaunchBody):
+        C().require_enabled()
         res = C().start_run_job(body.nonce, "launch", body.confirm_usd, body.confirm_runs)
         return JSONResponse(res, status_code=200 if res["manifest_seen"] else 202)
 
@@ -135,6 +137,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
     @app.post("/api/runs/{rid}/resume/preview")
     def resume_preview(rid: str, body: ResumePreviewBody):
+        C().require_enabled()
         m, real = _resume_ref(rid)
         k = cc.parse_from(body.from_)
         loaded = _load(real)
@@ -148,6 +151,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
     @app.post("/api/runs/{rid}/resume")
     def resume(rid: str, body: ResumeBody):
+        C().require_enabled()
         _resume_ref(rid)
         k = cc.parse_from(body.from_)
         rec = C().nonces.peek(body.nonce, "resume")
@@ -159,11 +163,13 @@ def register(app: FastAPI, settings: Settings) -> None:
     # -- stop / kill ---------------------------------------------------------------------------
     @app.post("/api/runs/{rid}/stop")
     def stop(rid: str):
+        C().require_enabled()
         d = run_dir_or_404(settings, rid)
         return C().stop(rid, store.read_json(d / "manifest.json") or {})
 
     @app.post("/api/runs/{rid}/kill")
     def kill(rid: str, body: KillBody):
+        C().require_enabled()
         d = run_dir_or_404(settings, rid)
         if body.confirm != rid:
             raise cc.ControlError(422, "confirmation_mismatch", "set confirm to the run id to hard-kill it")
@@ -172,6 +178,7 @@ def register(app: FastAPI, settings: Settings) -> None:
     # -- score / clean -------------------------------------------------------------------------
     @app.post("/api/runs/{rid}/score")
     def score(rid: str, body: ScoreBody | None = None):
+        C().require_enabled()
         d = run_dir_or_404(settings, rid)
         m = store.read_json(d / "manifest.json") or {}
         k = body.checkpoint if body else None
@@ -194,6 +201,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
     @app.post("/api/clean")
     def clean():
+        C().require_enabled()
         res = C().start_simple_job("clean", ["clean"], wait_s=60.0)
         return JSONResponse(scrub_paths(res, settings.repo_root, home), status_code=200 if res["finished"] else 202)
 

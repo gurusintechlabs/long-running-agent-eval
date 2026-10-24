@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import pytest
 
-from tests.unit.ui_server.conftest import AUTH, BASE, PORT, TOKEN
 from tests.unit.ui_server.live_helpers import FakeRun
 from ui_server import live_state, store
 

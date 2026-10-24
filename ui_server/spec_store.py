@@ -288,11 +288,15 @@ def check(raw: Any, base_dir: Path, repo_root: Path) -> Check:
         return Check(False, errs)
     except Exception as exc:  # noqa: BLE001 (e.g. a validator raising on odd input)
         return Check(False, [{"path": "", "message": f"invalid spec: {exc}", "type": "error"}])
+    bad = safeyaml.outside_ref(raw, base_dir, repo_root)
+    if bad is not None:
+        return Check(False, [{"path": "", "type": "loader",
+                              "message": f"{bad}: files named by a spec must be inside the repository"}])
     try:
         with tempfile.TemporaryDirectory(prefix="lrae-validate-") as tmp:
             f = Path(tmp) / "spec.yaml"
             f.write_text(yaml.safe_dump(_absolutize(raw, base_dir), sort_keys=False))
-            loaded = safeyaml.load_spec_safe(f, repo_root)
+            loaded = safeyaml.load_spec_safe(f, repo_root, enforce_inside=False)
     except SpecError as exc:
         err = _error_from_spec_error(str(exc))
         err["message"] = scrub_paths(err["message"], repo_root, Path.home())

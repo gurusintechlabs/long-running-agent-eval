@@ -81,11 +81,12 @@ _REF_KEYS = frozenset({"prompt_file", "constraints_file", "hidden_tests", "seed_
 
 
 def _yaml_refs(node: Any, out: list[str], depth: int = 0) -> None:
+    """Every string stored under a path-valued key of the spec."""
     if depth > MAX_DEPTH:
         return
     if isinstance(node, dict):
         for k, v in node.items():
-            if k in _REF_KEYS and isinstance(v, str) and v.lower().endswith((".yaml", ".yml")):
+            if k in _REF_KEYS and isinstance(v, str):
                 out.append(v)
             else:
                 _yaml_refs(v, out, depth + 1)
@@ -94,7 +95,21 @@ def _yaml_refs(node: Any, out: list[str], depth: int = 0) -> None:
             _yaml_refs(v, out, depth + 1)
 
 
-def load_spec_safe(path: Path | str, repo_root: Path):
+def _inside_repo(base: Path, ref: str, repo_root: Path) -> bool:
+    q = os.path.normpath(os.path.join(base, os.path.expanduser(ref)))
+    roots = {os.path.normpath(os.path.abspath(repo_root)), os.path.normpath(str(Path(repo_root).resolve()))}
+    return any(q == r or q.startswith(r + os.sep) for r in roots)
+
+
+def outside_ref(raw: Any, base: Path, repo_root: Path) -> str | None:
+    """The first path-valued field of a spec mapping that points outside the repository (lexically, from
+    ``base``: a symlink inside the repo is the repo owner's choice), else None."""
+    refs: list[str] = []
+    _yaml_refs(raw, refs)
+    return next((r for r in refs[:50] if not _inside_repo(base, r, Path(repo_root))), None)
+
+
+def load_spec_safe(path: Path | str, repo_root: Path, *, enforce_inside: bool = True):
     """``spec.loader.load_spec`` after the spec file, and every YAML file it names, passed ``load`` (no
     aliases, bounded size). The production loader uses plain ``yaml.safe_load`` and would expand a bomb."""
     from spec.loader import SpecError, load_spec
@@ -103,11 +118,16 @@ def load_spec_safe(path: Path | str, repo_root: Path):
         raw = load_file(p)
         refs: list[str] = []
         _yaml_refs(raw, refs)
+        bad = outside_ref(raw, p.parent, Path(repo_root)) if enforce_inside else None
+        if bad is not None:
+            raise SpecError(f"{bad}: files named by a spec must be inside the repository")
         for ref in refs[:50]:
             q = Path(ref).expanduser()
             q = q if q.is_absolute() else p.parent / q
-            if q.is_file():
+            if q.suffix.lower() in (".yaml", ".yml") and q.is_file():
                 precheck_file(q)
+    except SpecError:
+        raise
     except (yaml.YAMLError, RecursionError, OSError, ValueError) as exc:
         raise SpecError(f"cannot read spec {p.name}: {str(exc)[:200]}") from None
     return load_spec(p, repo_root=repo_root)

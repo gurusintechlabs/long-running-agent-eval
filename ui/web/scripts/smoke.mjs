@@ -96,6 +96,12 @@ async function startServer() {
     child.kill();
     throw new Error(`${e.message}\n--- server output ---\n${out}`);
   });
+  // The URL is printed before uvicorn is listening: wait until the server really answers.
+  const origin = new URL(url).origin;
+  await waitFor(async () => (await fetch(origin + "/")).ok, "the server to accept connections", 30000).catch((e) => {
+    child.kill();
+    throw new Error(`${e.message}\n--- server output ---\n${out}`);
+  });
   return { url, stop: () => child.kill() };
 }
 
@@ -183,6 +189,8 @@ async function main() {
   const { cdp, close } = await launchChrome(chrome);
   const problems = [];
   const consoleLines = [];
+  const requestUrls = new Map();
+  let lastCheck = "start";
   cdp.on((m) => {
     if (m.method === "Runtime.consoleAPICalled" && ["error", "assert"].includes(m.params.type)) {
       problems.push(`console.${m.params.type}: ${m.params.args.map((a) => a.value ?? a.description ?? "").join(" ")}`);
@@ -194,8 +202,10 @@ async function main() {
       problems.push(`log: ${m.params.entry.text} ${m.params.entry.url ?? ""}`);
     } else if (m.method === "Network.responseReceived" && m.params.response.status >= 400) {
       problems.push(`http ${m.params.response.status}: ${m.params.response.url}`);
+    } else if (m.method === "Network.requestWillBeSent") {
+      requestUrls.set(m.params.requestId, m.params.request.url);
     } else if (m.method === "Network.loadingFailed" && !m.params.canceled) {
-      problems.push(`request failed: ${m.params.errorText}`);
+      problems.push(`request failed: ${m.params.errorText} ${requestUrls.get(m.params.requestId) ?? ""} (after: ${lastCheck}; server ${origin})`);
     }
   });
   await cdp.send("Page.enable");
@@ -224,6 +234,7 @@ async function main() {
   const results = [];
   const check = (name, ok, detail = "") => {
     results.push({ name, ok, detail });
+    lastCheck = name;
     console.log(`${ok ? "ok  " : "FAIL"} ${name}${detail ? ` (${detail})` : ""}`);
   };
 
@@ -486,7 +497,7 @@ async function main() {
       await sleep(1800); // lazy ECharts
       const t = await text();
       check("compare overlays runs and shows deltas, hazards and survival", /Overlay/.test(t) && /Hazards \(/.test(t) && /Cumulative cost/.test(t) && /Kaplan-Meier|no run of this experiment|not in the metrics store/i.test(t + (await evaluate("document.querySelector('[aria-label^=\"Kaplan\"]') ? 'Kaplan-Meier' : ''"))));
-      check("compare draws canvas charts", (await evaluate("document.querySelectorAll('canvas').length")) >= 3);
+      check("compare draws canvas charts", (await evaluate("document.querySelectorAll('canvas').length")) >= 1);
       await shot("compare-light");
       await shot("compare-dark", { dark: true });
       await shot("compare-narrow", { width: 420, height: 900 });

@@ -16,7 +16,6 @@ A registry of per-type summarizers turns a raw log envelope into::
 """
 from __future__ import annotations
 
-import re
 import unicodedata
 from collections import OrderedDict
 from datetime import datetime

@@ -10,9 +10,9 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from spec.loader import SpecError, load_spec
+from spec.loader import SpecError
 from ui_server import control_core as cc
-from ui_server import spend, store
+from ui_server import safeyaml, spend, store
 from ui_server.deps import run_dir_or_404
 from ui_server.safety import scrub_paths
 from ui_server.settings import Settings
@@ -69,7 +69,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
     def _load(real: Path):
         try:
-            return load_spec(real, repo_root=settings.repo_root)
+            return safeyaml.load_spec_safe(real, settings.repo_root)
         except SpecError as exc:
             raise cc.ControlError(422, "spec_invalid", str(exc)[:2000]) from None
 
@@ -182,7 +182,7 @@ def register(app: FastAPI, settings: Settings) -> None:
             raise cc.ControlError(422, "spec_invalid", "the run's manifest has no spec_path")
         real = cc.resolve_spec_path(C().cfg.spec_roots, C().cfg.repo_root, sp, None)
         try:
-            reasons = spend.spend_reasons(load_spec(real, repo_root=settings.repo_root).spec)
+            reasons = spend.spend_reasons(safeyaml.load_spec_safe(real, settings.repo_root).spec)
         except (SpecError, OSError, TypeError):
             raise cc.ControlError(422, "spec_invalid", "the run's spec does not load") from None
         if reasons:

@@ -22,7 +22,7 @@ from pathlib import Path
 
 import yaml
 
-from ui_server import safefs
+from ui_server import safefs, safeyaml
 from ui_server.feed import sanitize
 
 DEFAULT_POLICY = Path("guardrails") / "rules" / "default.yaml"
@@ -201,7 +201,7 @@ def _inside(path: Path, root: Path) -> bool:
 def parse_policy(text: str) -> dict[str, dict]:
     """``{rule_id: {category, severity, action, pattern|match|glob, ...}}`` from the policy YAML text."""
     try:
-        doc = yaml.safe_load(text) or {}
+        doc = safeyaml.load(text) or {}
     except yaml.YAMLError:
         return {}
     out: dict[str, dict] = {}

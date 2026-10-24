@@ -21,8 +21,9 @@ from typing import Any, Union, get_args, get_origin
 import yaml
 from pydantic import BaseModel, ValidationError
 
-from spec.loader import _PATH_FIELDS, SpecError, _resolve, load_spec
+from spec.loader import _PATH_FIELDS, SpecError, _resolve
 from spec.schema import Spec
+from ui_server import safeyaml
 from ui_server.safety import scrub_paths
 
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}", re.ASCII)
@@ -163,7 +164,7 @@ def parse_yaml(text: str) -> Any:
     if not isinstance(text, str) or len(text.encode("utf-8", "replace")) > MAX_YAML_BYTES:
         raise StoreError(413, f"spec text is larger than {MAX_YAML_BYTES} bytes")
     try:
-        return yaml.safe_load(text)
+        return safeyaml.load(text)
     except (yaml.YAMLError, RecursionError, ValueError) as exc:
         raise StoreError(400, f"not valid YAML: {str(exc)[:300]}") from exc
 
@@ -291,7 +292,7 @@ def check(raw: Any, base_dir: Path, repo_root: Path) -> Check:
         with tempfile.TemporaryDirectory(prefix="lrae-validate-") as tmp:
             f = Path(tmp) / "spec.yaml"
             f.write_text(yaml.safe_dump(_absolutize(raw, base_dir), sort_keys=False))
-            loaded = load_spec(f, repo_root=repo_root)
+            loaded = safeyaml.load_spec_safe(f, repo_root)
     except SpecError as exc:
         err = _error_from_spec_error(str(exc))
         err["message"] = scrub_paths(err["message"], repo_root, Path.home())
@@ -325,12 +326,17 @@ def check_text_or_data(data: Any, text: str | None, dirs: SpecDirs) -> tuple[Any
     return prepared, res
 
 
-def _raw_of(f: Path) -> dict | None:
+def _raw_and_reason(f: Path) -> tuple[dict | None, str | None]:
+    """The spec mapping in ``f`` (aliases refused, size/node/depth bounded) or ``(None, why)``."""
     try:
-        v = yaml.safe_load(f.read_text())
-    except (OSError, yaml.YAMLError):
-        return None
-    return v if isinstance(v, dict) else None
+        v = safeyaml.load_file(f)
+    except (OSError, yaml.YAMLError, RecursionError, ValueError) as exc:
+        return None, f"not a readable YAML mapping: {str(exc)[:200]}"
+    return (v, None) if isinstance(v, dict) else (None, "not a readable YAML mapping")
+
+
+def _raw_of(f: Path) -> dict | None:
+    return _raw_and_reason(f)[0]
 
 
 def _duplicate_id_warning(prepared: dict, dirs: SpecDirs, exclude: str | None = None) -> list[dict]:
@@ -356,10 +362,10 @@ def _iter_files(dirs: SpecDirs):
 
 
 def entry_for(dirs: SpecDirs, src: str, name: str, f: Path) -> dict:
-    raw = _raw_of(f)
+    raw, why = _raw_and_reason(f)
     res = check(prepare(raw), f.parent, dirs.repo_root) if raw is not None else \
-        Check(False, [{"path": "", "message": "not a readable YAML mapping", "type": "yaml"}])
-    agent = (raw or {}).get("agent") or {}
+        Check(False, [{"path": "", "message": why, "type": "yaml"}])
+    agent = (raw or {}).get("agent") if isinstance((raw or {}).get("agent"), dict) else {}
     return {"name": name, "source": src, "editable": src == "draft",
             "path": f.relative_to(dirs.repo_root).as_posix(),
             "valid": res.valid, "spec_hash": res.spec_hash, "errors": res.errors[:3],
@@ -376,7 +382,10 @@ def load_one(dirs: SpecDirs, name: str, source: str | None) -> dict:
     if hit is None:
         raise StoreError(404, "no such spec")
     src, f = hit
-    text = f.read_text(encoding="utf-8")
+    try:
+        text = safeyaml.read_file(f) or ""
+    except yaml.YAMLError as exc:
+        raise StoreError(413, str(exc)) from None
     raw = _raw_of(f)
     e = entry_for(dirs, src, name, f)
     res = check(prepare(raw), f.parent, dirs.repo_root) if raw is not None else Check(False)
@@ -415,7 +424,7 @@ def save_draft(dirs: SpecDirs, name: str, data: Any, text: str | None, overwrite
     target = _atomic_write(d, name, out, overwrite)
     # belt and braces: the file on disk must load with the hash that was validated
     try:
-        again = load_spec(target, repo_root=dirs.repo_root)
+        again = safeyaml.load_spec_safe(target, dirs.repo_root)
         ok = again.spec_hash == res.spec_hash
     except SpecError:
         ok = False
@@ -435,7 +444,10 @@ def duplicate(dirs: SpecDirs, name: str, new_name: str | None, source: str | Non
     if not valid_name(new):
         raise StoreError(400, "new_name must match ^[a-z0-9][a-z0-9._-]{0,63}$ and must not end with '.'")
     d = dirs.ensure_drafts()
-    text = f.read_text(encoding="utf-8")
+    try:
+        text = safeyaml.read_file(f) or ""
+    except yaml.YAMLError as exc:
+        raise StoreError(413, str(exc)) from None
     raw = parse_yaml(text)
     res = check(prepare(raw), dirs.drafts, dirs.repo_root)
     if not res.valid:

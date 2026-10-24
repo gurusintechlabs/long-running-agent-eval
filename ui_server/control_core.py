@@ -25,8 +25,8 @@ from typing import Any
 
 import psutil
 
-from spec.loader import LoadedSpec, SpecError, load_spec
-from ui_server import harness_proc, safefs, spend, store
+from spec.loader import LoadedSpec, SpecError
+from ui_server import harness_proc, safefs, safeyaml, spend, store
 from ui_server.safety import valid_run_id
 from ui_server.settings import Settings
 
@@ -514,7 +514,7 @@ class Control:
     def _fresh_bound(self, rec: NonceRecord) -> dict:
         """Re-derive the estimate from the file on disk (what the CLI will load a moment later)."""
         try:
-            loaded = load_spec(rec.spec_file, repo_root=self.cfg.repo_root)
+            loaded = safeyaml.load_spec_safe(rec.spec_file, self.cfg.repo_root)
         except (SpecError, OSError) as exc:
             raise ControlError(409, "spec_changed", f"spec no longer loads: {str(exc)[:300]}") from None
         if rec.kind == "resume":

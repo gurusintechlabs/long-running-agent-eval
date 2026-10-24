@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
+import weakref
 from pathlib import Path
 
 import anyio
@@ -113,18 +115,31 @@ def register(app, settings) -> None:
         if mode not in ("start", "now", "tail") and not mode.startswith("v1:"):
             raise HTTPException(400, "from must be start, now, tail or a v1: cursor")
         heartbeat_s = min(60.0, max(0.2, heartbeat_s))
+        # take the slot now, with no await between the check and the increment: concurrent requests cannot
+        # all pass the check while the first is still computing its start offsets
         if state["streams"] >= MAX_STREAMS:
             return JSONResponse({"detail": "too many open streams"}, status_code=429)
+        state["streams"] += 1
+        released = threading.Event()
+
+        def release() -> None:
+            if not released.is_set():
+                released.set()
+                state["streams"] -= 1
+
         try:
             start = await anyio.to_thread.run_sync(
                 feed_reader.start_offsets, d / "events", mode, backlog, src, level)
+            reader = feed_reader.FeedReader(d, start, sources=src, level=level, fold=fold)
+            run_live = live_state.REGISTRY.get(d)
         except CursorError as exc:
+            release()
             _bad(exc)
-        reader = feed_reader.FeedReader(d, start, sources=src, level=level, fold=fold)
-        run_live = live_state.REGISTRY.get(d)
+        except BaseException:
+            release()
+            raise
 
         async def gen():
-            state["streams"] += 1
             try:
                 yield b"retry: 2000\n\n"
                 mf = store.read_json(d / "manifest.json") or {}
@@ -188,6 +203,8 @@ def register(app, settings) -> None:
                                                 "idle_s": round(now - last_event, 1)})
                     await asyncio.sleep(POLL_S)
             finally:
-                state["streams"] -= 1
+                release()
 
-        return StreamingResponse(gen(), media_type="text/event-stream; charset=utf-8", headers=SSE_HEADERS)
+        body = gen()
+        weakref.finalize(body, release)    # a response that never starts (client gone) still frees the slot
+        return StreamingResponse(body, media_type="text/event-stream; charset=utf-8", headers=SSE_HEADERS)

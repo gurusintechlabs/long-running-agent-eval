@@ -406,7 +406,13 @@ def _atomic_write(target_dir: Path, name: str, text: str, overwrite: bool) -> Pa
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
-        os.replace(tmp, target)
+        if overwrite:
+            os.replace(tmp, target)
+        else:
+            try:
+                os.link(tmp, target)      # fails if the name appeared since the check: never replaces
+            except FileExistsError:
+                raise StoreError(409, f"draft '{name}' already exists; send overwrite=true to replace it") from None
     finally:
         if tmp.exists():
             tmp.unlink()

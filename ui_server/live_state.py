@@ -161,11 +161,17 @@ class RunLive:
             return
         try:
             ev = json.loads(ln.data)
-        except ValueError:
+        except (ValueError, RecursionError):
+            self.invalid_lines += 1
+            return
+        if not isinstance(ev, dict):
             self.invalid_lines += 1
             return
         p = ev.get("payload") if isinstance(ev.get("payload"), dict) else {}
-        getattr(self, "_on_" + src)(typ, p, ev, ts)
+        try:
+            getattr(self, "_on_" + src)(typ, p, ev, ts)
+        except (TypeError, ValueError, AttributeError, KeyError, OverflowError):
+            self.invalid_lines += 1      # a field of an unexpected type: the event is skipped, /live goes on
 
     # -- per source ------------------------------------------------------------------------
     def _on_orchestrator(self, typ, p, ev, ts):
@@ -212,7 +218,8 @@ class RunLive:
         elif typ == "context.compaction":
             self.compactions += 1
         elif typ in ("stream.result", "session.result"):
-            for model, mu in (p.get("modelUsage") or {}).items():
+            usage = p.get("modelUsage")
+            for model, mu in (usage.items() if isinstance(usage, dict) else ()):
                 w = num(mu.get("contextWindow")) if isinstance(mu, dict) else None
                 if w:
                     self.stream_windows[str(model)] = int(w)

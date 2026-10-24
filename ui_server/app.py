@@ -40,20 +40,17 @@ def create_app(settings: Settings) -> FastAPI:
     async def guard(request: Request, call_next):
         host = request.headers.get("host", "")
         origin = request.headers.get("origin")
+        path = request.url.path
         if host not in settings.allowed_hosts:
-            return _deny(403, "bad host")
+            return secure_headers(_deny(403, "bad host"), path)
         if origin is not None and origin not in settings.allowed_origins:
-            return _deny(403, "bad origin")
-        if request.url.path.startswith("/api/") or request.url.path == "/api":
+            return secure_headers(_deny(403, "bad origin"), path)
+        if path.startswith("/api/") or path == "/api":
             if not _token_ok(request, settings.token):
-                return _deny(401, "missing or wrong token")
-        response = await call_next(request)
-        response.headers["Content-Security-Policy"] = CSP
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        if request.url.path.startswith("/api"):
-            response.headers["Cache-Control"] = "no-store"
-        return response
+                return secure_headers(_deny(401, "missing or wrong token"), path)
+        return secure_headers(await call_next(request), path)
+
+    app.add_middleware(BodyLimit, limit=MAX_BODY_BYTES)    # outermost: refuses before anything reads the body
 
     def _con():
         return store.open_ro(settings.db_path)
@@ -126,7 +123,7 @@ def create_app(settings: Settings) -> FastAPI:
             proc = subprocess.run([*INGEST_CMD, str(settings.runs_dir)] if INGEST_CMD[-1] == "ingest" else INGEST_CMD,
                                   cwd=settings.repo_root, env=ingest_env(dict(os.environ)),
                                   capture_output=True, text=True, timeout=600)
-            out = (proc.stdout + proc.stderr)[-4000:]
+            out = scrub_paths((proc.stdout + proc.stderr)[-4000:], settings.repo_root, home)
             return JSONResponse({"ok": proc.returncode == 0, "output": out},
                                 status_code=200 if proc.returncode == 0 else 500)
         except subprocess.TimeoutExpired:
@@ -170,3 +167,60 @@ def _token_ok(request: Request, token: str) -> bool:
 
 def _deny(code: int, msg: str) -> JSONResponse:
     return JSONResponse({"detail": msg}, status_code=code)
+
+
+def secure_headers(response, path: str):
+    """The same headers on every response, including 401/403/413."""
+    response.headers["Content-Security-Policy"] = CSP
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    if path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+MAX_BODY_BYTES = 1024 * 1024
+_BODY_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+class BodyLimit:
+    """Pure ASGI: a request body above ``limit`` bytes is answered 413 before any route sees it. The
+    body is buffered (at most ``limit``) and replayed, so chunked uploads are bounded too."""
+
+    def __init__(self, app, limit: int = MAX_BODY_BYTES):
+        self.app, self.limit = app, limit
+
+    async def _refuse(self, scope, send):
+        resp = secure_headers(JSONResponse({"detail": f"request body is larger than {self.limit} bytes"},
+                                           status_code=413), scope.get("path", ""))
+        await resp(scope, None, send)
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] not in _BODY_METHODS:
+            return await self.app(scope, receive, send)
+        for k, v in scope["headers"]:
+            if k == b"content-length":
+                try:
+                    if int(v) > self.limit:
+                        return await self._refuse(scope, send)
+                except ValueError:
+                    return await self._refuse(scope, send)
+        chunks: list[dict] = []
+        total = 0
+        while True:
+            msg = await receive()
+            if msg["type"] != "http.request":      # disconnect
+                return None
+            total += len(msg.get("body", b""))
+            if total > self.limit:
+                return await self._refuse(scope, send)
+            chunks.append(msg)
+            if not msg.get("more_body"):
+                break
+        replay = iter(chunks)
+
+        async def replayed():
+            nxt = next(replay, None)
+            return nxt if nxt is not None else await receive()
+
+        return await self.app(scope, replayed, send)

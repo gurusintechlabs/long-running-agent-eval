@@ -3,12 +3,16 @@ read-only ``metrics.sqlite`` cache when a run has been ingested (UI-8)."""
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import threading
+from collections import OrderedDict
 from pathlib import Path
 from urllib.parse import quote
 
 import psutil
 
+from ui_server import safefs
 from ui_server.safety import resolve_run_dir
 
 MANIFEST_KEYS = ("run_id", "experiment_id", "config", "repeat", "model", "runtime", "spec_hash",
@@ -17,7 +21,7 @@ MANIFEST_KEYS = ("run_id", "experiment_id", "config", "repeat", "model", "runtim
 
 
 def open_ro(path: Path) -> sqlite3.Connection | None:
-    if not path.is_file():
+    if not safefs.is_file(path):
         return None
     con = sqlite3.connect(f"file:{quote(str(path))}?mode=ro", uri=True, check_same_thread=False)
     con.execute("PRAGMA query_only = ON")
@@ -25,28 +29,70 @@ def open_ro(path: Path) -> sqlite3.Connection | None:
     return con
 
 
-def read_json(path: Path) -> dict | None:
+_CACHE_MAX = 512
+_CACHE_BYTES_MAX = 16 * 1024 * 1024    # a file bigger than this is parsed every time
+_parsed: OrderedDict[str, tuple[tuple[int, int, int], object]] = OrderedDict()
+_parsed_lock = threading.Lock()
+
+
+def _cached_parse(path: Path, kind: str, parse):
+    """Parse a run artifact read through ``safefs`` (no symlinks), memoised by (inode, size, mtime_ns) so
+    that /api/runs over many runs does not re-parse unchanged manifests and logs on every poll."""
+    fd = safefs.open_fd(path)
+    if fd is None:
+        return None
     try:
-        v = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        st = os.fstat(fd)
+        sig = (st.st_ino, st.st_size, st.st_mtime_ns)
+        key = f"{kind}:{os.path.abspath(path)}"
+        with _parsed_lock:
+            hit = _parsed.get(key)
+            if hit and hit[0] == sig:
+                _parsed.move_to_end(key)
+                return hit[1]
+        with os.fdopen(fd, "rb", closefd=False) as fh:
+            raw = fh.read(_CACHE_BYTES_MAX + 1) if st.st_size <= _CACHE_BYTES_MAX else None
+            value = parse(raw if raw is not None else fh.read())
+        if raw is not None and len(raw) <= _CACHE_BYTES_MAX:
+            with _parsed_lock:
+                _parsed[key] = (sig, value)
+                while len(_parsed) > _CACHE_MAX:
+                    _parsed.popitem(last=False)
+        return value
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
+def _parse_json(raw: bytes):
+    try:
+        v = json.loads(raw.decode("utf-8"))
+    except (ValueError, RecursionError):
         return None
     return v if isinstance(v, dict) else None
 
 
-def read_jsonl(path: Path) -> list[dict]:
+def _parse_jsonl(raw: bytes) -> list[dict]:
     out = []
-    try:
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                try:
-                    rec = json.loads(line)
-                except ValueError:
-                    continue  # blank or torn (a line still being written)
-                if isinstance(rec, dict):
-                    out.append(rec)
-    except OSError:
-        pass
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        try:
+            rec = json.loads(line)
+        except (ValueError, RecursionError):
+            continue  # blank or torn (a line still being written)
+        if isinstance(rec, dict):
+            out.append(rec)
     return out
+
+
+def read_json(path: Path) -> dict | None:
+    """The JSON object in ``path`` (never through a symlink below the runs dir), else None. The returned
+    dict is shared with the cache: treat it as read-only."""
+    return _cached_parse(path, "json", _parse_json)
+
+
+def read_jsonl(path: Path) -> list[dict]:
+    return _cached_parse(path, "jsonl", _parse_jsonl) or []
 
 
 def pid_alive(pid) -> bool:
@@ -165,11 +211,10 @@ def ingest_status(runs_dir: Path, con: sqlite3.Connection | None, db_path: Path)
     newest = 0.0
     for r in on_disk:
         d = runs_dir / r
-        for f in [d / "manifest.json", *(d / "events").glob("*.jsonl")]:
-            try:
-                newest = max(newest, f.stat().st_mtime)
-            except OSError:
-                pass
+        for f in [d / "manifest.json", *(d / "events" / n for n in safefs.listdir(d / "events") if n.endswith(".jsonl"))]:
+            st = safefs.stat_file(f)
+            if st is not None:
+                newest = max(newest, st.st_mtime)
     exists = db_path.is_file()
     store_epoch = db_path.stat().st_mtime if exists else None
     reason = None

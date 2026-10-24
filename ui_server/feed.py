@@ -22,7 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from ui_server import store
+from ui_server import safefs, store
 
 SCHEMA_VERSION = 1
 STR_CAP = 400            # per string in a preview
@@ -127,9 +127,8 @@ _CLOCK_CACHE: dict[str, tuple[tuple[int, int], RunClock]] = {}
 def load_clock(run_dir: Path) -> RunClock:
     """Clock of a run from its orchestrator log (cached by size and mtime)."""
     path = Path(run_dir) / "events" / "orchestrator.jsonl"
-    try:
-        st = path.stat()
-    except OSError:
+    st = safefs.stat_file(path)
+    if st is None:
         return RunClock()
     key = (st.st_size, st.st_mtime_ns)
     hit = _CLOCK_CACHE.get(str(path))

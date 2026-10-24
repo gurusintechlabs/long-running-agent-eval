@@ -22,6 +22,7 @@ from pathlib import Path
 
 import yaml
 
+from ui_server import safefs
 from ui_server.feed import sanitize
 
 DEFAULT_POLICY = Path("guardrails") / "rules" / "default.yaml"
@@ -233,10 +234,15 @@ def load_policy(repo_root: Path, manifest: dict | None) -> PolicyInfo:
     best: PolicyInfo | None = None
     for p, source in cand:
         try:
-            st = p.stat()
+            p = p.resolve()                         # symlinks resolved once; the leaf is then opened O_NOFOLLOW
+            if not _inside(p, repo_root):
+                continue
+            st = safefs.stat_file(p)
+            data = safefs.read_bytes(p)
+            if st is None or data is None:
+                continue
             key = (str(p), st.st_size, st.st_mtime_ns)
-            data = p.read_bytes()
-        except OSError:
+        except (OSError, RuntimeError):
             continue
         sha = hashlib.sha256(data).hexdigest()
         info = _CACHE.get(key)

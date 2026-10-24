@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from ui_server import safefs
+
 SOURCES = ("agent_stream", "otel", "orchestrator", "guardrail", "counterpart", "env", "scorer")
 SOURCE_RANK = {s: i for i, s in enumerate(SOURCES)}
 
@@ -66,11 +68,9 @@ def iter_lines(path: Path, offset: int = 0):
 
     ``raw`` is None for a line longer than ``MAX_LINE`` (its extent is still skipped correctly).
     An unterminated last line is not yielded."""
-    try:
-        fh = open(path, "rb")
-    except OSError:
-        return
-    with fh:
+    with safefs.open_file(path) as fh:
+        if fh is None:
+            return
         fh.seek(offset)
         pos = offset
         while True:
@@ -147,9 +147,8 @@ _lock = threading.Lock()
 def get_index(path: Path) -> FileIndex:
     """The (cached, incrementally extended) index of ``path``; an empty index when it is missing."""
     key = str(path)
-    try:
-        st = path.stat()
-    except OSError:
+    st = safefs.stat_file(path)
+    if st is None:
         return FileIndex(key)
     with _lock:
         idx = _cache.get(key)
@@ -212,14 +211,10 @@ class RunLog:
         if source not in SOURCE_RANK:
             raise CursorError(f"unknown source {source!r}")
         p = self.events_dir / f"{source}.jsonl"
-        try:
-            r = p.resolve()
-        except (OSError, RuntimeError):
-            raise CursorError("bad event file") from None
-        if r.parent != self.run_dir.resolve() / "events" or not r.is_file():
-            # symlink out of the run's events dir, or a missing file: treat as empty
+        if not safefs.is_file(p):
+            # a symlink anywhere below the run dir, or a missing file: treat as empty
             return self.events_dir / "__missing__.jsonl"
-        return r
+        return p
 
     def index(self, source: str) -> FileIndex:
         return get_index(self.path(source))
@@ -295,16 +290,15 @@ def check_offset(path: Path, offset: int) -> None:
     """The offset must be 0 or the start of a line, and not beyond the file."""
     if offset == 0:
         return
-    try:
-        with open(path, "rb") as fh:
-            fh.seek(0, 2)
-            if offset > fh.tell():
-                raise CursorError("cursor is beyond the end of the file")
-            fh.seek(offset - 1)
-            if fh.read(1) != b"\n":
-                raise CursorError("cursor is not at a line start")
-    except OSError:
-        raise CursorError("cursor does not match a file") from None
+    with safefs.open_file(path) as fh:
+        if fh is None:
+            raise CursorError("cursor does not match a file")
+        fh.seek(0, 2)
+        if offset > fh.tell():
+            raise CursorError("cursor is beyond the end of the file")
+        fh.seek(offset - 1)
+        if fh.read(1) != b"\n":
+            raise CursorError("cursor is not at a line start")
 
 
 # ------------------------------------------------------------------------------------ truncation

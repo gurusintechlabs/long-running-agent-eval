@@ -16,7 +16,7 @@ from collections import Counter, OrderedDict, deque
 from pathlib import Path
 
 from telemetry.counters import context_window, load_models
-from ui_server import store
+from ui_server import safefs, store
 from ui_server.feed import RunClock, ts_epoch
 from ui_server.tailer import MAX_LINE, FileTail, list_event_files, peek
 
@@ -132,10 +132,9 @@ class RunLive:
                     budget -= max(1, tail.offset - before)
                     for ln in lines:
                         self._line(src, ln)
-                    try:
-                        self.sizes[src] = path.stat().st_size
-                    except OSError:
-                        pass
+                    st = safefs.stat_file(path)
+                    if st is not None:
+                        self.sizes[src] = st.st_size
                     if at_eof:
                         break
                 else:

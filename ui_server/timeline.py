@@ -11,7 +11,7 @@ from pathlib import Path
 
 from analysis import ingest as ing
 from ui_server import eventlog as el
-from ui_server import sigcache
+from ui_server import safefs, sigcache
 from ui_server import transcript as tr
 
 MAX_INCIDENTS = 500
@@ -147,6 +147,8 @@ def build(rl: el.RunLog, rid: str, con, mf: dict) -> dict:
     else:
         try:
             from telemetry.counters import interval_counters
+            if not safefs.plain_dir(rl.events_dir):    # the library opens files by name: no symlinks allowed
+                raise OSError("events dir is not plain")
             for row in interval_counters(rl.events_dir):
                 ctr[int(row["k"])] = {k: v for k, v in row.items() if k != "k" and _num(v) is not None}
             source = "logs" if ctr else "none"

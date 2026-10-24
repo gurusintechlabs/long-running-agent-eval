@@ -26,7 +26,7 @@ from typing import Any
 import psutil
 
 from spec.loader import LoadedSpec, SpecError, load_spec
-from ui_server import harness_proc, spend, store
+from ui_server import harness_proc, safefs, spend, store
 from ui_server.safety import valid_run_id
 from ui_server.settings import Settings
 
@@ -617,7 +617,7 @@ def resume_estimate(cfg: ControlConfig, loaded: LoadedSpec, run_id: str, k: int)
     s = loaded.spec
     if loaded.spec_hash != m.get("spec_hash"):
         raise ControlError(409, "spec_changed", "spec changed since the run started; the CLI would refuse to resume")
-    if not (cfg.runs_dir / run_id / "snapshots" / f"t{k}" / "meta.json").is_file():
+    if not safefs.is_file(cfg.runs_dir / run_id / "snapshots" / f"t{k}" / "meta.json"):
         raise ControlError(422, "no_snapshot", f"run has no snapshot t{k}")
     done = (m.get("end") or {})
     reasons = spend.spend_reasons(s)

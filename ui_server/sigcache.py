@@ -6,6 +6,8 @@ from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
 
+from ui_server import safefs
+
 _MAX = 64
 _memo: OrderedDict[tuple, object] = OrderedDict()
 _lock = threading.Lock()
@@ -14,11 +16,8 @@ _lock = threading.Lock()
 def signature(paths: list[Path]) -> tuple:
     out = []
     for p in paths:
-        try:
-            st = p.stat()
-            out.append((str(p), st.st_size, st.st_mtime_ns))
-        except OSError:
-            out.append((str(p), -1, -1))
+        st = safefs.stat_file(p)
+        out.append((str(p), st.st_size, st.st_mtime_ns) if st else (str(p), -1, -1))
     return tuple(out)
 
 

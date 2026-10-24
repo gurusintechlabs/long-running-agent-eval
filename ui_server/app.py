@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
-from ui_server import __version__, store
+from ui_server import __version__, safefs, store
 from ui_server.safety import resolve_run_dir, scrub_paths
 from ui_server.settings import Settings
 
@@ -32,6 +32,7 @@ def ingest_env(base: dict[str, str]) -> dict[str, str]:
 
 def create_app(settings: Settings) -> FastAPI:
     app = FastAPI(title="LRAE UI", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+    safefs.register_root(settings.runs_dir)
     ingest_lock = threading.Lock()
     home = Path.home()
 

@@ -133,6 +133,9 @@ def create_app(settings: Settings) -> FastAPI:
         finally:
             ingest_lock.release()
 
+    from ui_server.routes import register_all
+    register_all(app, settings)  # phase route modules (ui_server/routes/*.py)
+
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     def api_404(rest: str):
         raise HTTPException(404, "no such endpoint")

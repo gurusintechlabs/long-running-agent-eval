@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Headless-Chrome smoke check (no Playwright): loads the BUILT app from a running `lrae ui`, visits the
-// Runs page and a Run-detail page, and fails on any console error, uncaught exception, failed request or
+// Runs page, a Run-detail page, Launch (preview only), Compare and Reports (never rebuilds), and fails on any console error, uncaught exception, failed request or
 // HTTP >= 400. Optionally saves screenshots (light, dark, narrow).
 //
 //   npm run build
 //   node scripts/smoke.mjs                      # starts `lrae ui` itself on a free port (read-only use of runs/)
 //   node scripts/smoke.mjs --url "http://127.0.0.1:8765/#token=..."   # use an already running server
-//   options: --run <run_id>  --shots <dir>  --runs-dir <dir>
+//   options: --run <run_id>  --shots <dir>  --runs-dir <dir>  --compare <idA,idB>
 //
 // Exit codes: 0 pass, 1 fail, 0 with "SKIP" if Chrome is not installed (set LRAE_CHROME to point at it).
 import { spawn } from "node:child_process";
@@ -303,10 +303,49 @@ async function main() {
       }
     }
 
-    // 3. A placeholder route still loads through the SPA fallback.
-    await goto(`${origin}/compare`);
-    await waitFor(async () => /Not built yet/.test(await text()), "the Compare placeholder");
-    check("placeholder route renders", true);
+    // 3. Compare: overlay two ingested runs (preselected from the URL) and the survival chart. Read-only.
+    const pair = await evaluate(`fetch('/api/runs', { headers: { 'X-LRAE-Token': sessionStorage.getItem('lrae.token') } }).then(r => r.json()).then(j => {
+      const ok = j.runs.filter(r => r.ingested);
+      const byExp = {};
+      ok.forEach(r => (byExp[r.experiment_id] = byExp[r.experiment_id] || []).push(r.run_id));
+      const rep = Object.values(byExp).find(v => v.length >= 2);
+      return (rep ? rep.slice(0, 2) : ok.slice(0, 2).map(r => r.run_id));
+    })`);
+    const wantPair = (opt("compare") ?? "").split(",").filter(Boolean);
+    const ids = wantPair.length ? wantPair : pair;
+    if (ids.length) {
+      await goto(`${origin}/compare?runs=${ids.map(encodeURIComponent).join(",")}`);
+      await waitFor(async () => /Deltas/.test(await text()), "the Compare overlay");
+      await waitFor(async () => /Survival \(time to first hazard\)/.test(await text()), "the survival panel");
+      await sleep(1800); // lazy ECharts
+      const t = await text();
+      check("compare overlays runs and shows deltas, hazards and survival", /Overlay/.test(t) && /Hazards \(/.test(t) && /Cumulative cost/.test(t) && /Kaplan-Meier|no run of this experiment|not in the metrics store/i.test(t + (await evaluate("document.querySelector('[aria-label^=\"Kaplan\"]') ? 'Kaplan-Meier' : ''"))));
+      check("compare draws canvas charts", (await evaluate("document.querySelectorAll('canvas').length")) >= 3);
+      await shot("compare-light");
+      await shot("compare-dark", { dark: true });
+      await shot("compare-narrow", { width: 420, height: 900 });
+    } else {
+      check("compare view (no ingested runs to compare)", true);
+    }
+
+    // 4. Reports: list, open the dashboard in the sandboxed iframe, never rebuild from the smoke test.
+    await goto(`${origin}/reports`);
+    await waitFor(async () => /Reports/.test(await text()) && (await evaluate("document.querySelectorAll('section.card').length")) > 0, "the Reports list");
+    check("reports lists experiments with rebuild buttons", /Rebuild dashboard/.test(await text()));
+    const opened = await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find(x => x.textContent === 'Open dashboard' && !x.disabled); if (!b) return false; b.click(); return true; })()`);
+    if (opened) {
+      await waitFor(async () => (await evaluate("document.querySelectorAll('iframe[sandbox]').length")) === 1, "the dashboard iframe");
+      check("dashboard iframe is fully sandboxed", (await evaluate("document.querySelector('iframe').getAttribute('sandbox')")) === "");
+      await sleep(800);
+    }
+    await shot("reports-light");
+    await shot("reports-dark", { dark: true });
+    await shot("reports-narrow", { width: 420, height: 900 });
+
+    // 5. Unknown routes still fall back to the SPA.
+    await goto(`${origin}/no-such-view`);
+    await waitFor(async () => /Page not found/.test(await text()), "the not-found page");
+    check("unknown route renders the not-found page", true);
   } catch (e) {
     check("smoke flow", false, e.message);
   }

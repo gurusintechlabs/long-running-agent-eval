@@ -9,9 +9,9 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: "/runs", label: "Runs" },
   { to: "/live", label: "Live", placeholder: true },
-  { to: "/compare", label: "Compare", placeholder: true },
+  { to: "/compare", label: "Compare" },
   { to: "/launch", label: "Launch" },
   { to: "/specs", label: "Specs", placeholder: true },
   { to: "/review", label: "Review", placeholder: true },
-  { to: "/reports", label: "Reports", placeholder: true },
+  { to: "/reports", label: "Reports" },
 ];

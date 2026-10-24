@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { RunDetail } from "../../api";
 import { Badge, Card, StateBadge } from "../../components";
 import { EMPTY, formatDateTime, formatDuration, formatTokens, formatUsd, shortSha } from "../../lib/format";
+import { RunActions } from "../launch";
 import { runDuration } from "../runs/filter";
 
 function Item({ label, children, title }: { label: string; children: ReactNode; title?: string }) {
@@ -40,6 +41,7 @@ export function RunHeader({ detail }: { detail: RunDetail }) {
             {!run.ingested && <Badge tone="warn" plain title="Metrics and hazards need lrae ingest">not ingested</Badge>}
           </div>
         </div>
+        <RunActions detail={detail} />
       </div>
       <dl className="kv-grid">
         <Item label="Experiment">

@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { NAV } from "../nav";
+import { ControlBar } from "./ControlBar";
 import { IngestBanner } from "./IngestBanner";
 import "./app.css";
 
@@ -30,6 +31,7 @@ export function Shell() {
         </ul>
       </nav>
       <div className="content">
+        <ControlBar />
         <IngestBanner />
         <main id="main" className="main" tabIndex={-1}>
           <Outlet />

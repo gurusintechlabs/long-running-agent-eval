@@ -112,10 +112,9 @@ class StreamIndex:
         i = None
         if isinstance(seq, int):
             j = bisect.bisect_left(self.seqs, seq)
-            if j < len(self.seqs):
-                i = j
-            else:
-                i = len(self.seqs) - 1
+            if j >= len(self.seqs):
+                return None            # the stream file does not reach that seq (excerpt or lagging copy)
+            i = j
         elif ts:
             j = bisect.bisect_left(self.tss, ts)
             i = min(j, len(self.seqs) - 1)

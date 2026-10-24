@@ -19,6 +19,7 @@ export function AppRoutes() {
         <Route index element={<Navigate to="/runs" replace />} />
         <Route path="runs" element={<RunsView />} />
         <Route path="runs/:runId" element={<RunDetailView />} />
+        <Route path="runs/:runId/live" element={<LiveView />} />
         <Route path="live" element={<LiveView />} />
         <Route path="live/:runId" element={<LiveView />} />
         <Route path="compare" element={<CompareView />} />

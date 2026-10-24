@@ -284,6 +284,10 @@ async function main() {
     await waitFor(async () => /Choose a spec/.test(await text()), "the Launch view");
     check("control bar is visible", /No run is active|A run is active/.test(await text()));
     await shot("launch-light");
+    await waitFor(
+      () => evaluate(`[...(document.querySelector('select')?.options ?? [])].some(o => o.value === 'spec/examples/pilot-scripted.yaml')`),
+      "the spec list to load into the Launch select",
+    ).catch(() => {});
     const picked = await evaluate(`(() => {
       const sel = document.querySelector('select');
       const opt = [...sel.options].find(o => o.value === 'spec/examples/pilot-scripted.yaml');

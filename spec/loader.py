@@ -97,8 +97,16 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
             data["task"].pop(key, None)
     if data["task"].get("exploit_tests") is None:
         data["task"].pop("exploit_tests", None)
-    from spec.schema import BehaviorScoring, SecurityScoring
-    if data["scoring"].get("behavior") == BehaviorScoring().model_dump(mode="json"):
+    from spec.schema import BehaviorScoring, CleanRoomScoring, SecurityScoring
+    # J1 fields are left out while unset or default, so specs written before them keep their hash
+    if data["task"].get("toolchain") is None:
+        data["task"].pop("toolchain", None)
+    if data["scoring"].get("clean_room") == CleanRoomScoring().model_dump(mode="json"):
+        data["scoring"].pop("clean_room", None)
+    if data["scoring"]["behavior"].get("agent_suite_runner") == "pytest":
+        data["scoring"]["behavior"].pop("agent_suite_runner")
+    if data["scoring"].get("behavior") == {k: v for k, v in BehaviorScoring().model_dump(mode="json").items()
+                                           if k != "agent_suite_runner"}:
         data["scoring"].pop("behavior", None)
     elif data["scoring"]["behavior"].get("judge_fixtures"):
         jf = data["scoring"]["behavior"]
@@ -109,6 +117,8 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
     elif sec and sec.get("context_file"):
         sec["context_file"] = {"sha256": hash_path(Path(sec["context_file"]))}
     cps = data["task"].get("counterparts") or {}
+    if cps.get("rea") is None:
+        cps.pop("rea", None)
     if not any(cps.values()):
         data["task"].pop("counterparts", None)
     elif cps.get("ops"):

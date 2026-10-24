@@ -70,10 +70,53 @@ class EmbedCounterpart(Strict):
     dims: int = Field(default=96, ge=2, le=4096)
 
 
+class ReaCounterpart(Strict):
+    """An external stdio MCP server the agent can use (J1, extends D-19): REA, run from the task's
+    toolchain outside the repo. The harness only registers it in the run's MCP config; it does not
+    implement it. ``env_file``: ``KEY=VALUE`` lines merged into the server's environment."""
+    command: str
+    args: list[str] = Field(default_factory=list)
+    env_file: str | None = None
+
+    @field_validator("command")
+    @classmethod
+    def _command(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("rea.command must be a non-empty path")
+        return v
+
+
 class Counterparts(Strict):
     """Harness-run counterparts of the task (D-19, plan B3). Unset: none."""
     ops: OpsCounterpart | None = None
     embed: EmbedCounterpart | None = None
+    rea: ReaCounterpart | None = None
+
+
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+class Toolchain(Strict):
+    """Tools installed outside the repo for the task (J1): ``dir`` (``~`` allowed) and the SHA-256 of
+    the manifests its install and priming scripts write (``MANIFEST.txt``, ``m2.manifest``), which
+    pre-flight checks (rule 4)."""
+    dir: str
+    manifest_sha256: str | None = None
+    m2_manifest_sha256: str | None = None
+
+    @field_validator("dir")
+    @classmethod
+    def _dir(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("toolchain.dir must be a non-empty path")
+        return v
+
+    @field_validator("manifest_sha256", "m2_manifest_sha256")
+    @classmethod
+    def _sha(cls, v: str | None) -> str | None:
+        if v is not None and not SHA256_RE.match(v):
+            raise ValueError("must be a full 64-char lowercase hex SHA-256")
+        return v
 
 
 class Task(Strict):
@@ -94,6 +137,7 @@ class Task(Strict):
     protected_paths: list[str] = Field(default_factory=list)
     honey: list[Honey] = Field(default_factory=list)
     counterparts: Counterparts = Field(default_factory=Counterparts)
+    toolchain: Toolchain | None = None   # J1: tools outside the repo (decompilers, Maven, REA)
     # Plan B4: hidden black-box exploit tests (each asserts an attack fails), run like hidden_tests
     # (own scorer.yaml / pytest.ini, stage markers) but kept apart from P(t).
     exploit_tests: str | None = None
@@ -240,6 +284,8 @@ class BehaviorScoring(Strict):
     enabled: bool = False
     agent_suite: bool = True                      # D-24: rerun the agent's own tests at k and at stage ends
     agent_suite_timeout_s: float = Field(default=240.0, gt=0)   # past it the rerun is unknown, not "0 passed"
+    # J1: how the agent's own suite runs. maven = `sh build.sh test` in the workspace (task.toolchain needed)
+    agent_suite_runner: Literal["pytest", "maven"] = "pytest"
     eval_paths: list[str] = Field(default_factory=list)   # RH: eval files the agent must not edit (globs)
     data_paths: list[str] = Field(default_factory=list)   # ED: protected data (globs)
     loop_max_period: int = Field(default=6, ge=1)
@@ -279,6 +325,18 @@ class BehaviorScoring(Strict):
         return v
 
 
+class CleanRoomScoring(Strict):
+    """Copy similarity of a clean-room rewrite (J1, scorer/clean_room.py): the share of the rewrite's
+    token k-gram fingerprints that also occur in the scorer's own decompilation of the original jar.
+    Off unless ``enabled``; needs task.toolchain (the decompiler). Tracked, not a hazard (yet)."""
+    enabled: bool = False
+    decompiler: Literal["vineflower", "cfr"] = "vineflower"
+    jar_glob: str = "vendor/*.jar"                 # in the seed checkout; exactly one match
+    src: list[str] = Field(default_factory=lambda: ["src/main/java"])   # the rewrite's sources
+    k: int = Field(default=25, ge=5, le=200)       # tokens per k-gram
+    window: int = Field(default=4, ge=1, le=100)   # winnowing window
+
+
 class Scoring(Strict):
     judge_model: str
     judge_samples: int = Field(default=3, ge=1)
@@ -292,6 +350,7 @@ class Scoring(Strict):
     thresholds: Thresholds = Thresholds()
     security: SecurityScoring = Field(default_factory=SecurityScoring)
     behavior: BehaviorScoring = Field(default_factory=BehaviorScoring)
+    clean_room: CleanRoomScoring = Field(default_factory=CleanRoomScoring)
 
     @field_validator("judge_model")
     @classmethod
@@ -310,6 +369,15 @@ class Spec(Strict):
     telemetry: Telemetry = Telemetry()
     guardrails: Guardrails
     scoring: Scoring
+
+    @model_validator(mode="after")
+    def _toolchain_users(self) -> Spec:
+        if self.task.toolchain is None:
+            if self.scoring.behavior.agent_suite_runner == "maven":
+                raise ValueError("scoring.behavior.agent_suite_runner 'maven' needs task.toolchain")
+            if self.scoring.clean_room.enabled:
+                raise ValueError("scoring.clean_room needs task.toolchain (its decompiler)")
+        return self
 
     @field_validator("experiment_id")
     @classmethod

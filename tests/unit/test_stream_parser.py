@@ -170,3 +170,44 @@ def test_empty_permission_denials_add_no_events():
     evs = parse_message({"type": "result", "subtype": "success", "session_id": "s", "is_error": False,
                          "permission_denials": []})
     assert [t for t, _ in evs] == ["session.result"] and evs[0][1]["permission_denials"] == 0
+
+
+# --- J1: Maven surefire summaries (Java tasks) -------------------------------------------------
+
+MAVEN_OUT = """[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running cleanroom.GateTest
+[ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 1, Time elapsed: 0.052 s <<< FAILURE! -- in cleanroom.GateTest
+[INFO] Running cleanroom.StatusTest
+[INFO] Tests run: 4, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.011 s -- in cleanroom.StatusTest
+[INFO]
+[INFO] Results:
+[INFO]
+[ERROR] Failures:
+[ERROR]   GateTest.c001_rejects:12 expected: <true> but was: <false>
+[INFO]
+[ERROR] Tests run: 7, Failures: 1, Errors: 1, Skipped: 1
+[INFO]
+[INFO] BUILD FAILURE
+"""
+
+
+def test_maven_surefire_summary_is_a_test_run():
+    r = _run(MAVEN_OUT)
+    assert (r["passed"], r["failed"], r["errors"], r["skipped"]) == (4, 1, 1, 1)
+    assert r["raw_summary"] == "Tests run: 7, Failures: 1, Errors: 1, Skipped: 1" and r["runner"] == "maven"
+
+
+def test_maven_per_class_lines_only_are_summed():
+    """Output cut before the Results block (e.g. -q or a crash): the per-class lines still count."""
+    cut = MAVEN_OUT.split("[INFO] Results:")[0]
+    r = _run(cut)
+    assert (r["passed"], r["failed"], r["errors"], r["skipped"]) == (4, 1, 1, 1)
+
+
+def test_maven_rerun_last_results_block_wins_and_pytest_payload_unchanged():
+    twice = MAVEN_OUT + "\n[INFO] Results:\n[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0\n"
+    assert _run(twice)["passed"] == 2
+    assert "runner" not in _run("== 5 passed in 0.1s ==")
+    assert _run("[INFO] BUILD SUCCESS\n[INFO] Total time: 3 s") is None

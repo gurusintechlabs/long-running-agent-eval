@@ -98,6 +98,40 @@ def parse_pytest_summary(text: str) -> dict | None:
     return {**counts, "raw_summary": found[1]}
 
 
+_SUREFIRE = re.compile(r"Tests run: (\d+), Failures: (\d+), Errors: (\d+), Skipped: (\d+)(.*)$")
+
+
+def parse_maven_summary(text: str) -> dict | None:
+    """Counts from Maven surefire output (J1, Java tasks): the last ``Results:`` total, else the sum of the
+    per-class lines after the last ``T E S T S`` banner (output cut short). None if there is neither."""
+    total, per_class = None, []
+    for line in text.splitlines():
+        if "T E S T S" in line:
+            per_class = []
+        m = _SUREFIRE.search(line)
+        if not m:
+            continue
+        nums = tuple(int(x) for x in m.groups()[:4])
+        if "Time elapsed" in m.group(5) or " in " in m.group(5):
+            per_class.append(nums)
+        else:
+            total = (nums, line[m.start():m.start(5)].strip())
+    if total is None and not per_class:
+        return None
+    if total is not None:
+        (run, failures, errors, skipped), raw = total
+    else:
+        run, failures, errors, skipped = (sum(c[i] for c in per_class) for i in range(4))
+        raw = f"Tests run: {run}, Failures: {failures}, Errors: {errors}, Skipped: {skipped}"
+    return {"passed": max(run - failures - errors - skipped, 0), "failed": failures, "errors": errors,
+            "skipped": skipped, "raw_summary": raw, "runner": "maven"}
+
+
+def parse_test_summary(text: str) -> dict | None:
+    """The agent's test run in a tool result: pytest's summary line, else Maven surefire's."""
+    return parse_pytest_summary(text) or parse_maven_summary(text)
+
+
 def _blocks(msg: dict) -> list[dict]:
     content = (msg.get("message") or {}).get("content")
     if isinstance(content, str):  # a plain-string user/assistant message
@@ -125,7 +159,7 @@ def _parse_user(msg: dict) -> list[tuple[str, dict]]:
                                     "is_error": bool(b.get("is_error")),
                                     "size": _content_size(b.get("content")),
                                     "text_tail": text[-TEXT_TAIL_LIMIT:]}))
-        summary = parse_pytest_summary(text)
+        summary = parse_test_summary(text)
         if summary:
             out.append(("agent.test_run", {"session_id": sid, "tool_use_id": b.get("tool_use_id"), **summary}))
     return out

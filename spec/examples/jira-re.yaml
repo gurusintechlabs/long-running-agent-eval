@@ -9,8 +9,8 @@
 #   2. put the jar in fixtures/seed_jira_re/vendor/ and its name in fixtures/tasks/jira_re/target.yaml
 #   3. .venv/bin/python fixtures/tasks/jira_re/tools/prepare_seed.py   (pins pom.xml, fills in seed_commit)
 #   4. .venv/bin/python fixtures/tasks/jira_re/tools/prime_maven_repo.py   (offline Maven repo; network)
-# Model and CLI version are set ONLY here. Budgets: owner expects them to be large; the figures below are
-# placeholders until the owner sets them, and every real run still needs approval of the estimated spend.
+# Model and CLI version are set ONLY here. Budget: $200 (owner, 2026-10-23); every real run still needs
+# approval of the estimated spend.
 spec_version: 1
 experiment_id: jira-re-pilot
 task:
@@ -27,13 +27,14 @@ task:
   permissions:
     deny: ["Edit(vendor/**)", "Write(vendor/**)", "Edit(CLAUDE.md)", "Write(CLAUDE.md)", "Bash(git push:*)"]
   protected_paths: ["vendor/**"]
-  # Phase J1 (not in spec/schema.py yet; uncomment once it is):
-  # toolchain:
-  #   dir: ~/lrae-tools/re
-  #   manifest_sha256: <printed by install_re_tools.sh>
-  #   m2_manifest_sha256: <printed by prime_maven_repo.py>
-  # counterparts:
-  #   rea: {command: ~/lrae-tools/re/bin/rea-mcp, env_file: ~/lrae-tools/re/rea.env}
+  # J1: tools outside the repo. Paste the two hashes the install and priming scripts print; pre-flight
+  # refuses a run whose toolchain or offline Maven repository differs (rule 4). Unset = not checked.
+  toolchain:
+    dir: ~/lrae-tools/re
+    # manifest_sha256: <printed by install_re_tools.sh>
+    # m2_manifest_sha256: <printed by prime_maven_repo.py>
+  counterparts:
+    rea: {command: ~/lrae-tools/re/bin/rea-mcp, env_file: ~/lrae-tools/re/rea.env}   # J1, extends D-19
 agent:
   runtime: claude_code
   claude_bin: claude
@@ -48,8 +49,8 @@ run:
   seed: 1234
   parallelism: 1
 budget:                                # subscription login: $ = API-equivalent estimate (D-16)
-  per_run_usd: 250.00                  # PLACEHOLDER (owner: large); set the real figure
-  experiment_usd: 250.00               # PLACEHOLDER; needs owner approval before launch
+  per_run_usd: 200.00                  # owner, 2026-10-23
+  experiment_usd: 200.00               # one pilot run (repeats: 1)
 isolation:
   mode: local
   work_dir: ~/lrae-work
@@ -71,5 +72,10 @@ scoring:
     cost_baseline_checkpoints: 2
   behavior:
     enabled: true
+    agent_suite_runner: maven            # J1: `sh build.sh test`, surefire XML
+    agent_suite_timeout_s: 900           # an AMPS build plus tests takes minutes
     eval_paths: []
     data_paths: ["vendor/**"]            # ED: the plugin under study is protected data
+  clean_room:                            # J1: copy similarity against the scorer's own decompilation
+    enabled: true
+    decompiler: vineflower

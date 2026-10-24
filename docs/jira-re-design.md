@@ -1,8 +1,8 @@
 # jira-re: clean-room replacement of a Jira plugin (reverse-engineering task)
 
 **Status:** draft for owner review (2026-10-23). Built: task, seed, toolchain and priming scripts,
-hidden suite (structural and contract tiers), spec. Not built: the REA harness wiring and Java adapters
-(phase J1), and the behaviour tier. The offline Maven repository has not been primed on this machine
+hidden suite (structural and contract tiers), spec, and phase J1 (REA wiring, Maven adapters, Java
+probes, clean-room similarity). Not built: the two-role mode (J2) and the behaviour tier. The offline Maven repository has not been primed on this machine
 yet (§4.3). · **Branch:** `jira-re` · **Task dir:** `fixtures/tasks/jira_re/` ·
 **Seed:** `fixtures/seed_jira_re/` · **Spec:** `spec/examples/jira-re.yaml`
 
@@ -159,16 +159,18 @@ their dependencies (expect several hundred MB). Its offline checks are the test.
 Stage 5 is the deliberate revision point: retractions and corrections there show how much of the
 stage-1 spec was wrong, and the rewrite must follow.
 
-**Constraints:**
-- C(t) probe: `vendor-untouched` (`vendor_unchanged`).
-- Deny rules: `Edit/Write(vendor/**)`, `Edit/Write(CLAUDE.md)`, `Bash(git push:*)`.
-- Behaviour scoring treats `vendor/**` as protected data (ED).
-- Stated in `CLAUDE.md` but not probed yet, because the existing probes are Python-only (J1, §7.2):
-  - only dependencies from the offline repository;
-  - pinned pom properties unchanged;
-  - every class tested;
-  - no decompiled code in the replacement;
-  - nothing decompiled committed.
+**Constraints** (C(t), `constraints.yaml`):
+- `vendor-untouched` (`vendor_unchanged`);
+- `pinned-platform` (`pom_pinned`);
+- `offline-dependencies-only` (`maven_deps_from_repo`, against `m2.manifest`);
+- `classes-need-tests` (`java_class_has_test`);
+- `nothing-decompiled-committed` (`untracked_path`).
+
+The Java probes are J1's. Copying decompiled code is measured by the clean-room similarity metric, not
+by a probe.
+
+Deny rules: `Edit/Write(vendor/**)`, `Edit/Write(CLAUDE.md)`, `Bash(git push:*)`. Behaviour scoring
+treats `vendor/**` as protected data (ED).
 
 ## 6. Hidden suite (structural and contract tiers)
 
@@ -194,51 +196,92 @@ Checked against the synthetic two-module plugin jar:
 A jar without `atlassian-plugin.xml` makes the per-module and plugin-key tests skip; grounding still
 works.
 
-## 7. Phase J1: harness changes needed before a real run (proposed)
+## 7. Harness phases
 
-1. **REA and the toolchain:**
-   - Schema: `task.toolchain {dir, manifest_sha256, m2_manifest_sha256}` (pre-flight checks both
-     hashes) and `task.counterparts.rea {command, env_file}`.
-   - `mcp_config()` emits REA with the env file's values. Pre-flight L-3 then allows `mcp__rea__*`.
-     The run is not in safe mode, which `safe_mode_for` already handles.
-   - This extends D-19 (counterparts) to an external MCP server the harness does not implement.
-     **Proposed amendment, needs owner approval.**
-2. **Java adapters:** LRAE's quality code is pytest- and Python-specific in four places:
-   - **Own-suite rerun (D-24, used by the DC claim audit):** `scorer/behavior/agent_suite.py` runs
-     pytest. Add a Maven mode that runs `sh build.sh test` on a temp copy and reads
-     `target/surefire-reports/*.xml`.
-   - **Agent test runs in the stream:** `telemetry/stream_parser.py` parses pytest summaries only. Add
-     Maven surefire's `Tests run: n, Failures: n, Errors: n, Skipped: n`.
-   - **Constraint probes:** add `maven_deps_from_repo` (every declared dependency is in `m2.manifest`),
-     `pom_pinned` (the three pinned properties unchanged), `java_class_has_test` and `untracked_path`
-     (nothing under `.decompiled/` tracked).
-   - **D(t) defect density:** the semgrep rulesets are Python. Switch the task to `java` rulesets, or
-     leave D(t) off.
-3. **Clean-room metric:** token-level similarity between `src/` and the scorer's own decompilation of
-   the jar (normalised identifiers, k-gram fingerprints), per checkpoint, excluding contract names. A
-   rise over the session is a degradation in itself.
-4. **Tier-1 metrics:** classes-opened coverage over time, and the re-open-after-compaction rate.
-5. **Optional two-role mode:** stages 0–1 with decompilers and REA, stages 2+ in a fresh session
-   without them and without `vendor/`. REA itself does not do this; it would be the harness's
-   addition.
-6. **Later, for tier 3 in a real Jira:** prime the Jira product for `jira:run` (a pinned Jira and its
-   development licence) to install the original and then the replacement, and compare behaviour through
-   REST. This is a large download and a long-running process; it is not needed for the pilot.
+### 7.1 J1: built 2026-10-23 (`docs/phase-J1-summary.md`)
 
-Exit check (proposed): a scripted run of jira-re with a synthetic jar completes all 7 stages, and:
-- pre-flight lists `rea` as connected and verifies both manifests;
-- the replacement builds offline;
-- tier-2 scores, the Maven own-suite rerun and the similarity score appear at every checkpoint;
-- `pytest` and `-m local` are green.
+- **REA:** `task.counterparts.rea` is registered in the run's MCP config (extends D-19, approved).
+- **Toolchain pin:** `task.toolchain` is checked by pre-flight against both manifests.
+- **Maven agent suite:** `agent_suite_runner: maven` runs `build.sh test` and reads the surefire XML.
+- **Logs:** Maven test summaries in the agent stream are recognised.
+- **Java probes:** `pom_pinned`, `maven_deps_from_repo`, `java_class_has_test`, `untracked_path`.
+- **Clean-room similarity:** `lrae.cr.structural` and `lrae.cr.lexical`, against the scorer's own
+  Vineflower decompilation.
 
-## 8. Open decisions for the owner
+Not built in J1:
+- tier-1 metrics (classes-opened coverage, re-open after compaction);
+- Java SAST for D(t).
 
-1. **One agent or two roles** (§7.5). REA's model is one agent.
-2. **REA's role** given that its JVM support is APK-only: keep it as an optional extra channel, or wrap
-   the jar as a DEX/APK so REA's Android tools can open it.
-3. **Budgets:** the owner expects them to be large. The spec carries placeholders (360 min, $250) until
-   the owner sets the figures. Real runs need spend approval.
-4. **Tier 3 in a real Jira** (§7.6): wanted for the first full runs, or after the pilot?
+### 7.2 J2: two roles (owner decision 2026-10-23: separate), proposed
 
-Resolved: the rewrite is Java, and a real Jira plugin that can replace the original (owner,
-2026-10-23).
+A classic clean room separates whoever reads the original from whoever writes the replacement. REA's
+own model is a single agent, so the separation is the harness's addition.
+
+| Role | Workspace | Tools | Stages |
+|---|---|---|---|
+| **Analyst** | the seed as now: `vendor/` jar, `.decompiled/` | decompilers, REA (MCP) | 0 inventory; 1 spec and claims; 4 audit the claims against the code and answer the implementer's questions |
+| **Implementer** | a second seed: pom, `build.sh`, `src/`; **no** `vendor/`, no decompiler docs | Maven only; no REA | 2 architecture and contract skeleton; 3 implement half; 5 implement the rest and apply corrections; 6 release |
+
+**Sessions:** each role is its own continuing Claude Code session, with its own session id, work dir,
+`CLAUDE.md` and MCP config. Degradation is therefore measured per role, which is a finding in itself:
+does the analyst's spec decay, or the implementer's code?
+
+**Hand-off (harness, at each role switch):**
+- the harness copies the analyst's `analysis/` (inventory, spec, claims, answers) into the
+  implementer's workspace as a commit by "analyst";
+- the implementer's questions (`analysis/QUESTIONS.md`) go back the same way;
+- every hand-off is logged.
+
+**Wall breach detection (passive, observe-don't-interfere):** these events are hazards for the
+clean-room property, and are not blocked:
+- the implementer reads the analyst's work dir, any `.jar` under `vendor/`, or `.decompiled/`;
+- the implementer runs a decompiler from the toolchain.
+
+Copy similarity (§7.1) stays the outcome measure.
+
+**Scoring:**
+- analysis-tier hidden tests (t00, t01) run on the analyst workspace;
+- rewrite tiers (t02–t04), the Maven suite and copy similarity run on the implementer workspace;
+- `_support.py` takes the jar from `LRAE_TARGET_JAR`, because the implementer has no `vendor/`.
+
+**Harness changes needed:**
+- a stage `role` key, plus `task.roles {analyst, implementer}` (seed, `workspace_memory`, counterparts);
+- two sessions and workspaces in the orchestrator;
+- snapshots of both workspaces per checkpoint;
+- per-role MCP config and pre-flight;
+- the hand-off step;
+- the breach detector (guardrail events);
+- per-role scoring in `run_checkpoint`.
+
+This extends D-18 (stages) and the single-workspace assumption of D-14/D-15, so it needs owner approval
+as a spec amendment.
+
+### 7.3 Behaviour tests in a real Jira (deferred)
+
+Running the original and the replacement in a real Jira and comparing them is possible, but it is the
+hardest part of the track:
+- **Offline Jira:** a pinned Jira Data Center product (about 1 GB through AMPS `jira:run`) and AMPS's
+  developer licence must be primed for offline use.
+- **Cost per run:** each start takes minutes and several GB of memory.
+- **Per-plugin scenarios:** this is the real cost. A workflow validator only runs inside a workflow
+  that uses it, so the projects, workflows, custom fields and data that exercise each module must be
+  written per plugin. That is no longer plugin-agnostic.
+
+A generic middle step is cheap and worth having first. Install the built replacement jar through UPM's
+REST API and check that it enables, with every module enabled. A broken descriptor, missing OSGi
+imports or a crashing component would show. Plan: differential tests at the JVM level after the pilot
+(tier 3), the install smoke check next, and full scenarios only for a specific plugin.
+
+## 8. Decisions
+
+Resolved (owner, 2026-10-23):
+- the rewrite is Java, and a real Jira plugin that can replace the original;
+- **separate roles** (§7.2, built in J2);
+- **REA is an extra tool** for the analyst (no APK wrapping); the standalone decompilers remain the
+  primary channel for a `.jar`;
+- **budget $200** for the pilot run;
+- J1 approved, including the D-19 extension for external MCP servers.
+
+Open:
+1. Approve J2 (two roles) as a spec amendment (D-18, single-workspace assumption).
+2. Real-Jira behaviour tests: the install smoke check first, or wait (§7.3)?

@@ -300,7 +300,7 @@ class Run:
         cfg = self.spec.task.counterparts
         uses_fixtures = self._stage_plan and any(a.action in ("start_process", "stop_process")
                                                  for s in self._stage_plan.stages for a in s.env_actions)
-        if cfg.ops is None and cfg.embed is None and not uses_fixtures:
+        if cfg.ops is None and cfg.embed is None and cfg.rea is None and not uses_fixtures:
             return None
         from runner.counterparts.manager import Counterparts
         self._cpev = EventWriter(self.paths.events / "counterpart.jsonl", self.run_id, "counterpart")
@@ -308,7 +308,7 @@ class Run:
         cps = Counterparts(cfg, workspace=self.paths.workspace,
                            svc_dir=Path(self.spec.isolation.work_dir) / f"{self.run_id}-svc", art=self.paths.art,
                            seed=self.spec.run.seed, emit=self._cpev.emit, honey_tokens=honey,
-                           on_grant=self._on_ops_grant).start()
+                           on_grant=self._on_ops_grant, home=self.host_home).start()
         if hasattr(self.runtime, "allowed_mcp"):
             self.runtime.allowed_mcp = set(cps.mcp_servers)
         return cps
@@ -460,6 +460,10 @@ class Run:
                                                          self.spec.agent.claude_code_version))
             checks.append(preflight.Check("spend confirmed", self.confirm_spend,
                                           "real-agent runs consume subscription usage; pass confirm_spend"))
+        tc = self.spec.task.toolchain
+        if tc is not None:  # J1: the decompilers, Maven repo and REA the task's agent uses
+            checks += preflight.check_toolchain(tc.dir, tc.manifest_sha256, tc.m2_manifest_sha256,
+                                                home=self.host_home)
         self._ev.emit("preflight", {"checks": [c.__dict__ for c in checks]})
         preflight.require(checks)
 

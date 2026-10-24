@@ -547,6 +547,13 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                 stage_prev=stage_prev, constraints_violated=int(c_val), read_events=read_events,
                 judge_runner=runner, seed_ws=seed_ws, hidden=hidden)
             lap("BEH")
+        # clean-room copy similarity (J1): the rewrite vs the scorer's own decompilation of the jar
+        cr_metrics: dict[str, dict] = {}
+        if s.scoring.clean_room.enabled:
+            from scorer.clean_room import score_clean_room
+            cr_metrics = score_clean_room(s.scoring.clean_room, tools_dir=Path(s.task.toolchain.dir).expanduser(),
+                                          seed_ws=seed_ws, ws=ws, cache_dir=a.scorer_dir / "clean-room-ref")
+            lap("CR")
         # hazards
         first_bad: dict[str, float | None] = {"quality": None, "context": None}
         commits = interval["commits"]
@@ -592,6 +599,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         "W_repeat_tool_calls": wt,
         **sec_metrics,
         **beh_metrics,
+        **cr_metrics,
     }
     for name in ("X", "S", "S_int", "X_spread", "tokens_per_commit"):
         m = metrics[name]

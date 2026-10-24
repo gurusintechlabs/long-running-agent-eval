@@ -357,10 +357,10 @@ def test_concurrent_launches_with_the_same_nonce(rig):
 
 
 def test_launch_refused_while_a_verified_harness_is_alive(rig):
-    p = cs.spawn_lookalike(rig.r["tmp"], "x.yaml")
+    p = cs.spawn_lookalike(rig.r["tmp"], str(rig.spec), repo=rig.r["repo"])
     try:
         time.sleep(0.3)
-        cs.write_manifest(rig.r["runs"], "other-run", harness_pid=p.pid, start_epoch=time.time() - 1)
+        cs.write_manifest(rig.r["runs"], "other-run", harness_pid=p.pid, spec_path=str(rig.spec), start_epoch=time.time() - 1)
         n = good_nonce(rig)
         r = launch(rig, n)
         assert r.status_code == 409 and r.json()["detail"]["run"]["run_id"] == "other-run"
@@ -521,12 +521,12 @@ def test_decoy_pid_in_a_manifest_is_never_signalled(rig, kills):
 
 
 def test_lookalike_started_after_the_run_is_not_its_harness(rig, kills):
-    p = cs.spawn_lookalike(rig.r["tmp"], "x.yaml")
+    p = cs.spawn_lookalike(rig.r["tmp"], str(rig.spec), repo=rig.r["repo"])
     try:
         time.sleep(0.3)
-        cs.write_manifest(rig.r["runs"], "old", harness_pid=p.pid, start_epoch=time.time() - 3600)
+        cs.write_manifest(rig.r["runs"], "old", harness_pid=p.pid, spec_path=str(rig.spec), start_epoch=time.time() - 3600)
         assert rig.c.post("/api/runs/old/stop").status_code == 409
-        cs.write_manifest(rig.r["runs"], "ended", harness_pid=p.pid, end={"state": "COMPLETED"})
+        cs.write_manifest(rig.r["runs"], "ended", harness_pid=p.pid, spec_path=str(rig.spec), end={"state": "COMPLETED"})
         assert rig.c.post("/api/runs/ended/stop").status_code == 409
         assert kills == [] and cs.alive(p.pid)
     finally:
@@ -535,10 +535,10 @@ def test_lookalike_started_after_the_run_is_not_its_harness(rig, kills):
 
 
 def test_stop_signals_a_verified_harness_with_sigint_once(rig, kills):
-    p = cs.spawn_lookalike(rig.r["tmp"], "x.yaml")
+    p = cs.spawn_lookalike(rig.r["tmp"], str(rig.spec), repo=rig.r["repo"])
     try:
         time.sleep(0.3)
-        cs.write_manifest(rig.r["runs"], "live", harness_pid=p.pid, start_epoch=time.time())
+        cs.write_manifest(rig.r["runs"], "live", harness_pid=p.pid, spec_path=str(rig.spec), start_epoch=time.time())
         r = rig.c.post("/api/runs/live/stop")
         assert r.status_code == 200 and r.json() == {"signalled": "SIGINT", "pid": p.pid, "run_id": "live"}
         assert kills == [(p.pid, signal.SIGINT)]
@@ -550,10 +550,10 @@ def test_stop_signals_a_verified_harness_with_sigint_once(rig, kills):
 
 
 def test_kill_needs_confirmation_then_sigkill_and_clean(rig, kills):
-    p = cs.spawn_lookalike(rig.r["tmp"], "x.yaml")
+    p = cs.spawn_lookalike(rig.r["tmp"], str(rig.spec), repo=rig.r["repo"])
     try:
         time.sleep(0.3)
-        cs.write_manifest(rig.r["runs"], "live", harness_pid=p.pid, start_epoch=time.time())
+        cs.write_manifest(rig.r["runs"], "live", harness_pid=p.pid, spec_path=str(rig.spec), start_epoch=time.time())
         for body in ({"confirm": "yes"}, {"confirm": ""}, {}):
             assert rig.c.post("/api/runs/live/kill", json=body).status_code == 422
         assert kills == [] and cs.alive(p.pid)

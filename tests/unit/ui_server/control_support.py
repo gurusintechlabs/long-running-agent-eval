@@ -116,15 +116,30 @@ def make_client(settings, edit=None):
     return app, c
 
 
-def spawn_lookalike(tmp: Path, *args: str) -> subprocess.Popen:
-    """A sleeper whose command line is ``python -m runner.cli ... run`` (the module is a stub in tmp)."""
+def spawn_lookalike(tmp: Path, spec: str, *args: str, repo: Path | None = None, style: str = "module",
+                    verb: str = "run") -> subprocess.Popen:
+    """A sleeper whose command line looks like a harness: ``style`` is how it was launched.
+
+    module  python -m runner.cli --repo-root R run SPEC     (the stub module lives in tmp)
+    script  <tmp>/bin/lrae --repo-root R run SPEC           (python-shebang script; argv[1] = the script)
+    clipy   python <tmp>/fakeharness/runner/cli.py ...
+    ``repo`` is the --repo-root it claims (default: tmp); None-like ``norepo`` style omits the option."""
     d = tmp / "fakeharness"
     (d / "runner").mkdir(parents=True, exist_ok=True)
     (d / "runner" / "__init__.py").write_text("")
     (d / "runner" / "cli.py").write_text("import time\ntime.sleep(120)\n")
-    return subprocess.Popen([sys.executable, "-m", "runner.cli", "--repo-root", str(tmp), "run", *args],
-                            cwd=d, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL)
+    root = ["--repo-root", str(repo or tmp)] if style != "norepo" else []
+    tail = [*root, verb, spec, *args]
+    kw = dict(cwd=d, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if style in ("module", "norepo"):
+        return subprocess.Popen([sys.executable, "-m", "runner.cli", *tail], **kw)
+    if style == "clipy":
+        return subprocess.Popen([sys.executable, str(d / "runner" / "cli.py"), *tail], **kw)
+    (tmp / "bin").mkdir(exist_ok=True)
+    script = tmp / "bin" / "lrae"
+    script.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(120)\n")
+    script.chmod(0o755)
+    return subprocess.Popen([str(script), *tail], **kw)
 
 
 def write_manifest(runs: Path, rid: str, **kw) -> Path:

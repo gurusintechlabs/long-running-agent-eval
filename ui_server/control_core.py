@@ -26,7 +26,7 @@ from typing import Any
 import psutil
 
 from spec.loader import LoadedSpec, SpecError, load_spec
-from ui_server import spend, store
+from ui_server import harness_proc, spend, store
 from ui_server.safety import valid_run_id
 from ui_server.settings import Settings
 
@@ -301,38 +301,19 @@ def check_confirmation(bound: dict, confirm_usd, confirm_runs) -> None:
 
 def _argv_is_harness(argv: list[str]) -> bool:
     """``python [-opts] -m runner.cli [opts] run|resume ...``, an ``lrae`` script or ``runner/cli.py``
-    as the program. A ``-c`` program (e.g. a decoy quoting these words) never matches."""
-    if len(argv) < 2:
-        return False
-    entry = False
-    if "-m" in argv[:4]:
-        i = argv.index("-m")
-        entry = argv[i + 1:i + 2] == ["runner.cli"] and "-c" not in argv[:i]
-    elif "-c" not in argv[:3]:
-        prog = os.path.basename(argv[0])
-        entry = prog == "lrae" or (prog.startswith("python") and (
-            os.path.basename(argv[1]) == "lrae" or argv[1].endswith("runner/cli.py")))
-    return entry and any(a in ("run", "resume") for a in argv[2:])
+    as the program, any case of ``Python`` (macOS re-execs as ``Python.app/.../MacOS/Python``). A
+    ``-c`` program (e.g. a decoy quoting these words) never matches."""
+    return harness_proc.looks_like_harness(argv)
 
 
-def verify_harness(pid: Any, manifest: dict) -> psutil.Process | None:
-    """The live process of this run's harness, or None. The pid must be the manifest's, the run must
-    not have ended, the command line must be ``lrae run|resume`` and the process must not be younger
-    than the run it claims to drive (pid reuse)."""
-    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1 or pid == os.getpid():
-        return None
-    if manifest.get("harness_pid") != pid or "end" in manifest:
-        return None
-    try:
-        p = psutil.Process(pid)
-        if p.status() == psutil.STATUS_ZOMBIE or not _argv_is_harness(p.cmdline()):
-            return None
-        start = manifest.get("start_epoch")
-        if isinstance(start, (int, float)) and p.create_time() > start + 5:
-            return None
-        return p
-    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-        return None
+def verify_harness(pid: Any, manifest: dict, repo_root: Path | None = None,
+                   run_dir: Path | None = None) -> psutil.Process | None:
+    """The live process of this run's harness, or None. See ``harness_proc.verify``: the process must
+    be the manifest's pid, the run must not have ended, and the process must name THIS run in its
+    command line, belong to this repo and not be younger than the run's ``start_epoch``."""
+    if repo_root is None:
+        return None     # fail closed: there is nothing to tie the process to
+    return harness_proc.verify(pid, manifest, repo_root, run_dir)
 
 
 def harness_state(pid: Any) -> str:
@@ -441,6 +422,13 @@ class Control:
         for a in active_manifest_runs(self.cfg.runs_dir):
             if a["pid"] not in seen:
                 out.append({**a, "source": "manifest"})
+        seen |= {a["pid"] for a in out}
+        # a terminal-launched run is visible by its command line even before its manifest exists
+        for p in harness_proc.scan(self.cfg.repo_root):
+            if p.pid not in seen:
+                info = harness_proc.parse_argv(p.cmdline()) or {}
+                out.append({"run_id": info.get("run_id"), "pid": p.pid, "state": "running",
+                            "source": "process", "verified": True})
         return out
 
     def state(self) -> dict:
@@ -555,7 +543,8 @@ class Control:
                 "run_ids": bound["run_ids"], "log": job["log"].name}
 
     def _emergency_stop(self, manifest: dict) -> None:
-        p = verify_harness(manifest.get("harness_pid"), manifest)
+        p = verify_harness(manifest.get("harness_pid"), manifest, self.cfg.repo_root,
+                           self.cfg.runs_dir / str(manifest.get("run_id")))
         if p is not None:
             with contextlib.suppress(OSError, psutil.Error):
                 os.kill(p.pid, signal.SIGINT)
@@ -575,7 +564,7 @@ class Control:
 
     # -- signals -------------------------------------------------------------------------------
     def _target(self, run_id: str, manifest: dict) -> psutil.Process:
-        p = verify_harness(manifest.get("harness_pid"), manifest)
+        p = verify_harness(manifest.get("harness_pid"), manifest, self.cfg.repo_root, self.cfg.runs_dir / run_id)
         if p is None:
             raise ControlError(409, "not_a_live_harness",
                                "no live harness process is verified for this run; nothing was signalled")

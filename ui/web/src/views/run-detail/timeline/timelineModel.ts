@@ -226,8 +226,8 @@ export function buildTimelineOption(tl: TimelineResponse, p: Palette, events: Tl
       feature: { dataZoom: { yAxisIndex: "none", title: { zoom: "Zoom to a time range (drag)", back: "Undo zoom" } }, restore: { title: "Reset" } },
     },
     grid: [
-      { left: 64, right: 56, top: 40, height: 150 },
-      { left: 64, right: 56, top: 214, height: 200 },
+      { left: 64, right: 56, top: 62, height: 150 },
+      { left: 64, right: 56, top: 238, height: 200 },
     ],
     xAxis: [axis(0), axis(1)],
     yAxis: [

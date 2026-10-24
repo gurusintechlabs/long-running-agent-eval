@@ -80,7 +80,7 @@ function TimelineBody({ tl }: { tl: TimelineResponse }) {
         <div className="tl-chart">
           <LazyChart
             option={option}
-            height={480}
+            height={500}
             label="Run timeline: cumulative estimated cost and context fill per checkpoint, with lanes for checkpoints, stages, compactions, hazards, behaviour events and guardrail violations. Use the incident list below for a keyboard-accessible version."
             onClick={(p) => {
               const link = clickLink(p.data);

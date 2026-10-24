@@ -11,6 +11,9 @@ afterEach(() => {
   }
 });
 
+// jsdom has no canvas 2D context (the test heatmap draws on one): report "unsupported" quietly.
+HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
+
 // jsdom has no ResizeObserver / matchMedia.
 class RO {
   observe() {}

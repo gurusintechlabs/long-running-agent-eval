@@ -245,9 +245,9 @@ async function main() {
     check("a run link exists", !!href);
     if (href) {
       await goto(origin + href);
-      await waitFor(async () => /Checkpoints \(/.test(await text()), "the run detail page");
+      await waitFor(async () => /spec hash/i.test(await text()), "the run detail page");
       const t = await text();
-      check("run detail shows header, checkpoints and hazards", /spec hash/i.test(t) && /Checkpoints \(/.test(t) && /Hazards/.test(t));
+      check("run detail shows header, tabs and hazards", /spec hash/i.test(t) && /Hazards/.test(t) && /Timeline/.test(t) && /Transcript/.test(t));
       await sleep(1200); // let lazy ECharts load and paint
       await shot("run-detail-light");
       await shot("run-detail-dark", { dark: true });
@@ -301,6 +301,64 @@ async function main() {
         await sleep(200);
         check("Esc closes the dialog", (await evaluate("document.querySelectorAll('[role=dialog]').length")) === 0);
       }
+
+
+      // 2b. The U3 tabs, each loaded by URL (deep links) against the real server.
+      const base = origin + href;
+      const count = (sel) => evaluate(`document.querySelectorAll(${JSON.stringify(sel)}).length`);
+      const tabs = [
+        { id: "timeline", ready: () => count("canvas"), marker: /Incidents \(/, label: "timeline chart and incident list" },
+        { id: "tests", ready: async () => ((await count("canvas")) > 0 || /need ingest/.test(await text()) ? 1 : 0), marker: /Test outcomes|need ingest|No per-test data/, label: "test heatmap (or its not-ingested call to action)" },
+        { id: "transcript", ready: () => count(".tr-item"), marker: /Transcript/, label: "transcript items" },
+        { id: "events", ready: () => count(".ev"), marker: /Events/, label: "event rows" },
+        { id: "checkpoints", ready: () => count("tbody tr"), marker: /Checkpoints \(/, label: "checkpoints table" },
+      ];
+      for (const tab of tabs) {
+        await goto(`${base}?tab=${tab.id}`);
+        let ok = true;
+        try {
+          await waitFor(async () => tab.marker.test(await text()) && (await tab.ready()) > 0, `the ${tab.id} tab`, 30000);
+        } catch (e) {
+          ok = false;
+          check(`${tab.id} tab renders ${tab.label}`, false, e.message);
+        }
+        if (ok) check(`${tab.id} tab renders ${tab.label}`, true);
+        await sleep(1500);
+        await shot(`tab-${tab.id}-light`);
+        await shot(`tab-${tab.id}-dark`, { dark: true });
+        if (tab.id === "timeline" || tab.id === "transcript") await shot(`tab-${tab.id}-narrow`, { width: 420, height: 900 });
+      }
+
+      // transcript: expand the first tool call, then a deep link to a time window.
+      await goto(`${base}?tab=transcript`);
+      await waitFor(async () => (await count(".tool-head")) > 0, "a tool call row");
+      await evaluate("document.querySelector('.tool-head').click()");
+      await waitFor(async () => (await count(".tool-detail pre")) > 0, "the expanded tool call", 15000).catch(() => {});
+      check("transcript tool call expands with full input/result", (await count(".tool-detail")) > 0);
+      await shot("tab-transcript-expanded-light");
+      await goto(`${base}?tab=transcript&t_s=5000`);
+      await waitFor(async () => (await count(".tr-hl")) > 0, "the highlighted target item", 15000).catch(() => {});
+      check("transcript deep link highlights the target item", (await count(".tr-hl")) > 0);
+      await shot("tab-transcript-deeplink-light");
+
+      // events: open the first row (JSON viewer).
+      await goto(`${base}?tab=events`);
+      await waitFor(async () => (await count(".ev-head")) > 0, "event rows");
+      await evaluate("document.querySelectorAll('.ev-head')[3].click()");
+      await sleep(300);
+      check("event row opens a JSON viewer", (await count(".json .j-row")) > 0);
+      await shot("tab-events-open-light");
+
+      // checkpoint drawer via URL: diff, then the scorer log.
+      await goto(`${base}?tab=checkpoints&k=1`);
+      await waitFor(async () => (await count('[role="dialog"]')) > 0 && (/Changes from|No git view|No new commits/.test(await text())), "the checkpoint drawer", 30000);
+      check("checkpoint drawer shows the git view", true);
+      await sleep(500);
+      await shot("drawer-diff-light");
+      await shot("drawer-diff-dark", { dark: true });
+      await evaluate("[...document.querySelectorAll('[role=tab]')].find(b => b.textContent.startsWith('Scorer log')).click()");
+      await sleep(1200);
+      await shot("drawer-scorer-light");
     }
 
     // 3. A placeholder route still loads through the SPA fallback.

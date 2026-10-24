@@ -47,15 +47,16 @@ describe("RunDetailView, ingested run", () => {
     const charts = await screen.findAllByTestId("chart");
     expect(charts).toHaveLength(7);
 
-    // checkpoints table with metric columns
-    const table = screen.getByRole("table", { name: "Checkpoints" });
-    expect(within(table).getAllByRole("row")).toHaveLength(1 + fx.checkpointsEarly.checkpoints.length);
-    expect(within(table).getByRole("button", { name: "Sort by Hidden pass rate" })).toBeInTheDocument();
-
-    // hazards
+    // hazards stay on the overview
     expect(screen.getByRole("heading", { name: "Hazards (2)" })).toBeInTheDocument();
     expect(screen.getByText("C>0")).toBeInTheDocument();
     expect(screen.getByText("S_int=1.3245 > 2.0 x baseline 0.5436")).toBeInTheDocument();
+
+    // checkpoints table (with metric columns) lives in its own tab
+    await userEvent.click(screen.getByRole("tab", { name: "Checkpoints" }));
+    const table = await screen.findByRole("table", { name: "Checkpoints" });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + fx.checkpointsEarly.checkpoints.length);
+    expect(within(table).getByRole("button", { name: "Sort by Hidden pass rate" })).toBeInTheDocument();
   });
 
   it("lets the metric picker add and remove charts", async () => {
@@ -97,8 +98,10 @@ describe("RunDetailView, run not ingested yet", () => {
     expect(screen.queryAllByTestId("chart")).toHaveLength(0);
     expect(screen.getByText(/why: task\.workspace_memory/)).toBeInTheDocument(); // safe_mode is an object in real manifests
     expect(screen.queryByText(/object Object/)).toBeNull();
-    expect(screen.getByRole("heading", { name: `Checkpoints (${fx.checkpointsHaiku.checkpoints.length})` })).toBeInTheDocument();
     expect(screen.getByText("Hazards need ingest")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Checkpoints" }));
+    expect(await screen.findByRole("heading", { name: `Checkpoints (${fx.checkpointsHaiku.checkpoints.length})` })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Overview" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Re-ingest now" }));
     expect(await screen.findByText("Ingest finished.")).toBeInTheDocument();

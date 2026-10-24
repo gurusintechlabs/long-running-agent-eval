@@ -51,6 +51,23 @@ def test_control_is_enabled_for_the_repos_own_runs_dir(tmp_path):
     assert st["control_enabled"] is True and st["control_disabled_reason"] is None
 
 
+def test_edit_between_the_checks_and_the_spawn_is_caught(tmp_path):
+    rig = build_rig(tmp_path)
+    n = preview(rig).json()["confirmation_nonce"]
+    real = rig.ctl._refuse_if_active
+
+    def edit_then_check():
+        raw = yaml.safe_load(rig.spec.read_text())
+        raw["budget"]["per_run_usd"] = 4.0           # lands after the first re-check, inside the start lock
+        rig.spec.write_text(yaml.safe_dump(raw))
+        real()
+
+    rig.ctl._refuse_if_active = edit_then_check
+    r = launch(rig, n)
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "spec_changed"
+    assert rig.spawner.calls == []
+
+
 def test_work_dir_or_seed_repo_change_after_preview_invalidates_the_nonce(tmp_path):
     for field, value in (("isolation.work_dir", "elsewhere"), ("task.seed_repo", "seed2")):
         sub = tmp_path / field

@@ -522,6 +522,10 @@ class Control:
             raise
         with self.exclusive():
             self._refuse_if_active()
+            # the last look before the spawn (the TOCTOU window is now the CLI's own load, checked below)
+            if _stable(self._fresh_bound(rec)) != _stable(rec.bound):
+                self.nonces.burn(nonce)
+                raise ControlError(409, "spec_changed", "the spec changed just before the start; preview again")
             rec = self.nonces.consume(nonce)
             tail_argv = [*rec.argv_tail, *(self.cfg.run_argv if kind == "launch" else self.cfg.resume_argv)]
             if rec.bound["real_spend"]:

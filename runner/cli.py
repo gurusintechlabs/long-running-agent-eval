@@ -12,6 +12,7 @@ from runner.orchestrator import Run, RunState, recover_unfinalized
 from runner.resume import parse_checkpoint, resume_run
 from scorer import cli as scorer_cli
 from spec.loader import REPO_ROOT, SpecError, load_spec
+from ui_server import cli as ui_cli  # stdlib-only; the server itself is imported lazily
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     scorer_cli.add_parsers(sp)    # score, install-scorer
     analysis_cli.add_parsers(sp)  # ingest, dashboard, report
+    ui_cli.add_parsers(sp)        # ui
     return ap
 
 

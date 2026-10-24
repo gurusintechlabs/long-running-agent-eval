@@ -10,11 +10,14 @@ from __future__ import annotations
 import getpass
 import hashlib
 import json
+import math
 import os
 from collections import Counter
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
+
+from ui_server import safefs
 
 DECISIONS = ("confirm", "reject", "unsure")
 NOTE_MAX = 2000
@@ -40,14 +43,52 @@ def _item_id(prefix: str, *parts: object) -> str:
 
 
 _cache: dict[Path, tuple[tuple[int, int], list[dict]]] = {}
+TEXT_MAX = 300
+EVIDENCE_MAX = 4000
+
+
+def as_k(v) -> int | None:
+    """A checkpoint number: an int >= 0, or a string of digits; anything else is not one."""
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, int):
+        return v if 0 <= v < 10**6 else None
+    if isinstance(v, str) and v.isascii() and v.isdigit() and len(v) <= 6:
+        return int(v)
+    return None
+
+
+def as_num(v) -> float | None:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return v if math.isfinite(v) else None
+
+
+def as_text(v, limit: int = TEXT_MAX) -> str:
+    if isinstance(v, str):
+        return v[:limit]
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return str(v)[:limit]
+    return ""
+
+
+def as_evidence(v):
+    """Evidence is shown, so it must stay JSON, but bounded; non-conforming shapes become text."""
+    if v is None or isinstance(v, str):
+        return v[:EVIDENCE_MAX] if isinstance(v, str) else None
+    try:
+        text = json.dumps(v, ensure_ascii=False, default=str, sort_keys=True)
+    except (TypeError, ValueError, RecursionError):
+        return None
+    return v if len(text) <= EVIDENCE_MAX else text[:EVIDENCE_MAX]
 
 
 def scorer_events(run_dir: Path) -> list[dict]:
-    """Hazards and behaviour events of the last successful scoring pass of each checkpoint."""
+    """Hazards and behaviour events of the last successful scoring pass of each checkpoint. Events that do
+    not conform (no integer ``k``, payload not an object) are dropped; scalar fields are coerced."""
     f = run_dir / "events" / "scorer.jsonl"
-    try:
-        st = f.stat()
-    except OSError:
+    st = safefs.stat_file(f)
+    if st is None:
         return []
     sig = (st.st_mtime_ns, st.st_size)
     hit = _cache.get(f)
@@ -56,8 +97,8 @@ def scorer_events(run_dir: Path) -> list[dict]:
     last_ok: dict[int, str] = {}
     last_start: dict[int, str] = {}
     events: list[dict] = []
-    with open(f, encoding="utf-8", errors="replace") as fh:
-        for line in fh:
+    with safefs.open_file(f, "r") as fh:
+        for line in fh or ():
             if '"scorer.behavior"' in line or '"scorer.hazard"' in line:
                 kind = "behavior" if '"scorer.behavior"' in line else "hazard"
             elif '"scorer.done"' in line or '"scorer.start"' in line:
@@ -67,58 +108,78 @@ def scorer_events(run_dir: Path) -> list[dict]:
             try:
                 rec = json.loads(line)
                 p = rec["payload"]
-                k, pid = int(p["k"]), p.get("pass_id")
-            except (ValueError, KeyError, TypeError):
+                k = as_k(p["k"])
+                pid = as_text(p.get("pass_id"), 100) or None
+            except (ValueError, KeyError, TypeError, RecursionError, AttributeError):
+                continue
+            if k is None:
                 continue
             if kind == "start":
                 last_start[k] = pid
             elif kind == "done":
-                if p.get("ok"):
+                if p.get("ok") is True:
                     last_ok[k] = pid
             else:
-                events.append({"kind": kind, "ts": rec.get("ts"), "p": p})
+                events.append({"kind": kind, "ts": as_text(rec.get("ts"), 40) or None, "p": p, "k": k, "pid": pid})
     chosen = {**last_start, **last_ok}
     seen: Counter = Counter()
     items: list[dict] = []
     for e in events:
-        p, kind = e["p"], e["kind"]
-        if chosen.get(p["k"]) not in (None, p.get("pass_id")):
+        p, kind, k = e["p"], e["kind"], e["k"]
+        if chosen.get(k) not in (None, e["pid"]):
             continue
-        name = p.get("detector") or p.get("rule") or ""
-        group = p.get("mode") or p.get("dimension") or ""
-        t_s = p.get("t_s") if kind == "behavior" else p.get("t_attributed_s")
-        base = (kind, p["k"], group, name, t_s, p.get("evidence"))
+        name = as_text(p.get("detector") or p.get("rule"))
+        group = as_text(p.get("mode") or p.get("dimension"))
+        t_s = as_num(p.get("t_s") if kind == "behavior" else p.get("t_attributed_s"))
+        ev = as_evidence(p.get("evidence"))
+        base = (kind, k, group, name, t_s, json.dumps(ev, sort_keys=True, default=str))
         seen[base] += 1
         items.append({
             "item_id": _item_id("h" if kind == "hazard" else "b", *base, seen[base]),
-            "source": "scorer_events", "kind": kind, "k": p["k"], "t_s": t_s,
-            "group": group, "name": name, "dimension": p.get("dimension"), "hazard": kind == "hazard" or bool(p.get("hazard")),
-            "deterministic": p.get("deterministic"), "evidence": p.get("evidence"),
-            "title": f"{group} {name}".strip(),
-            "context": {"pass_id": p.get("pass_id"), "ts": e.get("ts"),
-                        "cursor": {"k": p["k"], "t_s": t_s, "t_detected_s": p.get("t_detected_s")}},
+            "source": "scorer_events", "kind": kind, "k": k, "t_s": t_s,
+            "group": group, "name": name, "dimension": as_text(p.get("dimension")) or None,
+            "hazard": kind == "hazard" or p.get("hazard") is True,
+            "deterministic": p.get("deterministic") if isinstance(p.get("deterministic"), bool) else None,
+            "evidence": ev, "title": f"{group} {name}".strip(),
+            "context": {"pass_id": e["pid"], "ts": e["ts"],
+                        "cursor": {"k": k, "t_s": t_s, "t_detected_s": as_num(p.get("t_detected_s"))}},
         })
-    items.sort(key=lambda i: (i["k"], i["t_s"] if isinstance(i["t_s"], (int, float)) else 0, i["item_id"]))
+    items.sort(key=lambda i: (i["k"], i["t_s"] if i["t_s"] is not None else 0, i["item_id"]))
     _cache[f] = (sig, items)
     return items
 
 
-def file_items(run_dir: Path) -> list[dict]:
-    """Optional ``review-items.json``: ``{"items": [{"id", "title", "evidence", "group", "name", ...}]}``."""
+def _json_doc(path: Path):
+    raw = safefs.read_bytes(path, 8 * 1024 * 1024)
+    if raw is None:
+        return None
     try:
-        doc = json.loads((run_dir / "review-items.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
+        return json.loads(raw.decode("utf-8", errors="replace"))
+    except (ValueError, RecursionError):
+        return None
+
+
+def file_items(run_dir: Path) -> list[dict]:
+    """Optional ``review-items.json``: ``{"items": [{"id", "title", "evidence", "group", "name", ...}]}``.
+    Items that do not conform are dropped; fields are coerced to the types the API promises."""
+    doc = _json_doc(run_dir / "review-items.json")
+    raw_items = doc.get("items") if isinstance(doc, dict) else None
     out = []
-    for it in doc.get("items", []) if isinstance(doc, dict) else []:
-        if not isinstance(it, dict) or not isinstance(it.get("id"), str):
+    for it in raw_items if isinstance(raw_items, list) else []:
+        if not isinstance(it, dict) or not isinstance(it.get("id"), str) or not it["id"]:
             continue
-        out.append({"item_id": "f-" + it["id"][:80], "source": "file", "kind": it.get("kind", "label"),
-                    "k": it.get("k"), "t_s": it.get("t_s"), "group": it.get("group", ""), "name": it.get("name", ""),
-                    "dimension": it.get("dimension"), "hazard": bool(it.get("hazard", False)),
-                    "deterministic": it.get("deterministic"), "evidence": it.get("evidence"),
-                    "title": it.get("title") or it["id"], "context": it.get("context") or {},
-                    "proposed_label": it.get("proposed_label"), "draft_note": it.get("draft_note")})
+        prop = it.get("proposed_label")
+        out.append({"item_id": "f-" + it["id"][:80], "source": "file",
+                    "kind": as_text(it.get("kind"), 40) or "label",
+                    "k": as_k(it.get("k")), "t_s": as_num(it.get("t_s")),
+                    "group": as_text(it.get("group")), "name": as_text(it.get("name")),
+                    "dimension": as_text(it.get("dimension")) or None, "hazard": it.get("hazard") is True,
+                    "deterministic": it.get("deterministic") if isinstance(it.get("deterministic"), bool) else None,
+                    "evidence": as_evidence(it.get("evidence")),
+                    "title": as_text(it.get("title")) or it["id"][:TEXT_MAX],
+                    "context": it.get("context") if isinstance(it.get("context"), dict) else {},
+                    "proposed_label": prop if prop in DECISIONS else None,
+                    "draft_note": as_text(it.get("draft_note"), NOTE_MAX) or None})
     return out
 
 
@@ -128,12 +189,10 @@ SOURCES: dict[str, Source] = {"scorer_events": scorer_events, "file": file_items
 def _draft_labels(run_dir: Path) -> list[dict]:
     """Optional ``review-draft.json``: ``{"labels": [{"match": {"kind", "group", "name", "k"}, "proposed": "confirm",
     "note": "..."}]}``, proposed (draft) labels that are attached to matching items. They are suggestions only."""
-    try:
-        doc = json.loads((run_dir / "review-draft.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    return [x for x in doc.get("labels", []) if isinstance(x, dict) and isinstance(x.get("match"), dict)] \
-        if isinstance(doc, dict) else []
+    doc = _json_doc(run_dir / "review-draft.json")
+    labels = doc.get("labels") if isinstance(doc, dict) else None
+    return [x for x in labels if isinstance(x, dict) and isinstance(x.get("match"), dict)] \
+        if isinstance(labels, list) else []
 
 
 def run_items(run_dir: Path) -> list[dict]:
@@ -161,17 +220,14 @@ def review_path(run_dir: Path) -> Path:
 def read_history(run_dir: Path) -> list[dict]:
     """All decision records in file order. Unreadable lines are skipped (they are never rewritten)."""
     out: list[dict] = []
-    try:
-        with open(review_path(run_dir), encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                try:
-                    rec = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(rec, dict) and isinstance(rec.get("item_id"), str):
-                    out.append(rec)
-    except OSError:
-        pass
+    with safefs.open_file(review_path(run_dir), "r") as fh:
+        for line in fh or ():
+            try:
+                rec = json.loads(line)
+            except (ValueError, RecursionError):
+                continue
+            if isinstance(rec, dict) and isinstance(rec.get("item_id"), str) and rec.get("decision") in DECISIONS:
+                out.append(rec)
     return out
 
 

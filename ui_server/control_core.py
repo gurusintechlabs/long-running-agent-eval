@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import fcntl
+import math
 import os
 import re
 import secrets
@@ -24,8 +25,8 @@ from typing import Any
 
 import psutil
 
-from spec.loader import LoadedSpec, SpecError, load_spec
-from ui_server import store
+from spec.loader import LoadedSpec, SpecError
+from ui_server import harness_proc, safefs, safeyaml, spend, store
 from ui_server.safety import valid_run_id
 from ui_server.settings import Settings
 
@@ -116,6 +117,30 @@ def money(x: float) -> float:
     return round(float(x), 2)
 
 
+MAX_SPEND_BASIS = (
+    "worst case, API-equivalent: the CLI checks the experiment cap only before a run starts, so the last "
+    "run that starts can overshoot it; each run is held to per_run_usd")
+
+
+def worst_case_usd(n: int, per_run: float, exp_cap: float, spent: float) -> tuple[float, float]:
+    """``(worst, nominal)``. ``runner.cli.cmd_run`` starts the next run while ``spent < experiment_usd``
+    (spent = finished runs of this experiment and spec hash), so with ``remaining = cap - spent`` at most
+    ``ceil(remaining / per_run)`` runs start, each costing at most ``per_run``. ``nominal`` is the
+    (non-maximal) ``min(cap, n * per_run)``."""
+    nominal = money(min(exp_cap, n * per_run))
+    remaining = exp_cap - spent
+    if remaining <= 0 or per_run <= 0:
+        return 0.0, nominal
+    starts = min(n, math.ceil(remaining / per_run - 1e-9))
+    return money(starts * per_run), nominal
+
+
+def outside_spec_hash(s) -> dict:
+    """What the run will use that the spec hash does not cover (work_dir and seed_repo are excluded from
+    the hash by design; prompt_file is hashed by content but shown so the user sees where it is)."""
+    return {"work_dir": s.isolation.work_dir, "seed_repo": s.task.seed_repo, "prompt_file": s.task.prompt_file}
+
+
 def compute_estimate(loaded: LoadedSpec, repo_root: Path, *, configs=None, repeats=None) -> dict:
     """Everything the user is asked to confirm, derived from the spec file alone."""
     s = loaded.spec
@@ -136,14 +161,10 @@ def compute_estimate(loaded: LoadedSpec, repo_root: Path, *, configs=None, repea
     n = len(run_ids)
     per_run = money(s.budget.per_run_usd)
     exp_cap = money(s.budget.experiment_usd)
-    real_agent = s.agent.runtime != "scripted"
-    real_judge = s.scoring.judge_runtime != "scripted"
-    reasons = []
-    if real_agent:
-        reasons.append(f"agent runtime {s.agent.runtime} uses the Claude subscription")
-    if real_judge:
-        reasons.append(f"judge runtime {s.scoring.judge_runtime} uses the Claude subscription")
+    reasons = spend.spend_reasons(s)
     from runner.cli import experiment_spend
+    spent = experiment_spend(repo_root, s.experiment_id, loaded.spec_hash)
+    worst, nominal = worst_case_usd(n, per_run, exp_cap, spent)
     return {
         "experiment_id": s.experiment_id, "spec_hash": loaded.spec_hash,
         "runtime": s.agent.runtime, "model": s.agent.model, "claude_code_version": s.agent.claude_code_version,
@@ -151,8 +172,10 @@ def compute_estimate(loaded: LoadedSpec, repo_root: Path, *, configs=None, repea
         "real_spend": bool(reasons), "spend_reasons": reasons,
         "configs": cfgs, "repeats": reps, "run_ids": run_ids, "run_count": n,
         "per_run_usd": per_run, "per_run_tokens": s.budget.per_run_tokens, "experiment_usd": exp_cap,
-        "max_spend_usd": money(min(exp_cap, n * per_run)),
-        "spent_so_far_usd": money(experiment_spend(repo_root, s.experiment_id, loaded.spec_hash)),
+        "max_spend_usd": worst, "nominal_cap_usd": nominal,
+        "max_spend_basis": MAX_SPEND_BASIS,
+        "spent_so_far_usd": money(spent),
+        "outside_spec_hash": outside_spec_hash(s),
         "duration_min": s.run.duration_min, "checkpoint_interval_min": s.run.checkpoint_interval_min,
         "checkpoint_count": s.run.checkpoint_count,
         "max_wall_clock_min": round(n * s.run.duration_min, 2),
@@ -249,7 +272,8 @@ class NonceStore:
             return len(self._live)
 
 
-VOLATILE = ("spent_so_far_usd",)   # may move between preview and launch without the spec changing
+# may move between preview and launch without the spec changing (max_spend only downwards, checked)
+VOLATILE = ("spent_so_far_usd", "max_spend_usd", "nominal_cap_usd")
 
 
 def _stable(d: dict) -> dict:
@@ -277,38 +301,19 @@ def check_confirmation(bound: dict, confirm_usd, confirm_runs) -> None:
 
 def _argv_is_harness(argv: list[str]) -> bool:
     """``python [-opts] -m runner.cli [opts] run|resume ...``, an ``lrae`` script or ``runner/cli.py``
-    as the program. A ``-c`` program (e.g. a decoy quoting these words) never matches."""
-    if len(argv) < 2:
-        return False
-    entry = False
-    if "-m" in argv[:4]:
-        i = argv.index("-m")
-        entry = argv[i + 1:i + 2] == ["runner.cli"] and "-c" not in argv[:i]
-    elif "-c" not in argv[:3]:
-        prog = os.path.basename(argv[0])
-        entry = prog == "lrae" or (prog.startswith("python") and (
-            os.path.basename(argv[1]) == "lrae" or argv[1].endswith("runner/cli.py")))
-    return entry and any(a in ("run", "resume") for a in argv[2:])
+    as the program, any case of ``Python`` (macOS re-execs as ``Python.app/.../MacOS/Python``). A
+    ``-c`` program (e.g. a decoy quoting these words) never matches."""
+    return harness_proc.looks_like_harness(argv)
 
 
-def verify_harness(pid: Any, manifest: dict) -> psutil.Process | None:
-    """The live process of this run's harness, or None. The pid must be the manifest's, the run must
-    not have ended, the command line must be ``lrae run|resume`` and the process must not be younger
-    than the run it claims to drive (pid reuse)."""
-    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1 or pid == os.getpid():
-        return None
-    if manifest.get("harness_pid") != pid or "end" in manifest:
-        return None
-    try:
-        p = psutil.Process(pid)
-        if p.status() == psutil.STATUS_ZOMBIE or not _argv_is_harness(p.cmdline()):
-            return None
-        start = manifest.get("start_epoch")
-        if isinstance(start, (int, float)) and p.create_time() > start + 5:
-            return None
-        return p
-    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-        return None
+def verify_harness(pid: Any, manifest: dict, repo_root: Path | None = None,
+                   run_dir: Path | None = None) -> psutil.Process | None:
+    """The live process of this run's harness, or None. See ``harness_proc.verify``: the process must
+    be the manifest's pid, the run must not have ended, and the process must name THIS run in its
+    command line, belong to this repo and not be younger than the run's ``start_epoch``."""
+    if repo_root is None:
+        return None     # fail closed: there is nothing to tie the process to
+    return harness_proc.verify(pid, manifest, repo_root, run_dir)
 
 
 def harness_state(pid: Any) -> str:
@@ -380,6 +385,17 @@ class ControlConfig:
     spawner: Callable[..., Any] = default_spawner
     clock: Callable[[], float] = time.monotonic
 
+    @property
+    def disabled_reason(self) -> str | None:
+        """The CLI is only ever given ``--repo-root``, so it reads and writes ``<repo>/runs``. If the UI was
+        started with another ``--runs-dir``, its view of active runs, conflicts and spend would not be the
+        CLI's: control is off rather than guessing."""
+        want = (self.repo_root / "runs").resolve()
+        if self.runs_dir.resolve() != want:
+            return (f"the UI reads runs from {self.runs_dir} but lrae uses {want}; start the UI with the default "
+                    "runs dir to control runs (viewing still works)")
+        return None
+
     @classmethod
     def from_settings(cls, s: Settings) -> ControlConfig:
         root = s.repo_root.resolve()
@@ -394,6 +410,11 @@ class Control:
         self._mutex = threading.Lock()
         self.job: dict | None = None     # {kind, proc, pid, log, started, run_ids, expect_run}
         self._stop_requested: dict[int, float] = {}
+
+    def require_enabled(self) -> None:
+        why = self.cfg.disabled_reason
+        if why:
+            raise ControlError(409, "control_disabled", why)
 
     def argv(self, *tail: str) -> list[str]:
         c = self.cfg
@@ -417,14 +438,23 @@ class Control:
         for a in active_manifest_runs(self.cfg.runs_dir):
             if a["pid"] not in seen:
                 out.append({**a, "source": "manifest"})
+        seen |= {a["pid"] for a in out}
+        # a terminal-launched run is visible by its command line even before its manifest exists
+        for p in harness_proc.scan(self.cfg.repo_root):
+            if p.pid not in seen:
+                info = harness_proc.parse_argv(p.cmdline()) or {}
+                out.append({"run_id": info.get("run_id"), "pid": p.pid, "state": "running",
+                            "source": "process", "verified": True})
         return out
 
     def state(self) -> dict:
         act = self.active()
         j = self.job
+        off = self.cfg.disabled_reason
         return {
             "active": bool(act), "run": act[0] if act else None, "active_all": act,
-            "launch_allowed": not act,
+            "control_enabled": off is None, "control_disabled_reason": off,
+            "launch_allowed": not act and off is None,
             "reason": None if not act else f"a harness process is alive (run {act[0]['run_id']}, pid {act[0]['pid']}); "
                                            "one run at a time",
             "job": None if not j else {"kind": j["kind"], "pid": j["pid"], "started_epoch": j["started"],
@@ -482,6 +512,9 @@ class Control:
             self.nonces.burn(nonce)
             raise ControlError(409, "spec_changed",
                                "the spec (or the selection) changed since the preview; preview again")
+        if fresh["max_spend_usd"] > rec.bound["max_spend_usd"] + 0.005:   # only a smaller worst case is safe
+            self.nonces.burn(nonce)
+            raise ControlError(409, "spec_changed", "the worst-case spend grew since the preview; preview again")
         try:
             check_confirmation(rec.bound, confirm_usd, confirm_runs)
         except ControlError:
@@ -489,6 +522,10 @@ class Control:
             raise
         with self.exclusive():
             self._refuse_if_active()
+            # the last look before the spawn (the TOCTOU window is now the CLI's own load, checked below)
+            if _stable(self._fresh_bound(rec)) != _stable(rec.bound):
+                self.nonces.burn(nonce)
+                raise ControlError(409, "spec_changed", "the spec changed just before the start; preview again")
             rec = self.nonces.consume(nonce)
             tail_argv = [*rec.argv_tail, *(self.cfg.run_argv if kind == "launch" else self.cfg.resume_argv)]
             if rec.bound["real_spend"]:
@@ -499,7 +536,7 @@ class Control:
     def _fresh_bound(self, rec: NonceRecord) -> dict:
         """Re-derive the estimate from the file on disk (what the CLI will load a moment later)."""
         try:
-            loaded = load_spec(rec.spec_file, repo_root=self.cfg.repo_root)
+            loaded = safeyaml.load_spec_safe(rec.spec_file, self.cfg.repo_root)
         except (SpecError, OSError) as exc:
             raise ControlError(409, "spec_changed", f"spec no longer loads: {str(exc)[:300]}") from None
         if rec.kind == "resume":
@@ -528,7 +565,8 @@ class Control:
                 "run_ids": bound["run_ids"], "log": job["log"].name}
 
     def _emergency_stop(self, manifest: dict) -> None:
-        p = verify_harness(manifest.get("harness_pid"), manifest)
+        p = verify_harness(manifest.get("harness_pid"), manifest, self.cfg.repo_root,
+                           self.cfg.runs_dir / str(manifest.get("run_id")))
         if p is not None:
             with contextlib.suppress(OSError, psutil.Error):
                 os.kill(p.pid, signal.SIGINT)
@@ -548,7 +586,7 @@ class Control:
 
     # -- signals -------------------------------------------------------------------------------
     def _target(self, run_id: str, manifest: dict) -> psutil.Process:
-        p = verify_harness(manifest.get("harness_pid"), manifest)
+        p = verify_harness(manifest.get("harness_pid"), manifest, self.cfg.repo_root, self.cfg.runs_dir / run_id)
         if p is None:
             raise ControlError(409, "not_a_live_harness",
                                "no live harness process is verified for this run; nothing was signalled")
@@ -601,13 +639,10 @@ def resume_estimate(cfg: ControlConfig, loaded: LoadedSpec, run_id: str, k: int)
     s = loaded.spec
     if loaded.spec_hash != m.get("spec_hash"):
         raise ControlError(409, "spec_changed", "spec changed since the run started; the CLI would refuse to resume")
-    if not (cfg.runs_dir / run_id / "snapshots" / f"t{k}" / "meta.json").is_file():
+    if not safefs.is_file(cfg.runs_dir / run_id / "snapshots" / f"t{k}" / "meta.json"):
         raise ControlError(422, "no_snapshot", f"run has no snapshot t{k}")
     done = (m.get("end") or {})
-    real_agent = s.agent.runtime != "scripted"
-    real_judge = s.scoring.judge_runtime != "scripted"
-    reasons = ([f"agent runtime {s.agent.runtime} uses the Claude subscription"] if real_agent else []) + \
-              ([f"judge runtime {s.scoring.judge_runtime} uses the Claude subscription"] if real_judge else [])
+    reasons = spend.spend_reasons(s)
     per_run = money(s.budget.per_run_usd)
     return {
         "kind": "resume", "experiment_id": s.experiment_id, "spec_hash": loaded.spec_hash,
@@ -617,7 +652,9 @@ def resume_estimate(cfg: ControlConfig, loaded: LoadedSpec, run_id: str, k: int)
         "real_spend": bool(reasons), "spend_reasons": reasons,
         "configs": [m.get("config")], "repeats": [m.get("repeat")], "run_ids": [run_id], "run_count": 1,
         "per_run_usd": per_run, "per_run_tokens": s.budget.per_run_tokens,
-        "experiment_usd": money(s.budget.experiment_usd), "max_spend_usd": per_run,
+        "experiment_usd": money(s.budget.experiment_usd), "max_spend_usd": per_run, "nominal_cap_usd": per_run,
+        "max_spend_basis": "a resume runs one run; the CLI applies no experiment cap to it, only per_run_usd",
+        "outside_spec_hash": outside_spec_hash(s),
         "spent_so_far_usd": money(done.get("cost_usd") or 0),
         "duration_min": s.run.duration_min, "checkpoint_interval_min": s.run.checkpoint_interval_min,
         "checkpoint_count": s.run.checkpoint_count,

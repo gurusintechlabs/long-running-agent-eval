@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ui_server import review_store as rs
+from ui_server import safefs
 from ui_server.deps import run_dir_or_404
 from ui_server.safety import valid_run_id
 from ui_server.settings import Settings
@@ -39,9 +40,9 @@ def register(app: FastAPI, settings: Settings) -> None:
         except OSError:
             return out
         for d in entries:
-            if d.is_dir() and not d.is_symlink() and valid_run_id(d.name) and (
-                    (d / "events" / "scorer.jsonl").is_file() or (d / "review-items.json").is_file()
-                    or (d / rs.REVIEW_FILE).is_file()):
+            if not d.is_symlink() and d.is_dir() and valid_run_id(d.name) and (
+                    safefs.is_file(d / "events" / "scorer.jsonl") or safefs.is_file(d / "review-items.json")
+                    or safefs.is_file(d / rs.REVIEW_FILE)):
                 out.append(d.name)
         return out
 
@@ -54,9 +55,12 @@ def register(app: FastAPI, settings: Settings) -> None:
     def runs():
         out = []
         for rid in review_runs():
-            d = run_dir_or_404(settings, rid)
-            items = rs.run_items(d)
-            out.append({"run_id": rid, "items": len(items), **rs.counts(items, rs.latest(rs.read_history(d)))})
+            try:
+                d = run_dir_or_404(settings, rid)
+                items = rs.run_items(d)
+                out.append({"run_id": rid, "items": len(items), **rs.counts(items, rs.latest(rs.read_history(d)))})
+            except Exception as exc:  # noqa: BLE001  one malformed run must not hide the others
+                out.append({"run_id": rid, "items": 0, "error": f"{type(exc).__name__}"})
         return {"runs": out}
 
     @app.get("/api/review/queue")
@@ -67,21 +71,33 @@ def register(app: FastAPI, settings: Settings) -> None:
         rids = [run_id] if run_id else review_runs()
         items: list[dict] = []
         totals = {"pending": 0, "confirm": 0, "reject": 0, "unsure": 0}
+        errors: dict[str, str] = {}
         for rid in rids:
             d = run_dir_or_404(settings, rid)
-            hist_list = rs.read_history(d)
-            cur = rs.latest(hist_list)
-            hist: dict[str, int] = {}
-            for h in hist_list:
-                hist[h["item_id"]] = hist.get(h["item_id"], 0) + 1
-            for it in rs.run_items(d):
-                if kind and it.get("kind") != kind:
-                    continue
-                v = view(it, cur, hist)
+            try:
+                hist_list = rs.read_history(d)
+                cur = rs.latest(hist_list)
+                hist: dict[str, int] = {}
+                for h in hist_list:
+                    hist[h["item_id"]] = hist.get(h["item_id"], 0) + 1
+                run_views = []
+                for it in rs.run_items(d):
+                    if kind and it.get("kind") != kind:
+                        continue
+                    run_views.append(view(it, cur, hist))
+            except Exception as exc:  # noqa: BLE001  isolate failures per run
+                if run_id:
+                    raise
+                errors[rid] = type(exc).__name__
+                continue
+            for v in run_views:
                 totals[v["status"]] += 1
                 if status == "all" or v["status"] == status or (status == "reviewed" and v["status"] != "pending"):
                     items.append(v)
-        return {"items": items[offset:offset + limit], "total": len(items), "offset": offset, "counts": totals}
+        out = {"items": items[offset:offset + limit], "total": len(items), "offset": offset, "counts": totals}
+        if errors:
+            out["errors"] = errors
+        return out
 
     @app.post("/api/review/decision")
     def decision(body: DecisionBody):

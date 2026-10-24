@@ -1,9 +1,11 @@
 """Checkpoint diff (from the run's mirror.git) and scorer log (U3)."""
 from __future__ import annotations
 
+import os
+
 from fastapi import HTTPException, Query
 
-from ui_server import gitview, store
+from ui_server import gitview, safefs, store
 from ui_server.deps import run_dir_or_404
 
 LOG_DEFAULT, LOG_MAX = 200_000, 2_000_000
@@ -28,9 +30,9 @@ def register(app, settings) -> None:
                "diff": "", "diff_truncated": False}
         if base is not None and not gitview.valid_sha(base):
             raise HTTPException(400, "base must be a 40-character lowercase hex sha")
-        repo = gitview.mirror_path(rd)
+        repo, why = gitview.mirror_check(rd)
         if repo is None:
-            out["reason"] = "this run has no mirror.git"
+            out["reason"] = why
             return out
         if not gitview.valid_sha(head):
             out["reason"] = "the checkpoint has no valid head sha"
@@ -67,15 +69,10 @@ def register(app, settings) -> None:
         rd = run_dir_or_404(settings, rid)
         if k < 1 or k > 100000:
             raise HTTPException(404, "no such checkpoint")
-        try:
-            sdir = (rd / "scorer").resolve()
-            p = (sdir / f"score-t{int(k)}.log").resolve()
-        except (OSError, RuntimeError):
-            raise HTTPException(404, "no scorer log") from None
-        if p.parent != sdir or sdir.parent != rd.resolve() or not p.is_file():
-            raise HTTPException(404, "no scorer log")
-        size = p.stat().st_size
-        with open(p, "rb") as fh:
+        with safefs.open_file(rd / "scorer" / f"score-t{int(k)}.log") as fh:   # no symlink anywhere below rd
+            if fh is None:
+                raise HTTPException(404, "no scorer log")
+            size = os.fstat(fh.fileno()).st_size
             if size > max_bytes:
                 fh.seek(size - max_bytes)
             raw = fh.read(max_bytes)

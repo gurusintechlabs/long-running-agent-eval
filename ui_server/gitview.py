@@ -6,10 +6,17 @@ drivers, no pager and no external protocols; its output is size-capped while str
 """
 from __future__ import annotations
 
+import contextlib
+import os
 import re
+import select
 import shutil
+import signal
 import subprocess
+import time
 from pathlib import Path
+
+from ui_server import safefs
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 MAX_COMMITS = 500
@@ -21,6 +28,10 @@ _FS, _RS = "\x1f", "\x1e"
 SAFE_CONFIG = ("-c", "core.hooksPath=/dev/null", "-c", "protocol.ext.allow=never", "-c", "core.fsmonitor=false",
                "-c", "core.pager=cat", "-c", "core.attributesFile=/dev/null",
                "-c", "core.quotepath=off", "-c", "safe.directory=*", "-c", "diff.renames=false")
+
+
+_HIDING_ATTR = re.compile(r"(?m)^[^#\n]*[ \t](-diff|binary)(?=[ \t]|$)")
+_HIDING_CFG = re.compile(r"(?mi)^\s*binary\s*=")
 
 
 class GitError(RuntimeError):
@@ -38,14 +49,35 @@ def git_env() -> dict[str, str]:
             "GIT_ATTR_NOSYSTEM": "1"}
 
 
+def mirror_check(run_dir: Path) -> tuple[Path | None, str | None]:
+    """``(path, None)`` when ``<run>/mirror.git`` is a real directory inside the run dir (no symlink at any
+    level below the runs dir), else ``(None, reason)``. Refused too: a repository that borrows objects
+    (``objects/info/alternates``) or redirects (``commondir``, ``gitdir``), and one that can make text
+    look binary and so hide it from the diff: an ``info/attributes`` rule with ``-diff`` or ``binary``, or
+    a ``binary`` key in its config (diff drivers are otherwise harmless: no external diff or textconv runs)."""
+    p = Path(run_dir) / "mirror.git"
+    if not safefs.is_dir(p) and not os.path.lexists(p):
+        return None, "this run has no mirror.git"
+    if not safefs.is_dir(p) or not safefs.no_symlinks_below(p):
+        return None, "mirror.git is not a plain directory inside the run (symlink?); not read"
+    for rel in ("objects/info/alternates", "objects/info/http-alternates", "commondir", "gitdir"):
+        if os.path.lexists(p / rel):
+            return None, f"mirror.git has {rel}; not read"
+    if not safefs.is_dir(p / "objects") or not safefs.no_symlinks_below(p / "objects"):
+        return None, "mirror.git has no plain objects directory; not read"
+    attrs = p / "info" / "attributes"
+    if os.path.lexists(attrs):
+        text = safefs.read_text(attrs, 100_000) if safefs.no_symlinks_below(attrs) else None
+        if text is None or _HIDING_ATTR.search(text):
+            return None, "mirror.git has attributes that hide content from diffs; not read"
+    cfg = safefs.read_text(p / "config", 1_000_000) if safefs.no_symlinks_below(p / "config") else None
+    if cfg is None or _HIDING_CFG.search(cfg):
+        return None, "mirror.git config can hide content from diffs; not read"
+    return p, None
+
+
 def mirror_path(run_dir: Path) -> Path | None:
-    """``<run>/mirror.git`` when it is a real directory inside the run dir, else None."""
-    p = run_dir / "mirror.git"
-    try:
-        r = p.resolve()
-    except (OSError, RuntimeError):
-        return None
-    return r if r.is_dir() and r.parent == run_dir.resolve() else None
+    return mirror_check(run_dir)[0]
 
 
 def _git() -> str:
@@ -56,28 +88,59 @@ def _git() -> str:
 
 
 def run_git(repo: Path, args: list[str], cap: int) -> tuple[bytes, bool, int]:
-    """Run ``git <args>`` (no shell); return ``(stdout up to cap bytes, truncated, returncode)``."""
+    """Run ``git <args>`` (no shell); return ``(stdout up to cap bytes, truncated, returncode)``.
+
+    The deadline covers the whole call, including a git that stalls without printing anything: the read
+    is a ``select`` loop, and on expiry (or on reaching ``cap``) the whole process group is killed."""
     cmd = [_git(), *SAFE_CONFIG, "--no-pager", f"--git-dir={repo}", *args]
     try:
         proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                env=git_env(), cwd="/", shell=False, close_fds=True)
+                                env=git_env(), cwd="/", shell=False, close_fds=True, start_new_session=True)
     except OSError as e:
         raise GitError(f"cannot run git: {e}") from None
-    out, truncated = b"", False
-    try:
-        assert proc.stdout is not None
-        out = proc.stdout.read(cap + 1)
-        if len(out) > cap:
-            truncated, out = True, out[:cap]
+
+    def kill() -> None:
+        with contextlib.suppress(OSError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        with contextlib.suppress(OSError):
             proc.kill()
-        proc.wait(timeout=TIMEOUT_S)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
-        raise GitError("git timed out") from None
+
+    deadline = time.monotonic() + TIMEOUT_S
+    chunks: list[bytes] = []
+    total, truncated = 0, False
+    fd = proc.stdout.fileno()    # type: ignore[union-attr]
+    try:
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                kill()
+                proc.wait()
+                raise GitError("git timed out")
+            ready, _, _ = select.select([fd], [], [], min(left, 0.5))
+            if not ready:
+                continue
+            block = os.read(fd, 65536)
+            if not block:
+                break
+            chunks.append(block)
+            total += len(block)
+            if total > cap:
+                truncated = True
+                kill()
+                break
+        try:
+            proc.wait(timeout=max(0.1, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            kill()
+            proc.wait()
+            raise GitError("git timed out") from None
     finally:
         if proc.stdout:
             proc.stdout.close()
+        if proc.poll() is None:
+            kill()
+            proc.wait()
+    out = b"".join(chunks)[:cap]
     return out, truncated, proc.returncode if not truncated else 0
 
 

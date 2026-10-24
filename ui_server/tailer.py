@@ -23,6 +23,8 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
+from ui_server import safefs
+
 MAX_LINE = 1 << 20          # a longer line is skipped (reported, not buffered)
 CHUNK = 256 << 10           # bytes read per file per refill
 BACK_BLOCK = 64 << 10       # block size when scanning a file backwards
@@ -79,10 +81,7 @@ class Line:
 
 
 def _open_ro(path: Path) -> int | None:
-    try:
-        return os.open(path, os.O_RDONLY | _O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0))
-    except OSError:
-        return None
+    return safefs.open_fd(path)
 
 
 class FileTail:
@@ -189,16 +188,12 @@ class Item:
 def list_event_files(events_dir: Path) -> dict[str, Path]:
     """``{source: path}`` for the plain ``*.jsonl`` files in ``events/`` (no symlinks, no subdirs)."""
     out: dict[str, Path] = {}
-    try:
-        with os.scandir(events_dir) as it:
-            for e in it:
-                if not e.name.endswith(".jsonl"):
-                    continue
-                stem = e.name[:-6]
-                if _STEM.fullmatch(stem) and e.is_file(follow_symlinks=False):
-                    out[stem] = Path(e.path)
-    except OSError:
-        pass
+    for name in safefs.listdir(events_dir):
+        if not name.endswith(".jsonl"):
+            continue
+        stem = name[:-6]
+        if _STEM.fullmatch(stem) and safefs.is_file(Path(events_dir) / name):
+            out[stem] = Path(events_dir) / name
     return out
 
 

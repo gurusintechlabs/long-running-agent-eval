@@ -10,9 +10,9 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from spec.loader import SpecError, load_spec
+from spec.loader import SpecError
 from ui_server import control_core as cc
-from ui_server import store
+from ui_server import safeyaml, spend, store
 from ui_server.deps import run_dir_or_404
 from ui_server.safety import scrub_paths
 from ui_server.settings import Settings
@@ -69,7 +69,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
     def _load(real: Path):
         try:
-            return load_spec(real, repo_root=settings.repo_root)
+            return safeyaml.load_spec_safe(real, settings.repo_root)
         except SpecError as exc:
             raise cc.ControlError(422, "spec_invalid", str(exc)[:2000]) from None
 
@@ -105,6 +105,7 @@ def register(app: FastAPI, settings: Settings) -> None:
     # -- launch --------------------------------------------------------------------------------
     @app.post("/api/launch/preview")
     def launch_preview(body: PreviewBody):
+        C().require_enabled()
         real = cc.resolve_spec_path(C().cfg.spec_roots, C().cfg.repo_root, body.spec_path, body.draft)
         loaded = _load(real)
         est = cc.compute_estimate(loaded, C().cfg.repo_root, configs=body.config, repeats=body.repeat)
@@ -120,6 +121,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
     @app.post("/api/launch")
     def launch(body: LaunchBody):
+        C().require_enabled()
         res = C().start_run_job(body.nonce, "launch", body.confirm_usd, body.confirm_runs)
         return JSONResponse(res, status_code=200 if res["manifest_seen"] else 202)
 
@@ -135,6 +137,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
     @app.post("/api/runs/{rid}/resume/preview")
     def resume_preview(rid: str, body: ResumePreviewBody):
+        C().require_enabled()
         m, real = _resume_ref(rid)
         k = cc.parse_from(body.from_)
         loaded = _load(real)
@@ -148,6 +151,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
     @app.post("/api/runs/{rid}/resume")
     def resume(rid: str, body: ResumeBody):
+        C().require_enabled()
         _resume_ref(rid)
         k = cc.parse_from(body.from_)
         rec = C().nonces.peek(body.nonce, "resume")
@@ -159,11 +163,13 @@ def register(app: FastAPI, settings: Settings) -> None:
     # -- stop / kill ---------------------------------------------------------------------------
     @app.post("/api/runs/{rid}/stop")
     def stop(rid: str):
+        C().require_enabled()
         d = run_dir_or_404(settings, rid)
         return C().stop(rid, store.read_json(d / "manifest.json") or {})
 
     @app.post("/api/runs/{rid}/kill")
     def kill(rid: str, body: KillBody):
+        C().require_enabled()
         d = run_dir_or_404(settings, rid)
         if body.confirm != rid:
             raise cc.ControlError(422, "confirmation_mismatch", "set confirm to the run id to hard-kill it")
@@ -172,25 +178,30 @@ def register(app: FastAPI, settings: Settings) -> None:
     # -- score / clean -------------------------------------------------------------------------
     @app.post("/api/runs/{rid}/score")
     def score(rid: str, body: ScoreBody | None = None):
+        C().require_enabled()
         d = run_dir_or_404(settings, rid)
         m = store.read_json(d / "manifest.json") or {}
         k = body.checkpoint if body else None
         if k is not None and k < 1:
             raise cc.ControlError(422, "bad_checkpoint", "checkpoint must be >= 1")
         sp = m.get("spec_path")
+        if not isinstance(sp, str):
+            raise cc.ControlError(422, "spec_invalid", "the run's manifest has no spec_path")
+        real = cc.resolve_spec_path(C().cfg.spec_roots, C().cfg.repo_root, sp, None)
         try:
-            judge = load_spec(sp, repo_root=settings.repo_root).spec.scoring.judge_runtime if sp else None
-        except (SpecError, OSError, TypeError) as exc:
-            raise cc.ControlError(422, "spec_invalid", f"the run's spec does not load: {str(exc)[:300]}") from None
-        if judge != "scripted":
+            reasons = spend.spend_reasons(safeyaml.load_spec_safe(real, settings.repo_root).spec)
+        except (SpecError, OSError, TypeError):
+            raise cc.ControlError(422, "spec_invalid", "the run's spec does not load") from None
+        if reasons:
             raise cc.ControlError(
-                409, "judge_spends", "this run's judge is claude_code and re-scoring would spend; "
+                409, "judge_spends", "re-scoring would spend (" + "; ".join(reasons) + "); "
                 "run `lrae score <run> --confirm-spend` in a terminal")
         tail = ["score", rid] + (["--checkpoint", str(k)] if k else [])
         return JSONResponse(C().start_simple_job("score", tail, wait_s=2.0), status_code=202)
 
     @app.post("/api/clean")
     def clean():
+        C().require_enabled()
         res = C().start_simple_job("clean", ["clean"], wait_s=60.0)
         return JSONResponse(scrub_paths(res, settings.repo_root, home), status_code=200 if res["finished"] else 202)
 

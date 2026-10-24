@@ -252,6 +252,55 @@ async function main() {
       await shot("run-detail-light");
       await shot("run-detail-dark", { dark: true });
       await shot("run-detail-narrow", { width: 420, height: 900 });
+      // Run actions: open (never confirm) the dialog of the first action offered, then Esc.
+      const label = await evaluate(`(() => { const b = [...document.querySelectorAll('.run-actions button')].find(x => /Stop…|Resume…|Re-score…/.test(x.textContent)); if (!b) return null; b.click(); return b.textContent; })()`);
+      if (label) {
+        await waitFor(async () => (await evaluate("document.querySelectorAll('[role=dialog]').length")) === 1, "the run-action dialog");
+        await sleep(400);
+        await shot("run-action-dialog-light");
+        await shot("run-action-dialog-dark", { dark: true });
+        await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+        await sleep(200);
+        check(`run action "${label}" dialog opens and Esc closes it`, (await evaluate("document.querySelectorAll('[role=dialog]').length")) === 0);
+      }
+    }
+
+    // 2b. Launch view: preview a SCRIPTED spec (no spend; preview starts nothing). Never touches a claude_code spec.
+    await goto(`${origin}/launch`);
+    await waitFor(async () => /Choose a spec/.test(await text()), "the Launch view");
+    check("control bar is visible", /No run is active|A run is active/.test(await text()));
+    await shot("launch-light");
+    const picked = await evaluate(`(() => {
+      const sel = document.querySelector('select');
+      const opt = [...sel.options].find(o => o.value === 'spec/examples/pilot-scripted.yaml');
+      if (!opt) return false;
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(sel, opt.value);
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`);
+    check("scripted example spec is selectable", !!picked);
+    if (picked) {
+      await evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent === 'Preview estimate').click()`);
+      await waitFor(async () => /2\. Estimate/.test(await text()), "the estimate");
+      const t = await text();
+      check("scripted preview shows no-spend banner, max spend and checks", /no spend/i.test(t) && /max spend/i.test(t) && /pre-flight checks/i.test(t));
+      await shot("launch-preview-light");
+      await shot("launch-preview-dark", { dark: true });
+      await shot("launch-preview-narrow", { width: 420, height: 900 });
+      // The button is disabled when the server issued no nonce (blockers, e.g. the run folder already exists).
+      const blocked = await evaluate(`[...document.querySelectorAll('button')].find(b => /Review and launch/.test(b.textContent)).disabled`);
+      if (blocked) {
+        check("blocked preview: confirm button disabled (no nonce)", true);
+      } else {
+        await evaluate(`[...document.querySelectorAll('button')].find(b => /Review and launch/.test(b.textContent)).click()`);
+        await waitFor(async () => (await evaluate("document.querySelectorAll('[role=dialog]').length")) === 1, "the confirm dialog");
+        check("confirm dialog opens (nothing launched)", /Scripted run: nothing is spent/.test(await text()));
+        await shot("launch-confirm-light");
+        await shot("launch-confirm-dark", { dark: true });
+        await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+        await sleep(200);
+        check("Esc closes the dialog", (await evaluate("document.querySelectorAll('[role=dialog]').length")) === 0);
+      }
     }
 
     // 3. A placeholder route still loads through the SPA fallback.

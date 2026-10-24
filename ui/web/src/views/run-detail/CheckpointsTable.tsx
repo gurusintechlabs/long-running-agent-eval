@@ -4,7 +4,7 @@ import { Badge, Card, EmptyState, Table, type Column } from "../../components";
 import { EMPTY, formatDuration, formatNumber, shortSha } from "../../lib/format";
 import { CORE_METRICS, metricLabel } from "../../lib/metrics";
 
-export function CheckpointsTable({ checkpoints, ingested }: { checkpoints: CheckpointRow[]; ingested: boolean }) {
+export function CheckpointsTable({ checkpoints, ingested, onOpen }: { checkpoints: CheckpointRow[]; ingested: boolean; onOpen?: (k: number) => void }) {
   const columns = useMemo(() => {
     const cols: Column<CheckpointRow>[] = [
       { key: "k", header: "k", numeric: true, sortValue: (c) => c.k, render: (c) => `t${c.k}` },
@@ -32,8 +32,20 @@ export function CheckpointsTable({ checkpoints, ingested }: { checkpoints: Check
         });
       }
     }
+    if (onOpen) {
+      cols.push({
+        key: "open",
+        header: "",
+        headerLabel: "Details",
+        render: (c) => (
+          <button type="button" className="btn btn-small" onClick={() => onOpen(c.k)} aria-label={`Details for checkpoint t${c.k}`}>
+            Diff and log
+          </button>
+        ),
+      });
+    }
     return cols;
-  }, [checkpoints, ingested]);
+  }, [checkpoints, ingested, onOpen]);
 
   return (
     <Card title={`Checkpoints (${checkpoints.length})`} flush>

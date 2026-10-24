@@ -1,19 +1,28 @@
 import { useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ApiError, api, useAsync } from "../../api";
 import { useDataVersion } from "../../app/DataVersion";
 import { IngestButton, IngestResultView, useIngest } from "../../app/IngestBanner";
 import { Card, ErrorState, Spinner } from "../../components";
-import { CheckpointsTable } from "./CheckpointsTable";
+import { CheckpointsTab } from "./checkpoints/CheckpointsTab";
+import { isTab, type TabId } from "./common/links";
+import { EventsTab } from "./events/EventsTab";
 import { HazardList } from "./HazardList";
 import { MetricCharts } from "./MetricCharts";
 import { RunHeader } from "./RunHeader";
+import { RunTabs } from "./RunTabs";
+import { TestsTab } from "./tests/TestsTab";
+import { TimelineTab } from "./timeline/TimelineTab";
+import { TranscriptTab } from "./transcript/TranscriptTab";
 import "./run-detail.css";
+import "./run-detail-u3.css";
 
 const REFRESH_MS = 4000;
 
 export function RunDetailView() {
   const { runId = "" } = useParams();
+  const [params, setParams] = useSearchParams();
+  const tab: TabId = isTab(params.get("tab")) ? (params.get("tab") as TabId) : "overview";
   const { version } = useDataVersion();
   const detailQ = useAsync((s) => api.run(runId, s), [runId, version], (d) => (d?.run.live ? REFRESH_MS : null));
   const cpQ = useAsync((s) => api.checkpoints(runId, s), [runId, version], () => (detailQ.data?.run.live ? REFRESH_MS : null));
@@ -22,6 +31,8 @@ export function RunDetailView() {
   useEffect(() => {
     document.title = `${runId} · LRAE`;
   }, [runId]);
+
+  const selectTab = (t: TabId) => setParams(t === "overview" ? {} : { tab: t });
 
   const back = (
     <Link to="/runs" className="back-link">
@@ -52,45 +63,52 @@ export function RunDetailView() {
   const detail = detailQ.data;
   const cps = cpQ.data?.checkpoints ?? [];
   const ingested = cpQ.data?.ingested ?? detail.run.ingested;
+  const live = detail.run.live;
 
   return (
     <>
       {back}
       <RunHeader detail={detail} />
+      <RunTabs active={tab} onSelect={selectTab} />
 
-      {!detail.run.ingested && (
-        <Card>
-          <div className="not-ingested">
-            <div>
-              <h2>Not ingested yet</h2>
-              <p className="muted">
-                This run is on disk but not in the metrics store, so per-checkpoint metrics, hazards, duration and time-to-first-hazard are not available.
-                The checkpoint list below comes straight from the logs.
-              </p>
-            </div>
-            <IngestButton running={ing.running} onClick={() => void ing.run()} />
-          </div>
-          <IngestResultView result={ing.result} failure={ing.failure} onDismiss={ing.dismiss} />
-        </Card>
-      )}
+      <div id="run-tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="tabpanel">
+        {tab === "overview" && (
+          <>
+            {!detail.run.ingested && (
+              <Card>
+                <div className="not-ingested">
+                  <div>
+                    <h2>Not ingested yet</h2>
+                    <p className="muted">
+                      This run is on disk but not in the metrics store, so per-checkpoint metrics, hazards, duration and time-to-first-hazard are not available.
+                      The Timeline, Transcript, Events and Checkpoints tabs read the logs directly and still work.
+                    </p>
+                  </div>
+                  <IngestButton running={ing.running} onClick={() => void ing.run()} />
+                </div>
+                <IngestResultView result={ing.result} failure={ing.failure} onDismiss={ing.dismiss} />
+              </Card>
+            )}
 
-      {detail.run.ingested && (
-        cpQ.error && !cpQ.data ? (
-          <Card><ErrorState title="Could not load checkpoints" error={cpQ.error} onRetry={cpQ.reload} /></Card>
-        ) : cps.some((c) => Object.keys(c.metrics).length > 0) ? (
-          <MetricCharts checkpoints={cps} hazards={detail.hazards} />
-        ) : null
-      )}
+            {detail.run.ingested &&
+              (cpQ.error && !cpQ.data ? (
+                <Card><ErrorState title="Could not load checkpoints" error={cpQ.error} onRetry={cpQ.reload} /></Card>
+              ) : cps.some((c) => Object.keys(c.metrics).length > 0) ? (
+                <MetricCharts checkpoints={cps} hazards={detail.hazards} />
+              ) : null)}
 
-      {cpQ.error && !cpQ.data && !detail.run.ingested ? (
-        <Card><ErrorState title="Could not load checkpoints" error={cpQ.error} onRetry={cpQ.reload} /></Card>
-      ) : cpQ.loading ? (
-        <Spinner label="Loading checkpoints" />
-      ) : (
-        <CheckpointsTable checkpoints={cps} ingested={ingested} />
-      )}
+            <HazardList hazards={detail.hazards} ingested={detail.run.ingested} runId={runId} />
+          </>
+        )}
 
-      <HazardList hazards={detail.hazards} ingested={detail.run.ingested} />
+        {tab === "timeline" && <TimelineTab runId={runId} live={live} version={version} />}
+        {tab === "tests" && <TestsTab runId={runId} version={version} onReingest={() => void ing.run()} reingesting={ing.running} />}
+        {tab === "transcript" && <TranscriptTab runId={runId} live={live} />}
+        {tab === "events" && <EventsTab runId={runId} live={live} />}
+        {tab === "checkpoints" && (
+          <CheckpointsTab runId={runId} checkpoints={cps} ingested={ingested} loading={cpQ.loading} error={cpQ.data ? null : cpQ.error} onRetry={cpQ.reload} />
+        )}
+      </div>
     </>
   );
 }

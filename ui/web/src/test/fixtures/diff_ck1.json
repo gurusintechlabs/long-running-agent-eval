@@ -1,0 +1,150 @@
+{
+ "run_id": "minidb-v3-pilot-haiku-A-r00-f47fe80e",
+ "k": 1,
+ "head": "62a1ca9024db83500cc29a63e3f07d39e15d120a",
+ "dirty": true,
+ "base": "dac8271420c6636165b0ba3a23c6ced9304b092c",
+ "base_kind": "seed",
+ "available": true,
+ "reason": null,
+ "commits": [
+  {
+   "sha": "62a1ca9024db83500cc29a63e3f07d39e15d120a",
+   "parents": [
+    "548d071be8b7feda584b7d07c1b01c4f254d870e"
+   ],
+   "date": "2026-10-23T01:56:47-04:00",
+   "author": "agent",
+   "subject": "SQL VECTOR type: VECTOR(n) columns, literals, equality and distance functions"
+  },
+  {
+   "sha": "548d071be8b7feda584b7d07c1b01c4f254d870e",
+   "parents": [
+    "498273594397d830e4b1ed748f94c2cfc474ffc4"
+   ],
+   "date": "2026-10-23T01:50:21-04:00",
+   "author": "agent",
+   "subject": "Server tests: stop leftover servers on failure; README describes the server"
+  },
+  {
+   "sha": "498273594397d830e4b1ed748f94c2cfc474ffc4",
+   "parents": [
+    "c018ee9a526085e78ca85e217cafe010c1821dde"
+   ],
+   "date": "2026-10-23T01:47:06-04:00",
+   "author": "agent",
+   "subject": "Server HTTP: auth, body limits, JSON errors, /v1/sql, /healthz"
+  },
+  {
+   "sha": "c018ee9a526085e78ca85e217cafe010c1821dde",
+   "parents": [
+    "dac8271420c6636165b0ba3a23c6ced9304b092c"
+   ],
+   "date": "2026-10-23T01:43:07-04:00",
+   "author": "agent",
+   "subject": "Server startup: data dir format, writer lock, read-only mode, signals"
+  }
+ ],
+ "commits_truncated": false,
+ "files": [
+  {
+   "path": "README.md",
+   "added": 4,
+   "deleted": 2,
+   "binary": false
+  },
+  {
+   "path": "minidb/durable.py",
+   "added": 19,
+   "deleted": 6,
+   "binary": false
+  },
+  {
+   "path": "minidb/engine.py",
+   "added": 19,
+   "deleted": 5,
+   "binary": false
+  },
+  {
+   "path": "minidb/executor.py",
+   "added": 2,
+   "deleted": 1,
+   "binary": false
+  },
+  {
+   "path": "minidb/functions.py",
+   "added": 23,
+   "deleted": 0,
+   "binary": false
+  },
+  {
+   "path": "minidb/parser.py",
+   "added": 35,
+   "deleted": 5,
+   "binary": false
+  },
+  {
+   "path": "minidb/planner.py",
+   "added": 4,
+   "deleted": 2,
+   "binary": false
+  },
+  {
+   "path": "minidb/server/app.py",
+   "added": 129,
+   "deleted": 37,
+   "binary": false
+  },
+  {
+   "path": "minidb/server/datadir.py",
+   "added": 87,
+   "deleted": 0,
+   "binary": false
+  },
+  {
+   "path": "minidb/server/handler.py",
+   "added": 179,
+   "deleted": 0,
+   "binary": false
+  },
+  {
+   "path": "minidb/values.py",
+   "added": 17,
+   "deleted": 1,
+   "binary": false
+  },
+  {
+   "path": "minidb/vectors.py",
+   "added": 118,
+   "deleted": 0,
+   "binary": false
+  },
+  {
+   "path": "tests/test_server_http.py",
+   "added": 344,
+   "deleted": 0,
+   "binary": false
+  },
+  {
+   "path": "tests/test_server_sql.py",
+   "added": 127,
+   "deleted": 0,
+   "binary": false
+  },
+  {
+   "path": "tests/test_server_startup.py",
+   "added": 246,
+   "deleted": 0,
+   "binary": false
+  },
+  {
+   "path": "tests/test_vectors.py",
+   "added": 171,
+   "deleted": 0,
+   "binary": false
+  }
+ ],
+ "files_truncated": false,
+ "diff": "diff --git a/README.md b/README.md\nindex b23764b..47aea06 100644\n--- a/README.md\n+++ b/README.md\n@@ -8,8 +8,10 @@ server**: a multi-tenant HTTP service for scalar and vector data.\n - The engine: SQL with indexes, transactions, durable storage (`--db`), views, `WITH`, window\n   functions and dates. `python -m minidb [--db PATH]` reads SQL on stdin and writes one JSON line\n   per statement (the wire protocol is described in `minidb/protocol.py`; it must not change).\n-- The server: `python -m minidb serve --data-dir DIR --port N` starts an HTTP server that so far\n-  only answers `GET /healthz`. Data-dir layout: `docs/STORAGE.md`.\n+- The server: `MINIDB_ADMIN_KEY=... python -m minidb serve --data-dir DIR --port N [--read-only]`\n+  serves HTTP/1.1 on 127.0.0.1. It answers `GET /healthz` (no key) and `POST /v1/sql` (Bearer\n+  key; body `{\"sql\": \"...\"}`, answer `{\"results\": [...]}`, one result per statement as the stdin\n+  protocol prints it). Data-dir layout: `docs/STORAGE.md`.\n - A visible benchmark: `python -m bench.run --size small` (needs collection search; see `bench/`).\n \n ## Docs\ndiff --git a/minidb/durable.py b/minidb/durable.py\nindex a6da09f..a17cb96 100644\n--- a/minidb/durable.py\n+++ b/minidb/durable.py\n@@ -21,6 +21,7 @@ import os\n from typing import Any\n \n from minidb.storage import Column, Database, Index, Table, View\n+from minidb.vectors import Vector\n \n FORMAT = \"minidb-v2\"\n CHECKPOINT_RECORDS = 20_000\n@@ -34,12 +35,18 @@ class NotADatabase(Exception):\n # ------------------------------------------------------------------ snapshot <-> Database\n \n def encode_value(v: Any) -> Any:\n-    \"\"\"JSON form of a stored value: DATEs are tagged so they never come back as TEXT.\"\"\"\n+    \"\"\"JSON form of a stored value: DATEs and VECTORs are tagged so they never come back as TEXT.\"\"\"\n+    if isinstance(v, Vector):\n+        return {\"vector\": list(v.values)}\n     return {\"date\": v.isoformat()} if isinstance(v, datetime.date) else v\n \n \n def decode_value(v: Any) -> Any:\n-    return datetime.date.fromisoformat(v[\"date\"]) if isinstance(v, dict) else v\n+    if isinstance(v, dict):\n+        if \"vector\" in v:\n+            return Vector(v[\"vector\"])\n+        return datetime.date.fromisoformat(v[\"date\"])\n+    return v\n \n \n def to_snapshot(db: Database, seq: int) -> dict:\n@@ -94,8 +101,11 @@ class Store:\n         self.wal_bytes = 0\n         self.fd: int | None = None\n \n-    def open(self) -> tuple[dict | None, list[list]]:\n-        \"\"\"Read the snapshot and the valid log records after it; create the files if needed.\"\"\"\n+    def open(self, read_only: bool = False) -> tuple[dict | None, list[list]]:\n+        \"\"\"Read the snapshot and the valid log records after it; create the files if needed.\n+\n+        ``read_only`` never writes: nothing is created, no torn tail is cut off, no log is opened\n+        for appending. A missing snapshot then means an empty database.\"\"\"\n         snapshot = None\n         if os.path.exists(self.path):\n             try:\n@@ -106,6 +116,8 @@ class Store:\n             if not (isinstance(snapshot, dict) and snapshot.get(\"format\") == FORMAT):\n                 raise NotADatabase(f\"{self.path} is not a minidb database\")\n             self.seq = int(snapshot[\"seq\"])\n+        elif read_only:\n+            return None, []\n         else:\n             self._write_snapshot(to_snapshot(Database(), 0))\n         records: list[list] = []\n@@ -130,11 +142,12 @@ class Store:\n                     self.seq = seq\n                     self.wal_records += len(ops)\n                 pos = good = end + 1\n-            if good < len(data):\n+            if good < len(data) and not read_only:\n                 with open(self.wal_path, \"r+b\") as fh:\n                     fh.truncate(good)\n         self.wal_bytes = good\n-        self.fd = os.open(self.wal_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)\n+        if not read_only:\n+            self.fd = os.open(self.wal_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)\n         return snapshot, records\n \n     def append(self, ops: list) -> None:\ndiff --git a/minidb/engine.py b/minidb/engine.py\nindex 5d96afb..0971149 100644\n--- a/minidb/engine.py\n+++ b/minidb/engine.py\n@@ -23,10 +23,12 @@ from minidb.protocol import (\n     SQLIOError,\n     SQLNameError,\n     SQLSyntaxError,\n+    SQLTypeError,\n     TransactionError,\n )\n from minidb.storage import Column, Database, Index, Table, View, same\n from minidb.values import coerce, hash_key, truth\n+from minidb.vectors import vector_dim\n \n \n def _parse_query(sql: str):\n@@ -36,6 +38,10 @@ def _parse_query(sql: str):\n     return stmt\n \n \n+# Statements a read-only engine accepts: queries and transaction control (which writes nothing).\n+_READ_ONLY_STATEMENTS = (n.Select, n.SetOp, n.With, n.Explain, n.Begin, n.Commit, n.Rollback)\n+\n+\n class _Transaction:\n     def __init__(self, db: Database) -> None:\n         self.tables = db.tables.copy()\n@@ -53,26 +59,27 @@ class Engine:\n \n     db_path: str | None = None   # set by ``python -m minidb --db PATH`` (minidb/__main__.py)\n \n-    def __init__(self, db_path: str | None = None) -> None:\n+    def __init__(self, db_path: str | None = None, read_only: bool = False) -> None:\n         self.db = Database()\n         self.tx: _Transaction | None = None\n         self.ops: list = []\n         self.store: durable.Store | None = None\n         self.broken: str | None = None\n         self.replaying = False\n+        self.read_only = read_only\n         path = db_path if db_path is not None else type(self).db_path\n         if path is not None:\n             try:\n-                self._open(path)\n+                self._open(path, read_only)\n             except (OSError, durable.NotADatabase, ValueError, KeyError, TypeError) as exc:\n                 self.broken = f\"cannot open database {path}: {exc}\"\n                 self.db, self.store = Database(), None\n \n     # ------------------------------------------------------------ durability\n \n-    def _open(self, path: str) -> None:\n+    def _open(self, path: str, read_only: bool = False) -> None:\n         store = durable.Store(path)\n-        snapshot, records = store.open()\n+        snapshot, records = store.open(read_only)\n         if snapshot is not None:\n             self.db, _ = durable.from_snapshot(snapshot, _parse_query)\n         self.replaying = True\n@@ -82,7 +89,7 @@ class Engine:\n         finally:\n             self.replaying = False\n         durable.build_indexes(self.db)\n-        self.store = store\n+        self.store = None if read_only else store\n \n     def _replay(self, ops: list) -> None:\n         db = self.db\n@@ -116,6 +123,8 @@ class Engine:\n         if self.broken is not None:\n             raise SQLIOError(self.broken)\n         stmt = parse(sql)\n+        if self.read_only and not self.replaying and not isinstance(stmt, _READ_ONLY_STATEMENTS):\n+            raise SQLIOError(\"the database is read-only\")\n         handler = getattr(self, \"_x_\" + type(stmt).__name__)\n         self.ops = []\n         result = handler(stmt)\n@@ -211,6 +22",
+ "diff_truncated": false
+}

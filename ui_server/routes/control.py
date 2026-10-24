@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from spec.loader import SpecError, load_spec
 from ui_server import control_core as cc
-from ui_server import store
+from ui_server import spend, store
 from ui_server.deps import run_dir_or_404
 from ui_server.safety import scrub_paths
 from ui_server.settings import Settings
@@ -178,13 +178,16 @@ def register(app: FastAPI, settings: Settings) -> None:
         if k is not None and k < 1:
             raise cc.ControlError(422, "bad_checkpoint", "checkpoint must be >= 1")
         sp = m.get("spec_path")
+        if not isinstance(sp, str):
+            raise cc.ControlError(422, "spec_invalid", "the run's manifest has no spec_path")
+        real = cc.resolve_spec_path(C().cfg.spec_roots, C().cfg.repo_root, sp, None)
         try:
-            judge = load_spec(sp, repo_root=settings.repo_root).spec.scoring.judge_runtime if sp else None
-        except (SpecError, OSError, TypeError) as exc:
-            raise cc.ControlError(422, "spec_invalid", f"the run's spec does not load: {str(exc)[:300]}") from None
-        if judge != "scripted":
+            reasons = spend.spend_reasons(load_spec(real, repo_root=settings.repo_root).spec)
+        except (SpecError, OSError, TypeError):
+            raise cc.ControlError(422, "spec_invalid", "the run's spec does not load") from None
+        if reasons:
             raise cc.ControlError(
-                409, "judge_spends", "this run's judge is claude_code and re-scoring would spend; "
+                409, "judge_spends", "re-scoring would spend (" + "; ".join(reasons) + "); "
                 "run `lrae score <run> --confirm-spend` in a terminal")
         tail = ["score", rid] + (["--checkpoint", str(k)] if k else [])
         return JSONResponse(C().start_simple_job("score", tail, wait_s=2.0), status_code=202)

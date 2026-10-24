@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import fcntl
+import math
 import os
 import re
 import secrets
@@ -25,7 +26,7 @@ from typing import Any
 import psutil
 
 from spec.loader import LoadedSpec, SpecError, load_spec
-from ui_server import store
+from ui_server import spend, store
 from ui_server.safety import valid_run_id
 from ui_server.settings import Settings
 
@@ -116,6 +117,30 @@ def money(x: float) -> float:
     return round(float(x), 2)
 
 
+MAX_SPEND_BASIS = (
+    "worst case, API-equivalent: the CLI checks the experiment cap only before a run starts, so the last "
+    "run that starts can overshoot it; each run is held to per_run_usd")
+
+
+def worst_case_usd(n: int, per_run: float, exp_cap: float, spent: float) -> tuple[float, float]:
+    """``(worst, nominal)``. ``runner.cli.cmd_run`` starts the next run while ``spent < experiment_usd``
+    (spent = finished runs of this experiment and spec hash), so with ``remaining = cap - spent`` at most
+    ``ceil(remaining / per_run)`` runs start, each costing at most ``per_run``. ``nominal`` is the
+    (non-maximal) ``min(cap, n * per_run)``."""
+    nominal = money(min(exp_cap, n * per_run))
+    remaining = exp_cap - spent
+    if remaining <= 0 or per_run <= 0:
+        return 0.0, nominal
+    starts = min(n, math.ceil(remaining / per_run - 1e-9))
+    return money(starts * per_run), nominal
+
+
+def outside_spec_hash(s) -> dict:
+    """What the run will use that the spec hash does not cover (work_dir and seed_repo are excluded from
+    the hash by design; prompt_file is hashed by content but shown so the user sees where it is)."""
+    return {"work_dir": s.isolation.work_dir, "seed_repo": s.task.seed_repo, "prompt_file": s.task.prompt_file}
+
+
 def compute_estimate(loaded: LoadedSpec, repo_root: Path, *, configs=None, repeats=None) -> dict:
     """Everything the user is asked to confirm, derived from the spec file alone."""
     s = loaded.spec
@@ -136,14 +161,10 @@ def compute_estimate(loaded: LoadedSpec, repo_root: Path, *, configs=None, repea
     n = len(run_ids)
     per_run = money(s.budget.per_run_usd)
     exp_cap = money(s.budget.experiment_usd)
-    real_agent = s.agent.runtime != "scripted"
-    real_judge = s.scoring.judge_runtime != "scripted"
-    reasons = []
-    if real_agent:
-        reasons.append(f"agent runtime {s.agent.runtime} uses the Claude subscription")
-    if real_judge:
-        reasons.append(f"judge runtime {s.scoring.judge_runtime} uses the Claude subscription")
+    reasons = spend.spend_reasons(s)
     from runner.cli import experiment_spend
+    spent = experiment_spend(repo_root, s.experiment_id, loaded.spec_hash)
+    worst, nominal = worst_case_usd(n, per_run, exp_cap, spent)
     return {
         "experiment_id": s.experiment_id, "spec_hash": loaded.spec_hash,
         "runtime": s.agent.runtime, "model": s.agent.model, "claude_code_version": s.agent.claude_code_version,
@@ -151,8 +172,10 @@ def compute_estimate(loaded: LoadedSpec, repo_root: Path, *, configs=None, repea
         "real_spend": bool(reasons), "spend_reasons": reasons,
         "configs": cfgs, "repeats": reps, "run_ids": run_ids, "run_count": n,
         "per_run_usd": per_run, "per_run_tokens": s.budget.per_run_tokens, "experiment_usd": exp_cap,
-        "max_spend_usd": money(min(exp_cap, n * per_run)),
-        "spent_so_far_usd": money(experiment_spend(repo_root, s.experiment_id, loaded.spec_hash)),
+        "max_spend_usd": worst, "nominal_cap_usd": nominal,
+        "max_spend_basis": MAX_SPEND_BASIS,
+        "spent_so_far_usd": money(spent),
+        "outside_spec_hash": outside_spec_hash(s),
         "duration_min": s.run.duration_min, "checkpoint_interval_min": s.run.checkpoint_interval_min,
         "checkpoint_count": s.run.checkpoint_count,
         "max_wall_clock_min": round(n * s.run.duration_min, 2),
@@ -249,7 +272,8 @@ class NonceStore:
             return len(self._live)
 
 
-VOLATILE = ("spent_so_far_usd",)   # may move between preview and launch without the spec changing
+# may move between preview and launch without the spec changing (max_spend only downwards, checked)
+VOLATILE = ("spent_so_far_usd", "max_spend_usd", "nominal_cap_usd")
 
 
 def _stable(d: dict) -> dict:
@@ -482,6 +506,9 @@ class Control:
             self.nonces.burn(nonce)
             raise ControlError(409, "spec_changed",
                                "the spec (or the selection) changed since the preview; preview again")
+        if fresh["max_spend_usd"] > rec.bound["max_spend_usd"] + 0.005:   # only a smaller worst case is safe
+            self.nonces.burn(nonce)
+            raise ControlError(409, "spec_changed", "the worst-case spend grew since the preview; preview again")
         try:
             check_confirmation(rec.bound, confirm_usd, confirm_runs)
         except ControlError:
@@ -604,10 +631,7 @@ def resume_estimate(cfg: ControlConfig, loaded: LoadedSpec, run_id: str, k: int)
     if not (cfg.runs_dir / run_id / "snapshots" / f"t{k}" / "meta.json").is_file():
         raise ControlError(422, "no_snapshot", f"run has no snapshot t{k}")
     done = (m.get("end") or {})
-    real_agent = s.agent.runtime != "scripted"
-    real_judge = s.scoring.judge_runtime != "scripted"
-    reasons = ([f"agent runtime {s.agent.runtime} uses the Claude subscription"] if real_agent else []) + \
-              ([f"judge runtime {s.scoring.judge_runtime} uses the Claude subscription"] if real_judge else [])
+    reasons = spend.spend_reasons(s)
     per_run = money(s.budget.per_run_usd)
     return {
         "kind": "resume", "experiment_id": s.experiment_id, "spec_hash": loaded.spec_hash,
@@ -617,7 +641,9 @@ def resume_estimate(cfg: ControlConfig, loaded: LoadedSpec, run_id: str, k: int)
         "real_spend": bool(reasons), "spend_reasons": reasons,
         "configs": [m.get("config")], "repeats": [m.get("repeat")], "run_ids": [run_id], "run_count": 1,
         "per_run_usd": per_run, "per_run_tokens": s.budget.per_run_tokens,
-        "experiment_usd": money(s.budget.experiment_usd), "max_spend_usd": per_run,
+        "experiment_usd": money(s.budget.experiment_usd), "max_spend_usd": per_run, "nominal_cap_usd": per_run,
+        "max_spend_basis": "a resume runs one run; the CLI applies no experiment cap to it, only per_run_usd",
+        "outside_spec_hash": outside_spec_hash(s),
         "spent_so_far_usd": money(done.get("cost_usd") or 0),
         "duration_min": s.run.duration_min, "checkpoint_interval_min": s.run.checkpoint_interval_min,
         "checkpoint_count": s.run.checkpoint_count,

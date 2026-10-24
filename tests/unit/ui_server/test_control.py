@@ -147,7 +147,7 @@ def test_preview_estimate_comes_from_the_spec(rig):
     e = body["estimate"]
     assert e["runtime"] == "scripted" and e["real_spend"] is False
     assert e["run_count"] == 2 and len(e["run_ids"]) == 2 and e["run_ids"][0].startswith("ctl-test-A-r00-")
-    assert e["per_run_usd"] == 3.0 and e["experiment_usd"] == 5.0 and e["max_spend_usd"] == 5.0
+    assert e["per_run_usd"] == 3.0 and e["experiment_usd"] == 5.0 and e["max_spend_usd"] == 6.0 and e["nominal_cap_usd"] == 5.0
     assert e["checkpoint_count"] == 4 and abs(e["duration_min"] - 0.1) < 1e-9
     assert e["spec_hash"] and body["confirmation"] == {"required": False}
     assert body["confirmation_nonce"] and body["expires_in_s"] == cc.NONCE_TTL_S
@@ -178,7 +178,7 @@ def test_claude_code_preview_flags_real_spend(rig_real):
     e = b["estimate"]
     assert e["real_spend"] is True and e["runtime"] == "claude_code"
     assert b["confirmation"]["required"] is True
-    assert b["confirmation"]["fields"] == {"confirm_usd": 5.0, "confirm_runs": 2}
+    assert b["confirmation"]["fields"] == {"confirm_usd": 6.0, "confirm_runs": 2}
     assert rig_real.spawner.calls == []
 
 
@@ -285,7 +285,7 @@ def test_real_spend_needs_the_typed_confirmation(rig_real):
 
 def test_real_spend_confirmed_passes_the_flag_only_here(rig_real):
     n = good_nonce(rig_real)
-    r = launch(rig_real, n, confirm_usd="5.00", confirm_runs=2)
+    r = launch(rig_real, n, confirm_usd="6.00", confirm_runs=2)
     assert r.status_code == 202, r.text
     (call,) = rig_real.spawner.calls
     assert call["argv"].count("--confirm-spend") == 1 and "run" in call["argv"]

@@ -372,7 +372,7 @@ stages:
 
   Both are hashed only when set, so existing specs keep their hash.
 
-## 10. Counterparts (D-19, plan B3)
+## 10. Counterparts (D-28, plan B3)
 
 `task.counterparts` (spec): `ops: {policy_file}` and/or `embed: {dims}`. They start in PREPARING,
 before the agent env is built, and stop in FINALIZING. Their events go to

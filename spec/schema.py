@@ -71,7 +71,7 @@ class EmbedCounterpart(Strict):
 
 
 class ReaCounterpart(Strict):
-    """An external stdio MCP server the agent can use (J1, extends D-19): REA, run from the task's
+    """An external stdio MCP server the agent can use (J1, D-28): REA, run from the task's
     toolchain outside the repo. The harness only registers it in the run's MCP config; it does not
     implement it. ``env_file``: ``KEY=VALUE`` lines merged into the server's environment."""
     command: str
@@ -87,7 +87,7 @@ class ReaCounterpart(Strict):
 
 
 class Counterparts(Strict):
-    """Harness-run counterparts of the task (D-19, plan B3). Unset: none."""
+    """Harness-run counterparts of the task (D-28, plan B3). Unset: none."""
     ops: OpsCounterpart | None = None
     embed: EmbedCounterpart | None = None
     rea: ReaCounterpart | None = None

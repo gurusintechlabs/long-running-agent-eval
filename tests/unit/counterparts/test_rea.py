@@ -1,4 +1,4 @@
-"""REA as an external MCP counterpart (J1, extends D-19): registered in the run's MCP config only."""
+"""REA as an external MCP counterpart (J1, D-28): registered in the run's MCP config only."""
 import json
 from pathlib import Path
 

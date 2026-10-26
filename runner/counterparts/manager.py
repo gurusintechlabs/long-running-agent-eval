@@ -1,4 +1,4 @@
-"""One run's counterparts (D-19, plan B3): the ops channel, the mock embedding API and the process
+"""One run's counterparts (D-28, plan B3): the ops channel, the mock embedding API and the process
 fixtures, plus the files the agent's CLI needs to reach them.
 
 Lifecycle (runner/orchestrator.py): started in PREPARING, before the agent env is built (the env
@@ -9,7 +9,7 @@ to ``events/counterpart.jsonl``.
 The ops MCP server script is copied into ``<work_dir>/<run_id>-svc/`` (next to the fixture scripts)
 and run with an interpreter outside the repo, so the CLI's MCP config names nothing in the harness.
 
-REA (J1, extends D-19) is an external stdio MCP server from the task's toolchain (outside the repo).
+REA (J1, D-28) is an external stdio MCP server from the task's toolchain (outside the repo).
 The harness only registers it in the run's MCP config, with the variables of its ``env_file``; the CLI
 starts it per session. Its calls and full results are in the agent's stream like any tool's.
 """

@@ -295,7 +295,7 @@ class Run:
         return pot
 
     def _start_counterparts(self):
-        """The task's counterparts (D-19, plan B3), or None. Also needed when only the stages use
+        """The task's counterparts (D-28, plan B3), or None. Also needed when only the stages use
         fixtures."""
         cfg = self.spec.task.counterparts
         uses_fixtures = self._stage_plan and any(a.action in ("start_process", "stop_process")

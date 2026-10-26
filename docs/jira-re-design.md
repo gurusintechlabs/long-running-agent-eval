@@ -200,7 +200,7 @@ works.
 
 ### 7.1 J1: built 2026-10-23 (`docs/phase-J1-summary.md`)
 
-- **REA:** `task.counterparts.rea` is registered in the run's MCP config (extends D-19, approved).
+- **REA:** `task.counterparts.rea` is registered in the run's MCP config (D-28, approved).
 - **Toolchain pin:** `task.toolchain` is checked by pre-flight against both manifests.
 - **Maven agent suite:** `agent_suite_runner: maven` runs `build.sh test` and reads the surefire XML.
 - **Logs:** Maven test summaries in the agent stream are recognised.
@@ -280,10 +280,9 @@ Resolved (owner, 2026-10-23):
 - **REA is an extra tool** for the analyst (no APK wrapping); the standalone decompilers remain the
   primary channel for a `.jar`;
 - **budget $200** for the pilot run;
-- J1 approved, including the D-19 extension for external MCP servers.
+- J1 approved, including external MCP servers as counterparts (D-28; renumbered from the behaviour track's
+  D-19, owner 2026-10-26).
 
 Open:
-0. Decision numbering: this doc's "D-19" is the behaviour track's counterparts decision, but
-   `docs/spec.md` now uses D-19 for the UI server. Proposed: renumber it as D-28 (phase-J1-summary item 7).
 1. Approve J2 (two roles) as a spec amendment (D-18, single-workspace assumption).
 2. Real-Jira behaviour tests: the install smoke check first, or wait (§7.3)?

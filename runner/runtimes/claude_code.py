@@ -18,7 +18,7 @@ AGENT_TOOLS = ("Bash", "Read", "Edit", "Write", "Glob", "Grep", "NotebookEdit", 
 def safe_mode_for(task, mcp_servers: set[str]) -> tuple[bool, str | None]:
     """Whether a run uses ``--safe-mode``, and why not. Verified on CLI 2.1.301 (plan B3): safe mode
     keeps the workspace ``CLAUDE.md`` out of memory and ignores ``--mcp-config`` servers. A task that
-    seeds project rules (D-15a) or has counterpart MCP servers (D-19) therefore runs without it. The
+    seeds project rules (D-15a) or has counterpart MCP servers (D-28) therefore runs without it. The
     rest of the clean-memory setup still applies: user settings excluded (``--setting-sources``), the
     user's ``CLAUDE.md`` and rules moved aside, ``--strict-mcp-config``, built-in plugins off,
     slash commands off, and the pre-flight ``init`` check (built-in agents only)."""

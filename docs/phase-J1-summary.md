@@ -18,7 +18,7 @@ exercised by these tests: the toolchain is not installed on this machine yet.
 
 ## What was built
 
-**REA counterpart (extends D-19, approved by the owner 2026-10-23).**
+**REA counterpart (D-28, approved by the owner 2026-10-23).**
 - `task.counterparts.rea {command, args, env_file}` (`spec/schema.py`).
 - `runner/counterparts/manager.py` registers it in the run's `mcp.json` next to `ops`. `~` expands to
   the real home, the env file is `KEY=VALUE` lines, and `rea.configured` is logged to
@@ -114,12 +114,8 @@ and `lrae.cr.lexical`).
    R(t) carries no signal for jira-re. P(t) (the hidden suite) and the Maven own-suite rerun do.
 5. **Two-role mode (owner decision: separate analyst and implementer)** is not built. It needs separate
    workspaces, sessions and MCP configs per role. Proposed as **J2** (`docs/jira-re-design.md` §7.5).
-6. **Proposed spec decision amendment (D-19):** counterparts may include external stdio MCP servers the
-   harness registers but does not implement (REA). Approved in conversation; to be written into
-   `docs/spec.md`.
-7. **Decision-number collision (found merging main, 2026-10-26).** "D-19" in this track means the behaviour
-   track's counterparts decision (`docs/behavior-design.md` §10, still a proposal). `docs/spec.md` on main
-   has since confirmed D-19 as the local management UI server, and D-20 as Node as a UI build dependency.
-   Proposal: give the counterparts decision, and its J1 extension to external MCP servers, a new number
-   (next free in `docs/spec.md`: D-28). Not renumbered here: spec decisions change only with owner
-   approval.
+6. **Spec decision D-28** (counterparts, including external stdio MCP servers): recorded in `docs/spec.md`
+   (owner, 2026-10-26).
+7. **Decision numbers (resolved 2026-10-26).** D-19 is the UI server (spec.md); the behaviour track's counterparts
+   decision is now D-28. Still open: `docs/behavior-design.md` §10 proposes D-20 to D-24 for behaviour decisions,
+   and spec.md already uses D-20 (Node for the UI).

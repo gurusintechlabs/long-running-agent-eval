@@ -212,49 +212,72 @@ Not built in J1:
 - tier-1 metrics (classes-opened coverage, re-open after compaction);
 - Java SAST for D(t).
 
-### 7.2 J2: two roles (owner decision 2026-10-23: separate), proposed
+### 7.2 Two roles without a harness change (owner decision 2026-10-26; replaces the J2 proposal)
 
-A classic clean room separates whoever reads the original from whoever writes the replacement. REA's
-own model is a single agent, so the separation is the harness's addition.
+The clean-room wall comes from **who does what**, not from harness mechanics:
 
-| Role | Workspace | Tools | Stages |
-|---|---|---|---|
-| **Analyst** | the seed as now: `vendor/` jar, `.decompiled/` | decompilers, REA (MCP) | 0 inventory; 1 spec and claims; 4 audit the claims against the code and answer the implementer's questions |
-| **Implementer** | a second seed: pom, `build.sh`, `src/`; **no** `vendor/`, no decompiler docs | Maven only; no REA | 2 architecture and contract skeleton; 3 implement half; 5 implement the rest and apply corrections; 6 release |
+- **Analyst: Claude, in a development session, outside any LRAE run and unmeasured.**
+  - Decompiles the jar with the toolchain (and REA, if wired into that session).
+  - Writes the behavioural specification into the seed.
+- **Implementer: the agent under test, in an ordinary single-workspace LRAE run.**
+  - Its workspace has the spec, `pom.xml`, `build.sh` and `src/`, and **no jar**, no decompiler
+    instructions and no REA.
+  - Degradation is measured on the implementer only.
 
-**Sessions:** each role is its own continuing Claude Code session, with its own session id, work dir,
-`CLAUDE.md` and MCP config. Degradation is therefore measured per role, which is a finding in itself:
-does the analyst's spec decay, or the implementer's code?
+J2 (two sessions and workspaces per run) is dropped, and D-18 is unchanged.
 
-**Hand-off (harness, at each role switch):**
-- the harness copies the analyst's `analysis/` (inventory, spec, claims, answers) into the
-  implementer's workspace as a commit by "analyst";
-- the implementer's questions (`analysis/QUESTIONS.md`) go back the same way;
-- every hand-off is logged.
+**Analyst deliverables, written to the seed's `analysis/`:**
+- `INVENTORY.md`;
+- `inventory.json`;
+- `SPEC.md`, external contract first: plugin key, module keys and types, REST, servlets, stored data,
+  persisted class names;
+- `claims.jsonl`.
 
-**Wall breach detection (passive, observe-don't-interfere):** these events are hazards for the
-clean-room property, and are not blocked:
-- the implementer reads the analyst's work dir, any `.jar` under `vendor/`, or `.decompiled/`;
-- the implementer runs a decompiler from the toolchain.
+All four cover the full 652 modules (owner: full scope). Expect several sessions.
 
-Copy similarity (§7.1) stays the outcome measure.
+**Clean-room hygiene for the analyst:**
+- behaviour only: no decompiled code, method bodies or internal class names beyond the external contract;
+- decompiler output stays outside the repo and the seed (e.g. `~/lrae-tools/re/work/`).
 
-**Scoring:**
-- analysis-tier hidden tests (t00, t01) run on the analyst workspace;
-- rewrite tiers (t02–t04), the Maven suite and copy similarity run on the implementer workspace;
-- `_support.py` takes the jar from `LRAE_TARGET_JAR`, because the implementer has no `vendor/`.
+**Evidence for grounding** (class or method refs) goes in a harness-side copy of the claims
+(`fixtures/tasks/jira_re/analyst/claims-evidence.jsonl`). The implementer's `claims.jsonl` carries
+none, so internal names don't leak through it.
 
-**Harness changes needed:**
-- a stage `role` key, plus `task.roles {analyst, implementer}` (seed, `workspace_memory`, counterparts);
-- two sessions and workspaces in the orchestrator;
-- snapshots of both workspaces per checkpoint;
-- per-role MCP config and pre-flight;
-- the hand-off step;
-- the breach detector (guardrail events);
-- per-role scoring in `run_checkpoint`.
+**What changes in the task** (task files plus one small scorer change; no runner or orchestration
+change):
+1. **Jar location.** Move the jar out of the seed to `fixtures/tasks/jira_re/vendor/` (git-ignored).
+   `prepare_seed.py` and `jira_target.py` read it there.
+   - `hidden/_support.py` finds it next to `hidden/`: the scorer runs hidden tests in place, and its
+     `test_env` only offers `{ws}` and `{python}`.
+   - `scoring.clean_room` needs a jar path instead of `jar_glob` in the seed. This is the one code
+     change.
+2. **Spec.**
+   - Drop `counterparts.rea`, because the implementer gets no REA. Keep `task.toolchain` for Maven and
+     the offline repository.
+   - Drop the `vendor/**` deny rules and protected paths.
+   - Constraints: drop `vendor-untouched` and `nothing-decompiled-committed`; keep `pinned-platform`,
+     `offline-dependencies-only` and `classes-need-tests`.
+3. **Stages,** rewritten for an implementer:
+   - 0: read the spec and plan;
+   - 1: architecture and the contract skeleton;
+   - 2–4: implement;
+   - 5: a change request carrying the analyst's spec corrections, delivered as an `env_actions`
+     `commit_file`. This is how answers and revisions reach the implementer with no new harness
+     feature.
+   - 6: release.
 
-This extends D-18 (stages) and the single-workspace assumption of D-14/D-15, so it needs owner approval
-as a spec amendment.
+   Rewrite `CLAUDE.md` (implementer rules) and `ENVIRONMENT.md` (Maven only; no decompiler table, no
+   REA) to match.
+4. **Hidden suite.**
+   - t00 and t01 tested the analyst's artefacts. They become harness-side checks of the spec (run once,
+     on the analyst's files), not P(t).
+   - The implementer tiers stay: t02 rewrite map, t04 contract against the original's descriptor, t03
+     release.
+   - Tier 3 (behaviour vs the original) still comes after the pilot.
+5. **What stays:** the toolchain, the offline repository (466 MB, pinned), the pinned pom and its
+   exclusions, the J1 Maven agent suite, the Java probes and the copy-similarity metric. Copy
+   similarity now measures leakage through the spec itself: an implementer with no jar should score
+   near zero.
 
 ### 7.3 Behaviour tests in a real Jira (deferred)
 
@@ -283,6 +306,9 @@ Resolved (owner, 2026-10-23):
 - J1 approved, including external MCP servers as counterparts (D-28; renumbered from the behaviour track's
   D-19, owner 2026-10-26).
 
-Open:
-1. Approve J2 (two roles) as a spec amendment (D-18, single-workspace assumption).
-2. Real-Jira behaviour tests: the install smoke check first, or wait (§7.3)?
+Resolved 2026-10-26:
+- scope is all 652 modules;
+- the counterparts decision is D-28;
+- **the analyst is Claude in a development session, and the LRAE run is the implementer only** (§7.2;
+  J2 dropped);
+- real-Jira behaviour tests come later (§7.3).

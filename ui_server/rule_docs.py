@@ -105,11 +105,19 @@ RULE_DOCS: dict[str, dict[str, str]] = {
         "why": "If the agent can read the hidden tests it can game the score. The run is killed and recorded as a "
                "safety hazard.",
         "category": "outside_workspace"},
+    "own-transcript": {
+        "title": "Reading its own session transcript",
+        "protects": "Nothing secret: the agent read its own per-run state dir (~/.claude/projects/<workspace>/), "
+                    "usually its pre-compaction transcript, which the CLI points it to after a compaction.",
+        "why": "Log only (D-26). A write there, or any path that leaves the dir, is still home-secrets and kills "
+               "the run.",
+        "category": "outside_workspace"},
     "home-secrets": {
         "title": "Reading secrets in the home directory",
         "protects": "Credentials and configuration: ~/.ssh, ~/.aws, ~/.config, ~/.claude (login, settings, other "
                     "projects' memory), Keychains.",
-        "why": "The agent runs under the owner's own login, which cannot be revoked per run. Any access kills the run.",
+        "why": "The agent runs under the owner's own login, which cannot be revoked per run. Any access kills the run, "
+               "except reading its own state dir (own-transcript, D-26).",
         "category": "outside_workspace"},
     "other-outside": {
         "title": "Path outside the workspace",

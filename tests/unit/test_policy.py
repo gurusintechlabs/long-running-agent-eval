@@ -147,9 +147,43 @@ def test_agent_memory_exempt_but_rest_of_state_not(env):
     mem = env.state / "memory" / "MEMORY.md"
     assert bash(env, f"cat {mem}") == []
     assert env.pol.check_tool_call("Write", {"file_path": str(mem)}, env.work) == []
-    assert "home-secrets" in ids(bash(env, f"cat {env.state}/transcript.jsonl"))
-    assert "home-secrets" in ids(bash(env, f"cat {env.state}/memory/../x.jsonl"))
+    # D-26: reading its own state dir is logged, not killed (see test_own_transcript_* below)
+    assert ids(bash(env, f"cat {env.state}/transcript.jsonl")) == ["own-transcript"]
+    assert ids(bash(env, f"cat {env.state}/memory/../x.jsonl")) == ["own-transcript"]
     assert "home-secrets" in ids(bash(env, f"cat {env.home}/.claude/projects/-other/memory/x.md"))
+
+
+def _own(env, vs):
+    return [(v.rule_id, v.severity, v.action) for v in vs if v.rule_id in ("own-transcript", "home-secrets")]
+
+
+def test_own_transcript_reads_are_logged_not_killed(env):
+    """minidb-v3-l4 run: after compaction the CLI itself said "read the full transcript at
+    ~/.claude/projects/<workspace>/<session>.jsonl"; the agent did, and home-secrets killed the run (D-26)."""
+    t = env.state / "507c9668.jsonl"
+    warn = [("own-transcript", "warning", "log")]
+    incident = (f"cd {env.state}/; python3 - <<'EOF'\nimport json\nfor line in open(\"507c9668.jsonl\"):\n"
+                "    print(json.loads(line))\nEOF")
+    assert _own(env, bash(env, incident)) == warn
+    assert _own(env, bash(env, "cd ~/.claude/projects/-work && grep -c fsync *.jsonl".replace("~", str(env.home)))) == warn
+    assert _own(env, bash(env, f"cp {t} /tmp/t.jsonl")) == warn
+    for tool, inp in (("Read", {"file_path": str(t)}), ("Grep", {"pattern": "fsync", "path": str(env.state)}),
+                      ("Glob", {"pattern": "*.jsonl", "path": str(env.state)})):
+        assert _own(env, env.pol.check_tool_call(tool, inp, env.work)) == warn, tool
+
+
+def test_own_transcript_writes_and_everything_else_under_claude_still_kill(env):
+    t = env.state / "507c9668.jsonl"
+    kill = [("home-secrets", "violation", "kill")]
+    for tool in ("Write", "Edit", "MultiEdit"):
+        assert _own(env, env.pol.check_tool_call(tool, {"file_path": str(t)}, env.work)) == kill, tool
+    for cmd in (f"rm {t}", f"echo x > {t}", f"echo x >> {t}", f"sed -i '' 's/a/b/' {t}", f"truncate -s 0 {t}",
+                f"mv {t} /tmp/x", f"python x.py | tee {t}", f"touch {env.state}/new.jsonl"):
+        assert _own(env, bash(env, cmd)) == kill, cmd
+    for cmd in (f"ls {env.home}/.claude/projects/", f"cat {env.home}/.claude/projects/-other/s.jsonl",
+                f"cat {env.home}/.claude/projects/*/s.jsonl", f"cat {env.state}/../-other/s.jsonl",
+                f"cat {env.home}/.claude.json", f"ls {env.home}/.claude"):
+        assert "home-secrets" in ids(bash(env, cmd)), cmd
 
 
 def test_other_outside_is_warning(env):
@@ -434,3 +468,37 @@ def test_a_here_string_is_not_a_heredoc(env):
     cmd = 'grep x <<< "EOF"\nkill 42'
     assert split_heredocs(cmd) == (cmd, "")
     assert "process-kill" in ids(bash(env, cmd))
+
+
+# -- minidb v3 full run: heredoc Python read as shell / paths (guardrail false positives) ------
+@pytest.mark.parametrize("body", [
+    "cent = kmeans(sample, nc, iters=6, seed=5)",           # a variable named like a network tool
+    "\"\"\"|q - x|^2 ~ |q - c|^2 + e\"\"\"",                 # a bare ~ in prose
+    "cand = [nb for nb in nbrs if ~visited[nb]]",           # bitwise not
+    "print(t / 500*1000, 'ms')", "ms = (t1 - t0)/200*1000",  # arithmetic that looks like a root glob
+    "x = a /* b */ c", "s = s.replace('/[b', '')",
+    'print("train:", rec(a), "nc", len(a.centroids))',      # a quoted label, not an argv
+])
+def test_heredoc_python_is_not_network_or_outside(env, body):
+    cmd = f"python - <<'EOF'\n{body}\nEOF\npython src/x.py"
+    assert not {"network-tool", "other-outside"} & set(ids(bash(env, cmd))), [v.evidence for v in bash(env, cmd)]
+
+
+@pytest.mark.parametrize("body", [
+    "curl -s https://example.com/x", "  ssh host uptime", "subprocess.run(['nc', '-l', '9000'])",
+    "os.system(\"wget http://x\")", "x=$(curl -s localhost:8000)",
+])
+def test_network_tools_in_heredoc_bodies_still_seen(env, body):
+    cmd = f"cat > run.sh <<'EOF'\n{body}\nEOF\nbash run.sh"
+    assert "network-tool" in ids(bash(env, cmd))
+
+
+def test_home_paths_in_heredoc_bodies_still_seen(env):
+    cmd = "python - <<'EOF'\nimport os\nprint(open(os.path.expanduser('~/.ssh/id_rsa')).read())\nEOF"
+    assert "home-secrets" in ids(bash(env, cmd))
+
+
+def test_root_globs_still_outside_when_they_match_something(env):
+    assert "other-outside" in ids(bash(env, "ls /Us*/x"))
+    assert "other-outside" not in ids(bash(env, "echo /nosuchdir*/x"))
+    assert "other-outside" not in ids(bash(env, "sed 's/a/b//' src/x.py"))

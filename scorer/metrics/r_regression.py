@@ -66,10 +66,11 @@ def parse_report(path: Path) -> dict[str, str] | None:
 
 
 def run_pytest_json(python: Path, args: list[str], *, cwd: Path, env: dict[str, str],
-                    report: Path, timeout_s: float, label: str) -> SuiteResult:
+                    report: Path, timeout_s: float, label: str,
+                    per_test_timeout_s: float = PER_TEST_TIMEOUT_S) -> SuiteResult:
     cmd = [str(python), "-I", "-m", "pytest", "-p", "no:cacheprovider", "--json-report",
            f"--json-report-file={report}", "--json-report-omit", "log", "traceback", "streams",
-           "keywords", f"--timeout={PER_TEST_TIMEOUT_S}", *args]
+           "keywords", f"--timeout={per_test_timeout_s:g}", *args]
     res = sandbox.run(cmd, cwd=cwd, env=env, timeout_s=timeout_s, label=label)
     outcomes = parse_report(report)
     tail = (res.stdout[-1500:] + res.stderr[-800:]).strip()
@@ -129,20 +130,25 @@ def run_regression_on(tree_src: Path, seed_ws: Path, python: Path, *,
 
 # --- R --------------------------------------------------------------------------------------
 
-def count_regressions(prev: dict[str, str] | None, cur: dict[str, str]) -> list[str]:
+def count_regressions(prev: dict[str, str] | None, cur: dict[str, str], *,
+                      missing_ok: bool = False) -> list[str]:
     """Test ids that passed before and do not pass now (a deleted test is a regression).
 
     A test that is ``skipped`` now (not active at the current stage) is never a regression; a test
-    that was not passing (or absent) before cannot regress."""
+    that was not passing (or absent) before cannot regress. With ``missing_ok`` a test absent now was
+    not run (deselected timing tests of a partial hidden run) and is not a regression either."""
     if not prev:
         return []
     return sorted(t for t, o in prev.items()
-                  if o == "passed" and cur.get(t) not in ("passed", "skipped"))
+                  if o == "passed" and cur.get(t) not in ("passed", "skipped")
+                  and not (missing_ok and t not in cur))
 
 
 def score_regressions(prev_hidden: dict[str, str] | None, cur_hidden: dict[str, str],
-                      prev_reg: dict[str, str] | None, cur_reg: dict[str, str]) -> dict:
-    h = count_regressions(prev_hidden, cur_hidden)
+                      prev_reg: dict[str, str] | None, cur_reg: dict[str, str], *,
+                      hidden_partial: bool = False) -> dict:
+    """``hidden_partial``: the current hidden run deselected some tests (timing), so absent ones did not run."""
+    h = count_regressions(prev_hidden, cur_hidden, missing_ok=hidden_partial)
     r = count_regressions(prev_reg, cur_reg)
     return {"value": float(len(h) + len(r)),
             "detail": {"regressed_hidden": h, "regressed_regression": r, "outcomes": cur_reg}}
@@ -226,9 +232,23 @@ def _git(git_dir: Path, *args: str, check: bool = True) -> str:
     return out.stdout.strip()
 
 
+def _agent_log(mirror: Path, rev_range: str, fmt: str) -> list[tuple[str, str]]:
+    """``(author email, formatted)`` per commit in ``rev_range``, oldest first, harness commits
+    (environment stages, ``runner/envmut.py``) left out: they are never the agent's work."""
+    from runner.envmut import is_harness_email
+    out = _git(mirror, "log", "--reverse", f"--format=%ae%x1f{fmt}%x1e", rev_range)
+    rows = [r.strip("\n").split("\x1f", 1) for r in out.split("\x1e") if r.strip()]
+    return [(email, val) for email, val in rows if not is_harness_email(email)]
+
+
 def commits_between(mirror: Path, prev_sha: str, cur_sha: str) -> list[str]:
-    out = _git(mirror, "rev-list", "--reverse", f"{prev_sha}..{cur_sha}")
-    return out.split() if out else []
+    """The agent's commits in ``(prev, cur]``, oldest first."""
+    return [sha for _, sha in _agent_log(mirror, f"{prev_sha}..{cur_sha}", "%H")]
+
+
+def agent_commit_messages(mirror: Path, base_sha: str, cur_sha: str) -> list[str]:
+    """Messages of the agent's commits in ``(base, cur]``, oldest first."""
+    return [m.strip() for _, m in _agent_log(mirror, f"{base_sha}..{cur_sha}", "%B") if m.strip()]
 
 
 def sample_evenly(items: list, limit: int = MAX_SAMPLED_COMMITS) -> list:

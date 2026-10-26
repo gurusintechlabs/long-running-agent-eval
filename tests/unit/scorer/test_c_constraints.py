@@ -70,6 +70,21 @@ def run(probe, ctx, params=None):
 
 # ---- vendor_unchanged
 
+def test_vendor_until_stage_and_ignore(ctx):
+    from dataclasses import replace
+    f = ctx.snapshot_ws / "vendor/slug/__init__.py"
+    f.write_text("changed\n")
+    params = {"path": "vendor", "until_stage": 11}
+    assert run("vendor_unchanged", replace(ctx, stage=10), params).violated
+    r = run("vendor_unchanged", replace(ctx, stage=11), params)
+    assert not r.violated and "stage 11" in r.evidence
+    assert run("vendor_unchanged", ctx, params).violated          # no stage (standalone): still checked
+    f.write_text(SEED["vendor/slug/__init__.py"])
+    (ctx.snapshot_ws / "vendor/LOCK").write_text("backup-daemon pid 1\n")
+    assert run("vendor_unchanged", ctx, {"path": "vendor"}).violated
+    assert not run("vendor_unchanged", ctx, {"path": "vendor", "ignore": ["LOCK"]}).violated
+
+
 def test_vendor_clean(ctx):
     assert not run("vendor_unchanged", ctx, {"path": "vendor"}).violated
 

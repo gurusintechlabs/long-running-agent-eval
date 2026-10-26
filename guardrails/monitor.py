@@ -117,6 +117,38 @@ class _Tail:
         return out
 
 
+class CwdModel:
+    """The Bash tool's working directory as the command channel sees it.
+
+    ``cwd`` follows the CLI, which resets the shell to the project dir when a command leaves it.
+    ``raw`` never resets, which is the stricter older model. A call is checked against ``cwd``; when
+    the two differ it is also checked against ``raw``, keeping only kill-severity findings from that
+    second check. Kill rules therefore stay as strict as before, while warnings follow the CLI.
+    """
+
+    def __init__(self, policy: BoundPolicy, home_cwd: Path | None):
+        self.policy = policy
+        self.home_cwd = Path(home_cwd) if home_cwd else None
+        self.reset()
+
+    def reset(self) -> None:
+        self.cwd = self.raw = self.home_cwd
+
+    def check(self, tool: str, tool_input: dict) -> list[Violation]:
+        if self.cwd is None:
+            return []
+        found = self.policy.check_tool_call(tool, tool_input, self.cwd)
+        if self.raw != self.cwd:
+            seen = {v.rule_id for v in found}
+            found += [v for v in self.policy.check_tool_call(tool, tool_input, self.raw)
+                      if v.severity == "violation" and v.rule_id not in seen]
+        if tool == "Bash" and isinstance(tool_input, dict):
+            command = str(tool_input.get("command", ""))
+            self.cwd = self.policy.track_cwd(command, self.cwd, reset_to=self.home_cwd)
+            self.raw = self.policy.track_cwd(command, self.raw)
+        return found
+
+
 class GuardrailMonitor:
     def __init__(self, *, events_dir: Path, policy: BoundPolicy, writer: EventWriter,
                  on_kill, on_pause=None, on_resume=None, on_budget=None, on_interrupt=None,
@@ -124,13 +156,15 @@ class GuardrailMonitor:
                  workspace: Path | None = None, seed_files: dict[str, str] | None = None,
                  integrity: dict[str, str] | None = None, clock=None, poll_interval: float = 0.2,
                  effect_interval: float = 30.0, lag_threshold_s: float = 10.0,
-                 silence_threshold_s: float = 60.0, cwd: Path | None = None):
+                 silence_threshold_s: float = 60.0, cwd: Path | None = None,
+                 procmon=None, procmon_interval: float = 2.0, honey=None):
         self.events_dir = Path(events_dir)
         self.policy = policy
         self.writer = writer
         self.on_kill, self.on_pause, self.on_resume = on_kill, on_pause, on_resume
         self.on_budget, self.on_interrupt = on_budget, on_interrupt
         self.per_run_usd, self.per_run_tokens = per_run_usd, per_run_tokens
+        self._base_usd, self._base_tokens = per_run_usd, per_run_tokens  # extensions are relative to these
         self.workspace = Path(workspace) if workspace else None
         self.seed_files = seed_files
         self.integrity = dict(integrity or {})
@@ -140,7 +174,10 @@ class GuardrailMonitor:
         self.lag_threshold_s = lag_threshold_s
         self.silence_threshold_s = silence_threshold_s
         self.home_cwd = Path(cwd) if cwd else self.workspace
-        self._cwd = self.home_cwd
+        self._cwd = CwdModel(policy, self.home_cwd)
+        self.procmon = procmon            # guardrails.procmon.ProcMon (plan B2), log-only
+        self.procmon_interval = procmon_interval
+        self.honey = honey                # guardrails.honey.HoneyPot (plan B2), log-only
 
         self._stream = _Tail(self.events_dir / "agent_stream.jsonl")
         self._otel = _Tail(self.events_dir / "otel.jsonl")
@@ -166,6 +203,7 @@ class GuardrailMonitor:
         self._prev_mono = self.clock.mono()
         self._prev_wall = self.clock.wall()
         self._last_effects_mono = self._prev_mono
+        self._last_procmon_mono = self._prev_mono
 
     # -- public control ---------------------------------------------------------------------
     def set_agent_active(self, active: bool) -> None:
@@ -191,6 +229,8 @@ class GuardrailMonitor:
         self._thread = None
         try:
             self.poll_once()  # drain what was appended last
+            if self.procmon is not None:
+                self.check_procs_now()
         except Exception:
             log.exception("final poll failed")
         self.writer.emit("guardrail.monitor", {"status": "stopped",
@@ -220,6 +260,8 @@ class GuardrailMonitor:
             if self.workspace is not None or self.integrity:
                 if now - self._last_effects_mono >= self.effect_interval:
                     self.check_effects_now()
+            if self.procmon is not None and now - self._last_procmon_mono >= self.procmon_interval:
+                self.check_procs_now()
             self._prev_mono, self._prev_wall = now, wall
             return len(stream) + len(otel)
 
@@ -227,13 +269,14 @@ class GuardrailMonitor:
     def _on_stream(self, ev: dict, now: float) -> None:
         etype, payload = ev.get("type"), ev.get("payload") or {}
         if etype == "session.init":
-            self._cwd = self.home_cwd
-        elif etype == "tool.call" and self._cwd is not None:
+            self._cwd.reset()
+        elif etype == "tool.call":
             tool, tinput = payload.get("tool", ""), payload.get("input") or {}
-            for v in self.policy.check_tool_call(tool, tinput, self._cwd):
+            for v in self._cwd.check(tool, tinput):
                 self._raise(v, now, stream_seq=ev.get("seq"))
-            if tool == "Bash" and isinstance(tinput, dict):
-                self._cwd = self.policy.track_cwd(str(tinput.get("command", "")), self._cwd)
+            if self.honey is not None:
+                for v in self.honey.check_call(tool, tinput):
+                    self._raise(v, now, stream_seq=ev.get("seq"))
         elif etype in ("session.result", "stream.result") and payload.get("is_error"):
             self._error_result(payload)
 
@@ -262,6 +305,8 @@ class GuardrailMonitor:
             found: list[Violation] = []
             if self.workspace is not None:
                 found += self.policy.check_effects(self.workspace, self.seed_files)
+                if self.honey is not None:
+                    found += self.honey.check_effects(self.workspace)
             for path, want in self.integrity.items():
                 try:
                     got = sha256_file(Path(path))
@@ -279,6 +324,18 @@ class GuardrailMonitor:
                 new.append(v)
                 self._raise(v, now)
             return new
+
+    # -- process channel (procmon) ------------------------------------------------------------
+    def check_procs_now(self) -> None:
+        """Poll procmon once: each observation is logged as its own event, and its finding (a
+        warning or a log-only violation) goes through the usual violation path."""
+        with self._lock:
+            now = self.clock.mono()
+            self._last_procmon_mono = now
+            for etype, payload, v in self.procmon.poll():
+                self.writer.emit(etype, payload)
+                if v is not None:
+                    self._raise(v, now)
 
     # -- budget channel ----------------------------------------------------------------------
     def _on_otel(self, ev: dict, wall: float) -> None:
@@ -299,6 +356,21 @@ class GuardrailMonitor:
                 self._interrupt("api_error", f"{len(self._api_errors)} claude_code.api_error "
                                 f"within {API_ERROR_WINDOW_S:.0f} s: "
                                 f"{str(payload.get('error') or payload.get('status_code') or '')[:200]}")
+
+    def extend_budget(self, frac: float, reason: str) -> None:
+        """Raise the caps by ``frac`` of the original caps (an ops grant, plan B3 follow-up). Logged as
+        ``guardrail.budget_extended``. Has no effect once the budget kill has fired."""
+        with self._lock:
+            if self.killed or frac <= 0:
+                return
+            before = (self.per_run_usd, self.per_run_tokens)
+            if self.per_run_usd is not None:
+                self.per_run_usd = self.per_run_usd + self._base_usd * frac
+            if self.per_run_tokens is not None:
+                self.per_run_tokens = int(self.per_run_tokens + self._base_tokens * frac)
+            self.writer.emit("guardrail.budget_extended", {
+                "from_usd": before[0], "to_usd": self.per_run_usd, "from_tokens": before[1],
+                "to_tokens": self.per_run_tokens, "reason": reason})
 
     def _check_budget(self) -> None:
         over_usd = self.per_run_usd is not None and self.cost_usd >= self.per_run_usd

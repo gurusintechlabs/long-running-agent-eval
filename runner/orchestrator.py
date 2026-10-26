@@ -7,6 +7,7 @@ for runs whose harness crashed.
 """
 from __future__ import annotations
 
+import dataclasses
 import enum
 import hashlib
 import json
@@ -22,11 +23,14 @@ from pathlib import Path
 
 import psutil
 
+from guardrails.honey import HoneyPot
 from guardrails.killswitch import KillSwitch
 from guardrails.monitor import GuardrailMonitor, SystemClock, integrity_hashes
 from guardrails.policy import load_policy, sha256_file
+from guardrails.procmon import ProcMon
 from runner import manifest as mf
 from runner import memory, preflight, procs, snapshot
+from runner.envmut import EnvMutator
 from runner.loop_driver import LoopDriver, TurnFailure, TurnHandle, ensure_supported
 from runner.preflight import PreflightError
 from runner.probe import run_probe
@@ -36,7 +40,7 @@ from runner.runtimes.claude_code import ClaudeCodeRuntime
 from runner.runtimes.scripted import ScriptedRuntime
 from runner.scoring import ScorerQueue
 from runner.seed import ensure_seed_repo
-from runner.stages import StageScheduler, load_stages
+from runner.stages import Stage, StageScheduler, load_stages
 from runner.workdir import (
     RunPaths,
     WorkdirError,
@@ -77,6 +81,10 @@ class RunResult:
     paths: RunPaths
     snapshots: list = field(default_factory=list)
     error: str | None = None
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def user_memory_lock(repo_root: Path) -> Path:
@@ -132,6 +140,12 @@ class Run:
         self._stage_plan = load_stages(self.spec.task.stages_file) if self.spec.task.stages_file else None
         self._stages: StageScheduler | None = None
         self.end_reason: str | None = None  # task_done | deadline (guardrail ends set censored_reason)
+        self._honey: HoneyPot | None = None
+        self._cps = None    # runner.counterparts.manager.Counterparts (plan B3)
+        self._cpev: EventWriter | None = None
+        self._envev: EventWriter | None = None
+        # Harness-owned fixture processes, name -> Popen (plan B3 starts them; tests inject them).
+        self._fixtures: dict = dict(self.guard_opts.get("fixtures", {}))
 
         self.stop = threading.Event()
         self.snap_lock = threading.Lock()
@@ -195,9 +209,12 @@ class Run:
         self._stream = EventWriter(self.paths.events / "agent_stream.jsonl", self.run_id, "agent_stream")
         self._otel = EventWriter(self.paths.events / "otel.jsonl", self.run_id, "otel")
         self._gev = EventWriter(self.paths.events / "guardrail.jsonl", self.run_id, "guardrail")
+        self._envev = (EventWriter(self.paths.events / "env.jsonl", self.run_id, "env")
+                       if self._stage_plan and any(s.env_actions for s in self._stage_plan.stages) else None)
         self._stderr = open(self.paths.events / "agent_stderr.log", "a")
         if self.score:
             self._scorer = ScorerQueue(self.paths.art, self.loaded.path, self._ev, repo_root=self.repo_root,
+                                       timeout_s=self.spec.scoring.checkpoint_timeout_s,
                                        confirm_spend=self.confirm_spend)
         self._set_state(RunState.PREPARING)
 
@@ -210,7 +227,9 @@ class Run:
             self._write_manifest()  # before cloning, so even an early failure records its end state
             seed_repo = ensure_seed_repo(Path(self.spec.task.seed_repo), self.spec.task.seed_commit,
                                          self.repo_root / "runs" / ".seed-cache")
-            clone_seed(seed_repo, self.spec.task.seed_commit, self.paths.workspace)
+            wm = self.spec.task.workspace_memory
+            clone_seed(seed_repo, self.spec.task.seed_commit, self.paths.workspace,
+                       Path(wm).read_bytes() if wm else None)
 
         if self.runtime.needs_venv:
             cache = Path(self.spec.isolation.work_dir) / ".pip-cache"
@@ -218,10 +237,15 @@ class Run:
 
         self._receiver = OtlpReceiver(self.paths.otel_raw / "raw.jsonl", self._otel)
         self._receiver.start()
+        # decoys, then counterparts (they know the decoy tokens), then the agent env (counterpart URLs)
+        self._honey = self._provision_honey()
+        self._cps = self._start_counterparts()
+        self._choose_safe_mode()
         attrs = {"lrae.run_id": self.run_id, "lrae.config": self.config_name, "lrae.repeat": str(self.repeat)}
         tel = self.spec.telemetry
         settings = harness_settings(otel_endpoint=self._receiver.endpoint, protocol=tel.protocol,
-                                    export_interval_ms=tel.export_interval_ms, resource_attrs=attrs)
+                                    export_interval_ms=tel.export_interval_ms, resource_attrs=attrs,
+                                    permissions_deny=self.spec.task.permissions.deny)
         self.paths.harness_settings.write_text(json.dumps(settings, indent=2))
         path_dirs = ([str(self.paths.venv / "bin")] if self.paths.venv.exists() else [])
         path_dirs += self.runtime.path_dirs()
@@ -230,8 +254,8 @@ class Run:
             path_dirs.append(str(Path(git_bin).parent))
         self._env = build_agent_env(host_env=self.host_env, tmpdir=self.paths.tmp, path_dirs=path_dirs,
                                     otel_endpoint=self._receiver.endpoint, protocol=tel.protocol,
-                                    export_interval_ms=tel.export_interval_ms, resource_attrs=attrs)
-
+                                    export_interval_ms=tel.export_interval_ms, resource_attrs=attrs,
+                                    extra=self._cps.env() if self._cps else None)
         self._preflight()
         self._setup_guardrails()
         if self.runtime.uses_real_agent:
@@ -259,8 +283,79 @@ class Run:
         path.write_text(json.dumps(out, indent=1, sort_keys=True))
         return out
 
+    def _provision_honey(self) -> HoneyPot | None:
+        """Decoy credentials (plan B2): in the workspace and in a sibling dir of the run's work dir."""
+        if not self.spec.task.honey:
+            return None
+        outside = Path(self.spec.isolation.work_dir) / f"{self.run_id}-shared"
+        pot = HoneyPot.provision(self.spec.task.honey, workspace=self.paths.workspace, outside_dir=outside,
+                                 store=self.paths.art / "honey.json")
+        self._ev.emit("honey.provisioned", {"items": [{"id": i.id, "where": i.where,
+                                                        "path": str(i.path)} for i in pot.items]})
+        return pot
+
+    def _start_counterparts(self):
+        """The task's counterparts (D-19, plan B3), or None. Also needed when only the stages use
+        fixtures."""
+        cfg = self.spec.task.counterparts
+        uses_fixtures = self._stage_plan and any(a.action in ("start_process", "stop_process")
+                                                 for s in self._stage_plan.stages for a in s.env_actions)
+        if cfg.ops is None and cfg.embed is None and not uses_fixtures:
+            return None
+        from runner.counterparts.manager import Counterparts
+        self._cpev = EventWriter(self.paths.events / "counterpart.jsonl", self.run_id, "counterpart")
+        honey = {i.token: i.id for i in self._honey.items} if self._honey else {}
+        cps = Counterparts(cfg, workspace=self.paths.workspace,
+                           svc_dir=Path(self.spec.isolation.work_dir) / f"{self.run_id}-svc", art=self.paths.art,
+                           seed=self.spec.run.seed, emit=self._cpev.emit, honey_tokens=honey,
+                           on_grant=self._on_ops_grant).start()
+        if hasattr(self.runtime, "allowed_mcp"):
+            self.runtime.allowed_mcp = set(cps.mcp_servers)
+        return cps
+
+    def _choose_safe_mode(self) -> None:
+        """``--safe-mode`` for every task except those that need the workspace CLAUDE.md or MCP
+        counterparts (runner/runtimes/claude_code.py:safe_mode_for). Recorded in the manifest."""
+        if not hasattr(self.runtime, "safe_mode"):
+            return
+        from runner.runtimes.claude_code import safe_mode_for
+        on, reason = safe_mode_for(self.spec.task, self._cps.mcp_servers if self._cps else set())
+        self.runtime.safe_mode = on
+        self._ev.emit("agent.safe_mode", {"enabled": on, "reason": reason})
+        mf.update(self.paths.manifest, safe_mode={"enabled": on, "reason": reason})
+
+    def _on_ops_grant(self, effect: dict) -> None:
+        """Ops grants that the harness enforces (plan B3 follow-up): a budget extension raises the cap."""
+        frac = effect.get("budget_extra_frac") if isinstance(effect, dict) else None
+        if frac and self._monitor is not None:
+            self._monitor.extend_budget(float(frac), reason="ops grant: budget_extension")
+
+    def _all_fixtures(self) -> dict:
+        return {**self._fixtures, **(self._cps.fixtures.processes() if self._cps else {})}
+
+    def _task_policy(self, policy):
+        """The policy file plus the task's own log-only rules: protected paths, the seeded project
+        rules file (D-15a) and the decoy dir. They are hashed through the spec, not the policy file."""
+        task = self.spec.task
+        held = self._stage_plan.fixture_paths() if self._stage_plan else []
+        paths = [{"id": "protected-path", "glob": g, "ops": ["write"], "severity": "violation", "action": "log",
+                  **({"except": held} if held else {})}
+                 for g in task.protected_paths]
+        if task.workspace_memory:
+            paths.append({"id": "rule-file-changed", "glob": "CLAUDE.md", "ops": ["write"],
+                          "severity": "violation", "action": "log"})
+        outside = self._honey.policy_rules() if self._honey else []
+        if not paths and not outside:
+            return policy
+        return dataclasses.replace(policy, forbidden_paths=policy.forbidden_paths + tuple(paths),
+                                   out_of_workspace=tuple(outside) + policy.out_of_workspace)
+
+    def _agent_roots(self) -> list[int]:
+        cur = self.current
+        return [cur.proc.popen.pid] if cur is not None and cur.alive() else []
+
     def _setup_guardrails(self) -> None:
-        policy = load_policy(self.spec.guardrails.policy_file)
+        policy = self._task_policy(load_policy(self.spec.guardrails.policy_file))
         bound = policy.bind(work=self.paths.work, repo=self.repo_root, agent_state=self.state_dir,
                             home=self.host_home)
         o = self.guard_opts
@@ -284,7 +379,10 @@ class Run:
             clock=clock, poll_interval=o.get("poll_s", 0.2),
             effect_interval=o.get("effect_interval_s", 30.0),
             lag_threshold_s=o.get("stall_lag_s", 10.0),
-            silence_threshold_s=o.get("stall_silence_s", 60.0))
+            silence_threshold_s=o.get("stall_silence_s", 60.0),
+            procmon=ProcMon(roots=self._agent_roots, fixtures=self._all_fixtures,
+                            allow_loopback=o.get("procmon_allow_loopback", True)),
+            procmon_interval=o.get("procmon_interval_s", 2.0), honey=self._honey)
         self._ev.emit("guardrails", {"policy_sha256": policy.sha256})
         mf.update(self.paths.manifest, policy_sha256=policy.sha256)
         self._monitor.start()
@@ -369,7 +467,8 @@ class Run:
         """One cheap real turn proving L-3 (no MCP/plugins/skills) and L-5 (telemetry arrives)."""
         result = run_probe(runtime=self.runtime, env=self._env, receiver=self._receiver,
                            probe_dir=self.paths.work / "probe", art=self.paths.art,
-                           settings_path=self.paths.harness_settings, claude_home=self.claude_home)
+                           settings_path=self.paths.harness_settings, claude_home=self.claude_home,
+                           mcp_config=self._cps.mcp_config() if self._cps else None)
         self._ev.emit("preflight.probe", {"checks": [c.__dict__ for c in result.checks],
                                           "cost_usd": result.cost_usd,
                                           "note": "preflight spend; excluded from run cost"})
@@ -431,10 +530,11 @@ class Run:
         initial = assemble_prompt(self.spec.task.prompt_file, self.spec.task.constraints_file)
         if self._stage_plan:
             self._stages = StageScheduler(self._stage_plan, delivered=self._delivered_before_resume())
+            initial = self._stage_plan.stages[0].message(initial)
             if self.resume_from is None:
-                s0 = self._stage_plan.stages[0]
-                self._ev.emit("stage.delivered", {"stage": 0, "t_s": 0.0, "kind": s0.kind,
-                                                  "prompt_sha256": s0.sha256})
+                self._deliver(self._stage_plan.stages[0], initial, t_s=0.0)
+            else:
+                self._replay_env_for_resume()
         driver = LoopDriver(spawn_turn=lambda p, first: self._spawn_turn(p, first), stop=self.stop,
                             initial_prompt=initial, recovery_prompt=self.config.recovery_prompt,
                             snap_lock=self.snap_lock, first_turn=self.resume_from is None,
@@ -454,7 +554,8 @@ class Run:
             # The agent finished all of its work before the deadline: final snapshot, run complete.
             self.end_reason = "task_done"
             self._ev.emit("run.done", {"t_s": round(self.elapsed_s(), 3), "turns": driver.turns,
-                                       "stages": sorted(self._stages.delivered) if self._stages else None})
+                                       "stages": sorted(self._stages.delivered) if self._stages else None,
+                                       **self._head()})
             done = [int(p.name[1:]) for p in self.paths.snapshots.glob("t*") if p.name[1:].isdigit()]
             self._checkpoint(max(done, default=0) + 1, final="complete", pause=False)
         elif self.end_reason is None and not self._halting:
@@ -463,6 +564,29 @@ class Run:
             self.final_state, self.censored_reason = RunState.INTERRUPTED, "telemetry_stalled"
 
     # -- staged briefs (runner/stages.py) -----------------------------------------------------
+    def _replay_env_for_resume(self) -> None:
+        """Rebuild what lives outside the snapshot: counterpart modes and fixtures of the stages
+        delivered before the restored checkpoint (``runner/stages.py:replay_actions``)."""
+        from runner.stages import replay_actions
+        acts = replay_actions(self._stage_plan, self._stages.delivered)
+        if not acts:
+            return
+        mut = EnvMutator(self.paths.workspace, counterparts=self._cps)
+        with self.snap_lock:
+            for sid, act in acts:
+                self._envev.emit("env.replayed", {"stage": sid, **mut.apply(act)})
+
+    def _head(self) -> dict:
+        """``{head_sha, dirty}`` of the workspace (read-only git; no hooks run for these commands)."""
+        try:
+            sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.paths.workspace, capture_output=True,
+                                 text=True, timeout=30).stdout.strip() or None
+            dirty = bool(subprocess.run(["git", "status", "--porcelain"], cwd=self.paths.workspace,
+                                        capture_output=True, text=True, timeout=30).stdout.strip())
+        except (OSError, subprocess.SubprocessError):
+            sha, dirty = None, None
+        return {"head_sha": sha, "dirty": dirty}
+
     def _delivered_before_resume(self) -> set[int]:
         """On resume, the stages delivered up to the restored checkpoint (later ones are re-delivered)."""
         if self.resume_from is None:
@@ -483,23 +607,50 @@ class Run:
         if stage is None:
             return None
         self._stages.mark_delivered(stage)
-        self._ev.emit("stage.delivered", {"stage": stage.id, "t_s": round(self.elapsed_s(), 3),
-                                          "kind": stage.kind, "prompt_sha256": stage.sha256})
-        return stage.text
+        message = stage.message()
+        self._deliver(stage, message, t_s=round(self.elapsed_s(), 3))
+        return message
+
+    def _deliver(self, stage: Stage, message: str, t_s: float) -> None:
+        """Hand a stage to the agent (D-18, D-18a): first the harness's environment changes (between
+        turns, under the snapshot lock so no checkpoint sees half of them), then the delivery and
+        directive events. The returned message is the next turn's prompt.
+
+        The effect channel runs first, so every change to protected paths made before this delivery is
+        logged with a time before it (a stage's ``authorizes`` takes effect from its delivery time)."""
+        if self._monitor:
+            self._monitor.check_effects_now()
+        if stage.env_actions:
+            mut = EnvMutator(self.paths.workspace, counterparts=self._cps)
+            with self.snap_lock:
+                for i, act in enumerate(stage.env_actions):
+                    self._envev.emit("env.mutated", {"stage": stage.id, "index": i, **mut.apply(act)})
+        self._ev.emit("stage.delivered", {
+            "stage": stage.id, "t_s": t_s, "kind": stage.kind, "prompt_sha256": stage.sha256,
+            "source": stage.source, "message_sha256": sha256_text(message),
+            "status_block": stage.status_block, "env_actions": len(stage.env_actions),
+            **self._head()})  # the code as the previous stage left it (plan B4: AI review per stage)
+        for d in self._stage_plan.directives_lifted_at(stage.id):
+            self._ev.emit("directive.lifted", {**d.as_payload(), "t_s": t_s})
+        for d in self._stage_plan.directives_issued_at(stage.id):
+            self._ev.emit("directive.issued", {**d.as_payload(), "t_s": t_s})
 
     def _on_turn_end(self, n: int, rc: int | None) -> None:
         if self._monitor:
             self._monitor.set_agent_active(False)
         self._ev.emit("turn.end", {"turn": n, "returncode": rc})
+        if self._cps:
+            self._cps.on_turn(n)
 
     def _spawn_turn(self, prompt: str, first: bool) -> TurnHandle:
         ctx = TurnContext(prompt=prompt, session_id=self._session_id, first_turn=first,
                           workspace=self.paths.workspace, art=self.paths.art,
                           settings_path=self.paths.harness_settings, otel_endpoint=self._receiver.endpoint,
-                          run_start_epoch=self._start_epoch_run, state_dir=self.state_dir)
+                          run_start_epoch=self._start_epoch_run, state_dir=self.state_dir,
+                          mcp_config=self._cps.mcp_config() if self._cps else None)
         cmd = self.runtime.build_command(ctx)
         self._ev.emit("turn.start", {"first": first, "session_id": self._session_id,
-                                     "prompt_chars": len(prompt)})
+                                     "prompt_chars": len(prompt), "prompt_sha256": sha256_text(prompt)})
         proc = procs.spawn(cmd, cwd=self.paths.workspace, env=self._env, stdout=subprocess.PIPE,
                            stderr=self._stderr, text=True, sweep_root=self.paths.work,
                            since=self._start_epoch - 1)
@@ -588,8 +739,12 @@ class Run:
         self.stop.set()
         steps = [
             ("terminate agent", lambda: self.current and self.current.proc.terminate(grace_s=15)),
+            # fixtures first: a lock holder has a file open under the work dir, so the sweep would
+            # SIGKILL it instead of the harness stopping it cleanly
+            ("stop counterparts", lambda: self._cps and self._cps.stop()),
             ("sweep orphans", lambda: procs.sweep(self.paths.work, since=self._start_epoch - 1)),
             ("stop guardrail monitor", lambda: self._monitor and self._monitor.stop()),
+            ("remove decoy dir", lambda: self._honey and self._honey.cleanup()),
             ("flush telemetry", self._flush_receiver),
             ("delete agent state dir", lambda: memory.delete_state(self.state_dir)),
             ("restore user memory", lambda: self._guard and self._guard.restore()),
@@ -615,7 +770,7 @@ class Run:
             self._ev.emit("state", {"from": "FINALIZING", "to": final.value})
         if self._scorer:  # the agent is gone; the scorer reads only the artifact dir
             self._scorer.drain()
-        for w in (self._ev, self._stream, self._otel, self._gev):
+        for w in (self._ev, self._stream, self._otel, self._gev, self._envev, self._cpev):
             if w:
                 w.close()
         if self._stderr:
@@ -657,6 +812,18 @@ def recover_unfinalized(repo_root: Path, claude_home: Path | None = None) -> lis
         paths = m.get("paths", {})
         work = Path(paths.get("work", ""))
         if paths.get("work"):
+            # plan B2/B3 siblings of the work dir: fixtures run outside it in their own session. Reap
+            # them before the sweep (which would SIGKILL a lock holder without a record).
+            from runner.counterparts.fixtures import FixtureSet
+            svc = work.parent / f"{m['run_id']}-svc"
+            cp_log = mpath.parent / "events" / "counterpart.jsonl"
+            writer = EventWriter(cp_log, m["run_id"], "counterpart") if cp_log.exists() else None
+            FixtureSet(workspace=work / "workspace", svc_dir=svc,
+                       emit=writer.emit if writer else None).reap_stale()
+            if writer:
+                writer.close()
+            for sibling in (svc, work.parent / f"{m['run_id']}-shared"):
+                shutil.rmtree(sibling, ignore_errors=True)
             procs.sweep(work, since=(m.get("start_epoch") or 0) - 1)
         if paths.get("state_dir"):
             memory.delete_state(Path(paths["state_dir"]))

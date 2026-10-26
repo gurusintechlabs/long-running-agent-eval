@@ -21,6 +21,7 @@ from pathlib import Path
 import yaml
 
 from scorer import commit_scoring, sandbox
+from scorer import metric_names as mn
 from scorer.metrics import d_defects, p_hidden, r_regression
 from spec.loader import REPO_ROOT, LoadedSpec, hash_path, load_spec
 from telemetry import counters
@@ -41,6 +42,7 @@ class CheckpointScore:
     error: str | None = None
     phases: dict[str, float] = field(default_factory=dict)
     commits: list[dict] = field(default_factory=list)  # scorer.commit payloads
+    behavior: list[dict] = field(default_factory=list)  # scorer.behavior payloads (plan B5)
 
     def value(self, name: str):
         return self.metrics.get(name, {}).get("value")
@@ -77,6 +79,37 @@ def last_ok_pass(events: list[dict], k: int) -> dict[str, dict] | None:
         elif t == "scorer.done" and p.get("ok") and p.get("pass_id") in passes:
             good = p["pass_id"]
     return passes[good] if good else None
+
+
+def last_known_hidden(events: list[dict], k: int) -> dict[str, str] | None:
+    """Each hidden test's outcome at the latest of checkpoints 1..k (last ok pass) that ran it. A checkpoint
+    that deselected the timing tests leaves their outcome from an earlier one. None if no checkpoint has P."""
+    merged: dict[str, str] | None = None
+    for j in range(k, 0, -1):
+        p = (last_ok_pass(events, j) or {}).get("P")
+        if p is None:
+            continue
+        merged = merged if merged is not None else {}
+        for t, o in (p["detail"].get("outcomes") or {}).items():
+            merged.setdefault(t, o)
+    return merged
+
+
+def last_ok_behavior(events: list[dict], k: int) -> list[dict]:
+    """``scorer.behavior`` payloads of the last ok pass of checkpoint k."""
+    passes: dict[str, list[dict]] = {}
+    good: str | None = None
+    for ev in events:
+        p, t = ev.get("payload") or {}, ev.get("type")
+        if p.get("k") != k:
+            continue
+        if t == "scorer.start":
+            passes[p["pass_id"]] = []
+        elif t == "scorer.behavior" and p.get("pass_id") in passes:
+            passes[p["pass_id"]].append(p)
+        elif t == "scorer.done" and p.get("ok") and p.get("pass_id") in passes:
+            good = p["pass_id"]
+    return passes[good] if good else []
 
 
 def _git(*args: str, git_dir: Path | None = None, cwd: Path | None = None, check=True) -> str:
@@ -164,6 +197,19 @@ def seed_checkout(spec: LoadedSpec, art: Artifact, dest: Path) -> Path:
 
 
 # --- suites ---------------------------------------------------------------------------------
+
+def timing_due(cfg: dict, meta: dict, orch: list[dict], t_prev: float, t_k: float) -> bool:
+    """Whether checkpoint scoring runs the hidden suite's timing tests (scorer.yaml ``timing_at``): at every
+    checkpoint (the default), or (``stage_ends``) only when a stage ended in ``(t_prev, t_k]``, at the final
+    checkpoint and in standalone scoring. The stage targets are stage deliverables; between stage ends
+    the timing tests are deselected, as in per-commit scoring."""
+    if cfg.get("timing_at", "checkpoints") == "checkpoints":
+        return True
+    if meta.get("final") or meta.get("standalone"):
+        return True
+    from scorer.security.checkpoint import review_points
+    return bool(review_points(orch, t_prev, t_k))
+
 
 def run_suites(ws: Path, seed_ws: Path, hidden: Path, python: Path, forbid: list[Path],
                stage: int | None = None) -> dict:
@@ -338,7 +384,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         if k == 1:
             prev_hidden, prev_reg = base["hidden"], base["regression"]
         elif prev and "P" in prev and "R" in prev:
-            prev_hidden = prev["P"]["detail"].get("outcomes")
+            prev_hidden = last_known_hidden(scorer_events, k - 1)
             prev_reg = prev["R"]["detail"].get("outcomes")
         else:
             s_prev = run_suites(a.snap(k - 1) / "workspace", seed_ws, hidden, python, forbid,
@@ -348,14 +394,27 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         lap("prev_outcomes")
         # P, R
         t_pr = time.monotonic()
-        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage_k)
+        timing = timing_due(p_hidden.load_config(hidden), meta, a.orch, t_prev, t_k)
+        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage_k, timing=timing)
+        p["detail"]["timing"] = timing
         reg = r_regression.run_regression_on(ws, seed_ws, python, forbid=forbid)
         est_commit_s = time.monotonic() - t_pr   # one hidden + one regression run
         r = r_regression.score_regressions(prev_hidden, p["detail"]["outcomes"], prev_reg,
-                                           reg.outcomes)
+                                           reg.outcomes, hidden_partial=not timing)
         r["detail"]["regression_suite"] = {"total": reg.total, "passed": reg.passed,
                                            "reason": reg.reason}
         lap("P_R")
+        # The AI review only reads stage-end commits and waits on the model: run it alongside the rest
+        # (started after P/R so it never shares the machine with the timing tier). B7 pilot: ~5 min a stage end.
+        ai_pool = ai_future = None
+        if s.scoring.security.enabled and s.scoring.security.ai_review:
+            from concurrent.futures import ThreadPoolExecutor
+
+            from scorer.security.checkpoint import ai_review_metric
+            ai_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ai-review")
+            ai_future = ai_pool.submit(
+                ai_review_metric, spec=s, orch=a.orch, t_prev=t_prev, t_k=t_k, mirror=a.mirror, python=python,
+                repo_root=REPO_ROOT, scorer_dir=a.scorer_dir, reviewer=getattr(judge_runner, "reviewer", None))
         tamper = r_regression.tests_tampered(ws, seed_ws)
 
         # accepted commits (D-1)
@@ -399,7 +458,8 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
 
         def probe_ctx(tree: Path) -> c_constraints.ProbeContext:
             return c_constraints.ProbeContext(snapshot_ws=tree, seed_ws=seed_ws,
-                                              pip_freeze_text=freeze_text, seed_lock_text=lock_text)
+                                              pip_freeze_text=freeze_text, seed_lock_text=lock_text,
+                                              stage=stage_k)
 
         with sandbox.temp_copy(ws, forbid=forbid) as tree:
             c_val, c_detail = c_constraints.score_constraints(probe_ctx(tree), constraints)
@@ -439,15 +499,16 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             runner = x_judge.FakeJudge() if s.scoring.judge_runtime == "scripted" \
                 else x_judge.ClaudeJudgeRunner()
         diff = _git("diff", prev_sha, cur_sha, git_dir=a.mirror, check=False)[:MAX_DIFF_CHARS]
-        msgs = [m.strip() for m in _git("log", "--reverse", "--format=%B%x00",
-                                        f"{seed_sha}..{cur_sha}", git_dir=a.mirror,
-                                        check=False).split("\0") if m.strip()]
+        try:
+            msgs = r_regression.agent_commit_messages(a.mirror, seed_sha, cur_sha)
+        except RuntimeError:
+            msgs = []
         brief = Path(task.prompt_file).read_text()
         if stage_k:  # staged task: later requirements and change requests are part of the brief, so a
             # deliberate reversal ordered by a change request is not an agent contradiction
             from runner.stages import load_stages
-            for st in load_stages(task.stages_file).stages[1:stage_k + 1]:
-                brief += f"\n\n--- Stage {st.id} ({st.kind}), delivered during the run ---\n\n{st.text}"
+            from scorer.judges.brief import later_stages
+            brief += later_stages(load_stages(task.stages_file).stages, stage_k)
         bundle = x_judge.build_bundle(
             task_prompt=brief,
             constraints=[c.get("text", "") for c in constraints],
@@ -456,6 +517,36 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                            runner=runner, cache_dir=a.scorer_dir / "judge-cache")
 
         lap("X")
+        # security (plan B4, D-23): SAST new/open, exploit suite, AI review per completed stage
+        sec_metrics: dict[str, dict] = {}
+        if s.scoring.security.enabled:
+            from scorer.security.checkpoint import score_security
+            sec_metrics = score_security(
+                spec=s, ws=ws, seed_ws=seed_ws, python=python, repo_root=REPO_ROOT, forbid=forbid,
+                stage=stage_k, prev_pass=prev, k=k, orch=a.orch, t_prev=t_prev, t_k=t_k, mirror=a.mirror,
+                scorer_dir=a.scorer_dir, reviewer=getattr(judge_runner, "reviewer", None),
+                ai=ai_future.result() if ai_future is not None else None)
+            if ai_pool is not None:
+                ai_pool.shutdown()
+            lap("SEC")
+        # behaviour (plan B5, D-22, D-24): detectors over events and snapshots, agent-suite rerun
+        beh_metrics: dict[str, dict] = {}
+        beh_events: list[dict] = []
+        if s.scoring.behavior.enabled:
+            from scorer.behavior.checkpoint import score_behavior
+            history = []
+            for j in range(1, k):
+                pj = (last_ok_pass(scorer_events, j) or {}).get("P") or {}
+                tj = a.t_s(j, dt_s)
+                history.append({"k": j, "t_s": tj, "stage": commit_scoring.stage_at(timeline, tj) if staged else None,
+                                "outcomes": (pj.get("detail") or {}).get("outcomes") or {}})
+            history.append({"k": k, "t_s": t_k, "stage": stage_k, "outcomes": p["detail"]["outcomes"]})
+            beh_metrics, beh_events = score_behavior(
+                spec=spec, art=a, k=k, ws=ws, prev_ws=a.snap(k - 1) / "workspace" if k > 1 else seed_ws,
+                t_prev=t_prev, t_k=t_k, python=python, forbid=forbid, p_history=history, stage_k=stage_k,
+                stage_prev=stage_prev, constraints_violated=int(c_val), read_events=read_events,
+                judge_runner=runner, seed_ws=seed_ws, hidden=hidden)
+            lap("BEH")
         # hazards
         first_bad: dict[str, float | None] = {"quality": None, "context": None}
         commits = interval["commits"]
@@ -499,6 +590,8 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             "sampled": interval["sampled"], "n_checked": interval["n_checked"]}},
         "tests_tampered": tamper,
         "W_repeat_tool_calls": wt,
+        **sec_metrics,
+        **beh_metrics,
     }
     for name in ("X", "S", "S_int", "X_spread", "tokens_per_commit"):
         m = metrics[name]
@@ -512,12 +605,23 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                                       "detail": m["detail"]})
         out.metrics[name] = m
 
+    for ev in beh_events:
+        payload = {**ev, "k": k, "pass_id": pass_id}
+        writer.emit("scorer.behavior", payload)
+        out.behavior.append(payload)
+
     from scorer import hazards
     views = _build_views(a, k, scorer_events, dt_s, metrics, t_k, t_prev, int_cost, int_accepted,
                          cum_accepted, first_bad)
+    views[-1].behavior = beh_events
     viol = _guardrail_violations(a, t_k)
+    authorized = {}
+    if task.stages_file and stage_k is not None:   # protected paths a delivered stage authorises
+        from runner.stages import load_stages
+        from scorer.behavior.checkpoint import _authorized
+        authorized = _authorized(load_stages(task.stages_file).stages, a.orch, stage_k, a.start_epoch)
     for hz in hazards.evaluate(views, guardrail_violations=viol, run_start_epoch=a.start_epoch,
-                               thresholds=s.scoring.thresholds):
+                               thresholds=s.scoring.thresholds, authorized=authorized):
         if hz.get("k") != k:
             continue  # first detected at an earlier checkpoint: carried, not re-emitted
         payload = {**hz, "k": k, "pass_id": pass_id}
@@ -562,12 +666,17 @@ def _build_views(a, k, scorer_events, dt_s, metrics, t_k, t_prev, int_cost, int_
             W=val("W"), S_int=val("S_int"), int_cost=si.get("int_cost", 0.0),
             int_accepted=si.get("int_accepted", 0), cum_accepted=si.get("cum_accepted", 0),
             first_offending_commit_t_s={"quality": det("R").get("first_offending_commit_t_s"),
-                                        "context": det("C").get("first_offending_commit_t_s")}))
+                                        "context": det("C").get("first_offending_commit_t_s")},
+            sec_exploits=(mn.lookup(prev, mn.SEC_EXPLOITS) or {}).get("value"),
+            sec_exploits_inherited=(mn.lookup(prev, mn.SEC_EXPLOITS_INHERITED) or {}).get("value"),
+            behavior=last_ok_behavior(scorer_events, j)))
     views.append(hazards.CheckpointView(
         k=k, t_s=t_k, t_prev_s=t_prev, R=metrics["R"]["value"], C=metrics["C"]["value"],
         W=metrics["W"]["value"], S_int=metrics["S_int"]["value"], int_cost=int_cost,
         int_accepted=int_accepted, cum_accepted=cum_accepted,
-        first_offending_commit_t_s=first_bad))
+        first_offending_commit_t_s=first_bad,
+        sec_exploits=(metrics.get(mn.SEC_EXPLOITS) or {}).get("value"),
+        sec_exploits_inherited=(metrics.get(mn.SEC_EXPLOITS_INHERITED) or {}).get("value")))
     return views
 
 

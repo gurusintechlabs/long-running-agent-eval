@@ -109,12 +109,9 @@ def test_sweep_ignores_unrelated_and_own_processes(tmp_path):
         bystander.wait()
 
 
-def test_sweep_never_kills_caller(tmp_path):
-    os.chdir(tmp_path)
-    try:
-        assert os.getpid() not in procs.sweep(tmp_path)
-    finally:
-        os.chdir("/")
+def test_sweep_never_kills_caller(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)          # restored afterwards: later tests in this worker use relative paths
+    assert os.getpid() not in procs.sweep(tmp_path)
 
 
 def test_pause_includes_escaped_descendants_under_workdir(tmp_path):

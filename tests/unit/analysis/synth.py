@@ -23,7 +23,7 @@ def _write(path: Path, events: list[dict], run_id: str, source: str) -> None:
 
 
 def score_pass(k: int, pass_id: str, *, ok: bool = True, value: float = 0.5, hazards=(),
-               details: dict | None = None, commits=()) -> list[dict]:
+               details: dict | None = None, commits=(), behavior=(), metrics: dict | None = None) -> list[dict]:
     """``details``: ``{metric name: detail dict}`` (e.g. P -> outcomes/tiers); ``commits``: payloads of
     ``scorer.commit`` events (``k`` and ``pass_id`` are filled in)."""
     ev = [{"type": "scorer.start", "payload": {"k": k, "pass_id": pass_id}}]
@@ -31,12 +31,22 @@ def score_pass(k: int, pass_id: str, *, ok: bool = True, value: float = 0.5, haz
         ev.append({"type": "scorer.metric", "payload": {"k": k, "pass_id": pass_id, "name": n,
                                                         "value": value + (0.01 * k if n == "P" else 0),
                                                         "detail": (details or {}).get(n, {})}})
+    for name, (v, det) in (metrics or {}).items():
+        ev.append({"type": "scorer.metric", "payload": {"k": k, "pass_id": pass_id, "name": name, "value": v,
+                                                        "detail": det}})
     for c in commits:
         ev.append({"type": "scorer.commit", "payload": {"k": k, "pass_id": pass_id, **c}})
+    for b in behavior:
+        ev.append({"type": "scorer.behavior", "payload": {"k": k, "pass_id": pass_id, **b}})
     for h in hazards:
         ev.append({"type": "scorer.hazard", "payload": {"k": k, "pass_id": pass_id, **h}})
     ev.append({"type": "scorer.done", "payload": {"k": k, "pass_id": pass_id, "duration_s": 1.0, "ok": ok}})
     return ev
+
+
+def beh_event(mode="AF", t=100.0, detector="loop", hazard=False, dimension="cost", evidence="12 cycles"):
+    return {"mode": mode, "t_s": t, "detector": detector, "evidence": evidence, "hazard": hazard,
+            "deterministic": True, "dimension": dimension}
 
 
 def hazard(dim="quality", t=1200.0, rule="R>0", evidence="regressed"):
@@ -46,7 +56,7 @@ def hazard(dim="quality", t=1200.0, rule="R>0", evidence="regressed"):
 def make_run(runs_dir: Path, *, config="A", repeat=1, state="COMPLETED", hazards=(), n_cp=3,
              dt=600.0, censored_reason=None, experiment="exp-one", extra_passes=(), cls="L1",
              isolation="local", with_end=True, duration=None, details_by_k=None, commits_by_k=None,
-             stages=(), agent_runs=()) -> str:
+             stages=(), agent_runs=(), behavior_by_k=None, metrics_by_k=None) -> str:
     rid = f"{experiment}-{config}-r{repeat:02d}-abcd1234"
     d = runs_dir / rid
     dur = duration if duration is not None else n_cp * dt
@@ -72,7 +82,8 @@ def make_run(runs_dir: Path, *, config="A", repeat=1, state="COMPLETED", hazards
     for k in range(1, n_cp + 1):
         hz = [h for h in hazards if h["t_attributed_s"] <= k * dt and h["t_attributed_s"] > (k - 1) * dt]
         sc += score_pass(k, f"p{k}", hazards=hz, details=(details_by_k or {}).get(k),
-                         commits=(commits_by_k or {}).get(k, ()))
+                         commits=(commits_by_k or {}).get(k, ()), behavior=(behavior_by_k or {}).get(k, ()),
+                         metrics=(metrics_by_k or {}).get(k))
     for ev in extra_passes:
         sc += ev
     _write(d / "events" / "scorer.jsonl", sc, rid, "scorer")

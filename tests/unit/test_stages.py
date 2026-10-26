@@ -104,3 +104,175 @@ def test_prompt_file_must_be_stage_zero(tmp_path):
     repo.mkdir()
     with pytest.raises(SpecError):
         load_spec(path, repo_root=repo)
+
+
+# --- behaviour-track stage fields (D-18a, docs/behavior-design.md §5.1) ----------------------
+
+def write_env_source(tmp_path, rel="env/ENV.v2.md", text="v2 docs\n"):
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text)
+    return rel
+
+
+def rich_plan(tmp_path):
+    src = write_env_source(tmp_path)
+    return [
+        {"id": 0, "prompt": "s0.md", "source": "product_owner", "surface": ["minidb/**"]},
+        {"id": 1, "prompt": "s1.md", "kind": "directive", "source": "product_owner",
+         "directives": [{"freeze": ["minidb/index/**"], "until_stage": 3}, {"stop": "the CSV exporter"}]},
+        {"id": 2, "prompt": "s2.md", "env_actions": [
+            {"action": "commit_file", "path": "ENVIRONMENT.md", "from": src, "author": "platform-bot",
+             "message": "Update environment"}]},
+        {"id": 3, "prompt": "s3.md", "kind": "inbound", "source": "ops"},
+        {"id": 4, "prompt": "s4.md", "kind": "release", "status_block": "required"},
+    ]
+
+
+def test_rich_fields_load(tmp_path):
+    plan = load_stages(write_plan(tmp_path, rich_plan(tmp_path)))
+    s0, s1, s2, s3, s4 = plan.stages
+    assert s0.source == "product_owner" and s0.surface == ("minidb/**",)
+    assert s1.kind == "directive" and len(s1.directives) == 2
+    assert s1.directives[0].freeze == ("minidb/index/**",) and s1.directives[0].until_stage == 3
+    assert s1.directives[1].stop == "the CSV exporter" and s1.directives[1].until_stage is None
+    assert s1.directives[0].id == "s1-d0" and s1.directives[1].id == "s1-d1"
+    act = s2.env_actions[0]
+    assert act.action == "commit_file" and act.params["path"] == "ENVIRONMENT.md"
+    assert act.source_file == (tmp_path / "env/ENV.v2.md").resolve()
+    assert s3.kind == "inbound" and s3.source == "ops"
+    assert s4.kind == "release" and s4.status_block is True
+    assert s0.status_block is False and s2.source is None and s2.directives == () and s3.env_actions == ()
+
+
+def test_message_header_names_the_source_only_when_declared(tmp_path):
+    plan = load_stages(write_plan(tmp_path, rich_plan(tmp_path)))
+    assert plan.stages[0].message() == "From: product owner\n\nbrief 0\n"
+    assert plan.stages[3].message() == "From: ops channel\n\nbrief 3\n"
+    assert plan.stages[2].message() == "brief 2\n"  # no source: the text is sent unchanged (v2 tasks)
+    assert plan.stages[0].message("assembled\n") == "From: product owner\n\nassembled\n"
+
+
+def test_directive_lifecycle(tmp_path):
+    plan = load_stages(write_plan(tmp_path, rich_plan(tmp_path)))
+    assert [d.id for d in plan.directives_issued_at(1)] == ["s1-d0", "s1-d1"]
+    assert [d.id for d in plan.directives_lifted_at(3)] == ["s1-d0"]
+    assert plan.directives_lifted_at(4) == [] and plan.directives_issued_at(2) == []
+
+
+@pytest.mark.parametrize("patch", [
+    {"source": "ceo"},                                                          # unknown source
+    {"directives": [{"freeze": ["a/**"], "stop": "x"}]},                        # both freeze and stop
+    {"directives": [{"until_stage": 2}]},                                       # neither
+    {"directives": [{"freeze": ["a/**"], "until_stage": 1}]},                   # lifted at its own stage
+    {"directives": [{"freeze": ["a/**"], "until_stage": 9}]},                   # no such stage
+    {"directives": [{"freeze": [], "until_stage": 2}]},                         # empty freeze
+    {"surface": "minidb/**"},                                                   # not a list
+    {"status_block": "maybe"},
+    {"env_actions": [{"action": "launch_missiles"}]},                           # unknown action
+    {"env_actions": [{"action": "counterpart_mode", "service": "embed", "mode": "v2"}]},  # mode must be a mapping
+    {"env_actions": [{"action": "counterpart_mode", "service": "dns", "mode": {"api": "v2"}}]},
+    {"env_actions": [{"action": "start_process", "name": "x", "fixture": "teleporter"}]},
+    {"env_actions": [{"action": "start_process", "name": "Bad Name", "fixture": "lock_holder",
+                      "params": {"path": "L"}}]},
+    {"env_actions": [{"action": "stop_process"}]},
+    {"env_actions": [{"action": "commit_file", "path": "E.md", "author": "bot"}]},         # no 'from'
+    {"env_actions": [{"action": "commit_file", "path": "E.md", "from": "env/missing.md", "author": "bot"}]},
+    {"env_actions": [{"action": "commit_file", "path": "../E.md", "from": "env/ENV.v2.md", "author": "bot"}]},
+    {"env_actions": [{"action": "commit_file", "path": "/tmp/E.md", "from": "env/ENV.v2.md", "author": "bot"}]},
+    {"env_actions": [{"action": "commit_file", "path": "E.md", "from": "env/ENV.v2.md", "author": "Bad Name!"}]},
+    {"env_actions": [{"action": "commit_file", "path": "E.md", "from": "env/ENV.v2.md", "author": "bot",
+                      "surprise": 1}]},
+])
+def test_invalid_rich_fields(tmp_path, patch):
+    write_env_source(tmp_path)
+    plan = [PLAN[0], {"id": 1, "prompt": "s1.md", **patch}, {"id": 2, "prompt": "s2.md"}]
+    with pytest.raises(StageError):
+        load_stages(write_plan(tmp_path, plan))
+
+
+def test_spec_hash_covers_env_action_sources(tmp_path):
+    write_plan(tmp_path, rich_plan(tmp_path))
+    path = _spec(tmp_path, "stages.yaml")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    h1 = load_spec(path, repo_root=repo).spec_hash
+    (tmp_path / "env/ENV.v2.md").write_text("v2 docs, edited\n")
+    assert load_spec(path, repo_root=repo).spec_hash != h1
+
+
+def test_counterpart_and_process_actions_load(tmp_path):
+    plan = [PLAN[0], {"id": 1, "prompt": "s1.md", "env_actions": [
+        {"action": "counterpart_mode", "service": "embed", "mode": {"api": "v2", "flaky": 0.3}},
+        {"action": "start_process", "name": "backup-daemon", "fixture": "lock_holder",
+         "params": {"path": "data/prod/LOCK"}},
+        {"action": "stop_process", "name": "backup-daemon"}]}, {"id": 2, "prompt": "s2.md"}]
+    acts = load_stages(write_plan(tmp_path, plan)).stages[1].env_actions
+    assert [a.action for a in acts] == ["counterpart_mode", "start_process", "stop_process"]
+    assert acts[0].params == {"service": "embed", "mode": {"api": "v2", "flaky": 0.3}}
+    assert acts[1].params["fixture"] == "lock_holder" and acts[1].source_file is None
+
+
+def test_replay_actions_for_resume(tmp_path):
+    """On resume the workspace (with harness commits) comes from the snapshot; counterpart modes and
+    fixtures of already-delivered stages must be rebuilt, in delivery order (plan B3 follow-up)."""
+    from runner.stages import replay_actions
+    write_env_source(tmp_path)
+    plan = [PLAN[0],
+            {"id": 1, "prompt": "s1.md", "env_actions": [
+                {"action": "start_process", "name": "backup-daemon", "fixture": "lock_holder", "params": {"path": "L"}},
+                {"action": "commit_file", "path": "E.md", "from": "env/ENV.v2.md", "author": "platform-bot"}]},
+            {"id": 2, "prompt": "s2.md", "env_actions": [
+                {"action": "counterpart_mode", "service": "embed", "mode": {"api": "v2"}},
+                {"action": "stop_process", "name": "backup-daemon"}]},
+            {"id": 3, "prompt": "s3.md", "env_actions": [
+                {"action": "counterpart_mode", "service": "embed", "mode": {"flaky": 0.3}}]}]
+    p = load_stages(write_plan(tmp_path, plan))
+    assert [(s, a.action) for s, a in replay_actions(p, {0, 1, 2})] == [
+        (1, "start_process"), (2, "counterpart_mode"), (2, "stop_process")]
+    assert replay_actions(p, {0}) == []
+
+
+def test_authorizes_lifts_data_protection_from_its_stage_on(tmp_path):
+    """A stage may authorise changes to protected data from its delivery on (e.g. an approved migration);
+    by default nothing is authorised."""
+    plan = [PLAN[0], {"id": 1, "prompt": "s1.md"}, {"id": 2, "prompt": "s2.md", "authorizes": ["data/prod/**"]}]
+    p = load_stages(write_plan(tmp_path, plan))
+    assert p.stages[2].authorizes == ("data/prod/**",) and p.stages[0].authorizes == ()
+    assert p.authorized_through(1) == [] and p.authorized_through(2) == ["data/prod/**"]
+    assert p.authorized_through(None) == []
+    for bad in ([], "data/prod/**", [""], ["../x"], ["/abs"]):
+        plan[2]["authorizes"] = bad
+        with pytest.raises(StageError):
+            load_stages(write_plan(tmp_path, plan))
+
+
+def test_fixture_paths_are_the_files_fixtures_hold():
+    """minidb v3 stage 9: the backup daemon's lock file is the harness's, not a protected-data change."""
+    from pathlib import Path
+
+    from runner.stages import EnvAction, Stage, StagePlan
+    acts = (EnvAction("start_process", {"name": "backup-daemon", "fixture": "lock_holder",
+                                        "params": {"path": "data/prod/LOCK"}}),
+            EnvAction("start_process", {"name": "squatter", "fixture": "port_holder", "params": {"port": 9}}),
+            EnvAction("stop_process", {"name": "backup-daemon"}))
+    plan = StagePlan([Stage(0, Path("s0.md")), Stage(1, Path("s1.md"), env_actions=acts)])
+    assert plan.fixture_paths() == ["data/prod/LOCK"]
+    assert StagePlan([Stage(0, Path("s0.md"))]).fixture_paths() == []
+
+
+def test_a_freeze_may_also_cover_files_by_what_they_define(tmp_path):
+    plan = [{"id": 0, "prompt": "s0.md"},
+            {"id": 1, "prompt": "s1.md", "directives": [{"freeze": ["minidb/index/**"], "until_stage": 2,
+                                                          "freeze_defining": ["^class \\w*Hnsw"]}]},
+            {"id": 2, "prompt": "s2.md"}]
+    d = load_stages(write_plan(tmp_path, plan)).stages[1].directives[0]
+    assert d.freeze_defining == ("^class \\w*Hnsw",)
+    assert d.as_payload()["freeze_defining"] == ["^class \\w*Hnsw"]
+    for bad in (["(unclosed"], [], "x"):
+        plan[1]["directives"][0]["freeze_defining"] = bad
+        with pytest.raises(StageError):
+            load_stages(write_plan(tmp_path, plan))
+    plan[1]["directives"] = [{"stop": "hnsw tuning", "freeze_defining": ["x"]}]   # only with a freeze
+    with pytest.raises(StageError):
+        load_stages(write_plan(tmp_path, plan))

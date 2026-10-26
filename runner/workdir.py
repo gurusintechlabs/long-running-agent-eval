@@ -63,7 +63,7 @@ class RunPaths:
 
 def build_agent_env(*, host_env: dict[str, str], tmpdir: Path, path_dirs: list[str],
                     otel_endpoint: str, protocol: str, export_interval_ms: int,
-                    resource_attrs: dict[str, str]) -> dict[str, str]:
+                    resource_attrs: dict[str, str], extra: dict[str, str] | None = None) -> dict[str, str]:
     """Allowlisted environment for ``claude`` (spec §3.2 L-2). Nothing else is inherited."""
     env = {k: host_env[k] for k in _PASSTHROUGH if k in host_env}
     seen: list[str] = []
@@ -75,6 +75,7 @@ def build_agent_env(*, host_env: dict[str, str], tmpdir: Path, path_dirs: list[s
     env["DISABLE_AUTOUPDATER"] = "1"
     env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
     env.update(_otel_env(otel_endpoint, protocol, export_interval_ms, resource_attrs))
+    env.update(extra or {})  # harness-set task variables (counterpart URLs), never host variables
     return env
 
 
@@ -91,10 +92,17 @@ def _otel_env(endpoint: str, protocol: str, interval_ms: int, attrs: dict[str, s
     }
 
 
+# Plugins bundled with the CLI that load even under --safe-mode (CLI 2.1.301). Switched off for every
+# run: agents-md would read AGENTS.md files as memory (D-15). Verified: with these entries the init
+# message reports no plugins. A new built-in in a later CLI fails pre-flight (L-3) until added here.
+BUILTIN_PLUGINS_OFF = ("cc-plugin-agents-md@builtin", "cc-plugin-plugin-authoring@builtin")
+
+
 def harness_settings(*, otel_endpoint: str, protocol: str, export_interval_ms: int,
                      resource_attrs: dict[str, str], permissions_deny: list[str] | None = None) -> dict:
     """Contents of ``harness-settings.json`` passed with ``--settings`` (spec §3.2 L-5)."""
-    settings: dict = {"env": _otel_env(otel_endpoint, protocol, export_interval_ms, resource_attrs)}
+    settings: dict = {"env": _otel_env(otel_endpoint, protocol, export_interval_ms, resource_attrs),
+                      "enabledPlugins": {name: False for name in BUILTIN_PLUGINS_OFF}}
     if permissions_deny:
         settings["permissions"] = {"deny": permissions_deny}
     return settings
@@ -107,7 +115,7 @@ def _git(cwd: Path | None, *args: str) -> str:
     return proc.stdout.strip()
 
 
-def clone_seed(seed_repo: Path, seed_commit: str, workspace: Path) -> None:
+def clone_seed(seed_repo: Path, seed_commit: str, workspace: Path, workspace_memory: bytes | None = None) -> None:
     """Clone the seed at an exact commit into ``workspace``; sever any link back to the fixture."""
     try:
         _git(None, "clone", "-q", "--no-hardlinks", str(seed_repo), str(workspace))
@@ -123,7 +131,7 @@ def clone_seed(seed_repo: Path, seed_commit: str, workspace: Path) -> None:
     _git(workspace, "config", "--local", "user.email", "agent@lrae.local")
     _git(workspace, "checkout", "-q", "-B", "main")
     try:
-        check_seed_checkout(workspace)
+        check_seed_checkout(workspace, workspace_memory)
     except Exception:
         shutil.rmtree(workspace, ignore_errors=True)
         raise

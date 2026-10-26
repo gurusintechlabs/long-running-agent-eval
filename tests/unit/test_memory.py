@@ -100,6 +100,56 @@ def test_check_seed_flags_nested_claude_md(tmp_path):
         memory.check_seed_checkout(tmp_path)
 
 
+@pytest.mark.parametrize("name", ["AGENTS.md", "AGENTS.override.md"])
+def test_agents_md_counts_as_memory(tmp_path, name):
+    """CLI 2.1.301 loads the built-in cc-plugin-agents-md plugin even under --safe-mode, so an
+    AGENTS.md above the workspace or in the seed would reach the agent as project memory."""
+    ws = tmp_path / "a" / "workspace"
+    ws.mkdir(parents=True)
+    (tmp_path / "a" / name).write_text("x")
+    with pytest.raises(memory.MemoryError_, match=name.replace(".", r"\.")):
+        memory.check_ancestors(ws, home=tmp_path / "home", stop_at=tmp_path)
+    seed = tmp_path / "seed"
+    (seed / "pkg").mkdir(parents=True)
+    (seed / "pkg" / name).write_text("x")
+    with pytest.raises(memory.MemoryError_, match=name.replace(".", r"\.")):
+        memory.check_seed_checkout(seed)
+
+
+class TestWorkspaceMemory:
+    """D-15a: a task may seed exactly one declared CLAUDE.md at the workspace root."""
+
+    def test_declared_root_claude_md_is_allowed(self, tmp_path):
+        (tmp_path / "CLAUDE.md").write_text("rules\n")
+        memory.check_seed_checkout(tmp_path, workspace_memory=b"rules\n")
+
+    def test_content_must_equal_the_declared_file(self, tmp_path):
+        (tmp_path / "CLAUDE.md").write_text("rules, edited\n")
+        with pytest.raises(memory.MemoryError_, match="declared"):
+            memory.check_seed_checkout(tmp_path, workspace_memory=b"rules\n")
+
+    def test_declared_but_missing_in_seed(self, tmp_path):
+        with pytest.raises(memory.MemoryError_, match="missing"):
+            memory.check_seed_checkout(tmp_path, workspace_memory=b"rules\n")
+
+    @pytest.mark.parametrize("rel", ["pkg/CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", ".claude"])
+    def test_any_other_memory_still_fails(self, tmp_path, rel):
+        (tmp_path / "CLAUDE.md").write_text("rules\n")
+        target = tmp_path / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if rel == ".claude":
+            target.mkdir()
+        else:
+            target.write_text("x")
+        with pytest.raises(memory.MemoryError_):
+            memory.check_seed_checkout(tmp_path, workspace_memory=b"rules\n")
+
+    def test_undeclared_root_claude_md_still_fails(self, tmp_path):
+        (tmp_path / "CLAUDE.md").write_text("rules\n")
+        with pytest.raises(memory.MemoryError_):
+            memory.check_seed_checkout(tmp_path)
+
+
 class TestUserMemoryGuard:
     def make_home(self, tmp_path):
         ch = tmp_path / "claude"

@@ -46,7 +46,7 @@ def _chain(name: str) -> list[tuple[Path, dict]]:
     chain: list[tuple[Path, dict]] = []
     while name != "seed":
         d = HERE / name
-        if not (d / "snapshot.yaml").is_file() or len(chain) > 8:
+        if not (d / "snapshot.yaml").is_file() or len(chain) > 20:
             raise ValueError(f"unknown snapshot {name!r}")
         meta = yaml.safe_load((d / "snapshot.yaml").read_text())
         chain.append((d, meta))
@@ -71,7 +71,9 @@ def materialize(name: str, dest: Path, repo_root: Path) -> Path:
         raise FileExistsError(f"destination is not empty: {dest}")
     if dest.exists():
         dest.rmdir()
-    clone_seed(seed_repo, seed_commit, dest)
+    memory = task.get("workspace_memory")       # D-15a: a task-owned CLAUDE.md in the seed
+    clone_seed(seed_repo, seed_commit, dest,
+               (spec_path.parent / memory).read_bytes() if memory else None)
     for d, meta in chain:
         overlay = d / "overlay"
         if overlay.is_dir():
@@ -90,7 +92,8 @@ def materialize(name: str, dest: Path, repo_root: Path) -> Path:
     _git(dest, "config", "--local", "user.email", "agent@lrae.local")
     _git(dest, "config", "--local", "core.filemode", "false")
     _git(dest, "add", "-A")
-    _git(dest, "commit", "-q", "--no-gpg-sign", "-m", chain[-1][1]["commit_message"])
+    # --allow-empty: a stage whose right answer is to change nothing (minidb_v3_s10) has no overlay
+    _git(dest, "commit", "-q", "--no-gpg-sign", "--allow-empty", "-m", chain[-1][1]["commit_message"])
     return dest
 
 

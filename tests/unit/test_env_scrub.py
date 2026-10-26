@@ -76,3 +76,11 @@ def test_harness_settings_carries_otel_env_and_is_json():
     assert parsed["env"]["CLAUDE_CODE_ENABLE_TELEMETRY"] == "1"
     assert parsed["env"]["OTEL_EXPORTER_OTLP_ENDPOINT"] == "http://127.0.0.1:4318"
     assert parsed["env"]["OTEL_METRIC_EXPORT_INTERVAL"] == "500"
+
+
+def test_harness_settings_switches_builtin_plugins_off():
+    """Verified on CLI 2.1.301 (B1 verification turn): with these entries init.plugins is []."""
+    s = harness_settings(otel_endpoint="http://127.0.0.1:4318", protocol="http/json",
+                         export_interval_ms=1000, resource_attrs={})
+    assert s["enabledPlugins"] == {"cc-plugin-agents-md@builtin": False,
+                                   "cc-plugin-plugin-authoring@builtin": False}

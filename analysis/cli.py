@@ -21,7 +21,7 @@ def cmd_ingest(a) -> int:
     rep = ingest(runs_dir, db)
     print(f"ingested {rep.runs} runs ({rep.in_survival} in survival set), {rep.checkpoints} checkpoints, "
           f"{rep.metrics} metrics, {rep.counters} counters, {rep.hazards} hazards, {rep.test_outcomes} test outcomes, {rep.stages} stages, "
-          f"{rep.agent_test_runs} agent test runs -> {db}")
+          f"{rep.agent_test_runs} agent test runs, {rep.behavior_events} behaviour events, {rep.markers} markers -> {db}")
     for w in rep.warnings:
         print(f"warning: {w}")
     return 0

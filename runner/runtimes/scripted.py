@@ -33,7 +33,8 @@ class ScriptedRuntime:
         return [sys.executable, "-m", "runner.runtimes.scripted_agent",
                 "--script", str(self.render(ctx.art)), "--workspace", str(ctx.workspace),
                 "--otel", ctx.otel_endpoint, "--run-start", str(ctx.run_start_epoch),
-                "--session-id", ctx.session_id, "--state", str(ctx.state_dir / "script-state.json")]
+                "--session-id", ctx.session_id, "--state", str(ctx.state_dir / "script-state.json")] + \
+            (["--mcp-config", str(ctx.mcp_config)] if ctx.mcp_config else [])
 
     def path_dirs(self) -> list[str]:
         return [str(Path(sys.executable).parent)]

@@ -23,6 +23,8 @@ _PATH_FIELDS = [
     ("guardrails", "policy_file"),
     ("agent", "script"),
     ("task", "stages_file"),
+    ("task", "workspace_memory"),
+    ("task", "exploit_tests"),
 ]
 
 
@@ -84,9 +86,39 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
         if value is not None:
             data[section][field] = {"sha256": hash_path(Path(value))}
     data["task"].pop("seed_repo")  # identified by seed_commit
+    # Behaviour-track fields (D-15a, D-18a) are left out while unset, so the hash (and run ids) of
+    # every spec written before them stays the same.
+    if data["task"].get("workspace_memory") is None:
+        data["task"].pop("workspace_memory", None)
+    if not spec.task.permissions.deny:
+        data["task"].pop("permissions", None)
+    for key in ("protected_paths", "honey"):
+        if not data["task"].get(key):
+            data["task"].pop(key, None)
+    if data["task"].get("exploit_tests") is None:
+        data["task"].pop("exploit_tests", None)
+    from spec.schema import BehaviorScoring, SecurityScoring
+    if data["scoring"].get("behavior") == BehaviorScoring().model_dump(mode="json"):
+        data["scoring"].pop("behavior", None)
+    elif data["scoring"]["behavior"].get("judge_fixtures"):
+        jf = data["scoring"]["behavior"]
+        jf["judge_fixtures"] = {"sha256": hash_path(Path(jf["judge_fixtures"]))}
+    sec = data["scoring"].get("security")
+    if sec == SecurityScoring().model_dump(mode="json"):
+        data["scoring"].pop("security", None)
+    elif sec and sec.get("context_file"):
+        sec["context_file"] = {"sha256": hash_path(Path(sec["context_file"]))}
+    cps = data["task"].get("counterparts") or {}
+    if not any(cps.values()):
+        data["task"].pop("counterparts", None)
+    elif cps.get("ops"):
+        cps["ops"]["policy_file"] = {"sha256": hash_path(Path(cps["ops"]["policy_file"]))}
     if spec.task.stages_file:  # the stage prompts are part of the task, not just the index file
         from runner.stages import load_stages
-        data["task"]["stages_prompts"] = [hash_path(s.prompt) for s in load_stages(spec.task.stages_file).stages]
+        plan = load_stages(spec.task.stages_file)
+        data["task"]["stages_prompts"] = [hash_path(s.prompt) for s in plan.stages]
+        if plan.referenced_files:  # files the harness puts into the workspace (env actions)
+            data["task"]["stages_env_files"] = [hash_path(f) for f in plan.referenced_files]
     if extra_files:
         data["_extra_files"] = {k: hash_path(p) for k, p in sorted(extra_files.items())}
     canonical = json.dumps(data, sort_keys=True, separators=(",", ":"))
@@ -122,6 +154,26 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
         if value is not None and not Path(value).exists():
             raise SpecError(f"{section}.{field}: file does not exist: {value}")
 
+    sec = spec.scoring.security
+    beh = spec.scoring.behavior
+    if beh.judge_fixtures:
+        beh.judge_fixtures = _resolve(spec_dir, beh.judge_fixtures)
+        if not Path(beh.judge_fixtures).is_file():
+            raise SpecError(f"scoring.behavior.judge_fixtures: file does not exist: {beh.judge_fixtures}")
+    if sec.context_file:
+        sec.context_file = _resolve(spec_dir, sec.context_file)
+        if not Path(sec.context_file).is_file():
+            raise SpecError(f"scoring.security.context_file: file does not exist: {sec.context_file}")
+
+    ops = spec.task.counterparts.ops
+    if ops is not None:
+        ops.policy_file = _resolve(spec_dir, ops.policy_file)
+        from runner.counterparts.ops import OpsPolicy, PolicyError
+        try:
+            OpsPolicy.load(ops.policy_file)
+        except PolicyError as exc:
+            raise SpecError(f"task.counterparts.ops: {exc}") from exc
+
     if spec.task.stages_file:
         from runner.stages import StageError, load_stages
         try:
@@ -132,6 +184,15 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
             raise SpecError("task.prompt_file must be the stage-0 prompt of task.stages_file")
 
     extra = {}
+    beh = spec.scoring.behavior
+    if beh.enabled:  # plan B5b: the judge prompts in use are part of the experiment
+        for name in beh.judges:
+            prompt = repo / "scorer" / "judges" / "prompts" / f"{name}.md"
+            if prompt.is_file():
+                extra[f"judge_prompt_{name}"] = prompt
+    review_prompt = repo / "scorer" / "vuln_review_prompt.md"
+    if spec.scoring.security.enabled and spec.scoring.security.ai_review and review_prompt.is_file():
+        extra["vuln_review_prompt"] = review_prompt  # plan B4: hashed only when the review is used
     for name, candidate in (
         ("judge_prompt", repo / "scorer" / "judge_prompt.md"),
         ("harness_settings", repo / "runner" / "harness_settings.template.json"),

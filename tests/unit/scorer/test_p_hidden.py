@@ -20,6 +20,68 @@ def test_load_config_without_app_is_allowed(tmp_path):
     assert "app_cmd" not in p_hidden.load_config(tmp_path)
 
 
+def test_suite_timeout_is_configurable(tmp_path):
+    (tmp_path / "scorer.yaml").write_text("suite_timeout_s: 1800\n")
+    assert p_hidden.suite_timeout(p_hidden.load_config(tmp_path)) == 1800
+    (tmp_path / "scorer.yaml").write_text("test_env: {}\n")
+    assert p_hidden.suite_timeout(p_hidden.load_config(tmp_path)) == p_hidden.SUITE_TIMEOUT_S
+    (tmp_path / "scorer.yaml").write_text("suite_timeout_s: -5\n")
+    with pytest.raises(ValueError):
+        p_hidden.load_config(tmp_path)
+
+
+def test_per_test_timeout_is_configurable(tmp_path):
+    """scorer.yaml ``per_test_timeout_s`` reaches pytest (minidb v3: index builds and 200,000-point fixtures
+    run for minutes; the default 30 s killed them in every scored run)."""
+    (tmp_path / "scorer.yaml").write_text("per_test_timeout_s: 300\n")
+    assert p_hidden.per_test_timeout(p_hidden.load_config(tmp_path)) == 300
+    (tmp_path / "scorer.yaml").write_text("test_env: {}\n")
+    assert p_hidden.per_test_timeout(p_hidden.load_config(tmp_path)) == p_hidden.PER_TEST_TIMEOUT_S == 30
+    (tmp_path / "scorer.yaml").write_text("per_test_timeout_s: 0\n")
+    with pytest.raises(ValueError):
+        p_hidden.load_config(tmp_path)
+
+
+def test_the_per_test_timeout_is_passed_to_every_hidden_run(tmp_path, monkeypatch):
+    from scorer.metrics import r_regression
+    hidden = tmp_path / "hidden"
+    hidden.mkdir()
+    (hidden / "scorer.yaml").write_text("per_test_timeout_s: 300\ntiming_k: timing\n")
+    (tmp_path / "ws").mkdir()
+    seen = []
+
+    def fake(python, args, *, cwd, env, report, timeout_s, label, per_test_timeout_s=30):
+        seen.append(per_test_timeout_s)
+        outcomes = {"test_a.py::test_x_timing": "failed"} if label == "hidden" else {"test_a.py::test_x_timing": "passed"}
+        return r_regression.SuiteResult(outcomes=outcomes, returncode=1, report_ok=True)
+    monkeypatch.setattr(p_hidden, "run_pytest_json", fake)
+    p_hidden.score_hidden(tmp_path / "ws", hidden, tmp_path / "python")
+    assert seen == [300, 300]                    # the suite and the timing rerun
+
+
+def test_only_failed_timing_tests_are_rerun(tmp_path, monkeypatch):
+    """An errored timing test (a fixture that missed its deadline, say) does not flip on a second try:
+    only failed ones are rerun."""
+    from scorer.metrics import r_regression
+    hidden = tmp_path / "hidden"
+    hidden.mkdir()
+    (hidden / "scorer.yaml").write_text("timing_k: timing\n")
+    (tmp_path / "ws").mkdir()
+    reruns = []
+
+    def fake(python, args, *, cwd, env, report, timeout_s, label, per_test_timeout_s=30):
+        if label == "hidden-rerun":
+            reruns.append([a for a in args if "::" in a])
+            return r_regression.SuiteResult(outcomes={"test_a.py::test_slow_timing": "passed"}, returncode=0,
+                                            report_ok=True)
+        return r_regression.SuiteResult(outcomes={"test_a.py::test_slow_timing": "failed",
+                                                  "test_a.py::test_load_timing": "error"}, returncode=1, report_ok=True)
+    monkeypatch.setattr(p_hidden, "run_pytest_json", fake)
+    res = p_hidden.score_hidden(tmp_path / "ws", hidden, tmp_path / "python")
+    assert reruns == [["test_a.py::test_slow_timing"]]
+    assert res["detail"]["outcomes"] == {"test_a.py::test_slow_timing": "passed", "test_a.py::test_load_timing": "error"}
+
+
 SERVERLESS_HIDDEN = {
     "scorer.yaml": "test_env: {LRAE_WORKSPACE: '{ws}', LRAE_PYTHON: '{python}'}\n",
     "pytest.ini": "[pytest]\ntestpaths = .\n",

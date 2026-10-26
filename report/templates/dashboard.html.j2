@@ -150,6 +150,83 @@ only a subset, so treat it as a signal).</p>
 {% endfor %}
 {% endif %}
 
+<h2>Behaviour and security</h2>
+{% if not behavior.has_data %}
+<p class="sub">No behaviour or security scoring in this experiment.</p>
+{% else %}
+<p class="sub">Behaviour events come from the deterministic detectors and the judges (goal observer, manipulation,
+prose claims). Only deterministic signals are hazards. Judge spend: {{ behavior.judge_cost }} (not part of S).</p>
+<div class="overflow">
+<table>
+<tr><th>Mode</th><th>Runs with events</th><th>Runs with a hazard</th><th>Events</th><th>Hazard events</th><th>Judge findings</th></tr>
+{% for m in behavior.table %}
+<tr><td>{{ m.mode }}</td><td class="num">{{ m.runs_with_events }}</td><td class="num">{{ m.runs_with_hazard }}</td>
+<td class="num">{{ m.events }}</td><td class="num">{{ m.hazard_events }}</td><td class="num">{{ m.judge_events }}</td></tr>
+{% endfor %}
+</table>
+</div>
+<img src="figures/beh_survival.png" alt="Per-mode survival curves">
+<table>
+<tr><th>Curve</th><th>Median time to first hazard</th></tr>
+{% for c in behavior.survival %}
+<tr><td>{{ c.label }}</td><td class="num">{{ c.median }}</td></tr>
+{% else %}
+<tr><td colspan="2">No mode has a hazard.</td></tr>
+{% endfor %}
+</table>
+
+<h3>Incidence per agent-hour (events (hazards) · events per hour)</h3>
+<div class="overflow">
+<table>
+<tr><th>Run hour</th><th>Agent-hours</th>{% for m in behavior.modes %}<th>{{ m }}</th>{% endfor %}</tr>
+{% for r in behavior.hours %}
+<tr><td>{{ r.hour }}</td><td class="num">{{ r.agent_hours }}</td>{% for m in behavior.modes %}<td class="num">{{ r.cells[m] }}</td>{% endfor %}</tr>
+{% endfor %}
+</table>
+<table style="margin-top:8px">
+<tr><th>Context fill</th><th>Agent-hours</th>{% for m in behavior.modes %}<th>{{ m }}</th>{% endfor %}</tr>
+{% for r in behavior.fills %}
+<tr><td>{{ r.label }}</td><td class="num">{{ r.agent_hours }}</td>{% for m in behavior.modes %}<td class="num">{{ r.cells[m] }}</td>{% endfor %}</tr>
+{% endfor %}
+</table>
+</div>
+
+<h3>Stuck episodes and risk escalation</h3>
+<p class="sub">{{ behavior.escalation.episodes }} episode(s), {{ behavior.escalation.escalating }} escalating
+(risk tier rising with attempts), {{ behavior.escalation.reached_tier4 }} reached tier 4.</p>
+{% if behavior.episodes %}
+<div class="overflow">
+<table>
+<tr><th>Run</th><th>Start</th><th>Command</th><th>Attempts</th><th>Max tier</th><th>Escalation (tier / attempt)</th></tr>
+{% for e in behavior.episodes %}
+<tr><td>{{ e.run_id }}</td><td class="num">{{ e.t_min }}</td><td>{{ e.command }}</td><td class="num">{{ e.attempts }}</td>
+<td class="num">{{ e.max_tier }}</td><td class="num">{{ e.escalation }}</td></tr>
+{% endfor %}
+</table>
+</div>
+{% endif %}
+
+{% for r in behavior.runs %}
+<h3>{{ r.run_id }}</h3>
+<img src="figures/{{ r.figs.timeline }}" alt="Behaviour timeline by mode with stage, directive and environment markers">
+{% if r.figs.security %}<img src="figures/{{ r.figs.security }}" alt="Security trend: new SAST findings, exploit failures, AI review">{% endif %}
+{% if r.anomalies %}
+<p class="sub">Action-rate anomalies: {% for a in r.anomalies %}t{{ a.k }} {{ a.kind }} ({{ "%.1f" | format(a.value) }}/min){% if not loop.last %}, {% endif %}{% endfor %}.</p>
+{% endif %}
+{% if r.events %}
+<div class="overflow">
+<table>
+<tr><th>Time</th><th>Mode</th><th>Detector</th><th>Severity</th><th>Evidence</th></tr>
+{% for e in r.events %}
+<tr><td class="num">{{ e.t_min }}</td><td>{{ e.mode }}</td><td>{{ e.detector }}</td>
+<td>{{ e.severity }}{% if not e.deterministic %} (judge){% endif %}</td><td>{{ e.evidence }}</td></tr>
+{% endfor %}
+</table>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
+
 <h2>Incidents</h2>
 <div class="overflow">
 <table>

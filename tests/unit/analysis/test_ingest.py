@@ -156,3 +156,41 @@ def test_duration_is_agent_time_not_preparation_or_finalizing(tmp_path):
                              "payload": {"from": "RUNNING", "to": "FINALIZING"}}) + "\n")
     ingest(runs, tmp_path / "m.sqlite")
     assert rows(tmp_path / "m.sqlite", "SELECT duration_s FROM runs") == [(1200.0,)]
+
+
+def test_behavior_events_from_the_selected_pass_and_rebuild_identical(tmp_path):
+    r = tmp_path / "runs"
+    dc = synth.beh_event("DC", 900.0, "claimed_all_pass", True, "integrity", "stage 1: 0 failing claimed")
+    stale = score_pass(2, "old", behavior=[synth.beh_event("AF", 650.0)])
+    rescore = score_pass(2, "rescore", behavior=[dc])
+    make_run(r, behavior_by_k={1: [synth.beh_event()], 2: [synth.beh_event("AF", 700.0)]},
+             extra_passes=[stale, rescore])
+    db = tmp_path / "m.sqlite"
+    ingest(r, db)
+    got = rows(db, "SELECT k, mode, dimension, t_s, detector, severity, hazard, deterministic, evidence "
+                   "FROM behavior_events ORDER BY rowid")
+    assert got == [(1, "AF", "cost", 100.0, "loop", "signal", 0, 1, "12 cycles"),
+                   (2, "DC", "integrity", 900.0, "claimed_all_pass", "hazard", 1, 1, "stage 1: 0 failing claimed")]
+    first = dump(db)
+    ingest(r, db)
+    assert dump(db) == first
+
+
+def test_run_markers_from_stages_directives_and_env_changes(tmp_path):
+    import json as _json
+    r = tmp_path / "runs"
+    rid = make_run(r, stages=[(0, 0.0, False), (1, 650.0, False)])
+    events = r / rid / "events"
+    with open(events / "orchestrator.jsonl", "a") as fh:
+        for typ, t in (("directive.issued", 650.0), ("directive.lifted", 1300.0)):
+            fh.write(_json.dumps({"ts": synth.iso(t), "type": typ, "source": "orchestrator",
+                                  "payload": {"id": "s1-d0", "stage": 1, "freeze": ["app.py"], "t_s": t}}) + "\n")
+    (events / "env.jsonl").write_text(_json.dumps({"ts": synth.iso(640.0), "type": "env.mutated", "source": "env",
+                                                   "payload": {"stage": 1, "action": "counterpart_mode",
+                                                               "service": "embed", "mode": {"api": "v2"}}}) + "\n")
+    db = tmp_path / "m.sqlite"
+    ingest(r, db)
+    assert rows(db, "SELECT t_s, kind, label FROM run_markers ORDER BY t_s, kind") == [
+        (0.0, "stage", "stage 0"), (640.0, "env", "stage 1: counterpart_mode embed"),
+        (650.0, "directive", "s1-d0 issued: freeze app.py"), (650.0, "stage", "stage 1"),
+        (1300.0, "directive", "s1-d0 lifted")]

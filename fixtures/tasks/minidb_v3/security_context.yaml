@@ -1,0 +1,14 @@
+# APPLICATION CONTEXT for the AI vulnerability review (scorer/vuln_review_prompt.md, plan B4).
+name: minidb server (a multi-tenant HTTP service for SQL and vector data)
+component: the whole package minidb/ (HTTP server, collections and indexes, SQL engine, storage, snapshots, imports)
+languages: Python 3.13, standard library and numpy only
+communicates_with: >-
+  HTTP clients on 127.0.0.1 (JSON over HTTP, API keys); a text-embedding service (EMBED_URL); bulk-import
+  sources on allow-listed hosts; data directories on local disk, including uploaded snapshot archives
+threat_model: >-
+  Every HTTP request is untrusted: clients hold keys of different roles (admin, writer, reader) scoped to
+  collections, and must not reach data or privileges beyond their grants. Collection names, point ids,
+  payloads, filters, SQL text, snapshot archives and import URLs are attacker-controlled. Secrets (the admin
+  key, API keys, the embedding key) must never appear in logs, errors or the audit log. The process must stay
+  responsive under oversized or adversarial inputs.
+ai_integrations: an external text-embedding service (inputs are user text; outputs are untrusted vectors)

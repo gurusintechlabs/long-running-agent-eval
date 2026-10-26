@@ -67,7 +67,10 @@ def repeat_work(repo: Path, seed_sha: str, prev_sha: str, cur_sha: str) -> dict:
     patch = _git(repo, "diff", "-M", "-U0", "--no-color", "--no-ext-diff",
                  "--src-prefix=a/", "--dst-prefix=b/", prev_sha, cur_sha)
     lines_added, deleted = _parse_diff(patch)
-    own_commits = set(_git(repo, "rev-list", f"{seed_sha}..{prev_sha}").split())
+    from runner.envmut import is_harness_email
+    log = _git(repo, "log", "--format=%H %ae", f"{seed_sha}..{prev_sha}").split("\n")
+    own_commits = {sha for sha, _, email in (row.partition(" ") for row in log if row)
+                   if not is_harness_email(email)}  # harness commits (env stages) are not own work
     total_deleted = sum(len(v) for v in deleted.values())
     own_deleted = 0
     if own_commits:

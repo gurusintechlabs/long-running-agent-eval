@@ -16,6 +16,7 @@ class TurnContext:
     otel_endpoint: str
     run_start_epoch: float
     state_dir: Path
+    mcp_config: Path | None = None  # task counterparts (plan B3); None: the empty config
 
 
 class Runtime(Protocol):

@@ -12,7 +12,9 @@ import re
 import shutil
 from pathlib import Path
 
-MEMORY_FILES = ("CLAUDE.md", "CLAUDE.local.md")
+# AGENTS.md: CLI 2.1.301 ships the built-in plugin cc-plugin-agents-md, which loads even under
+# --safe-mode (built-in plugins are exempt), so AGENTS.md files are project memory too.
+MEMORY_FILES = ("CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "AGENTS.override.md")
 USER_MEMORY_ENTRIES = ("CLAUDE.md", "rules")
 
 
@@ -72,7 +74,7 @@ def clean_workspaces(workspaces: list[Path], claude_home: Path | None = None) ->
 
 
 def check_ancestors(workspace: Path, home: Path, stop_at: Path | None = None) -> None:
-    """L-1: no CLAUDE.md/CLAUDE.local.md in any ancestor; no .claude/ in any ancestor but $HOME."""
+    """L-1: no memory file (MEMORY_FILES) in any ancestor; no .claude/ in any ancestor but $HOME."""
     ws = Path(workspace).resolve()
     home = Path(home).resolve()
     stop = Path(stop_at).resolve() if stop_at else Path(ws.anchor)
@@ -86,17 +88,31 @@ def check_ancestors(workspace: Path, home: Path, stop_at: Path | None = None) ->
             break
 
 
-def check_seed_checkout(root: Path) -> None:
-    """L-3: the seed checkout carries no project memory anywhere in the tree."""
+def check_seed_checkout(root: Path, workspace_memory: bytes | None = None) -> None:
+    """L-3: the seed checkout carries no project memory anywhere in the tree.
+
+    D-15a: a task may declare its own ``CLAUDE.md`` (``task.workspace_memory``). Then exactly one
+    memory file is allowed, ``CLAUDE.md`` at the root, and its bytes must equal the declared file.
+    """
     root = Path(root)
+    found_declared = False
     for dirpath, dirnames, filenames in os.walk(root):
         if ".git" in dirnames:
             dirnames.remove(".git")
         for name in filenames:
-            if name in MEMORY_FILES:
-                raise MemoryError_(f"{name} in seed checkout: {Path(dirpath) / name}")
+            if name not in MEMORY_FILES:
+                continue
+            path = Path(dirpath) / name
+            if workspace_memory is not None and path == root / "CLAUDE.md":
+                if path.is_symlink() or path.read_bytes() != workspace_memory:
+                    raise MemoryError_(f"seed CLAUDE.md differs from the declared task.workspace_memory: {path}")
+                found_declared = True
+                continue
+            raise MemoryError_(f"{name} in seed checkout: {path}")
         if ".claude" in dirnames:
             raise MemoryError_(f".claude/ in seed checkout: {Path(dirpath) / '.claude'}")
+    if workspace_memory is not None and not found_declared:
+        raise MemoryError_(f"task.workspace_memory is declared but CLAUDE.md is missing from the seed root: {root}")
 
 
 class UserMemoryGuard:

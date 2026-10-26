@@ -10,7 +10,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 
-from analysis import degradation, survival, trends
+from analysis import behavior, degradation, survival, trends
 from report import charts
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -120,6 +120,54 @@ def degradation_context(db_path: Path, experiment_id: str, fig_dir: Path) -> dic
             "compaction_effect": comp_eff, "windows": pooled_windows, "top": top}
 
 
+MAX_BEHAVIOR_RUNS = 12
+
+
+def behavior_context(db_path: Path, experiment_id: str, fig_dir: Path) -> dict:
+    """Behaviour and security panels (plan B5b); ``{"has_data": False}`` without behaviour or SEC data."""
+    if not behavior.has_data(db_path, experiment_id):
+        return {"has_data": False}
+    curves = behavior.mode_survival(db_path, experiment_id)
+    charts.survival_chart(curves, fig_dir / "beh_survival.png",
+                          title="Per-mode survival: runs without a hazard of the mode (Kaplan-Meier, 95% CI)")
+    fmt = lambda v: "-" if v is None else f"{v:.2f}"  # noqa: E731
+    hours = [{"hour": r["hour"], "agent_hours": f"{r['agent_hours']:.2f}",
+              "cells": {m: (f"{c['events']} ({c['hazards']}) · {fmt(c['per_hour'])}/h" if (c := r["modes"].get(m))
+                            else "-") for m in behavior.ALL_MODES}} for r in behavior.incidence_by_hour(db_path, experiment_id)]
+    fills = [{"label": f"{b['lo']:.2f}-{b['hi']:.2f}" if b["hi"] else f">= {b['lo']:.2f}",
+              "agent_hours": f"{b['agent_hours']:.2f}",
+              "cells": {m: (f"{c['events']} ({c['hazards']}) · {fmt(c['per_hour'])}/h" if (c := b["modes"].get(m))
+                            else "-") for m in behavior.ALL_MODES}} for b in behavior.incidence_by_fill(db_path, experiment_id)]
+    runs, episodes = [], []
+    for rid in behavior.run_ids(db_path, experiment_id):
+        tl = behavior.timeline(db_path, rid)
+        trend = behavior.security_trend(db_path, rid)
+        has_sec = any(r["new_high"] is not None or r["exploits_failed"] is not None for r in trend)
+        eps = behavior.stuck_episodes(db_path, rid)
+        if not (tl["events"] or has_sec or eps):
+            continue
+        episodes += [{**e, "run_id": rid, "t_min": fmt_min(e["t_s"])} for e in eps]
+        if len(runs) >= MAX_BEHAVIOR_RUNS:
+            continue
+        safe = "".join(c if c in _SAFE else "_" for c in rid)
+        figs = {"timeline": f"beh_{safe}_timeline.png", "security": None}
+        charts.behavior_timeline(tl, fig_dir / figs["timeline"], title=f"{rid}: behaviour timeline")
+        if has_sec:
+            figs["security"] = f"beh_{safe}_security.png"
+            charts.security_trend_chart(trend, fig_dir / figs["security"], title=f"{rid}: security trend")
+        af = behavior.af_anomalies(db_path, rid)
+        runs.append({"run_id": rid, "figs": figs, "anomalies": af["anomalies"],
+                     "events": [{**e, "t_min": fmt_min(e["t_s"])} for e in tl["events"]]})
+    cost = sum(v or 0.0 for (v,) in behavior._rows(
+        db_path, "SELECT m.value FROM metrics m JOIN runs r USING(run_id) WHERE r.experiment_id=? AND "
+                 "m.name IN ('lrae.beh.judge.cost_usd', 'behavior_judge_cost_usd')", (experiment_id,)))
+    return {"has_data": True, "modes": behavior.ALL_MODES, "table": behavior.mode_table(db_path, experiment_id),
+            "survival": [{"label": c["label"], "median": fmt_min(c["median"]) if c["median"] is not None
+                          else survival.NOT_REACHED} for c in curves],
+            "hours": hours, "fills": fills, "runs": runs, "episodes": episodes,
+            "escalation": behavior.escalation_summary(episodes), "judge_cost": f"${cost:.2f}"}
+
+
 def collect_context(db_path: Path, experiment_id: str, out_dir: Path) -> dict:
     """Render the figures into ``out_dir/figures`` and return the template context."""
     db_path, out_dir = Path(db_path), Path(out_dir)
@@ -168,6 +216,7 @@ def collect_context(db_path: Path, experiment_id: str, out_dir: Path) -> dict:
                                   for rid, hs in haz_by_run.items()})
 
     deg = degradation_context(db_path, experiment_id, fig_dir)
+    beh = behavior_context(db_path, experiment_id, fig_dir)
 
     rows = []
     for r in runs:
@@ -180,7 +229,7 @@ def collect_context(db_path: Path, experiment_id: str, out_dir: Path) -> dict:
                                  f"excluded ({r['censored_reason'] or r['state'].lower()})")})
     modes = sorted({r["isolation_mode"] for r in runs if r["isolation_mode"]})
     return {"experiment_id": experiment_id, "spec_hash": exp[0]["spec_hash"], "runs": rows,
-            "incidents": incidents(runs, hazards), "summaries": summaries, "figures": figs, "degradation": deg,
+            "incidents": incidents(runs, hazards), "summaries": summaries, "figures": figs, "degradation": deg, "behavior": beh,
             "cost_label": COST_LABEL, "isolation_modes": modes, "not_isolated": "local" in modes,
             "n_censored_limit": sum(1 for r in runs if r["censored_reason"] in ("usage_limit", "usage-limit"))}
 

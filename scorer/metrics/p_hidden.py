@@ -22,7 +22,7 @@ from pathlib import Path
 import yaml
 
 from scorer import sandbox
-from scorer.metrics.r_regression import SuiteResult, run_pytest_json
+from scorer.metrics.r_regression import PER_TEST_TIMEOUT_S, SuiteResult, run_pytest_json
 
 SUITE_TIMEOUT_S = 300
 _TIER_RE = re.compile(r"test_t(\d+)_")
@@ -44,7 +44,33 @@ def load_config(hidden: Path) -> dict:
     cfg = yaml.safe_load((Path(hidden) / "scorer.yaml").read_text()) or {}
     if "app_cmd" in cfg and "ready_path" not in cfg:
         raise ValueError(f"{hidden}/scorer.yaml has app_cmd but no ready_path")
+    for key in ("suite_timeout_s", "per_test_timeout_s"):
+        if key in cfg and not (isinstance(cfg[key], (int, float)) and not isinstance(cfg[key], bool)
+                               and cfg[key] > 0):
+            raise ValueError(f"{hidden}/scorer.yaml: {key} must be a positive number")
+    if cfg.get("timing_at", "checkpoints") not in TIMING_AT:
+        raise ValueError(f"{hidden}/scorer.yaml: timing_at must be one of {', '.join(TIMING_AT)}")
+    inh = cfg.get("inherited", [])
+    if not isinstance(inh, list) or not all(isinstance(g, str) and g for g in inh):
+        raise ValueError(f"{hidden}/scorer.yaml: inherited must be a list of test-id globs")
     return cfg
+
+
+# When checkpoints run the timing tests (``timing_k``): at every checkpoint, or only where a stage ended in the
+# interval, at the final checkpoint and in standalone scoring (``scorer.run_checkpoint.timing_due``).
+TIMING_AT = ("checkpoints", "stage_ends")
+
+
+def per_test_timeout(cfg: dict) -> float:
+    """pytest-timeout per test: ``scorer.yaml`` ``per_test_timeout_s`` (tests with large fixtures need
+    more), else ``PER_TEST_TIMEOUT_S`` (spec §8.2)."""
+    return float(cfg.get("per_test_timeout_s", PER_TEST_TIMEOUT_S))
+
+
+def suite_timeout(cfg: dict) -> float:
+    """Wall-clock limit of one hidden pytest run: ``scorer.yaml`` ``suite_timeout_s`` (tasks whose
+    tests build large indexes need more), else ``SUITE_TIMEOUT_S``."""
+    return float(cfg.get("suite_timeout_s", SUITE_TIMEOUT_S))
 
 
 def _fmt(value: str, port: int, db: Path, ws: Path | None = None, python: Path | None = None) -> str:
@@ -148,14 +174,16 @@ def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
                     h_env = sandbox.scrubbed_env(python, home, t_env)
                     suite = run_pytest_json(
                         python, [*base, *sel, str(hidden)], cwd=hidden, env=h_env,
-                        report=scratch / "hidden.json", timeout_s=SUITE_TIMEOUT_S, label="hidden")
+                        report=scratch / "hidden.json", timeout_s=suite_timeout(cfg), label="hidden",
+                        per_test_timeout_s=per_test_timeout(cfg))
                     if timing and timing_k and not suite.reason:
-                        failed = sorted(t for t, o in suite.outcomes.items() if o in ("failed", "error"))
+                        # failed only: an errored test (a fixture that missed its deadline) does not flip
+                        failed = sorted(t for t, o in suite.outcomes.items() if o == "failed")
                         if failed:
                             again = run_pytest_json(
                                 python, [*base, "-k", timing_k, *failed], cwd=hidden, env=h_env,
-                                report=scratch / "hidden-rerun.json", timeout_s=SUITE_TIMEOUT_S,
-                                label="hidden-rerun")
+                                report=scratch / "hidden-rerun.json", timeout_s=suite_timeout(cfg),
+                                label="hidden-rerun", per_test_timeout_s=per_test_timeout(cfg))
                             detail["timing_reruns"] = dict(sorted(again.outcomes.items()))
                             suite.outcomes.update(again.outcomes)
             finally:

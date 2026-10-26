@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, useAsync, type ExperimentGroup, type RunSummary } from "../../api";
-import { useDataVersion } from "../../app/DataVersion";
 import { Badge, Card, EmptyState, ErrorState, Spinner, StateBadge, type SortState } from "../../components";
 import { formatUsd } from "../../lib/format";
 import { filterRuns, groupByExperiment, NO_FILTERS, type RunFilters } from "./filter";
@@ -11,9 +10,8 @@ const REFRESH_MS = 4000;
 const DEFAULT_SORT: SortState = { key: "started", dir: "desc" };
 
 export function RunsView() {
-  const { version } = useDataVersion();
-  const runsQ = useAsync((s) => api.runs(s), [version], (d) => (d?.runs.some((r) => r.live) ? REFRESH_MS : null));
-  const expQ = useAsync((s) => api.experiments(s), [version], (d) => (d?.experiments.some((e) => e.live) ? REFRESH_MS : null));
+  const runsQ = useAsync((s) => api.runs(s), [], (d) => (d?.runs.some((r) => r.live) ? REFRESH_MS : null));
+  const expQ = useAsync((s) => api.experiments(s), [], (d) => (d?.experiments.some((e) => e.live) ? REFRESH_MS : null));
 
   const [filters, setFilters] = useState<RunFilters>(NO_FILTERS);
   const [grouped, setGrouped] = useState(false);

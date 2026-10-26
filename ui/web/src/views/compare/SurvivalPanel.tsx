@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { ApiError, api, compareApi, useAsync, type SurvivalGroup } from "../../api";
-import { useDataVersion } from "../../app/DataVersion";
 import { IngestButton, useIngest } from "../../app/IngestBanner";
 import { Card, ErrorState, LazyChart, Spinner, useChartTheme } from "../../components";
 import { buildSurvivalOption } from "./charts";
@@ -53,9 +52,8 @@ export function SurvivalSummary({ groups }: { groups: SurvivalGroup[] }) {
 }
 
 export function SurvivalPanel({ initialExperiment }: { initialExperiment: string | null }) {
-  const { version } = useDataVersion();
   const theme = useChartTheme();
-  const expQ = useAsync((s) => api.experiments(s), [version]);
+  const expQ = useAsync((s) => api.experiments(s), []);
   const [pick, setPick] = useState<string | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const ing = useIngest();
@@ -64,7 +62,7 @@ export function SurvivalPanel({ initialExperiment }: { initialExperiment: string
   const experiment = pick ?? initialExperiment ?? experiments[0]?.experiment_id ?? null;
   const survQ = useAsync(
     (s) => (experiment ? compareApi.survival(experiment, undefined, s) : Promise.resolve(null)),
-    [experiment, version],
+    [experiment],
   );
   const groups = useMemo(() => (survQ.data?.groups ?? []).filter((g) => !hidden.has(`${g.task_class}/${g.config}`)), [survQ.data, hidden]);
   const option = useMemo(() => buildSurvivalOption(groups, theme), [groups, theme]);

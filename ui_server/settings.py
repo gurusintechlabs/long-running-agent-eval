@@ -11,6 +11,7 @@ class Settings:
     token: str
     port: int
     web_dist: Path
+    auto_ingest: bool = False      # `lrae ui` turns it on (ui_server/autoingest.py); tests opt in
 
     @property
     def db_path(self) -> Path:

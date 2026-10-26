@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, compareApi, useAsync } from "../../api";
-import { useDataVersion } from "../../app/DataVersion";
 import { IngestButton, useIngest } from "../../app/IngestBanner";
 import { Card, EmptyState, ErrorState, Spinner } from "../../components";
 import { DeltaTable, HazardTable } from "./DeltaTable";
@@ -18,10 +17,9 @@ export function parseRuns(param: string | null): string[] {
 }
 
 export function CompareView() {
-  const { version } = useDataVersion();
   const [params, setParams] = useSearchParams();
   const selected = useMemo(() => parseRuns(params.get("runs")), [params]);
-  const runsQ = useAsync((s) => api.runs(s), [version]);
+  const runsQ = useAsync((s) => api.runs(s), []);
   const ing = useIngest();
 
   useEffect(() => {
@@ -36,7 +34,7 @@ export function CompareView() {
   );
 
   const key = selected.join(",");
-  const cmpQ = useAsync((s) => (selected.length ? compareApi.compare(selected, s) : Promise.resolve(null)), [key, version]);
+  const cmpQ = useAsync((s) => (selected.length ? compareApi.compare(selected, s) : Promise.resolve(null)), [key]);
   const runs = runsQ.data?.runs ?? [];
   const firstExperiment = runs.find((r) => r.run_id === selected[0])?.experiment_id ?? null;
 

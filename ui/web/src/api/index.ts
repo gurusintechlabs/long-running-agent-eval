@@ -10,3 +10,4 @@ export * from "./control";
 export * from "./review";
 export * from "./specs";
 export * from "./compare";
+export * from "./judges";

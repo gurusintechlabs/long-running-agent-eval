@@ -11,8 +11,8 @@ import { buildEvents, buildTimelineOption, clickLink, LANES, type Lane, type TlE
 const POLL_MS = 10000;
 const SHOW_STEP = 100;
 
-export function TimelineTab({ runId, live, version }: { runId: string; live: boolean; version: number }) {
-  const q = useAsync((s) => timelineApi.get(runId, s), [runId, version], () => (live ? POLL_MS : null));
+export function TimelineTab({ runId, live }: { runId: string; live: boolean }) {
+  const q = useAsync((s) => timelineApi.get(runId, s), [runId], () => (live ? POLL_MS : null));
   const data = useStable(q.data);
   if (q.error && !data) return <Card><ErrorState title="Could not load the timeline" error={q.error} onRetry={q.reload} /></Card>;
   if (!data) return <Spinner label="Loading timeline" />;

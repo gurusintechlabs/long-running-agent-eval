@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initToken } from "../api";
 import { App } from "../App";
 import { fx, mockFetch, resetAuth } from "../test/helpers";
@@ -65,5 +65,46 @@ describe("shell and stale banner", () => {
     expect(screen.getByText("done")).toBeInTheDocument();
     expect(calls.some((c) => c.path === "/ingest" && c.init?.method === "POST")).toBe(true);
     await waitFor(() => expect(screen.queryByText(/metrics store is out of date/i)).not.toBeInTheDocument());
+  });
+
+  describe("with the server's auto-ingest", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+    const autoOn = { enabled: true, running: false, ingests: 1, last_ok: true, last_error: null };
+
+    it("shows no banner while the store catches up, and reloads views when a new store lands", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      resetAuth();
+      initToken();
+      let status: Record<string, unknown> = { ...fx.ingestStatus, auto: autoOn };
+      let runs = fx.runs as { runs: unknown[] };
+      const { calls } = mockFetch({ ...table, "/runs": () => ({ body: runs }), "/ingest/status": () => ({ body: status }) });
+      render(<App />);
+      await screen.findByText("12 of 12 runs");
+      expect(screen.queryByText(/metrics store is out of date/i)).not.toBeInTheDocument();
+      const before = calls.filter((c) => c.path === "/runs").length;
+      // the server's ingest finished: a new store file, one run fewer on screen afterwards
+      runs = { ...fx.runs, runs: fx.runs.runs.slice(1) };
+      status = { ...status, stale: false, reason: null, store_epoch: (fx.ingestStatus.store_epoch as number) + 60 };
+      await vi.advanceTimersByTimeAsync(5100);
+      await waitFor(() => expect(calls.filter((c) => c.path === "/runs").length).toBeGreaterThan(before));
+      expect(await screen.findByText("11 of 11 runs")).toBeInTheDocument();
+      // the list never went back to a loading state while it re-fetched
+      expect(screen.queryByText(/loading runs/i)).not.toBeInTheDocument();
+    });
+
+    it("shows a retry banner when the background ingest failed", async () => {
+      resetAuth();
+      initToken();
+      mockFetch({
+        ...table,
+        "/ingest/status": () => ({ body: { ...fx.ingestStatus, auto: { ...autoOn, last_ok: false, last_error: "boom: bad scorer.jsonl" } } }),
+      });
+      render(<App />);
+      expect(await screen.findByText(/updating the metrics store failed/i)).toBeInTheDocument();
+      expect(screen.getByText("boom: bad scorer.jsonl")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry now" })).toBeInTheDocument();
+    });
   });
 });

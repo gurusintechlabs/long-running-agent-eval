@@ -6,12 +6,14 @@ import os
 import subprocess
 import sys
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from ui_server import __version__, safefs, store
+from ui_server.autoingest import AutoIngest
 from ui_server.safety import resolve_run_dir, scrub_paths
 from ui_server.settings import Settings
 
@@ -31,7 +33,20 @@ def ingest_env(base: dict[str, str]) -> dict[str, str]:
 
 
 def create_app(settings: Settings) -> FastAPI:
-    app = FastAPI(title="LRAE UI", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+    background: list[AutoIngest] = []
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        for b in background:
+            b.start()
+        try:
+            yield
+        finally:
+            for b in background:
+                b.stop()
+
+    app = FastAPI(title="LRAE UI", version=__version__, docs_url=None, redoc_url=None, openapi_url=None,
+                  lifespan=lifespan)
     safefs.register_root(settings.runs_dir)
     ingest_lock = threading.Lock()
     home = Path.home()
@@ -106,30 +121,44 @@ def create_app(settings: Settings) -> FastAPI:
                 con.close()
         return {"run_id": rid, "ingested": ingested, "checkpoints": rows}
 
-    @app.get("/api/ingest/status")
-    def ingest_status():
+    def _store_status(with_mark: bool = False) -> dict:
         con = _con()
         try:
-            return store.ingest_status(settings.runs_dir, con, settings.db_path)
+            return store.ingest_status(settings.runs_dir, con, settings.db_path, with_mark=with_mark)
         finally:
             if con:
                 con.close()
+
+    def _run_ingest() -> tuple[bool, str]:
+        """The `lrae ingest` subprocess; the caller holds ``ingest_lock``."""
+        try:
+            proc = subprocess.run([*INGEST_CMD, str(settings.runs_dir)] if INGEST_CMD[-1] == "ingest" else INGEST_CMD,
+                                  cwd=settings.repo_root, env=ingest_env(dict(os.environ)),
+                                  capture_output=True, text=True, timeout=600)
+        except subprocess.TimeoutExpired:
+            return False, "ingest timed out"
+        return proc.returncode == 0, scrub_paths((proc.stdout + proc.stderr)[-4000:], settings.repo_root, home)
+
+    auto = (AutoIngest(status_fn=lambda: _store_status(with_mark=True), run_fn=_run_ingest, lock=ingest_lock)
+            if settings.auto_ingest else None)
+    if auto is not None:
+        background.append(auto)
+
+    @app.get("/api/ingest/status")
+    def ingest_status():
+        st = _store_status()
+        st["auto"] = auto.state() if auto is not None else {"enabled": False}
+        return st
 
     @app.post("/api/ingest")
     def ingest():
         if not ingest_lock.acquire(blocking=False):
             return JSONResponse({"ok": False, "output": "an ingest is already running"}, status_code=409)
         try:
-            proc = subprocess.run([*INGEST_CMD, str(settings.runs_dir)] if INGEST_CMD[-1] == "ingest" else INGEST_CMD,
-                                  cwd=settings.repo_root, env=ingest_env(dict(os.environ)),
-                                  capture_output=True, text=True, timeout=600)
-            out = scrub_paths((proc.stdout + proc.stderr)[-4000:], settings.repo_root, home)
-            return JSONResponse({"ok": proc.returncode == 0, "output": out},
-                                status_code=200 if proc.returncode == 0 else 500)
-        except subprocess.TimeoutExpired:
-            return JSONResponse({"ok": False, "output": "ingest timed out"}, status_code=500)
+            ok, out = _run_ingest()
         finally:
             ingest_lock.release()
+        return JSONResponse({"ok": ok, "output": out}, status_code=200 if ok else 500)
 
     from ui_server.routes import register_all
     register_all(app, settings)  # phase route modules (ui_server/routes/*.py)

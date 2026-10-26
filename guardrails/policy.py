@@ -16,7 +16,7 @@ simulated inside one command (``cd x && cat ../..``) and across commands via ``t
 
 Decisions (also see the module report):
 * Order of classification: agent memory (exempt) → WORK (allowed) → REPO (harness-access) →
-  home-secrets → anything else under the real HOME (other-outside) → system dirs (allowed) →
+  reads of the agent's own state dir (own-transcript, a warning; writes fall through, D-26) → home-secrets → anything else under the real HOME (other-outside) → system dirs (allowed) →
   everything else (other-outside, a warning).
 * Allowed without a warning: /usr, /bin, /sbin, /lib*, /opt, /etc, /dev, /System, /Library,
   /Applications, /private/etc, and the temp dirs /tmp, /private/tmp, /var/folders (scratch space;
@@ -47,9 +47,24 @@ SYSTEM_ALLOW = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/opt", "/etc", "/dev
                 "/Library", "/Applications", "/private/etc", "/tmp", "/private/tmp",
                 "/var/folders", "/private/var/folders")
 _GLOB_CHARS = set("*?[")
+# Bash commands that change their path arguments (for read-only rules such as own-transcript). `cp` and
+# `rsync` are not here: copying the agent's own transcript out is a read; a copy into its state dir is
+# logged, not killed (D-26).
+_WRITE_CMDS = {"rm", "rmdir", "mv", "tee", "truncate", "touch", "ln", "dd", "install", "shred", "unlink",
+               "chmod", "chown", "mkdir"}
+_REDIRECTS = {">", ">>", ">|", "&>", "&>>", "1>", "2>"}
 _PATHISH = re.compile(r"""(?<![\w./:-])(?:~[\w.-]*|\$\{HOME\}|\$HOME|/)[^\s'"`;|&<>()=,:]*""")
 _VAR = re.compile(r"\$\{(\w+)\}|\$(\w+)")
 _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\2")   # not a here-string (<<<)
+
+
+def _top_level_exists(name: str, glob: bool) -> bool:
+    if not glob:
+        return os.path.exists("/" + name)
+    try:
+        return any(fnmatch.fnmatchcase(e, name) for e in os.listdir("/"))
+    except OSError:
+        return True
 
 
 def split_heredocs(command: str) -> tuple[str, str]:
@@ -117,7 +132,8 @@ def load_policy(path: Path | str) -> Policy:
     doc = yaml.safe_load(raw) or {}
     rules = []
     for rule in doc.get("forbidden_commands", []):
-        rules.append({**rule, "_re": re.compile(rule["pattern"])})
+        rules.append({**rule, "_re": re.compile(rule["pattern"]),
+                      "_body_re": re.compile(rule["body_pattern"], re.M) if rule.get("body_pattern") else None})
     return Policy(
         forbidden_commands=tuple(rules),
         out_of_workspace=tuple(doc.get("out_of_workspace", [])),
@@ -203,7 +219,7 @@ class BoundPolicy:
             roots = [_real(match[len("outside:"):])]
         exc = self._roots(self._expand(str(rule["except"]), subst)) if rule.get("except") else []
         return {"id": rule["id"], "severity": rule["severity"], "action": rule["action"],
-                "outside": outside, "roots": roots, "except": exc}
+                "outside": outside, "roots": roots, "except": exc, "reads_only": bool(rule.get("reads_only"))}
 
     # -- command channel -------------------------------------------------------------------
     def check_tool_call(self, tool: str, tool_input: dict, cwd: Path) -> list[Violation]:
@@ -218,19 +234,22 @@ class BoundPolicy:
         if tool == "Bash":
             command = str(tool_input.get("command", ""))
             norm = " ".join(command.split())
-            shell_norm = " ".join(split_heredocs(command)[0].split())
+            shell, bodies = split_heredocs(command)
+            shell_norm = " ".join(shell.split())
             for rule in self.policy.forbidden_commands:
                 m = rule["_re"].search(shell_norm if rule.get("scope") == "shell" else norm)
+                if not m and rule["_body_re"] is not None:
+                    m = rule["_body_re"].search(bodies)
                 if m:
                     add(Violation(rule["id"], rule["severity"], rule["action"], "command",
                                   f"{m.group(0)!r} in {norm[:300]!r}"))
             add(self._rm_root_by_path(norm, command, cwd_s))
-            for token, tcwd, _rm in self._bash_paths(command, cwd_s):
-                add(self._classify(token, tcwd, f"Bash: {norm[:300]}"))
+            for token, tcwd, _rm, write in self._bash_paths(command, cwd_s):
+                add(self._classify(token, tcwd, f"Bash: {norm[:300]}", write=write))
         elif tool in FILE_TOOLS:
             for key in FILE_TOOLS[tool]:
                 if tool_input.get(key):
-                    add(self._classify(str(tool_input[key]), cwd_s, f"{tool}.{key}"))
+                    add(self._classify(str(tool_input[key]), cwd_s, f"{tool}.{key}", write=tool != "Read"))
         elif tool == "Glob":
             base = str(tool_input.get("path") or cwd_s)
             if tool_input.get("path"):
@@ -304,7 +323,7 @@ class BoundPolicy:
                 break
             static.append(c)
         base = _real("/".join(static) or "/")
-        pattern = os.path.normpath(base + "/" + "/".join(rest))
+        pattern = "/" + os.path.normpath(base + "/" + "/".join(rest)).lstrip("/")  # normpath keeps a leading //
         prefix = []
         for c in pattern.split("/"):
             if _GLOB_CHARS & set(c):
@@ -328,7 +347,11 @@ class BoundPolicy:
     def _in(self, path: str, glob: bool, root: str) -> bool:
         return self._glob_hits(path, root) if glob else _under(path, root)
 
-    def _classify(self, token: str, cwd: str, evidence: str) -> Violation | None:
+    def _classify(self, token: str, cwd: str, evidence: str, write: bool = False) -> Violation | None:
+        """``write``: the access may change the path. A ``reads_only`` rule (own-transcript) then does not
+        apply and the path falls through to the next rule (home-secrets); for a glob it applies only when
+        the static prefix is inside its root, so a pattern that also names other projects is not a read
+        of the agent's own state."""
         path, glob, prefix = self._resolve(token, cwd)
         if not path:
             return None
@@ -340,6 +363,9 @@ class BoundPolicy:
         for rule in self._rules:
             if rule["outside"]:
                 continue
+            if rule["reads_only"]:
+                if write or not any(_under(prefix, r) for r in rule["roots"]):
+                    continue
             if any(self._in(path, glob, r) for r in rule["roots"]):
                 if not glob and any(_under(path, e) for e in rule["except"]):
                     continue
@@ -351,15 +377,15 @@ class BoundPolicy:
             pass
         elif any(_under(path, s) for s in SYSTEM_ALLOW):
             return None
-        elif path == "/":
-            return None  # the root itself (`ls /`, a `/` operator in code); rm of / has its own rule
-        elif not os.path.exists("/" + path.split("/")[1]):
-            return None  # e.g. an HTTP route like /api/export: no such top-level dir
+        elif path == "/" or (glob and path.count("/") == 1 and set(path[1:]) <= {"*"}):
+            return None  # the root itself (`ls /`, `/*`, a `/` operator or C comment); rm of / has its own rule
+        elif not _top_level_exists(path.split("/")[1], glob):
+            return None  # e.g. an HTTP route like /api/export, or `t/500*1000` in code: no such top-level dir
         return Violation(outside["id"], outside["severity"], outside["action"], "command", ev)
 
     # -- helpers: bash text ------------------------------------------------------------------
     def _scan(self, command: str, cwd: str):
-        """-> ([(path-like token, cwd in effect, is_rm_arg)], final cwd); ``cd`` is simulated."""
+        """-> ([(path-like token, cwd in effect, is_rm_arg, may_write)], final cwd); ``cd`` is simulated."""
         shell, _bodies = split_heredocs(command)
         shell = shell.replace("\n", " ;\n")  # a newline ends a command, like ';'
         try:
@@ -370,15 +396,21 @@ class BoundPolicy:
         except ValueError:
             tokens = [t.strip("'\"") for t in re.split(r"[\s;&|<>()`]+", shell) if t.strip("'\"")]
         cur = prev = cwd
-        items: list[tuple[str, str, bool]] = []
+        items: list[tuple[str, str, bool, bool]] = []
         seg: list[str] = []
         expect_cd = False
+        redirect = False
 
         for tok in tokens:
+            if tok in _REDIRECTS or (tok and set(tok) <= set(">&|") and ">" in tok and tok not in ("|", "||")):
+                if expect_cd:
+                    cur, prev = self.home, cur
+                expect_cd, redirect = False, True   # the next word is the redirect target; the command goes on
+                continue
             if tok and set(tok) <= set(";&|<>()"):
                 if expect_cd:  # bare `cd` goes home
                     cur, prev = self.home, cur
-                seg, expect_cd = [], False
+                seg, expect_cd, redirect = [], False, False
                 continue
             if tok == "`":
                 seg, expect_cd = [], False
@@ -391,7 +423,7 @@ class BoundPolicy:
                 if tok.startswith("-"):
                     continue
                 expect_cd = False
-                items.append((tok, cur, False))
+                items.append((tok, cur, False, False))
                 new = self._cd_target(tok, cur)
                 if new:
                     cur, prev = new, cur
@@ -400,17 +432,30 @@ class BoundPolicy:
                 seg.append(tok)
                 expect_cd = True
                 continue
+            if redirect:
+                redirect = False
+                for cand in self._candidates(tok):
+                    items.append((cand, cur, False, True))
+                continue
             seg.append(tok)
             is_rm = any(os.path.basename(w) == "rm" for w in seg[:3]) and tok != seg[0]
+            cmd = next((os.path.basename(w) for w in seg if w not in ("sudo", "env") and "=" not in w), "")
+            write = tok != seg[0] and (is_rm or cmd in _WRITE_CMDS
+                                       or (cmd in ("sed", "perl") and any(w.startswith("-i") for w in seg)))
             for cand in self._candidates(tok):
-                items.append((cand, cur, is_rm))
+                items.append((cand, cur, is_rm, write))
         if expect_cd:
             cur = self.home
         # regex pass over the raw text (heredoc bodies included): absolute / home paths hidden
-        # inside quotes, assignments or scripts
-        for m in _PATHISH.finditer(command):
-            if m.group(0) != "/":
-                items.append((m.group(0), cur, False))
+        # inside quotes, assignments or scripts. A body is never tilde-expanded by the shell, so there
+        # only ``~/...`` counts (a script may expanduser it); a bare ``~`` or ``~x`` is prose or ``~mask``.
+        seen = {it[0] for it in items}   # already classified with its command context (e.g. as a write)
+        for text, in_body in ((shell, False), (_bodies, True)):
+            for m in _PATHISH.finditer(text):
+                tok = m.group(0)
+                if tok == "/" or tok in seen or (in_body and tok.startswith("~") and not tok.startswith("~/")):
+                    continue
+                items.append((tok, cur, False, False))
         return items, cur
 
     def _bash_paths(self, command: str, cwd: str):
@@ -443,7 +488,7 @@ class BoundPolicy:
         rule = next((r for r in self.policy.forbidden_commands if r["id"] == "rm-rf-root"), None)
         if rule is None:
             return None
-        for tok, tcwd, is_rm in self._bash_paths(command, cwd):
+        for tok, tcwd, is_rm, _write in self._bash_paths(command, cwd):
             if not is_rm:
                 continue
             path, _glob, _prefix = self._resolve(tok.rstrip("*").rstrip("/") or "/", tcwd)

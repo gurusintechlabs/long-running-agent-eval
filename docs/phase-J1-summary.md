@@ -117,3 +117,9 @@ and `lrae.cr.lexical`).
 6. **Proposed spec decision amendment (D-19):** counterparts may include external stdio MCP servers the
    harness registers but does not implement (REA). Approved in conversation; to be written into
    `docs/spec.md`.
+7. **Decision-number collision (found merging main, 2026-10-26).** "D-19" in this track means the behaviour
+   track's counterparts decision (`docs/behavior-design.md` §10, still a proposal). `docs/spec.md` on main
+   has since confirmed D-19 as the local management UI server, and D-20 as Node as a UI build dependency.
+   Proposal: give the counterparts decision, and its J1 extension to external MCP servers, a new number
+   (next free in `docs/spec.md`: D-28). Not renumbered here: spec decisions change only with owner
+   approval.

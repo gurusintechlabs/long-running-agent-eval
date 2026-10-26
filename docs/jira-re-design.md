@@ -283,5 +283,7 @@ Resolved (owner, 2026-10-23):
 - J1 approved, including the D-19 extension for external MCP servers.
 
 Open:
+0. Decision numbering: this doc's "D-19" is the behaviour track's counterparts decision, but
+   `docs/spec.md` now uses D-19 for the UI server. Proposed: renumber it as D-28 (phase-J1-summary item 7).
 1. Approve J2 (two roles) as a spec amendment (D-18, single-workspace assumption).
 2. Real-Jira behaviour tests: the install smoke check first, or wait (§7.3)?

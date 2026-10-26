@@ -63,6 +63,7 @@ class Target:
     plugin_key: str | None = None
     pom_name: str | None = None                              # the embedded pom used, if any
     vendor_deps: list[str] = field(default_factory=list)    # the vendor's own modules, not primed
+    exclusions: list[str] = field(default_factory=list)     # group:artifact no repository serves
 
 
 def _local(tag: str) -> str:
@@ -200,7 +201,8 @@ def load(target_file: Path = TARGET, seed: Path = SEED) -> Target:
     own = [d for d in deps if vendor and (d.group == vendor or d.group.startswith(vendor + "."))]
     return Target(jar=jar, jira_version=jira, amps_version=amps, java_release=java, sources=sources,
                   original_deps=[d for d in deps if d not in own], skipped_deps=skipped, plugin_key=key,
-                  pom_name=pom_name, vendor_deps=[d.coords for d in own])
+                  pom_name=pom_name, vendor_deps=[d.coords for d in own],
+                  exclusions=sorted({str(x) for x in cfg.get("maven_exclusions") or []}))
 
 
 def render_seed_pom(text: str, t: Target) -> str:
@@ -211,4 +213,24 @@ def render_seed_pom(text: str, t: Target) -> str:
         if not pat.search(text):
             raise SystemExit(f"seed pom.xml has no <{prop}> property")
         text = pat.sub(lambda m, v=value: f"{m.group(1)}{v}{m.group(2)}", text, count=1)
-    return text
+    return _render_exclusions(text, t.exclusions)
+
+
+_EXCL = re.compile(r"(<!-- pinned exclusions:.*?-->\s*<exclusions>)(.*?)(\n(\s*)</exclusions>)", re.S)
+
+
+def exclusions_xml(exclusions: list[str], indent: str) -> str:
+    out = ""
+    for ga in exclusions:
+        g, a = ga.split(":", 1)
+        out += (f"\n{indent}    <exclusion>\n{indent}        <groupId>{g}</groupId>\n"
+                f"{indent}        <artifactId>{a}</artifactId>\n{indent}    </exclusion>")
+    return out
+
+
+def _render_exclusions(text: str, exclusions: list[str]) -> str:
+    """Pin ``exclusions`` (``group:artifact``) into the marked ``<exclusions>`` of the seed's jira-api."""
+    m = _EXCL.search(text)
+    if not m:
+        raise SystemExit("seed pom.xml has no pinned <exclusions> block on jira-api")
+    return text[:m.start(2)] + exclusions_xml(exclusions, m.group(4)) + text[m.end(2):]

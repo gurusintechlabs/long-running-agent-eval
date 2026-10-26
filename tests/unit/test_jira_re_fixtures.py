@@ -236,3 +236,51 @@ def test_availability_check_fails_loudly_on_network_errors(monkeypatch):
     assert prime_maven_repo._url_exists("https://x/a/gone-1.pom") is False
     with pytest.raises(RuntimeError, match="cannot reach"):
         prime_maven_repo._url_exists("https://x/a/tls-1.pom")
+
+
+# --- found priming the real jar (2026-10-26): Jira 9.12's poms pull artifacts no public repository has ---
+
+MAVEN_MISSING = """[ERROR] Failed to execute goal on project cleanroom-plugin: Could not resolve dependencies
+[ERROR] dependency: commons-httpclient:commons-httpclient:jar:3.1-jenkins-3 (provided)
+[ERROR] \tCould not find artifact commons-httpclient:commons-httpclient:jar:3.1-jenkins-3 in atlassian-external (https://x/)
+[ERROR] \tCould not find artifact commons-httpclient:commons-httpclient:jar:3.1-jenkins-3 in central (https://y/)
+[ERROR] \tCould not find artifact jndi:jndi:jar:1.2.1 in central (https://y/)
+"""
+
+
+def test_missing_artifacts_are_parsed_from_maven_output():
+    import prime_maven_repo
+    assert prime_maven_repo.missing_artifacts(MAVEN_MISSING) == ["commons-httpclient:commons-httpclient", "jndi:jndi"]
+    assert prime_maven_repo.missing_artifacts("[INFO] BUILD SUCCESS") == []
+    cached = ("[ERROR] \tjndi:jndi:jar:1.2.1 was not found in https://y/ during a previous attempt. This failure was"
+              " cached in the local repository\n[ERROR] \tcommons-httpclient:commons-httpclient:jar:3.1-jenkins-3 was"
+              " not found in https://x/ during a previous attempt.")
+    assert prime_maven_repo.missing_artifacts(cached) == ["jndi:jndi", "commons-httpclient:commons-httpclient"]
+
+
+def test_exclusions_are_pinned_into_the_seed_pom_idempotently(tmp_path):
+    import xml.etree.ElementTree as ET
+
+    import jira_target
+    t = jira_target.load(*_target(tmp_path, maven_exclusions=["jndi:jndi", "commons-httpclient:commons-httpclient"]))
+    assert t.exclusions == ["commons-httpclient:commons-httpclient", "jndi:jndi"]
+    once = jira_target.render_seed_pom((SEED / "pom.xml").read_text(), t)
+    assert jira_target.render_seed_pom(once, t) == once
+    root = ET.fromstring(once)
+    ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+    api = [d for d in root.iterfind(".//m:dependency", ns) if d.findtext("m:artifactId", namespaces=ns) == "jira-api"][0]
+    excl = sorted(f"{e.findtext('m:groupId', namespaces=ns)}:{e.findtext('m:artifactId', namespaces=ns)}"
+                  for e in api.iterfind("m:exclusions/m:exclusion", ns))
+    assert excl == ["commons-httpclient:commons-httpclient", "jndi:jndi"]
+    none = jira_target.render_seed_pom(once, jira_target.load(*_target(tmp_path / "b")))
+    assert "<exclusion>" not in none                          # cleared again when the list is empty
+
+
+def test_priming_pom_applies_exclusions_to_added_dependencies():
+    import jira_target
+    import prime_maven_repo
+    out = prime_maven_repo.priming_pom((SEED / "pom.xml").read_text(),
+                                       [jira_target.Dep("com.atlassian.jira", "jira-core", "9.12.0")],
+                                       exclusions=["jndi:jndi"])
+    core = out[out.index("<artifactId>jira-core</artifactId>"):]
+    assert "<groupId>jndi</groupId>" in core[:core.index("</dependency>")]

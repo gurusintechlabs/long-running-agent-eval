@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, useAsync, type IngestResult } from "../api";
 import { useDataVersion } from "./DataVersion";
 import "./app.css";
@@ -57,18 +57,60 @@ export function IngestResultView({ result, failure, onDismiss }: { result: Inges
   );
 }
 
-/** Banner shown while metrics.sqlite is out of date with the logs on disk (working rule 5: logs win). */
+const STATUS_POLL_MS = 5000;
+
+/**
+ * Keeps every open view in step with metrics.sqlite. When the store file changes (the server's
+ * auto-ingest or anyone's re-ingest finished), bump the data version: views re-fetch in the background
+ * and keep showing their data meanwhile, so there is nothing to refresh by hand.
+ */
+function useStoreFollow(storeEpoch: number | null | undefined) {
+  const { bump } = useDataVersion();
+  const seen = useRef<number | null | undefined>(undefined);
+  useEffect(() => {
+    if (storeEpoch === undefined) return;
+    if (seen.current !== undefined && storeEpoch !== seen.current) bump();
+    seen.current = storeEpoch;
+  }, [storeEpoch, bump]);
+}
+
+/**
+ * With auto-ingest (the default for `lrae ui`) this shows only when the background ingest failed. Without
+ * it (`lrae ui --no-auto-ingest` or an older server) it is the stale-store banner with the re-ingest
+ * button (working rule 5: logs win).
+ */
 export function IngestBanner() {
-  const { version } = useDataVersion();
-  const status = useAsync((s) => api.ingestStatus(s), [version], () => 15000);
+  const status = useAsync((s) => api.ingestStatus(s), [], () => STATUS_POLL_MS);
   const ing = useIngest();
   const st = status.data;
+  useStoreFollow(st?.store_epoch);
 
-  if (!st?.stale && !ing.result && !ing.failure && !ing.running) return null;
+  const auto = st?.auto?.enabled === true;
+  const autoFailed = auto && st?.auto?.last_ok === false;
+  const showStale = !!st && ((st.stale && !auto) || autoFailed);
+  if (!showStale && !ing.result && !ing.failure && !ing.running) return null;
 
   return (
     <div className="banner-wrap">
-      {(st?.stale || ing.running) && st && (
+      {autoFailed && st && (
+        <div className="banner banner-warn" role="status">
+          <div>
+            <strong>Updating the metrics store failed.</strong>{" "}
+            <span>
+              The server re-ingests by itself when new scores land; the last attempt failed. {st.runs_in_store} of {st.runs_on_disk} runs are in
+              the store. It tries again when the logs change, or you can retry now.
+            </span>
+            {st.auto?.last_error && (
+              <details>
+                <summary>Output</summary>
+                <pre>{st.auto.last_error}</pre>
+              </details>
+            )}
+          </div>
+          <IngestButton running={ing.running} label="Retry now" onClick={() => void ing.run().then(status.reload)} />
+        </div>
+      )}
+      {!auto && (st?.stale || ing.running) && st && (
         <div className="banner banner-warn" role="status">
           <div>
             <strong>The metrics store is out of date.</strong>{" "}

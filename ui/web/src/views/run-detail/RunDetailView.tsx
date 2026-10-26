@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ApiError, api, useAsync } from "../../api";
-import { useDataVersion } from "../../app/DataVersion";
 import { IngestButton, IngestResultView, useIngest } from "../../app/IngestBanner";
 import { Card, ErrorState, Spinner } from "../../components";
 import { CheckpointsTab } from "./checkpoints/CheckpointsTab";
@@ -17,6 +16,7 @@ import { TranscriptTab } from "./transcript/TranscriptTab";
 import { SafetyPanel } from "../live";
 import "./run-detail.css";
 import "./run-detail-u3.css";
+import { JudgesTab } from "./judges/JudgesTab";
 
 const REFRESH_MS = 4000;
 
@@ -24,9 +24,8 @@ export function RunDetailView() {
   const { runId = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const tab: TabId = isTab(params.get("tab")) ? (params.get("tab") as TabId) : "overview";
-  const { version } = useDataVersion();
-  const detailQ = useAsync((s) => api.run(runId, s), [runId, version], (d) => (d?.run.live ? REFRESH_MS : null));
-  const cpQ = useAsync((s) => api.checkpoints(runId, s), [runId, version], () => (detailQ.data?.run.live ? REFRESH_MS : null));
+  const detailQ = useAsync((s) => api.run(runId, s), [runId], (d) => (d?.run.live ? REFRESH_MS : null));
+  const cpQ = useAsync((s) => api.checkpoints(runId, s), [runId], () => (detailQ.data?.run.live ? REFRESH_MS : null));
   const ing = useIngest();
 
   useEffect(() => {
@@ -104,8 +103,9 @@ export function RunDetailView() {
           </>
         )}
 
-        {tab === "timeline" && <TimelineTab runId={runId} live={live} version={version} />}
-        {tab === "tests" && <TestsTab runId={runId} version={version} onReingest={() => void ing.run()} reingesting={ing.running} />}
+        {tab === "timeline" && <TimelineTab runId={runId} live={live} />}
+        {tab === "tests" && <TestsTab runId={runId} onReingest={() => void ing.run()} reingesting={ing.running} />}
+        {tab === "judges" && <JudgesTab runId={runId} live={live} />}
         {tab === "transcript" && <TranscriptTab runId={runId} live={live} />}
         {tab === "events" && <EventsTab runId={runId} live={live} />}
         {tab === "checkpoints" && (

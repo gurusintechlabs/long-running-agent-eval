@@ -1,10 +1,44 @@
 import { useMemo } from "react";
-import type { CheckpointRow } from "../../api";
+import { Link } from "react-router-dom";
+import { JUDGE_METRICS, type CheckpointRow } from "../../api";
 import { Badge, Card, EmptyState, Table, type Column } from "../../components";
 import { EMPTY, formatDuration, formatNumber, shortSha } from "../../lib/format";
 import { CORE_METRICS, metricLabel } from "../../lib/metrics";
+import "./judges/judges.css";
 
-export function CheckpointsTable({ checkpoints, ingested, onOpen }: { checkpoints: CheckpointRow[]; ingested: boolean; onOpen?: (k: number) => void }) {
+/** The judges' verdicts at checkpoint ``c`` in a few badges, from the metric values (details are on the Judges tab). */
+function JudgeSummary({ c }: { c: CheckpointRow }) {
+  const m = c.metrics;
+  const n = (name: string) => (typeof m[name] === "number" ? (m[name] as number) : null);
+  const x = n(JUDGE_METRICS.x);
+  const fid = n(JUDGE_METRICS.fidelity);
+  const drift = n(JUDGE_METRICS.drift) ?? 0;
+  const mis = n(JUDGE_METRICS.misstatements) ?? 0;
+  const tac = n(JUDGE_METRICS.tactics) ?? 0;
+  if (x == null && fid == null) return <>{EMPTY}</>;
+  return (
+    <span className="jd-row-chips">
+      {x != null && <Badge tone={x > 0 ? "warn" : "ok"} plain title="Quality judge: contradictions (X)">X {formatNumber(x, 1)}</Badge>}
+      {fid != null && <Badge tone="info" plain title="Goal observer: fidelity">fid {formatNumber(fid, 2)}</Badge>}
+      {drift > 0 && <Badge tone="warn" plain title="Goal observer: drift items">{drift} drift</Badge>}
+      {mis > 0 && <Badge tone="bad" plain title="Prose-claims audit: misstatements">{mis} misstated</Badge>}
+      {tac > 0 && <Badge tone="bad" plain title="Manipulation check: tactics">{tac} tactic{tac === 1 ? "" : "s"}</Badge>}
+    </span>
+  );
+}
+
+export function CheckpointsTable({
+  checkpoints,
+  ingested,
+  onOpen,
+  judgesHref,
+}: {
+  checkpoints: CheckpointRow[];
+  ingested: boolean;
+  onOpen?: (k: number) => void;
+  /** Link to this checkpoint on the Judges tab; adds the judge summary column. */
+  judgesHref?: (k: number) => string;
+}) {
   const columns = useMemo(() => {
     const cols: Column<CheckpointRow>[] = [
       { key: "k", header: "k", numeric: true, sortValue: (c) => c.k, render: (c) => `t${c.k}` },
@@ -32,6 +66,19 @@ export function CheckpointsTable({ checkpoints, ingested, onOpen }: { checkpoint
         });
       }
     }
+    if (ingested && judgesHref && checkpoints.some((c) => JUDGE_METRICS.x in c.metrics || JUDGE_METRICS.fidelity in c.metrics)) {
+      cols.push({
+        key: "judges",
+        header: "Judges",
+        headerLabel: "What the LLM judges found",
+        render: (c) => (
+          <span className="jd-row-chips">
+            <JudgeSummary c={c} />
+            <Link to={judgesHref(c.k)} aria-label={`Judgements at checkpoint t${c.k}`}>details</Link>
+          </span>
+        ),
+      });
+    }
     if (onOpen) {
       cols.push({
         key: "open",
@@ -45,7 +92,7 @@ export function CheckpointsTable({ checkpoints, ingested, onOpen }: { checkpoint
       });
     }
     return cols;
-  }, [checkpoints, ingested, onOpen]);
+  }, [checkpoints, ingested, onOpen, judgesHref]);
 
   return (
     <Card title={`Checkpoints (${checkpoints.length})`} flush>

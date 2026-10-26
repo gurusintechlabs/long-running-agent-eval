@@ -30,7 +30,7 @@ def cmd_ui(a) -> int:
     runs_dir = Path(a.runs_dir).resolve() if a.runs_dir else repo / "runs"
     token = new_token()
     settings = Settings(repo_root=repo, runs_dir=runs_dir, token=token, port=a.port,
-                        web_dist=repo / "ui" / "web" / "dist")
+                        web_dist=repo / "ui" / "web" / "dist", auto_ingest=a.auto_ingest)
     url = launch_url(a.port, token)
     print(f"LRAE UI on {url}\n(local only; the token is new on every start)")
     if a.open:
@@ -46,4 +46,6 @@ def add_parsers(sp) -> None:
     u.add_argument("--runs-dir", default=None, help="default: <repo>/runs")
     u.add_argument("--open", dest="open", action="store_true", help="open the browser")
     u.add_argument("--no-open", dest="open", action="store_false")
+    u.add_argument("--no-auto-ingest", dest="auto_ingest", action="store_false",
+                   help="do not keep metrics.sqlite current in the background (re-ingest by hand)")
     u.set_defaults(func=cmd_ui, open=False)

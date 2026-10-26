@@ -203,18 +203,27 @@ def checkpoints(run_dir: Path, con: sqlite3.Connection | None, rid: str) -> tupl
     return ingested, rows
 
 
-def ingest_status(runs_dir: Path, con: sqlite3.Connection | None, db_path: Path) -> dict:
+# Inputs whose change means new scores, stages or run states: these make the store stale. Other logs (the
+# agent stream, telemetry) grow all the time during a live run; they only set ``tail_newer``.
+KEY_LOGS = ("orchestrator.jsonl", "scorer.jsonl")
+
+
+def ingest_status(runs_dir: Path, con: sqlite3.Connection | None, db_path: Path, *, with_mark: bool = False) -> dict:
+    """Store freshness for the API. ``with_mark`` adds ``key_mark`` (newest key-input mtime, run count), the
+    auto-ingest's change fingerprint; it is internal and never sent to the browser."""
     runs = list_runs(runs_dir, con)
     on_disk = [r["run_id"] for r in runs]
     in_store = [r["run_id"] for r in runs if r["ingested"]]
     missing = [r for r in on_disk if r not in set(in_store)]
-    newest = 0.0
+    newest = newest_key = 0.0
     for r in on_disk:
         d = runs_dir / r
         for f in [d / "manifest.json", *(d / "events" / n for n in safefs.listdir(d / "events") if n.endswith(".jsonl"))]:
             st = safefs.stat_file(f)
             if st is not None:
                 newest = max(newest, st.st_mtime)
+                if f.name == "manifest.json" or f.name in KEY_LOGS:
+                    newest_key = max(newest_key, st.st_mtime)
     exists = db_path.is_file()
     store_epoch = db_path.stat().st_mtime if exists else None
     reason = None
@@ -222,11 +231,15 @@ def ingest_status(runs_dir: Path, con: sqlite3.Connection | None, db_path: Path)
         reason = "no metrics store yet"
     elif missing:
         reason = f"{len(missing)} run(s) are not in the store"
-    elif store_epoch is not None and newest > store_epoch:
-        reason = "run logs are newer than the store"
-    return {"store_exists": exists, "stale": reason is not None, "reason": reason,
-            "runs_on_disk": len(on_disk), "runs_in_store": len(in_store), "missing_from_store": missing,
-            "store_epoch": store_epoch, "newest_log_epoch": newest or None}
+    elif store_epoch is not None and newest_key > store_epoch:
+        reason = "scores or run states are newer than the store"
+    out = {"store_exists": exists, "stale": reason is not None, "reason": reason,
+           "runs_on_disk": len(on_disk), "runs_in_store": len(in_store), "missing_from_store": missing,
+           "store_epoch": store_epoch, "newest_log_epoch": newest or None,
+           "tail_newer": bool(store_epoch is not None and newest > store_epoch)}
+    if with_mark:
+        out["key_mark"] = [newest_key or None, len(on_disk)]
+    return out
 
 
 def experiments(runs: list[dict]) -> list[dict]:

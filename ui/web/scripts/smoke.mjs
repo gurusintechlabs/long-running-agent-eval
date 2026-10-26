@@ -85,7 +85,8 @@ async function startServer() {
   const py = process.env.LRAE_PYTHON ?? [path.join(repoRoot, ".venv/bin/python")].find(existsSync) ?? "python3";
   const port = await freePort();
   const runsDir = opt("runs-dir") ?? process.env.LRAE_RUNS_DIR ?? path.join(repoRoot, "runs");
-  const child = spawn(py, ["-u", "-m", "runner.cli", "ui", "--port", String(port), "--runs-dir", runsDir], {
+  // --no-auto-ingest: the smoke check only reads runs/ and must not rebuild its metrics.sqlite
+  const child = spawn(py, ["-u", "-m", "runner.cli", "ui", "--port", String(port), "--runs-dir", runsDir, "--no-auto-ingest"], {
     cwd: repoRoot,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -327,6 +328,7 @@ async function main() {
       const tabs = [
         { id: "timeline", ready: () => count("canvas"), marker: /Incidents \(/, label: "timeline chart and incident list" },
         { id: "tests", ready: async () => ((await count("canvas")) > 0 || /need ingest/.test(await text()) ? 1 : 0), marker: /Test outcomes|need ingest|No per-test data/, label: "test heatmap (or its not-ingested call to action)" },
+        { id: "judges", ready: async () => ((await count(".jd-cp")) > 0 || /No judgements yet|No judge ran/.test(await text()) ? 1 : 0), marker: /Judges|No judgements yet|No judge ran/, label: "judgements per checkpoint (or why there are none)" },
         { id: "transcript", ready: () => count(".tr-item"), marker: /Transcript/, label: "transcript items" },
         { id: "events", ready: () => count(".ev"), marker: /Events/, label: "event rows" },
         { id: "checkpoints", ready: () => count("tbody tr"), marker: /Checkpoints \(/, label: "checkpoints table" },

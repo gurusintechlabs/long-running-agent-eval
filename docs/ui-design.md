@@ -28,7 +28,7 @@ ui_server/   (Python, FastAPI + uvicorn; read-mostly)
 
 Rules:
 - **The server is a thin adapter.** It re-uses `analysis/` and `report/` functions for numbers and charts' data, and the `lrae` CLI for every action. It does not reimplement scoring, ingest or run control, so there is one code path.
-- **Metrics still come from logs (working rule 5).** SQLite stays a derived cache. The server reports its freshness (newest ingested event vs newest event on disk) and offers "re-ingest" when stale. Known today: the v3 runs are missing from `runs` in `metrics.sqlite`.
+- **Metrics still come from logs (working rule 5).** SQLite stays a derived cache. The server reports its freshness (newest ingested event vs newest event on disk) and keeps the store current by running `lrae ingest` itself when new scores land (auto-ingest, owner 2026-10-25; `--no-auto-ingest` falls back to the "re-ingest" button). Known today: the v3 runs are missing from `runs` in `metrics.sqlite`.
 - **Charts are drawn in the browser from JSON** (a small library such as uPlot or Recharts, decided in U2). The matplotlib PNGs remain for the PDF report.
 - **The server keeps no state.** Pending launches, UI preferences and review labels are files under `runs/` or `ui_state/` (gitignored), so deleting it loses nothing the logs do not have, except human review labels (which are written as append-only JSONL, rule 5).
 

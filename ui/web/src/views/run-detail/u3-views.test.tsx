@@ -39,7 +39,7 @@ describe("Tests tab", () => {
 
   it("shows summary, legend, heatmap, charts and the regressions list from the fixture", async () => {
     mockRoutes(route);
-    renderRoute(<TestsTab runId={RUN} version={0} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
+    renderRoute(<TestsTab runId={RUN} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
     await screen.findByRole("heading", { name: "Test outcomes" });
     expect(screen.getByRole("img", { name: /Test outcome heatmap: \d+ tests by 42 time points/ })).toBeInTheDocument();
     expect(screen.getByText("regressions", { selector: ".stat-l" })).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("Tests tab", () => {
 
   it("filters tests by tier and by id text", async () => {
     mockRoutes(route);
-    renderRoute(<TestsTab runId={RUN} version={0} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
+    renderRoute(<TestsTab runId={RUN} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
     await screen.findByText(`${testsFx.tests.length} shown`);
     await userEvent.type(screen.getByLabelText("Filter test id"), "zzz-no-such");
     expect(await screen.findByText("No tests match these filters")).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe("Tests tab", () => {
   it("offers re-ingest when the run is not in the store", async () => {
     mockRoutes(() => ({ body: { run_id: RUN, ingested: false, has_outcomes: false, suite: "hidden", suites: [], reason: "this run is not in metrics.sqlite yet; re-ingest to see test outcomes" } }));
     const onReingest = vi.fn();
-    renderRoute(<TestsTab runId={RUN} version={0} onReingest={onReingest} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
+    renderRoute(<TestsTab runId={RUN} onReingest={onReingest} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
     await screen.findByRole("heading", { name: "Test outcomes need ingest" });
     expect(screen.getByText(/re-ingest to see test outcomes/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Re-ingest now" }));
@@ -71,7 +71,7 @@ describe("Tests tab", () => {
 
   it("explains runs without per-test data", async () => {
     mockRoutes(() => ({ body: { ...clone(testsFx), has_outcomes: false, tests: [] } }));
-    renderRoute(<TestsTab runId={RUN} version={0} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
+    renderRoute(<TestsTab runId={RUN} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
     expect(await screen.findByText("No per-test data for this run")).toBeInTheDocument();
   });
 
@@ -80,7 +80,7 @@ describe("Tests tab", () => {
     bad.flips[0].test_id = HOSTILE;
     bad.flips[0].kind = "regression";
     mockRoutes(() => ({ body: bad }));
-    const { container } = renderRoute(<TestsTab runId={RUN} version={0} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
+    const { container } = renderRoute(<TestsTab runId={RUN} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
     await screen.findByRole("heading", { name: "Test outcomes" });
     expect(screen.getByText(HOSTILE)).toBeInTheDocument();
     expect(container.querySelector("img")).toBeNull();
@@ -88,7 +88,7 @@ describe("Tests tab", () => {
 
   it("shows an error with retry", async () => {
     mockRoutes(() => ({ status: 500, body: { detail: "boom" } }));
-    renderRoute(<TestsTab runId={RUN} version={0} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
+    renderRoute(<TestsTab runId={RUN} onReingest={() => {}} reingesting={false} />, `/runs/${RUN}`, "/runs/:runId");
     expect(await screen.findByText("Could not load test outcomes")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
@@ -97,7 +97,7 @@ describe("Tests tab", () => {
 describe("Timeline tab", () => {
   it("renders the chart, summary and an incident list whose links deep-link into the transcript", async () => {
     mockRoutes((p) => (p === `/runs/${RUN}/timeline` ? { body: timelineFx } : undefined));
-    renderRoute(<TimelineTab runId={RUN} live={false} version={0} />, `/runs/${RUN}?tab=timeline`, "/runs/:runId");
+    renderRoute(<TimelineTab runId={RUN} live={false} />, `/runs/${RUN}?tab=timeline`, "/runs/:runId");
     await screen.findByRole("heading", { name: "Run timeline" });
     expect(screen.getByText("killed")).toBeInTheDocument();
     expect(screen.getByTestId("chart")).toBeInTheDocument();
@@ -114,7 +114,7 @@ describe("Timeline tab", () => {
 
   it("clicking a chart marker navigates to its link", async () => {
     mockRoutes((p) => (p === `/runs/${RUN}/timeline` ? { body: timelineFx } : undefined));
-    renderRoute(<TimelineTab runId={RUN} live={false} version={0} />, `/runs/${RUN}?tab=timeline`, "/runs/:runId");
+    renderRoute(<TimelineTab runId={RUN} live={false} />, `/runs/${RUN}?tab=timeline`, "/runs/:runId");
     await userEvent.click(await screen.findByTestId("chart"));
     // the mocked chart reports a datum whose link leaves this route: the router shows the fallback
     expect(await screen.findByText("elsewhere")).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe("Timeline tab", () => {
     bad.hazards[0].evidence = HOSTILE;
     bad.guardrail.violations[0].evidence = HOSTILE;
     mockRoutes(() => ({ body: bad }));
-    const { container } = renderRoute(<TimelineTab runId={RUN} live={false} version={0} />, `/runs/${RUN}?tab=timeline`, "/runs/:runId");
+    const { container } = renderRoute(<TimelineTab runId={RUN} live={false} />, `/runs/${RUN}?tab=timeline`, "/runs/:runId");
     await screen.findByRole("heading", { name: "Run timeline" });
     expect(screen.getAllByText(new RegExp(HOSTILE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))).length).toBeGreaterThan(0);
     expect(container.querySelector("img")).toBeNull();
@@ -133,7 +133,7 @@ describe("Timeline tab", () => {
 
   it("shows an error state", async () => {
     mockRoutes(() => ({ status: 500, body: { detail: "x" } }));
-    renderRoute(<TimelineTab runId={RUN} live={false} version={0} />, `/runs/${RUN}?tab=timeline`, "/runs/:runId");
+    renderRoute(<TimelineTab runId={RUN} live={false} />, `/runs/${RUN}?tab=timeline`, "/runs/:runId");
     expect(await screen.findByText("Could not load the timeline")).toBeInTheDocument();
   });
 });
@@ -391,12 +391,12 @@ describe("Run detail tabs", () => {
       "/ingest/status": fx.ingestStatus,
     });
   }
-  it("shows six tabs, selects with the keyboard and keeps the active tab in the URL", async () => {
+  it("shows seven tabs, selects with the keyboard and keeps the active tab in the URL", async () => {
     routes();
     renderRoute(<RunDetailView />, `/runs/${RUN}`, "/runs/:runId");
     await screen.findByRole("tablist", { name: "Run sections" });
     const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Overview", "Timeline", "Tests", "Transcript", "Events", "Checkpoints"]);
+    expect(tabs.map((t) => t.textContent)).toEqual(["Overview", "Timeline", "Tests", "Judges", "Transcript", "Events", "Checkpoints"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     tabs[0].focus();
     await userEvent.keyboard("{ArrowRight}");

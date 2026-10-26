@@ -12,9 +12,9 @@ import { passRateOption, stageOption } from "./testCharts";
 
 const FLIPS_STEP = 100;
 
-export function TestsTab({ runId, version, onReingest, reingesting }: { runId: string; version: number; onReingest: () => void; reingesting: boolean }) {
+export function TestsTab({ runId, onReingest, reingesting }: { runId: string; onReingest: () => void; reingesting: boolean }) {
   const [suite, setSuite] = useState<string | undefined>(undefined);
-  const q = useAsync((s) => testsApi.get(runId, suite, s), [runId, suite, version]);
+  const q = useAsync((s) => testsApi.get(runId, suite, s), [runId, suite]);
   if (q.error && !q.data) return <Card><ErrorState title="Could not load test outcomes" error={q.error} onRetry={q.reload} /></Card>;
   if (!q.data) return <Spinner label="Loading test outcomes" />;
   const d = q.data;

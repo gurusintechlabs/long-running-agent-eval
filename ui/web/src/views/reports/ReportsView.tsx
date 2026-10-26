@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, compareApi, errInfo, useAsync, type RebuildResult, type ReportEntry, type ReportsResponse } from "../../api";
-import { useDataVersion } from "../../app/DataVersion";
 import { IngestButton, IngestResultView, useIngest } from "../../app/IngestBanner";
 import { Badge, Card, EmptyState, ErrorState, Spinner } from "../../components";
 import { ageLabel, formatDateTime } from "../../lib/format";
@@ -180,8 +179,7 @@ function ReportCard({
 }
 
 export function ReportsView() {
-  const { version } = useDataVersion();
-  const q = useAsync((s) => compareApi.reports(s), [version]);
+  const q = useAsync((s) => compareApi.reports(s), []);
   const [building, setBuilding] = useState<Building | null>(null);
   const ing = useIngest();
 

@@ -2,6 +2,7 @@ import { useSearchParams } from "react-router-dom";
 import type { CheckpointRow } from "../../../api";
 import { Card, ErrorState, Spinner } from "../../../components";
 import { CheckpointsTable } from "../CheckpointsTable";
+import { runTabUrl } from "../common/links";
 import { CheckpointDrawer } from "./CheckpointDrawer";
 
 export function CheckpointsTab({
@@ -39,7 +40,7 @@ export function CheckpointsTab({
   if (loading && checkpoints.length === 0) return <Spinner label="Loading checkpoints" />;
   return (
     <>
-      <CheckpointsTable checkpoints={checkpoints} ingested={ingested} onOpen={open} />
+      <CheckpointsTable checkpoints={checkpoints} ingested={ingested} onOpen={open} judgesHref={(n) => runTabUrl(runId, "judges", { k: n })} />
       {k != null && <CheckpointDrawer runId={runId} k={k} row={checkpoints.find((c) => c.k === k) ?? null} onClose={close} />}
     </>
   );

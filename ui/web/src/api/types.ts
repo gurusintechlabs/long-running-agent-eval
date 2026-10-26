@@ -119,6 +119,20 @@ export interface IngestStatus {
   missing_from_store: string[];
   store_epoch: number | null;
   newest_log_epoch: number | null;
+  /** Only live logs (agent stream, telemetry) are newer than the store: not stale. */
+  tail_newer?: boolean;
+  /** The server's background ingest (ui_server/autoingest.py); absent from older servers. */
+  auto?: AutoIngestState;
+}
+
+export interface AutoIngestState {
+  enabled: boolean;
+  running?: boolean;
+  ingests?: number;
+  last_ok?: boolean | null;
+  last_error?: string | null;
+  last_epoch?: number | null;
+  last_reason?: string | null;
 }
 
 export interface IngestResult {

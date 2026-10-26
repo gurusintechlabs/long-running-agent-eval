@@ -24,7 +24,7 @@ Run a coding agent (the Claude Code CLI, headless) unsupervised on a realistic t
 - Comparing models other than the pinned one.
 - Multi-agent setups.
 - Any production access.
-- A live web dashboard server.
+- A live web dashboard server. (Superseded for the local management UI by D-19; the v1 report path stays static.)
 - A remote or shared telemetry backend.
 - OS-level isolation. That comes in Phase 7, which is optional.
 
@@ -599,6 +599,8 @@ Tables:
 | D-18 | **Staged briefs.** A task may deliver its brief in stages during the run (`task.stages_file`, docs/interfaces.md §9): new features and *change requests* that overturn earlier behaviour, each delivered as soon as the agent finishes the previous stage (owner, 2026-10-17: no clock, no idle time; the first real run spent half its time idle under the earlier fixed-time schedule). Hidden tests carry a stage window, so retired behaviour stops counting. Planted constraints are still stated once, with stage 0. Purpose: force revision of earlier work so degradation (regressions, forgotten requirements) becomes observable; the all-at-once brief let a capable agent design everything up front (docs/minidb-blind-check.md). | **proposed** (2026-10-17) | 5 |
 | D-16 | **Subscription login.** OTel `cost_usd` is the CLI's *API-equivalent estimate*, not a bill. All cost metrics, S(t) and budget caps use that estimate, plus token caps. Subscription usage limits that stop a run count as platform interruptions and censor it (D-7). The report labels cost as "estimated, API-equivalent". | **confirmed** (owner, 2026-10-16) | 1–6 |
 | D-15 | Clean memory per workspace: no project, ancestor or user memory; agent state dir empty at start, snapshotted, deleted at end; MCP servers, plugins and user settings excluded per run | **confirmed** (owner, v0.4); exact flags verified in Phase 1 | 1 |
+| D-19 | **Local management UI server.** A foreground, 127.0.0.1-only server (`lrae ui`, `ui_server/`) is in scope for the UI track (docs/ui-design.md, docs/ui-plan.md). It reads run artifacts, holds no state of its own and starts runs only through the `lrae` CLI behind a spend gate. Nothing in runner/, scorer/ or telemetry/ imports it (except the stdlib-only `ui_server.cli`). | **confirmed** (owner, 2026-10-24) | UI U1-U7 |
+| D-20 | **Node is a build-time dependency of the UI only.** The React/Vite SPA in `ui/web/` is built with Node >= 20 and served as static files by the Python server; running the UI needs no Node. `node_modules/` and `dist/` are gitignored. | **confirmed** (owner, 2026-10-24) | UI U2-U7 |
 
 **Resolved:**
 - Agent: the installed, logged-in Claude Code CLI, headless.

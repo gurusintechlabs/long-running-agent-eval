@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import jira_target  # noqa: E402
 
 DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
+REPOSITORIES = ("https://maven.artifacts.atlassian.com/", "https://repo1.maven.org/maven2/")
 BOOKKEEPING = ("_remote.repositories", "resolver-status.properties", "maven-metadata-local.xml")
 
 
@@ -44,6 +45,33 @@ def run(cmd: list[str], cwd: Path, env: dict | None = None) -> None:
     res = subprocess.run(cmd, cwd=cwd, env=env)
     if res.returncode != 0:
         raise SystemExit(f"failed ({res.returncode}): {' '.join(cmd)}")
+
+
+def _url_exists(url: str) -> bool:
+    """HEAD through curl (the system trust store; python.org builds of Python on macOS ship without
+    root certificates). 2xx: exists; 404/410: missing; anything else, including TLS and network
+    errors, raises, because "unreachable" must never read as "missing"."""
+    res = subprocess.run(["curl", "-sIL", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "30", url],
+                         capture_output=True, text=True)
+    code = res.stdout.strip()
+    if res.returncode == 0 and code.startswith("2"):
+        return True
+    if res.returncode == 0 and code in ("404", "410"):
+        return False
+    raise RuntimeError(f"cannot reach {url}: curl exit {res.returncode}, HTTP {code or '-'}")
+
+
+def available(deps: list[jira_target.Dep], *, exists=_url_exists) -> tuple[list[jira_target.Dep], list[str]]:
+    """Split ``deps`` into those a public repository serves (by their ``.pom``) and those it does not
+    (private or internal artifacts: not primed, reported)."""
+    kept, dropped = [], []
+    for d in deps:
+        path = f"{d.group.replace('.', '/')}/{d.artifact}/{d.version}/{d.artifact}-{d.version}.pom"
+        if any(exists(base + path) for base in REPOSITORIES):
+            kept.append(d)
+        else:
+            dropped.append(d.coords)
+    return kept, dropped
 
 
 def priming_pom(seed_pom: str, deps: list[jira_target.Dep]) -> str:
@@ -98,9 +126,16 @@ def main() -> int:
 
     print(f"jira {t.jira_version} ({t.sources['jira_version']}), amps {t.amps_version} "
           f"({t.sources['amps_version']}), java release {t.java_release} ({t.sources['java_release']})")
-    print(f"original plugin dependencies to prime: {len(t.original_deps)}")
-    for d in t.original_deps:
+    print(f"embedded pom: {t.pom_name or '(none)'}")
+    print(f"vendor's own modules (rewritten, not primed): {len(t.vendor_deps)}")
+    for c in t.vendor_deps:
+        print(f"  {c}")
+    deps, missing = available(t.original_deps)
+    print(f"original plugin dependencies to prime: {len(deps)} of {len(t.original_deps)}")
+    for d in deps:
         print(f"  {d.coords} ({d.scope})")
+    for c in missing:
+        print(f"  not in a public repository, not primed: {c}")
     for s in t.skipped_deps:
         print(f"  skipped: {s}")
     print(f"repository: {m2}")
@@ -115,7 +150,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="lrae-prime-") as tmp:
         prime = Path(tmp) / "prime"
         shutil.copytree(jira_target.SEED, prime, ignore=ignore)
-        (prime / "pom.xml").write_text(priming_pom(seed_pom, t.original_deps))
+        (prime / "pom.xml").write_text(priming_pom(seed_pom, deps))
         online = [str(mvn), "-B", "-ntp", f"-Dmaven.repo.local={m2}"]
         run(online + ["package"], prime)
         run(online + [f"{DEPENDENCY_PLUGIN}:go-offline"], prime)

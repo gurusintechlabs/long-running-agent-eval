@@ -6,7 +6,13 @@ set there, otherwise from the Maven ``pom.xml`` that Atlassian plugin builds emb
 (``META-INF/maven/<group>/<artifact>/pom.xml``), otherwise from the defaults below (by Jira major).
 
 The embedded pom also lists the original's dependencies. Their non-test entries are primed into the
-offline repository (``prime_maven_repo.py``), so the rewrite can compile against the same APIs.
+offline repository (``prime_maven_repo.py``), so the rewrite can compile against the same APIs. The
+vendor's own modules (same organisation as the plugin, usually bundled inside the jar and published
+nowhere) are not: they are part of what the clean room rewrites.
+
+A jar can embed several poms (one per module it bundles); the plugin's own is the one with
+``atlassian-plugin`` packaging, else the one whose coordinates match the plugin key, else the one that
+sets Jira properties.
 """
 from __future__ import annotations
 
@@ -55,6 +61,8 @@ class Target:
     original_deps: list[Dep] = field(default_factory=list)
     skipped_deps: list[str] = field(default_factory=list)   # unresolvable versions, not primed
     plugin_key: str | None = None
+    pom_name: str | None = None                              # the embedded pom used, if any
+    vendor_deps: list[str] = field(default_factory=list)    # the vendor's own modules, not primed
 
 
 def _local(tag: str) -> str:
@@ -70,12 +78,24 @@ def _child_text(el: ET.Element | None, name: str) -> str | None:
     return None
 
 
-def embedded_pom(jar: Path) -> ET.Element | None:
+def embedded_pom(jar: Path, key: str | None = None) -> tuple[str | None, ET.Element | None]:
+    """The plugin's own embedded pom (see the module docstring) as ``(entry name, root)``."""
     with zipfile.ZipFile(jar) as z:
-        poms = sorted(n for n in z.namelist() if n.startswith("META-INF/maven/") and n.endswith("/pom.xml"))
-        if not poms:
-            return None
-        return ET.fromstring(z.read(poms[0]))
+        names = sorted(n for n in z.namelist() if n.startswith("META-INF/maven/") and n.endswith("/pom.xml"))
+        best: tuple[int, str, ET.Element] | None = None
+        for n in names:
+            try:
+                root = ET.fromstring(z.read(n))
+            except ET.ParseError:
+                continue
+            g, a = _child_text(root, "groupId") or "", _child_text(root, "artifactId") or ""
+            props = pom_properties(root)
+            score = (4 * (_child_text(root, "packaging") == "atlassian-plugin")
+                     + 2 * (bool(key) and key in (g, f"{g}.{a}"))
+                     + any(k.startswith("jira.") for k in props))
+            if best is None or score > best[0]:
+                best = (score, n, root)
+        return (best[1], best[2]) if best else (None, None)
 
 
 def pom_properties(pom: ET.Element) -> dict[str, str]:
@@ -100,6 +120,13 @@ def interpolate(value: str | None, props: dict[str, str]) -> str | None:
             break
         value = new
     return None if _PROP.search(value) else value
+
+
+def vendor_prefix(pom: ET.Element) -> str | None:
+    """The vendor's organisation: the first two segments of the plugin's groupId (``com.almworks``)."""
+    g = _child_text(pom, "groupId") or ""
+    parts = g.split(".")
+    return ".".join(parts[:2]) if len(parts) >= 2 else (g or None)
 
 
 def pom_dependencies(pom: ET.Element, props: dict[str, str]) -> tuple[list[Dep], list[str]]:
@@ -137,7 +164,8 @@ def load(target_file: Path = TARGET, seed: Path = SEED) -> Target:
     if not jar.is_file():
         raise SystemExit(f"{jar} does not exist")
 
-    pom = embedded_pom(jar)
+    key = plugin_key(jar)
+    pom_name, pom = embedded_pom(jar, key)
     props = pom_properties(pom) if pom is not None else {}
     sources: dict[str, str] = {}
 
@@ -153,7 +181,7 @@ def load(target_file: Path = TARGET, seed: Path = SEED) -> Target:
                 return got
         return None
 
-    jira = pick("jira_version", ("jira.version", "jira.data.version", "product.version"))
+    jira = pick("jira_version", ("jira.version", "jira.compile.version", "jira.data.version", "product.version"))
     if not jira:
         raise SystemExit("cannot tell the plugin's Jira version: the jar has no embedded pom with jira.version. "
                          f"Set 'jira_version:' in {target_file} (e.g. 10.3.26).")
@@ -168,8 +196,11 @@ def load(target_file: Path = TARGET, seed: Path = SEED) -> Target:
     java = java.removeprefix("1.") if java.startswith("1.") else java
 
     deps, skipped = pom_dependencies(pom, props) if pom is not None else ([], [])
+    vendor = vendor_prefix(pom) if pom is not None else None
+    own = [d for d in deps if vendor and (d.group == vendor or d.group.startswith(vendor + "."))]
     return Target(jar=jar, jira_version=jira, amps_version=amps, java_release=java, sources=sources,
-                  original_deps=deps, skipped_deps=skipped, plugin_key=plugin_key(jar))
+                  original_deps=[d for d in deps if d not in own], skipped_deps=skipped, plugin_key=key,
+                  pom_name=pom_name, vendor_deps=[d.coords for d in own])
 
 
 def render_seed_pom(text: str, t: Target) -> str:
@@ -179,5 +210,5 @@ def render_seed_pom(text: str, t: Target) -> str:
         pat = re.compile(rf"(<{re.escape(prop)}>)[^<]*(</{re.escape(prop)}>)")
         if not pat.search(text):
             raise SystemExit(f"seed pom.xml has no <{prop}> property")
-        text = pat.sub(lambda m: f"{m.group(1)}{value}{m.group(2)}", text, count=1)
+        text = pat.sub(lambda m, v=value: f"{m.group(1)}{v}{m.group(2)}", text, count=1)
     return text

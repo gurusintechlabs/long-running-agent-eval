@@ -26,9 +26,9 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "fixtures" / "tasks" / "jira_re" / "hidden"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import jira_target  # noqa: E402
 import yaml  # noqa: E402
 
-import jira_target  # noqa: E402
 from runner.seed import build_seed_repo  # noqa: E402
 
 TASK = REPO / "fixtures" / "tasks" / "jira_re"
@@ -76,7 +76,9 @@ def main() -> int:
         (staged / "pom.xml").write_text(new_pom)
         seed_sha = build_seed_repo(staged, Path(tmp) / "seed")
 
-    from _support import reference  # the hidden suite's reference inventory, built from the jar alone
+    from _support import (
+        reference,  # the hidden suite's reference inventory, built from the jar alone
+    )
     ref = reference(jar)
     print(f"jar:      {name}  ({jar.stat().st_size:,} bytes)")
     print(f"sha256:   {sha}")

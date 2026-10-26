@@ -166,3 +166,73 @@ def test_hidden_suite_on_a_synthetic_plugin(tmp_path):
     res = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"], cwd=TASK / "hidden",
                          env={"LRAE_WORKSPACE": str(ws), "PATH": "/usr/bin:/bin"}, capture_output=True, text=True)
     assert res.returncode == 0 and "F" not in res.stdout.splitlines()[0], res.stdout[-2000:]
+
+
+# --- found on the first real jar (2026-10-26): several embedded poms, jira.compile.version, vendor modules ---
+
+SUBMODULE_POM = """<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <groupId>com.acme.approvals</groupId><artifactId>aaa-helper</artifactId><version>1.4</version>
+</project>
+"""
+
+PLUGIN_POM = """<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <groupId>com.acme.approvals</groupId><artifactId>approvals</artifactId><version>1.4</version>
+  <packaging>atlassian-plugin</packaging>
+  <properties><jira.compile.version>9.12.0</jira.compile.version><amps.version>9.2.3</amps.version>
+    <sal.version>5.0.5</sal.version></properties>
+  <dependencies>
+    <dependency><groupId>com.atlassian.jira</groupId><artifactId>jira-api</artifactId>
+      <version>${jira.compile.version}</version><scope>provided</scope></dependency>
+    <dependency><groupId>com.atlassian.sal</groupId><artifactId>sal-api</artifactId><version>${sal.version}</version>
+      <scope>provided</scope></dependency>
+    <dependency><groupId>com.acme.approvals</groupId><artifactId>approvals-api</artifactId><version>1.4</version></dependency>
+    <dependency><groupId>com.acme.shared</groupId><artifactId>acme-commons</artifactId><version>3.0</version></dependency>
+  </dependencies>
+</project>
+"""
+
+
+def test_the_plugin_pom_wins_over_submodule_poms(tmp_path):
+    import jira_target
+    target, seed = _target(tmp_path)
+    with zipfile.ZipFile(seed / "vendor" / "approvals-1.4.jar", "w") as z:
+        z.writestr("META-INF/maven/com.acme.approvals/aaa-helper/pom.xml", SUBMODULE_POM)   # sorts first
+        z.writestr("META-INF/maven/com.acme.approvals/approvals/pom.xml", PLUGIN_POM)
+        z.writestr("atlassian-plugin.xml", '<atlassian-plugin key="com.acme.approvals"/>')
+    t = jira_target.load(target, seed)
+    assert t.pom_name == "META-INF/maven/com.acme.approvals/approvals/pom.xml"
+    assert (t.jira_version, t.amps_version, t.java_release) == ("9.12.0", "9.2.3", "11")
+    assert t.sources["jira_version"] == "embedded pom (jira.compile.version)"
+    # the vendor's own modules are part of what gets rewritten, never a dependency of the rewrite
+    assert [d.coords for d in t.original_deps] == ["com.atlassian.jira:jira-api:9.12.0", "com.atlassian.sal:sal-api:5.0.5"]
+    assert t.vendor_deps == ["com.acme.approvals:approvals-api:1.4", "com.acme.shared:acme-commons:3.0"]
+
+
+def test_priming_drops_dependencies_no_public_repository_has():
+    import jira_target
+    import prime_maven_repo
+    deps = [jira_target.Dep("com.atlassian.jira", "jira-api", "9.12.0"), jira_target.Dep("com.x", "private", "1")]
+    seen = []
+
+    def exists(url: str) -> bool:
+        seen.append(url)
+        return "private" not in url
+    kept, dropped = prime_maven_repo.available(deps, exists=exists)
+    assert [d.artifact for d in kept] == ["jira-api"] and dropped == ["com.x:private:1"]
+    assert any(u.endswith("com/atlassian/jira/jira-api/9.12.0/jira-api-9.12.0.pom") for u in seen)
+
+
+def test_availability_check_fails_loudly_on_network_errors(monkeypatch):
+    """A TLS or network failure is not "missing": treating it so silently dropped every dependency (2026-10-26)."""
+    import subprocess as sp
+
+    import prime_maven_repo
+
+    def fake_run(cmd, **kw):
+        code = {"ok": "200", "gone": "404"}.get(cmd[-1].rsplit("/", 1)[-1].split("-")[0], "000")
+        return sp.CompletedProcess(cmd, 0 if code != "000" else 60, stdout=code, stderr="")
+    monkeypatch.setattr(prime_maven_repo.subprocess, "run", fake_run)
+    assert prime_maven_repo._url_exists("https://x/a/ok-1.pom") is True
+    assert prime_maven_repo._url_exists("https://x/a/gone-1.pom") is False
+    with pytest.raises(RuntimeError, match="cannot reach"):
+        prime_maven_repo._url_exists("https://x/a/tls-1.pom")

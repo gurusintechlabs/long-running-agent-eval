@@ -366,6 +366,19 @@ def test_spec_check_finds_gaps_leaks_and_bad_evidence(tmp_path):
     assert "placeholder" in text.lower()
 
 
+def test_a_module_restricted_per_jira_version_counts_once(tmp_path):
+    """The real jar declares some keys up to three times, one per Jira range (``<restrict>``): one module each."""
+    sys.path.insert(0, str(TASK / "hidden"))
+    from _support import reference
+    jar = tmp_path / "p.jar"
+    with zipfile.ZipFile(jar, "w") as z:
+        z.writestr("atlassian-plugin.xml", '<atlassian-plugin key="k">'
+                   '<rest key="api" path="/a"><restrict application="jira" version="[9.0.0,10.0.0)"/></rest>'
+                   '<rest key="api" path="/a"><restrict application="jira" version="[10.0.0,)"/></rest>'
+                   '<servlet key="s"/></atlassian-plugin>')
+    assert [m.key for m in reference(jar).modules] == ["api", "s"]
+
+
 def test_spec_check_wants_every_module_with_its_type(tmp_path):
     jar, spec, analyst = _analyst_fixture(tmp_path)
     (spec / "inventory.json").write_text('{"plugin": {"key": "com.acme.p"}, "modules": ['

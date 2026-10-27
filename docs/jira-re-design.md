@@ -314,3 +314,37 @@ Resolved 2026-10-26:
 - **the analyst is Claude in a development session, and the LRAE run is the implementer only** (§7.2;
   J2 dropped);
 - real-Jira behaviour tests come later (§7.3).
+
+Resolved 2026-10-27:
+- **module count:** the descriptor has 652 keyed module elements, but some keys are declared once per Jira
+  range (`<restrict>`). For the pinned Jira 9.12 that is **608 modules, all keys unique**; the hidden suite
+  counts each key once;
+- **front end: full UI behaviour.** The spec describes the 84 web-resources (grid, panels, dialogs)
+  closely enough to rebuild them;
+- **depth: uniform deep.** Several claims for every module, including the 211 internal components.
+
+- **public Java API: the implementer rewrites it from the spec** (§7.4). The plugin bundles a public API
+  library (`structure-api` 17.26.13, 418 top-level types, in `META-INF/lib`) that 45 exported OSGi
+  components implement and other plugins compile against. Its pom names two licences, Apache 2.0 for
+  "parts" and a commercial EULA for "parts", without saying which (the EULA link is dead, the source
+  repository private). So the replacement does not ship it. The API's types are contract in the spec; the
+  agent re-implements them; the real jar is used **harness-side only**, by hidden tests;
+- **visible tests:** a small visible subset of the API tests goes into the seed; the full set is hidden.
+
+### 7.4 The public API tier (decided 2026-10-27; to build)
+
+- **Spec.** `spec/SPEC.md` lists the API's packages and public types, with every public signature, as
+  contract (names only: the descriptions are the analyst's own words, never the vendor's javadoc). The
+  helper and value classes (about 22k decompiled lines) get behavioural claims like any module.
+  `analyst/contract-classes.txt` allows the API's type names in the spec.
+- **Seed.** No API jar. A small visible subset of the API tests (signatures of a sample of types, a few
+  behaviour tests) under `src/test/java/`.
+- **Hidden tier (needs a JDK and Maven in the scorer, like the J1 Maven agent suite):**
+  - *signatures:* every public type and member of the real API exists in the rewrite with the same
+    signature, per type (P(t) counts it);
+  - *behaviour:* Java tests written by the analyst from the spec against the API, run on the rewrite;
+  - *self-check:* the same behaviour tests pass against the real API jar, once, when the suite is built.
+- **Clean-room metric.** The reference adds the scorer's decompilation of the API jar, so copying from it
+  shows up too.
+- **Visible vs hidden.** The pristine visible subset is rerun next to the hidden tier, so the existing
+  hack-gap signal (§5.5 of the design) applies.

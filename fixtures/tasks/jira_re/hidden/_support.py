@@ -163,7 +163,8 @@ def reference(jar: Path) -> Reference:
             for el in root:
                 tag = el.tag.split("}", 1)[-1] if isinstance(el.tag, str) else ""
                 key = el.get("key")
-                if tag and key and tag not in NON_MODULES:
+                # one module per key: a key declared once per Jira range (<restrict>) is still one module
+                if tag and key and tag not in NON_MODULES and all(m.key != key for m in ref.modules):
                     ref.modules.append(Module(key=key, element=tag, cls=el.get("class")))
     return ref
 

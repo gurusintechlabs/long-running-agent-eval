@@ -385,3 +385,54 @@ def test_spec_check_wants_every_module_with_its_type(tmp_path):
                                          '{"key": "gate", "type": "workflow-function", "purpose": "x"}]}')
     text = "\n".join(_check(jar, spec, analyst).problems)
     assert "engine" in text and "workflow-validator" in text and "imp" not in text
+
+
+# --- phase JA1: the public API in the analyst's spec ---
+
+def _mini_class(name: str, public: bool = True) -> bytes:
+    """A minimal valid class file: ``name`` (dotted) extends Object, no members."""
+    import struct
+
+    def utf8(s: str) -> bytes:
+        b = s.encode()
+        return b"\x01" + struct.pack(">H", len(b)) + b
+    pool = utf8(name.replace(".", "/")) + b"\x07\x00\x01" + utf8("java/lang/Object") + b"\x07\x00\x03"
+    return (b"\xca\xfe\xba\xbe" + struct.pack(">HHH", 0, 52, 5) + pool
+            + struct.pack(">HHHHHHH", 0x21 if public else 0x20, 2, 4, 0, 0, 0, 0))
+
+
+def _api_fixture(tmp_path: Path):
+    jar, spec, analyst = _analyst_fixture(tmp_path)
+    api = tmp_path / "acme-api.jar"
+    with zipfile.ZipFile(api, "w") as z:
+        z.writestr("com/acme/api/Store.class", _mini_class("com.acme.api.Store"))
+        z.writestr("com/acme/api/Ids.class", _mini_class("com.acme.api.Ids"))
+        z.writestr("com/acme/api/impl/Cache.class", _mini_class("com.acme.api.impl.Cache", public=False))
+    (spec / "SPEC.md").write_text((spec / "SPEC.md").read_text()
+                                  + "## Public API\n- com.acme.api.Store: a store.\n- com.acme.api.Ids: ids.\n")
+    (analyst / "api-test-claims.json").write_text('{"t.StoreTest#gets": ["C-0001"]}\n')
+    return jar, spec, analyst, api
+
+
+def _check_api(jar, spec, analyst, api, tests=("t.StoreTest#gets",)):
+    sys.path.insert(0, str(TASK / "analyst"))
+    import check_spec
+    return check_spec.check(jar=jar, spec_dir=spec, analyst_dir=analyst, api_jars=[api], api_tests=list(tests))
+
+
+def test_spec_check_accepts_a_fully_specified_public_api(tmp_path):
+    rep = _check_api(*_api_fixture(tmp_path))
+    assert rep.problems == [] and (rep.api_types, rep.api_specified) == (2, 2)
+    assert (rep.api_tests, rep.api_tests_claimed) == (1, 1)
+
+
+def test_spec_check_wants_every_api_type_and_a_claim_behind_every_api_test(tmp_path):
+    jar, spec, analyst, api = _api_fixture(tmp_path)
+    (spec / "SPEC.md").write_text((spec / "SPEC.md").read_text().replace("- com.acme.api.Ids: ids.\n", "")
+                                  + "It caches in com.acme.api.impl.Cache.\n")
+    (analyst / "api-test-claims.json").write_text('{"t.StoreTest#gets": ["C-0009"], "t.Gone#x": ["C-0001"]}\n')
+    text = "\n".join(_check_api(jar, spec, analyst, api, tests=("t.StoreTest#gets", "t.IdsTest#parses")).problems)
+    assert "com.acme.api.Ids" in text and "not specified" in text            # API coverage
+    assert "com.acme.api.impl.Cache" in text and "internal" in text          # a non-public API class leaked
+    assert "t.IdsTest#parses" in text and "C-0009" in text                   # every test backed by an active claim
+    assert "t.Gone#x" in text                                                # stale mapping entry

@@ -1,9 +1,15 @@
 # How the scorer runs the jira-re hidden suite (docs/spec.md 8.1, 8.2; staged: interfaces.md §9).
-# The tests only read the snapshot's files and the plugin jar in ../vendor/, harness-side (pure Python, no
-# JDK, no network). The implementer's workspace has no jar (docs/jira-re-design.md §7.2).
+# The structural tiers only read the snapshot's files and the plugin jar in ../vendor/, harness-side. The
+# public-API tier (t05-t07, phase JA1) also compiles the rewrite, and runs Java tests on it, with the task's
+# toolchain ({tools}: Maven and its read-only offline repository); its reference is ../vendor/api/. The
+# implementer's workspace has neither jar (docs/jira-re-design.md §7.2, §7.4).
 # The scorer adds LRAE_STAGE=<active stage>; tests outside their stage window are skipped.
 test_env:
   LRAE_WORKSPACE: "{ws}"
   LRAE_PYTHON: "{python}"
-per_test_timeout_s: 120
-suite_timeout_s: 600
+  LRAE_RE_TOOLS: "{tools}"
+  LRAE_API_BUILD_TIMEOUT_S: "900"
+# The first API test of a run carries the one Maven build (fixture-free: _api.session_build), so the
+# per-test limit covers a build with retries for test files that do not compile.
+per_test_timeout_s: 1500
+suite_timeout_s: 1800

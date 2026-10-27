@@ -100,6 +100,12 @@ def available(deps: list[jira_target.Dep], *, exists=_url_exists) -> tuple[list[
 _MISSING = re.compile(r"Could not find artifact ([^:\s]+):([^:\s]+):|([^:\s]+):([^:\s]+):\S+ was not found in ")
 
 
+def to_prime(t: jira_target.Target, api_deps: list[jira_target.Dep]) -> list[jira_target.Dep]:
+    """The original plugin's dependencies, then its public API's (phase JA1), once each by coordinates."""
+    out = list(t.original_deps)
+    return out + [d for d in api_deps if all(o.coords != d.coords for o in out)]
+
+
 def missing_artifacts(maven_output: str) -> list[str]:
     """``group:artifact`` of every artifact Maven could not find in any repository, in order, once each."""
     out: list[str] = []
@@ -173,8 +179,11 @@ def main() -> int:
     print(f"vendor's own modules (rewritten, not primed): {len(t.vendor_deps)}")
     for c in t.vendor_deps:
         print(f"  {c}")
-    deps, missing = available(t.original_deps)
-    print(f"original plugin dependencies to prime: {len(deps)} of {len(t.original_deps)}")
+    wanted = to_prime(t, jira_target.public_api_dependencies(t))
+    if t.public_api:
+        print(f"public API (rewritten, not primed; its dependencies are): {', '.join(t.public_api)}")
+    deps, missing = available(wanted)
+    print(f"dependencies to prime (the plugin's, then its public API's): {len(deps)} of {len(wanted)}")
     for d in deps:
         print(f"  {d.coords} ({d.scope})")
     for c in missing:

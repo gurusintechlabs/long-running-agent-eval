@@ -9,6 +9,10 @@ Design the replacement and build its foundation.
 - `pom.xml` and `src/main/resources/atlassian-plugin.xml`: the original's plugin key, and every module of
   `spec/inventory.json` declared with its original key and type (implementations may still be stubs at
   this stage). Add the dependencies you need from the offline repository.
+- The plugin's public Java API (`spec/SPEC.md`): every type with its exact signatures, in its original
+  packages, in this project's `src/main/java/` (not a separate module or jar), exported from the plugin as
+  the spec says. Method bodies may be stubs at this stage. `spec/api-tests/ApiSignatureSampleTest.java`
+  checks a sample of the signatures.
 - `sh build.sh` builds an installable plugin jar in `target/`.
 - `analysis/rewrite_map.json`: one entry per module of `spec/inventory.json`:
 

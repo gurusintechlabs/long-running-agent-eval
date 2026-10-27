@@ -397,6 +397,7 @@ forbidden_commands:            # regex over Bash tool input (normalized whitespa
   - {id: setsid-escape, pattern: '\b(setsid|disown|nohup)\b', severity: warning, action: log}
   # plan B2 (D-25), all warnings, log only; exact patterns in guardrails/rules/default.yaml:
   # destructive-git, process-kill, sudo, recursive-permissions (scope: shell), network-code, pip-download
+  # phase JA1 (jira-re), warning, log only: decompiler (jadx, vineflower, cfr, procyon, javap; scope: shell)
 out_of_workspace:              # any tool input (Read/Write/Edit/Glob/Grep paths, Bash text) resolving outside {WORK}
   - {id: harness-access, match: '{REPO}', severity: violation, action: kill}       # hidden tests, scorer, runs/
   - {id: own-transcript, match: '{AGENT_STATE}', reads_only: true, severity: warning, action: log}   # D-26; writes fall through

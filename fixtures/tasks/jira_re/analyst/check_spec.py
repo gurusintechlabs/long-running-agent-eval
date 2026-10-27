@@ -13,7 +13,12 @@ the analyst's files before a run:
   exists in the jar; the implementer's ``claims.jsonl`` carries no evidence;
 * no file in ``spec/`` names a class of the jar by its fully qualified name, unless
   ``analyst/contract-classes.txt`` lists it as part of the external contract (clean-room hygiene);
-* ``analyst/spec-changes-1.md`` (the stage-5 change request) is written.
+* ``analyst/spec-changes-1.md`` (the stage-5 change request) is written;
+* the public Java API (phase JA1, design §7.4): ``spec/SPEC.md`` names every public top-level type of the
+  real API (``vendor/api/``), whose names are contract and may appear anywhere in ``spec/``; no non-public
+  API class is named; and every Java test of the hidden API tier (``hidden/api/``) is backed by an active
+  claim, in ``analyst/api-test-claims.json`` (``{"Class#method": ["C-0001", ...]}``), so the tier only
+  measures behaviour the spec states.
 
 Exit 1 when anything is wrong; the report lists every problem.
 """
@@ -30,6 +35,8 @@ HERE = Path(__file__).resolve().parent
 TASK = HERE.parent
 sys.path.insert(0, str(TASK / "hidden"))
 
+import _api  # noqa: E402  (the hidden API tier: its reference jars and Java tests)
+import _classfile as cf  # noqa: E402
 from _support import NON_MODULES, reference  # noqa: E402  (the hidden suite's reference, from the jar alone)
 
 SEED_SPEC = TASK.parents[1] / "seed_jira_re" / "spec"
@@ -45,6 +52,10 @@ class Report:
     inventoried: int = 0
     claimed: int = 0
     claims: int = 0
+    api_types: int = 0
+    api_specified: int = 0
+    api_tests: int = 0
+    api_tests_claimed: int = 0
     problems: list[str] = field(default_factory=list)
 
 
@@ -82,7 +93,8 @@ def contract_classes(path: Path) -> set[str]:
     return {ln.split("#", 1)[0].strip() for ln in path.read_text().splitlines() if ln.split("#", 1)[0].strip()}
 
 
-def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE) -> Report:
+def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, api_jars: list[Path] = (),
+          api_tests: list[str] = ()) -> Report:
     ref = reference(jar)
     rep = Report(modules=len(ref.modules))
     p = rep.problems
@@ -145,12 +157,47 @@ def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE) ->
             if not ref.resolve(r):
                 p.append(f"claims-evidence.jsonl: {cid}: {r} is not in the jar")
 
-    allowed = contract_classes(analyst_dir / "contract-classes.txt")
+    api_classes: dict[str, bytes] = {}
+    for j in api_jars:
+        api_classes.update(cf.classes_in_jar(j))
+    surface = cf.surface_from_classes(api_classes)
+    public_api = {n.replace("$", ".") for n in surface} | set(surface)
+    api_internal = {n.replace("$", ".") for n in api_classes if n not in surface}
+    allowed = contract_classes(analyst_dir / "contract-classes.txt") | public_api
     for f in sorted(x for x in spec_dir.rglob("*") if x.is_file()):
-        leaked = sorted({n for n in FQCN.findall(f.read_text(errors="replace"))
-                         if n not in allowed and ref.resolve(n)})
-        for n in leaked:
+        named = set(FQCN.findall(f.read_text(errors="replace"))) - allowed
+        for n in sorted(x for x in named if ref.resolve(x)):
             p.append(f"{f.relative_to(spec_dir)}: names internal class {n} (not in contract-classes.txt)")
+        for n in sorted(x for x in named if x in api_internal):
+            p.append(f"{f.relative_to(spec_dir)}: names internal (non-public) API class {n}")
+
+    spec_md = (spec_dir / "SPEC.md").read_text(errors="replace") if (spec_dir / "SPEC.md").is_file() else ""
+    named_in_spec = set(FQCN.findall(spec_md))
+    tops = sorted(n for n, t in surface.items() if t.outer is None)
+    rep.api_types = len(tops)
+    for t in tops:
+        if t in named_in_spec:
+            rep.api_specified += 1
+        else:
+            p.append(f"SPEC.md: public API type {t} is not specified")
+
+    rep.api_tests = len(api_tests)
+    mapping_path = analyst_dir / "api-test-claims.json"
+    mapping = (_json(mapping_path, p) if mapping_path.is_file() else {}) if api_tests else {}
+    mapping = mapping if isinstance(mapping, dict) else {}
+    active_ids = {c.get("id") for c in claims if c.get("status", "active") == "active"}
+    for tid in api_tests:
+        cids = mapping.get(tid)
+        if not (isinstance(cids, list) and cids):
+            p.append(f"api-test-claims.json: API test {tid} is backed by no claim")
+            continue
+        bad = [c for c in cids if c not in active_ids]
+        if bad:
+            p.append(f"api-test-claims.json: API test {tid} cites {', '.join(map(str, bad))}, not active claims")
+        else:
+            rep.api_tests_claimed += 1
+    for tid in sorted(set(mapping) - set(api_tests)):
+        p.append(f"api-test-claims.json: {tid} is not an API test (renamed or removed?)")
 
     changes = analyst_dir / "spec-changes-1.md"
     if not changes.is_file():
@@ -171,9 +218,11 @@ def main() -> int:
         if len(jars) != 1:
             raise SystemExit(f"{TASK / 'vendor'} must hold exactly one jar; found {len(jars)}")
         jar = jars[0]
-    rep = check(jar=jar)
+    tests = [t.id for t in _api.java_tests(_api.HIDDEN_TESTS) + _api.java_tests(_api.VISIBLE_TESTS)]
+    rep = check(jar=jar, api_jars=_api.api_jars(), api_tests=tests)
     print(f"modules {rep.modules}: inventoried {rep.inventoried}, with an active claim {rep.claimed}; "
-          f"claims {rep.claims}; problems {len(rep.problems)}")
+          f"claims {rep.claims}; public API types {rep.api_types}: specified {rep.api_specified}; "
+          f"API tests {rep.api_tests}: backed by claims {rep.api_tests_claimed}; problems {len(rep.problems)}")
     for line in rep.problems[:args.max]:
         print(f"  {line}")
     if len(rep.problems) > args.max:

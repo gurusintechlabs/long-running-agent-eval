@@ -334,6 +334,8 @@ class CleanRoomScoring(Strict):
     jar_glob: str = "vendor/*.jar"                 # in the seed checkout; exactly one match
     jar: str | None = None                         # JA: the jar outside the seed, or a dir holding exactly one
                                                    # (relative to the spec file); replaces jar_glob; hashed by content
+    extra_jars: str | None = None                  # JA1: more jars for the reference (a jar or a dir of them, e.g.
+                                                   # the bundled public API), relative to the spec file; hashed
     src: list[str] = Field(default_factory=lambda: ["src/main/java"])   # the rewrite's sources
     k: int = Field(default=25, ge=5, le=200)       # tokens per k-gram
     window: int = Field(default=4, ge=1, le=100)   # winnowing window

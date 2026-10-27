@@ -16,6 +16,8 @@ sets Jira properties.
 """
 from __future__ import annotations
 
+import fnmatch
+import io
 import re
 import xml.etree.ElementTree as ET
 import zipfile
@@ -65,6 +67,7 @@ class Target:
     pom_name: str | None = None                              # the embedded pom used, if any
     vendor_deps: list[str] = field(default_factory=list)    # the vendor's own modules, not primed
     exclusions: list[str] = field(default_factory=list)     # group:artifact no repository serves
+    public_api: list[str] = field(default_factory=list)     # bundled public API libs (entries in the jar)
 
 
 def _local(tag: str) -> str:
@@ -200,10 +203,70 @@ def load(target_file: Path = TARGET, vendor: Path = VENDOR) -> Target:
     deps, skipped = pom_dependencies(pom, props) if pom is not None else ([], [])
     vendor = vendor_prefix(pom) if pom is not None else None
     own = [d for d in deps if vendor and (d.group == vendor or d.group.startswith(vendor + "."))]
+    with zipfile.ZipFile(jar) as z:
+        entries = z.namelist()
+    public_api = []
+    for pat in cfg.get("public_api") or []:
+        hits = sorted(n for n in entries if fnmatch.fnmatchcase(n, str(pat)) and n.endswith(".jar"))
+        if not hits:
+            raise SystemExit(f"public_api: {pat!r} in {target_file.name} matches no jar inside {jar.name}")
+        public_api += [h for h in hits if h not in public_api]
     return Target(jar=jar, jira_version=jira, amps_version=amps, java_release=java, sources=sources,
                   original_deps=[d for d in deps if d not in own], skipped_deps=skipped, plugin_key=key,
                   pom_name=pom_name, vendor_deps=[d.coords for d in own],
-                  exclusions=sorted({str(x) for x in cfg.get("maven_exclusions") or []}))
+                  exclusions=sorted({str(x) for x in cfg.get("maven_exclusions") or []}), public_api=public_api)
+
+
+# ---------------------------------------------------------------- the bundled public API (phase JA1, design §7.4)
+#
+# A plugin can bundle a public Java API library (``META-INF/lib/``) that other plugins compile against. The
+# rewrite re-implements it from the spec; the real library is used harness-side only (the hidden API tier and
+# the copy-similarity reference), extracted next to the jar. Its own dependencies are part of its contract
+# (their types appear in its signatures), so they are primed like the plugin's.
+
+def public_api_dependencies(t: Target) -> list[Dep]:
+    """Non-test dependencies of every bundled public API library, from the pom embedded in it, in order,
+    once each. Same-organisation entries are kept: whether a public repository serves them decides
+    (``prime_maven_repo.available``)."""
+    out: list[Dep] = []
+    with zipfile.ZipFile(t.jar) as z:
+        for entry in t.public_api:
+            with zipfile.ZipFile(io.BytesIO(z.read(entry))) as lib:
+                _, pom = embedded_pom_of(lib)
+            if pom is None:
+                continue
+            deps, _ = pom_dependencies(pom, pom_properties(pom))
+            out += [d for d in deps if all(o.coords != d.coords for o in out)]
+    return out
+
+
+def embedded_pom_of(z: zipfile.ZipFile) -> tuple[str | None, ET.Element | None]:
+    names = sorted(n for n in z.namelist() if n.startswith("META-INF/maven/") and n.endswith("/pom.xml"))
+    for n in names:
+        try:
+            return n, ET.fromstring(z.read(n))
+        except ET.ParseError:
+            continue
+    return None, None
+
+
+def extract_public_api(t: Target, dest: Path, *, check: bool = False) -> bool:
+    """Write each public API library to ``dest/<file name>``, and remove any other jar there. With
+    ``check``, write nothing and return whether ``dest`` is already up to date."""
+    dest = Path(dest)
+    with zipfile.ZipFile(t.jar) as z:
+        want = {entry.rsplit("/", 1)[-1]: z.read(entry) for entry in t.public_api}
+    have = {p.name: p for p in dest.glob("*.jar")} if dest.is_dir() else {}
+    current = set(have) == set(want) and all(have[n].read_bytes() == b for n, b in want.items())
+    if check or current:
+        return current
+    dest.mkdir(parents=True, exist_ok=True)
+    for name, p in have.items():
+        if name not in want:
+            p.unlink()
+    for name, data in want.items():
+        (dest / name).write_bytes(data)
+    return True
 
 
 def render_seed_pom(text: str, t: Target) -> str:

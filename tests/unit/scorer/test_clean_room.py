@@ -219,3 +219,31 @@ def test_score_clean_room_decompiler_failure_is_reported(tmp_path):
 def test_names_are_otel_style(name):
     import re
     assert re.match(r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$", name()) and name().startswith(mn.CR_PREFIX)
+
+
+def test_extra_jars_join_the_reference(tmp_path):
+    """JA1: the bundled public API is decompiled too (``extra_jars``: a jar or a dir of jars), so copying from
+    it shows; without it the same rewrite looks independent."""
+    tools = tmp_path / "tools"
+    (tools / "bin").mkdir(parents=True)
+    script = tools / "bin" / "vineflower"      # "decompiles" a jar by copying its text
+    script.write_text('#!/bin/sh\nmkdir -p "$2/x"\ncp "$1" "$2/x/$(basename "$1" .jar).java"\n')
+    script.chmod(script.stat().st_mode | stat.S_IXUSR)
+    seed, ws = workspaces(tmp_path, RENAMED)
+    plugin = tmp_path / "task" / "vendor" / "plugin.jar"
+    api = tmp_path / "task" / "vendor" / "api" / "acme-api-2.1.jar"
+    api.parent.mkdir(parents=True)
+    plugin.write_text(INDEPENDENT)
+    api.write_text(ORIGINAL)
+    base = dict(enabled=True, k=12, window=3, jar=str(plugin.parent))
+    alone = cr.score_clean_room(CleanRoomScoring(**base), tools_dir=tools, seed_ws=seed, ws=ws, cache_dir=tmp_path / "c")
+    for extra in (api.parent, api):
+        m = cr.score_clean_room(CleanRoomScoring(**base, extra_jars=str(extra)), tools_dir=tools, seed_ws=seed, ws=ws,
+                                cache_dir=tmp_path / "c")
+        d = m[mn.CR_STRUCTURAL]["detail"]
+        assert m[mn.CR_STRUCTURAL]["value"] >= 0.8 > alone[mn.CR_STRUCTURAL]["value"]
+        assert d["extra_jars"] == ["acme-api-2.1.jar"] and d["reference_files"] == 2
+    api.unlink()
+    m = cr.score_clean_room(CleanRoomScoring(**base, extra_jars=str(api.parent)), tools_dir=tools, seed_ws=seed, ws=ws,
+                            cache_dir=tmp_path / "c")
+    assert m[mn.CR_STRUCTURAL]["value"] is None and m[mn.CR_STRUCTURAL]["detail"]["reason"].startswith("no_extra_jars")

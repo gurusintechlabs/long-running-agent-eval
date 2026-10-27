@@ -1,7 +1,7 @@
 import pytest
 
 from scorer import sandbox
-from scorer.metrics import p_hidden
+from scorer.metrics import p_hidden, r_regression
 from tests.scorer_support import APP_OK, HIDDEN_FILES, write_tree
 
 
@@ -107,6 +107,23 @@ def test_serverless_task_runs_program_from_the_temp_copy(tmp_path, scorer_py):
     broken = write_tree(tmp_path / "ws2", {"echoer/__init__.py": "", "echoer/__main__.py": "raise SystemExit(3)\n"})
     assert p_hidden.score_hidden(broken, hidden, scorer_py)["value"] == 0.5
     assert not sandbox.leftover_processes() and not sandbox.leftover_temp_dirs()
+
+
+def test_tools_placeholder_names_the_task_toolchain(tmp_path, monkeypatch):
+    """jira-re's API tier builds the rewrite with the task's toolchain: ``{tools}`` in ``test_env``
+    (phase JA1); empty when the spec has none."""
+    hidden = write_tree(tmp_path / "hidden", {"scorer.yaml": "test_env: {LRAE_RE_TOOLS: '{tools}'}\n",
+                                              "pytest.ini": "[pytest]\n", "test_a.py": "def test_a(): pass\n"})
+    seen = []
+
+    def fake(python, args, *, cwd, env, report, timeout_s, label, per_test_timeout_s=None):
+        seen.append(env["LRAE_RE_TOOLS"])
+        return r_regression.SuiteResult(outcomes={"test_a.py::test_a": "passed"}, returncode=0, report_ok=True)
+    monkeypatch.setattr(p_hidden, "run_pytest_json", fake)
+    (tmp_path / "ws").mkdir()
+    p_hidden.score_hidden(tmp_path / "ws", hidden, tmp_path / "python", tools_dir=tmp_path / "tools")
+    p_hidden.score_hidden(tmp_path / "ws", hidden, tmp_path / "python")
+    assert seen == [str(tmp_path / "tools"), ""]
 
 
 @pytest.mark.local

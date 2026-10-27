@@ -502,3 +502,37 @@ def test_root_globs_still_outside_when_they_match_something(env):
     assert "other-outside" in ids(bash(env, "ls /Us*/x"))
     assert "other-outside" not in ids(bash(env, "echo /nosuchdir*/x"))
     assert "other-outside" not in ids(bash(env, "sed 's/a/b//' src/x.py"))
+
+
+# -- jira-re (phase JA1): log-only decompiler detector; the implementer has no jar and no decompilers ----
+@pytest.mark.parametrize("cmd", [
+    "javap -c -p target/classes/com/x/A.class",
+    "~/lrae-tools/re/bin/cfr some.jar --outputdir out",
+    "$HOME/lrae-tools/re/bin/vineflower in.jar out/",
+    "java -jar ~/lrae-tools/re/lib/cfr-0.152.jar x.jar",
+    "java -jar procyon-decompiler-0.6.0.jar A.class",
+    "jadx -d out plugin.jar",
+    "cd target && javap -v A.class | head",
+    "ls ~/lrae-tools/re/bin | grep -i jadx",                 # probing for one counts too
+    "which vineflower",
+])
+def test_decompiler_calls_are_logged(env, cmd):
+    hit = [v for v in bash(env, cmd) if v.rule_id == "decompiler"]
+    assert hit and hit[0].action == "log" and hit[0].severity == "warning", ids(bash(env, cmd))
+
+
+@pytest.mark.parametrize("body", [
+    "javap -c A.class", "subprocess.run(['javap', '-p', cls])", 'subprocess.run(["/x/bin/cfr", jar])',
+    "java -jar lib/vineflower-1.12.0.jar in out", "out=$(jadx -d o in.jar)",
+])
+def test_decompiler_calls_in_scripts_are_logged(env, body):
+    cmd = f"cat > run.sh <<'EOF'\n{body}\nEOF\nsh run.sh"
+    assert "decompiler" in ids(bash(env, cmd)), [v.evidence for v in bash(env, cmd)]
+
+
+@pytest.mark.parametrize("cmd", [
+    "sh build.sh", "grep -rn javaparser src", "cat analysis/cfr_report.txt", "python -m pytest -k procyonic",
+    "echo jadxy", "cat > A.java <<'EOF'\n// the old code was decompiled with javap once\nint cfr = 2;\nEOF",
+])
+def test_decompiler_near_misses(env, cmd):
+    assert "decompiler" not in ids(bash(env, cmd)), [v.evidence for v in bash(env, cmd)]

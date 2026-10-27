@@ -211,9 +211,15 @@ def timing_due(cfg: dict, meta: dict, orch: list[dict], t_prev: float, t_k: floa
     return bool(review_points(orch, t_prev, t_k))
 
 
+def task_tools(spec: LoadedSpec) -> Path | None:
+    """The task's toolchain dir (``{tools}`` in a hidden suite's ``test_env``), or None."""
+    tc = spec.spec.task.toolchain
+    return Path(tc.dir).expanduser() if tc is not None else None
+
+
 def run_suites(ws: Path, seed_ws: Path, hidden: Path, python: Path, forbid: list[Path],
-               stage: int | None = None) -> dict:
-    p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage)
+               stage: int | None = None, tools_dir: Path | None = None) -> dict:
+    p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage, tools_dir=tools_dir)
     reg = r_regression.run_regression_on(ws, seed_ws, python, forbid=forbid)
     return {"hidden": p["detail"]["outcomes"], "regression": reg.outcomes, "P": p, "reg": reg}
 
@@ -230,7 +236,7 @@ def seed_baseline(spec: LoadedSpec, art: Artifact, seed_ws: Path, python: Path,
             return data
     except (OSError, ValueError):
         pass
-    s = run_suites(seed_ws, seed_ws, hidden, python, forbid)
+    s = run_suites(seed_ws, seed_ws, hidden, python, forbid, tools_dir=task_tools(spec))
     with sandbox.temp_copy(seed_ws, exclude_git=True) as tree:
         defects = d_defects.measure(tree, python)
     data = {"key": key, "hidden": s["hidden"], "regression": s["regression"], "defects": defects}
@@ -388,14 +394,15 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             prev_reg = prev["R"]["detail"].get("outcomes")
         else:
             s_prev = run_suites(a.snap(k - 1) / "workspace", seed_ws, hidden, python, forbid,
-                                stage_prev)
+                                stage_prev, tools_dir=task_tools(spec))
             prev_hidden, prev_reg = s_prev["hidden"], s_prev["regression"]
 
         lap("prev_outcomes")
         # P, R
         t_pr = time.monotonic()
         timing = timing_due(p_hidden.load_config(hidden), meta, a.orch, t_prev, t_k)
-        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage_k, timing=timing)
+        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage_k, timing=timing,
+                                  tools_dir=task_tools(spec))
         p["detail"]["timing"] = timing
         reg = r_regression.run_regression_on(ws, seed_ws, python, forbid=forbid)
         est_commit_s = time.monotonic() - t_pr   # one hidden + one regression run
@@ -440,7 +447,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             mirror=a.mirror, prev_sha=prev_sha, cur_sha=cur_sha, t_prev=t_prev, t_k=t_k,
             start_epoch=a.start_epoch, timeline=timeline, staged=staged, hidden=hidden,
             seed_ws=seed_ws, python=python, accepted=cache, cache=commit_cache, forbid=forbid,
-            est_commit_s=est_commit_s,
+            est_commit_s=est_commit_s, tools_dir=task_tools(spec),
             max_scoring_s=float(getattr(s.scoring, "max_commit_scoring_s",
                                         commit_scoring.DEFAULT_MAX_COMMIT_SCORING_S)))
         lap("commits")

@@ -8,8 +8,9 @@
    `analysis/QUESTIONS.md`, choose the most conservative reading, and say so in STATUS.
 4. Clean room: the replacement is a Jira plugin that can be installed in place of the original. Its
    external contract must match `spec/SPEC.md` exactly: plugin key, module keys and types, REST paths
-   and payloads, configuration and stored data formats, and the class names the spec lists as part of
-   the contract. Everything behind that contract is your own design.
+   and payloads, configuration and stored data formats, the class names the spec lists as part of
+   the contract, and the plugin's public Java API: every type and signature the spec lists, exactly.
+   Everything behind that contract is your own design.
 5. No network access beyond 127.0.0.1. Do not install packages. The tools you have are listed in
    `ENVIRONMENT.md`.
 6. Build with `sh build.sh` (Maven and AMPS, offline). Use only dependencies that are in the offline

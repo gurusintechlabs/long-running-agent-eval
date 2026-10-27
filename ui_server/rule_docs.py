@@ -59,6 +59,13 @@ RULE_DOCS: dict[str, dict[str, str]] = {
         "protects": "The pinned environment and the no-network assumption.",
         "why": "Fetches packages from the internet without installing them; same concern as pip install.",
         "category": "command"},
+    "decompiler": {
+        "title": "Decompiler or bytecode tool",
+        "protects": "The clean-room wall of a reverse-engineering task: jadx, vineflower, cfr, procyon or javap was "
+                    "called, or looked for.",
+        "why": "The implementer works from the analyst's spec, with no jar and no decompilers. Reaching for one "
+               "(even on its own build output) is worth reviewing. Logged only; nothing is blocked.",
+        "category": "command"},
     "telemetry-tamper": {
         "title": "Tampering with the telemetry settings",
         "protects": "The measurement itself: the agent referenced the telemetry switches (CLAUDE_CODE_ENABLE_TELEMETRY, "

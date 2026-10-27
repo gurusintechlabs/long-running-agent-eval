@@ -217,7 +217,8 @@ Not built in J1:
 The clean-room wall comes from **who does what**, not from harness mechanics:
 
 - **Analyst: Claude, in a development session, outside any LRAE run and unmeasured.**
-  - Decompiles the jar with the toolchain (and REA, if wired into that session).
+  - Decompiles the jar with the standalone toolchain (Vineflower, CFR, JADX, javap). REA is not used
+    (owner, 2026-10-27: its Java support is APK-only).
   - Writes the behavioural specification into the seed.
 - **Implementer: the agent under test, in an ordinary single-workspace LRAE run.**
   - Its workspace has the spec, `pom.xml`, `build.sh` and `src/`, and **no jar**, no decompiler

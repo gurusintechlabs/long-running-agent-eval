@@ -226,7 +226,8 @@ The clean-room wall comes from **who does what**, not from harness mechanics:
 
 J2 (two sessions and workspaces per run) is dropped, and D-18 is unchanged.
 
-**Analyst deliverables, written to the seed's `analysis/`:**
+**Analyst deliverables, written to the seed's `spec/`** (built 2026-10-27 as a separate, read-only dir:
+the implementer's own files stay in `analysis/`; the `spec-untouched` constraint guards `spec/`):
 - `INVENTORY.md`;
 - `inventory.json`;
 - `SPEC.md`, external contract first: plugin key, module keys and types, REST, servlets, stored data,
@@ -270,7 +271,8 @@ change):
    REA) to match.
 4. **Hidden suite.**
    - t00 and t01 tested the analyst's artefacts. They become harness-side checks of the spec (run once,
-     on the analyst's files), not P(t).
+     on the analyst's files), not P(t): `analyst/check_spec.py`, which also scans `spec/` for internal
+     class names not listed in `analyst/contract-classes.txt`.
    - The implementer tiers stay: t02 rewrite map, t04 contract against the original's descriptor, t03
      release.
    - Tier 3 (behaviour vs the original) still comes after the pilot.

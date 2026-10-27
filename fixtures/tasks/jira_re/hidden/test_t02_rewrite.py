@@ -1,4 +1,6 @@
-"""t02 (stages 2-4): the clean-room rewrite (Java) maps every module to code and tests that exist."""
+"""t02 (stages 1-4): the clean-room rewrite (Java) maps every module to code and tests that exist.
+
+Stage 1 lays the skeleton; stages 2, 3 and 4 bring a third, two thirds and all of the modules to done."""
 import pytest
 
 from _support import WS, load_json, module_keys, need_module, need_reference, stage
@@ -23,7 +25,7 @@ def _done(entry) -> bool:
     return bool(files and tests) and all((WS / f).is_file() for f in files + tests)
 
 
-@stage(2)
+@stage(1)
 def test_rewrite_map_has_the_required_shape():
     for key, e in _map().items():
         assert isinstance(e, dict), f"{key}: entry must be an object"
@@ -32,14 +34,23 @@ def test_rewrite_map_has_the_required_shape():
             assert (WS / f).is_file(), f"{key}: listed file {f} does not exist"
 
 
-@stage(3)
-def test_at_least_half_of_the_modules_are_rewritten():
+def _share_done(thirds: int) -> None:
     ref = need_reference()
     if not ref.modules:
         pytest.skip("the jar has no atlassian-plugin.xml modules")
     entries = _map()
     done = sum(_done(entries.get(m.key)) for m in ref.modules)
-    assert 2 * done >= len(ref.modules), f"{done} of {len(ref.modules)} modules are done"
+    assert 3 * done >= thirds * len(ref.modules), f"{done} of {len(ref.modules)} modules are done"
+
+
+@stage(2)
+def test_at_least_a_third_of_the_modules_are_rewritten():
+    _share_done(1)
+
+
+@stage(3)
+def test_at_least_two_thirds_of_the_modules_are_rewritten():
+    _share_done(2)
 
 
 @stage(4)

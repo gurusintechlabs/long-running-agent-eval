@@ -185,9 +185,15 @@ def score_clean_room(cfg, *, tools_dir: Path, seed_ws: Path, ws: Path, cache_dir
     def unavailable(reason: str, **extra) -> dict[str, dict]:
         return {name: {"value": None, "detail": {"reason": reason, **extra}} for name in (mn.CR_STRUCTURAL, mn.CR_LEXICAL)}
 
-    jars = sorted(Path(seed_ws).glob(cfg.jar_glob))
-    if len(jars) != 1:
-        return unavailable(f"no_jar: expected exactly one {cfg.jar_glob} in the seed, found {len(jars)}")
+    if cfg.jar:
+        jars = sorted(Path(cfg.jar).glob("*.jar")) if Path(cfg.jar).is_dir() else \
+            [Path(cfg.jar)] if Path(cfg.jar).is_file() else []
+        if len(jars) != 1:
+            return unavailable(f"no_jar: expected exactly one jar at {cfg.jar}, found {len(jars)}")
+    else:
+        jars = sorted(Path(seed_ws).glob(cfg.jar_glob))
+        if len(jars) != 1:
+            return unavailable(f"no_jar: expected exactly one {cfg.jar_glob} in the seed, found {len(jars)}")
     try:
         ref_dir = decompile_reference(jars[0], Path(tools_dir), cfg.decompiler, Path(cache_dir))
     except (OSError, RuntimeError) as exc:

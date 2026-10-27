@@ -1,9 +1,10 @@
-**Stage 5: specification audit**
+**Stage 5: change request: corrections to the specification**
 
-Before we sign this off, audit the specification against the plugin itself.
+Our analyst reviewed the specification again and committed corrections in `spec/CHANGES-1.md`. Each
+entry retracts or replaces claims, or adds new ones; the ids it names refer to `spec/claims.jsonl`.
 
-1. Go back to the decompiled code and re-check every active claim in `analysis/claims.jsonl`. Retract
-   claims that are wrong and add corrected ones (new ids). Add claims for behaviour you missed.
-2. Update `analysis/SPEC.md` to match.
-3. Update the rewrite and its tests for every claim you changed or added.
-4. Write `analysis/AUDIT.md`: how many claims you checked, retracted, corrected and added, and why.
+1. Apply every correction to the replacement: change the code and the tests for every claim that was
+   retracted, corrected or added. Tests for a corrected claim are named after its new id.
+2. Update `analysis/rewrite_map.json` (claim lists, status).
+3. Write `analysis/CHANGES-APPLIED.md`: for each entry in `spec/CHANGES-1.md`, what you changed, and
+   anything you could not apply.

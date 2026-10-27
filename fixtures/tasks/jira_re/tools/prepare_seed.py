@@ -4,7 +4,7 @@
     .venv/bin/python fixtures/tasks/jira_re/tools/prepare_seed.py [--check]
 
 Reads ``fixtures/tasks/jira_re/target.yaml``, checks that the named jar is the only jar in
-``fixtures/seed_jira_re/vendor/``, records its SHA-256 in ``target.yaml``, pins the seed's ``pom.xml``
+``fixtures/tasks/jira_re/vendor/``, records its SHA-256 in ``target.yaml``, pins the seed's ``pom.xml``
 to the resolved Jira, AMPS and Java versions (``jira_target.py``), checks that the seed's ``CLAUDE.md``
 equals the task's (D-15a), builds the seed repo in a temp dir (``runner.seed``, the same procedure the
 harness uses) and writes the resulting commit SHA into ``spec/examples/jira-re.yaml``.
@@ -55,14 +55,14 @@ def main() -> int:
     name = str(target.get("jar") or "")
     if not name or name == PLACEHOLDER or "/" in name:
         raise SystemExit(f"set 'jar:' in {TARGET.relative_to(REPO)} to the jar's file name")
-    vendor = SEED / "vendor"
+    vendor = jira_target.VENDOR
     jars = sorted(p.name for p in vendor.glob("*.jar"))
     if jars != [name]:
         raise SystemExit(f"{vendor.relative_to(REPO)}/ must hold exactly {name}; found {jars or 'no jars'}")
     jar = vendor / name
     sha = hashlib.sha256(jar.read_bytes()).hexdigest()
 
-    t = jira_target.load(TARGET, SEED)
+    t = jira_target.load(TARGET, vendor)
     pom_path = SEED / "pom.xml"
     old_pom = pom_path.read_text()
     new_pom = jira_target.render_seed_pom(old_pom, t)

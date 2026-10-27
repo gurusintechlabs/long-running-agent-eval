@@ -186,6 +186,25 @@ def test_score_clean_room_without_sources_or_jar(tmp_path):
     assert m[mn.CR_LEXICAL]["value"] is None and "jar" in m[mn.CR_LEXICAL]["detail"]["reason"]
 
 
+def test_score_clean_room_reads_a_harness_side_jar(tmp_path):
+    """JA: with ``jar`` set the jar is not looked for in the seed (the implementer's seed has none)."""
+    tools = toolchain(tmp_path, ORIGINAL)
+    seed, ws = workspaces(tmp_path, RENAMED)
+    (seed / "vendor" / "approvals-1.4.jar").unlink()
+    outside = tmp_path / "task" / "vendor" / "approvals-1.4.jar"
+    outside.parent.mkdir(parents=True)
+    outside.write_bytes(b"PK fake jar")
+    cfg = CleanRoomScoring(enabled=True, k=12, window=3, jar=str(outside))
+    m = cr.score_clean_room(cfg, tools_dir=tools, seed_ws=seed, ws=ws, cache_dir=tmp_path / "cache")
+    assert m[mn.CR_STRUCTURAL]["value"] >= 0.8 and m[mn.CR_STRUCTURAL]["detail"]["jar"] == "approvals-1.4.jar"
+    by_dir = CleanRoomScoring(enabled=True, k=12, window=3, jar=str(outside.parent))   # the spec names no jar
+    assert cr.score_clean_room(by_dir, tools_dir=tools, seed_ws=seed, ws=ws, cache_dir=tmp_path / "cache")[
+        mn.CR_LEXICAL]["detail"]["jar"] == "approvals-1.4.jar"
+    outside.unlink()
+    m = cr.score_clean_room(cfg, tools_dir=tools, seed_ws=seed, ws=ws, cache_dir=tmp_path / "cache2")
+    assert m[mn.CR_STRUCTURAL]["value"] is None and m[mn.CR_STRUCTURAL]["detail"]["reason"].startswith("no_jar")
+
+
 def test_score_clean_room_decompiler_failure_is_reported(tmp_path):
     tools = toolchain(tmp_path, ORIGINAL)
     (tools / "bin" / "vineflower").write_text("#!/bin/sh\necho broken >&2\nexit 3\n")

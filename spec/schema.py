@@ -332,6 +332,8 @@ class CleanRoomScoring(Strict):
     enabled: bool = False
     decompiler: Literal["vineflower", "cfr"] = "vineflower"
     jar_glob: str = "vendor/*.jar"                 # in the seed checkout; exactly one match
+    jar: str | None = None                         # JA: the jar outside the seed, or a dir holding exactly one
+                                                   # (relative to the spec file); replaces jar_glob; hashed by content
     src: list[str] = Field(default_factory=lambda: ["src/main/java"])   # the rewrite's sources
     k: int = Field(default=25, ge=5, le=200)       # tokens per k-gram
     window: int = Field(default=4, ge=1, le=100)   # winnowing window

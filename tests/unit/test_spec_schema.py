@@ -406,3 +406,21 @@ def test_maven_suite_and_clean_room_with_a_toolchain(tmp_path):
     s = loaded.spec.scoring
     assert s.behavior.agent_suite_runner == "maven"
     assert s.clean_room.enabled and s.clean_room.k == 20 and s.clean_room.src == ["src/main/java"]
+
+
+def test_clean_room_jar_path_is_resolved_and_hashed_by_content(tmp_path):
+    """JA: the original jar lives harness-side (not in the seed); its path resolves against the spec file
+    and its content, not its location, is part of the hash."""
+    (tmp_path / "orig.jar").write_bytes(b"PK one")
+    sc = {"judge_model": "claude-opus-5-5", "clean_room": {"enabled": True}}
+    base = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert base.spec.scoring.clean_room.jar is None and "jar" not in json_of(base)["scoring"]["clean_room"]
+    sc["clean_room"]["jar"] = "orig.jar"
+    loaded = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert loaded.spec.scoring.clean_room.jar == str((tmp_path / "orig.jar").resolve())
+    (tmp_path / "orig.jar").write_bytes(b"PK two")
+    changed = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert len({base.spec_hash, loaded.spec_hash, changed.spec_hash}) == 3
+    (tmp_path / "orig.jar").unlink()
+    with pytest.raises(SpecError, match="clean_room.jar"):
+        load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))

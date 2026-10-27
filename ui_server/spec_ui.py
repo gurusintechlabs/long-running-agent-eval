@@ -200,6 +200,8 @@ FIELD_UI: dict[str, dict] = {
                                         advanced=True),
     "scoring.clean_room.jar_glob": _f("Original jar", "Glob in the seed checkout; exactly one match.", widget="text",
                                       advanced=True),
+    "scoring.clean_room.jar": _f("Original jar (path)", "Outside the seed, relative to the spec file; replaces the "
+                                 "seed glob when set.", widget="text", advanced=True),
     "scoring.clean_room.src": _f("Rewrite sources", "Workspace dirs holding the rewrite's Java.", widget="string_list",
                                  advanced=True),
     "scoring.clean_room.k": _f("k-gram length", "Tokens per fingerprinted k-gram.", unit="tokens", advanced=True),

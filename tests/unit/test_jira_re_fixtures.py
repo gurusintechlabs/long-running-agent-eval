@@ -19,12 +19,23 @@ SPEC = REPO / "spec" / "examples" / "jira-re.yaml"
 sys.path.insert(0, str(TASK / "tools"))
 
 
-def test_spec_loads_with_the_j1_features():
+def test_spec_is_for_an_implementer():
+    """Design §7.2: no REA, no jar in the seed; the scorer reads the jar harness-side."""
     s = load_spec(SPEC).spec
-    assert s.task.toolchain.dir == "~/lrae-tools/re" and s.task.counterparts.rea.command.endswith("bin/rea-mcp")
+    assert s.task.toolchain.dir == "~/lrae-tools/re" and s.task.counterparts.rea is None
     assert s.scoring.behavior.agent_suite_runner == "maven" and s.scoring.clean_room.enabled
+    assert Path(s.scoring.clean_room.jar) == TASK / "vendor"          # a dir: the spec names no jar
     assert s.budget.per_run_usd == 200.0 and s.agent.model == "claude-opus-5-5"
-    assert "vendor/**" in s.task.protected_paths and "Edit(vendor/**)" in s.task.permissions.deny
+    assert "spec/**" in s.task.protected_paths and "Edit(spec/**)" in s.task.permissions.deny
+    assert not any("vendor" in d for d in s.task.permissions.deny)
+
+
+def test_seed_has_no_jar_and_no_reverse_engineering_tools():
+    assert not list(SEED.rglob("*.jar")) and not (SEED / "vendor").exists()
+    text = "\n".join(p.read_text() for p in SEED.rglob("*") if p.is_file() and p.suffix in (".md", ".sh", ".xml"))
+    for word in ("vendor/", "decompil", "jadx", "vineflower", "mcp__rea", "javap"):
+        assert word not in text.lower(), word
+    assert (SEED / "spec" / "README.md").is_file()
 
 
 def test_stages_and_briefs():
@@ -33,7 +44,9 @@ def test_stages_and_briefs():
     assert plan.stages[-1].kind == "release" and all(st.status_block for st in plan.stages)
     for st in plan.stages:
         assert Path(st.prompt).is_file()
-    assert "external contract" in (TASK / "stage1.md").read_text()
+    assert "spec/" in (TASK / "stage0.md").read_text() and "decompil" not in (TASK / "stage0.md").read_text()
+    cr = plan.stages[5]
+    assert cr.kind == "change_request" and cr.env_actions[0].params["path"] == "spec/CHANGES-1.md"
 
 
 def test_seed_rules_and_build():
@@ -50,9 +63,15 @@ def test_constraints_use_known_probes_and_hold_on_the_seed(tmp_path):
     constraints = yaml.safe_load((TASK / "constraints.yaml").read_text())["constraints"]
     assert all(c["probe"] in PROBES for c in constraints)
     seed = tmp_path / "seed"
-    shutil.copytree(SEED, seed, ignore=shutil.ignore_patterns("*.jar"))
+    shutil.copytree(SEED, seed)
     c, detail = score_constraints(ProbeContext(seed, seed, None, ""), constraints)
     assert c == 0, detail
+    ws = tmp_path / "ws"                     # the stage-5 change request is allowed into spec/
+    shutil.copytree(SEED, ws)
+    (ws / "spec" / "CHANGES-1.md").write_text("corrections\n")
+    assert score_constraints(ProbeContext(ws, seed, None, ""), constraints)[0] == 0
+    (ws / "spec" / "README.md").write_text("edited by the agent\n")
+    assert score_constraints(ProbeContext(ws, seed, None, ""), constraints)[0] == 1
 
 
 def _jar_with_pom(path: Path, pom: str, descriptor: str | None = None) -> Path:
@@ -80,13 +99,14 @@ EMBEDDED_POM = """<project xmlns="http://maven.apache.org/POM/4.0.0">
 
 
 def _target(tmp_path: Path, **fields) -> tuple[Path, Path]:
-    seed = tmp_path / "seed"
-    (seed / "vendor").mkdir(parents=True)
-    _jar_with_pom(seed / "vendor" / "approvals-1.4.jar", EMBEDDED_POM, '<atlassian-plugin key="com.acme.approvals"/>')
+    """``(target.yaml, vendor dir)``: the jar sits harness-side, next to the task (design §7.2)."""
+    vendor = tmp_path / "vendor"
+    vendor.mkdir(parents=True)
+    _jar_with_pom(vendor / "approvals-1.4.jar", EMBEDDED_POM, '<atlassian-plugin key="com.acme.approvals"/>')
     target = tmp_path / "target.yaml"
     target.write_text(yaml.safe_dump({"jar": "approvals-1.4.jar", "sha256": "", "jira_version": "auto",
                                       "amps_version": "auto", "java_release": "auto", **fields}))
-    return target, seed
+    return target, vendor
 
 
 def test_target_resolution_from_the_embedded_pom(tmp_path):
@@ -109,10 +129,10 @@ def test_target_yaml_overrides_and_pom_pinning(tmp_path):
 
 def test_target_without_a_version_asks_for_one(tmp_path):
     import jira_target
-    target, seed = _target(tmp_path)
-    _jar_with_pom(seed / "vendor" / "approvals-1.4.jar", "<project/>")
+    target, vendor = _target(tmp_path)
+    _jar_with_pom(vendor / "approvals-1.4.jar", "<project/>")
     with pytest.raises(SystemExit, match="jira_version"):
-        jira_target.load(target, seed)
+        jira_target.load(target, vendor)
 
 
 def test_priming_pom_adds_the_original_dependencies_once():
@@ -141,17 +161,15 @@ def test_hidden_suite_on_a_synthetic_plugin(tmp_path):
     classes = tmp_path / "classes"
     subprocess.run([javac, "-d", str(classes), str(src / "Gate.java")], check=True)
     ws = tmp_path / "ws"
-    (ws / "vendor").mkdir(parents=True)
-    with zipfile.ZipFile(ws / "vendor" / "p.jar", "w") as z:
+    ws.mkdir()
+    jar = tmp_path / "harness" / "p.jar"     # harness-side: the implementer's workspace has no jar
+    jar.parent.mkdir()
+    with zipfile.ZipFile(jar, "w") as z:
         for f in classes.rglob("*.class"):
             z.write(f, f.relative_to(classes).as_posix())
         z.writestr("atlassian-plugin.xml", '<atlassian-plugin key="com.acme.p"><plugin-info/>'
                                            '<workflow-validator key="gate" class="com.acme.Gate"/></atlassian-plugin>')
     files = {
-        "analysis/inventory.json": '{"modules": [{"key": "gate", "type": "workflow-validator", "purpose": "x",'
-                                   ' "evidence": ["com.acme.Gate#validate", "com.acme.Gate.Rule#w"]}], "classes": []}',
-        "analysis/claims.jsonl": '{"id": "C-001", "module": "gate", "behaviour": "x", "evidence": ["com.acme.Gate"],'
-                                 ' "confidence": "high"}\n',
         "analysis/rewrite_map.json": '{"modules": {"gate": {"status": "done", "files": ["src/main/java/n/G.java"],'
                                      ' "tests": ["src/test/java/n/GTest.java"]}}}',
         "src/main/java/n/G.java": "class G {}", "src/test/java/n/GTest.java": "class GTest {}",
@@ -164,8 +182,11 @@ def test_hidden_suite_on_a_synthetic_plugin(tmp_path):
         (ws / rel).parent.mkdir(parents=True, exist_ok=True)
         (ws / rel).write_text(text)
     res = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"], cwd=TASK / "hidden",
-                         env={"LRAE_WORKSPACE": str(ws), "PATH": "/usr/bin:/bin"}, capture_output=True, text=True)
+                         env={"LRAE_WORKSPACE": str(ws), "LRAE_TARGET_JAR": str(jar), "PATH": "/usr/bin:/bin"}, capture_output=True, text=True)
     assert res.returncode == 0 and "F" not in res.stdout.splitlines()[0], res.stdout[-2000:]
+    sys.path.insert(0, str(TASK / "hidden"))
+    from _support import reference
+    assert reference(jar).resolve("com.acme.Gate.Rule#w")     # method-level grounding on real class files
 
 
 # --- found on the first real jar (2026-10-26): several embedded poms, jira.compile.version, vendor modules ---
@@ -194,12 +215,12 @@ PLUGIN_POM = """<project xmlns="http://maven.apache.org/POM/4.0.0">
 
 def test_the_plugin_pom_wins_over_submodule_poms(tmp_path):
     import jira_target
-    target, seed = _target(tmp_path)
-    with zipfile.ZipFile(seed / "vendor" / "approvals-1.4.jar", "w") as z:
+    target, vendor = _target(tmp_path)
+    with zipfile.ZipFile(vendor / "approvals-1.4.jar", "w") as z:
         z.writestr("META-INF/maven/com.acme.approvals/aaa-helper/pom.xml", SUBMODULE_POM)   # sorts first
         z.writestr("META-INF/maven/com.acme.approvals/approvals/pom.xml", PLUGIN_POM)
         z.writestr("atlassian-plugin.xml", '<atlassian-plugin key="com.acme.approvals"/>')
-    t = jira_target.load(target, seed)
+    t = jira_target.load(target, vendor)
     assert t.pom_name == "META-INF/maven/com.acme.approvals/approvals/pom.xml"
     assert (t.jira_version, t.amps_version, t.java_release) == ("9.12.0", "9.2.3", "11")
     assert t.sources["jira_version"] == "embedded pom (jira.compile.version)"
@@ -284,3 +305,70 @@ def test_priming_pom_applies_exclusions_to_added_dependencies():
                                        exclusions=["jndi:jndi"])
     core = out[out.index("<artifactId>jira-core</artifactId>"):]
     assert "<groupId>jndi</groupId>" in core[:core.index("</dependency>")]
+
+
+# --- JA: the analyst's spec is checked once, harness-side (analyst/check_spec.py; design §7.2) ---
+
+def _analyst_fixture(tmp_path: Path):
+    """A synthetic two-module plugin and a complete, clean analyst spec for it."""
+    jar = tmp_path / "p.jar"
+    with zipfile.ZipFile(jar, "w") as z:
+        z.writestr("com/acme/Gate.class", b"not parsed")            # class-level grounding only
+        z.writestr("com/acme/internal/RuleEngine.class", b"not parsed")
+        z.writestr("atlassian-plugin.xml", '<atlassian-plugin key="com.acme.p"><plugin-info/>'
+                                           '<workflow-validator key="gate" class="com.acme.Gate"/>'
+                                           '<component key="engine" class="com.acme.internal.RuleEngine"/>'
+                                           '<component-import key="imp" interface="x.Y"/></atlassian-plugin>')
+    spec = tmp_path / "spec"
+    spec.mkdir()
+    (spec / "SPEC.md").write_text("# Contract\nThe validator class is com.acme.Gate (persisted in workflows).\n")
+    (spec / "INVENTORY.md").write_text("A gate.\n")
+    (spec / "inventory.json").write_text(
+        '{"plugin": {"key": "com.acme.p"}, "modules": ['
+        '{"key": "gate", "type": "workflow-validator", "class": "com.acme.Gate", "purpose": "checks"},'
+        '{"key": "engine", "type": "component", "class": null, "purpose": "rules"}]}')
+    (spec / "claims.jsonl").write_text(
+        '{"id": "C-0001", "module": "gate", "behaviour": "When x, y.", "confidence": "high", "status": "active"}\n'
+        '{"id": "C-0002", "module": "engine", "behaviour": "When a, b.", "confidence": "medium", "status": "active"}\n')
+    analyst = tmp_path / "analyst"
+    analyst.mkdir()
+    (analyst / "claims-evidence.jsonl").write_text('{"id": "C-0001", "evidence": ["com.acme.Gate"]}\n'
+                                                    '{"id": "C-0002", "evidence": ["com.acme.internal.RuleEngine"]}\n')
+    (analyst / "contract-classes.txt").write_text("com.acme.Gate   # workflow definitions persist it\n")
+    (analyst / "spec-changes-1.md").write_text("# Corrections\n- C-0002 retracted, see C-0003.\n")
+    return jar, spec, analyst
+
+
+def _check(jar, spec, analyst):
+    sys.path.insert(0, str(TASK / "analyst"))
+    import check_spec
+    return check_spec.check(jar=jar, spec_dir=spec, analyst_dir=analyst)
+
+
+def test_spec_check_passes_a_complete_clean_spec(tmp_path):
+    report = _check(*_analyst_fixture(tmp_path))
+    assert report.problems == [] and report.modules == 2 and report.claimed == 2
+
+
+def test_spec_check_finds_gaps_leaks_and_bad_evidence(tmp_path):
+    jar, spec, analyst = _analyst_fixture(tmp_path)
+    (spec / "claims.jsonl").write_text(
+        '{"id": "C-0001", "module": "gate", "behaviour": "x", "confidence": "high", "status": "active",'
+        ' "evidence": ["com.acme.Gate"]}\n')
+    (spec / "SPEC.md").write_text("Internally com.acme.internal.RuleEngine does it.\n")
+    (analyst / "claims-evidence.jsonl").write_text('{"id": "C-0001", "evidence": ["com.acme.Nope"]}\n')
+    (analyst / "spec-changes-1.md").write_text("PLACEHOLDER: later\n")
+    text = "\n".join(_check(jar, spec, analyst).problems)
+    assert "engine" in text and "no active claim" in text                   # coverage
+    assert "C-0001" in text and "evidence" in text and "claims.jsonl" in text  # evidence in the implementer's copy
+    assert "com.acme.Nope" in text                                          # grounding
+    assert "com.acme.internal.RuleEngine" in text and "SPEC.md" in text      # leaked internal name
+    assert "placeholder" in text.lower()
+
+
+def test_spec_check_wants_every_module_with_its_type(tmp_path):
+    jar, spec, analyst = _analyst_fixture(tmp_path)
+    (spec / "inventory.json").write_text('{"plugin": {"key": "com.acme.p"}, "modules": ['
+                                         '{"key": "gate", "type": "workflow-function", "purpose": "x"}]}')
+    text = "\n".join(_check(jar, spec, analyst).problems)
+    assert "engine" in text and "workflow-validator" in text and "imp" not in text

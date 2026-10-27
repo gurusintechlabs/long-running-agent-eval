@@ -242,6 +242,7 @@ def _absolutize(raw: dict, base: Path) -> dict:
         fix(d.get(section), fld)
     fix(((d.get("scoring") or {}).get("behavior")), "judge_fixtures")
     fix(((d.get("scoring") or {}).get("security")), "context_file")
+    fix(((d.get("scoring") or {}).get("clean_room")), "jar")
     fix((((d.get("task") or {}).get("counterparts") or {}).get("ops")), "policy_file")
     return d
 

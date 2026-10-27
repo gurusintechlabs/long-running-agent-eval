@@ -6,14 +6,17 @@ Python (no JDK needed by the scorer):
 * every class in the jar, and the methods each one declares (parsed from the class files);
 * the modules of ``atlassian-plugin.xml`` (element, ``key``, ``class``).
 
-Tests are parametrised over that reference, so P(t) at a checkpoint is the share of the plugin the
-agent's artefacts cover, and the grounding tests fail on any evidence reference that does not exist in
-the jar. Behaviour tests (does the rewrite do what the plugin does) are a later tier, written after the
-pilot (§6.3).
+The agent under test is the implementer (design §7.2): its workspace has the analyst's spec but no jar.
+The jar sits harness-side in ``fixtures/tasks/jira_re/vendor/``, next to this directory (the scorer runs
+the suite in place). Tests are parametrised over the reference, so P(t) at a checkpoint is the share of
+the plugin the rewrite covers. The analyst's files are checked once, by ``analyst/check_spec.py``, which
+reuses the grounding helpers here. Behaviour tests (does the rewrite do what the plugin does) are a
+later tier, written after the pilot.
 
 Environment (from ``scorer.yaml``):
-  LRAE_WORKSPACE  the snapshot copy under test
-  LRAE_STAGE      the stage in force; unset = the final stage
+  LRAE_WORKSPACE   the snapshot copy under test
+  LRAE_STAGE       the stage in force; unset = the final stage
+  LRAE_TARGET_JAR  the jar, overriding ``../vendor/`` (tests on a synthetic plugin)
 """
 from __future__ import annotations
 
@@ -31,6 +34,7 @@ import pytest
 
 FINAL_STAGE = 6
 WS = Path(os.environ.get("LRAE_WORKSPACE", ".")).resolve()
+VENDOR = Path(__file__).resolve().parent.parent / "vendor"
 
 # Descriptor elements that are metadata, not functional modules.
 NON_MODULES = {"plugin-info", "resource", "component-import", "web-resource-transformer",
@@ -165,7 +169,10 @@ def reference(jar: Path) -> Reference:
 
 
 def target_jar() -> Path | None:
-    jars = sorted((WS / "vendor").glob("*.jar"))
+    override = os.environ.get("LRAE_TARGET_JAR", "").strip()
+    if override:
+        return Path(override) if Path(override).is_file() else None
+    jars = sorted(VENDOR.glob("*.jar"))
     return jars[0] if len(jars) == 1 else None
 
 
@@ -215,14 +222,10 @@ def load_jsonl(rel: str) -> list[dict]:
     return rows
 
 
-def active_claims() -> list[dict]:
-    return [c for c in load_jsonl("analysis/claims.jsonl") if c.get("status", "active") == "active"]
-
-
 def need_reference() -> Reference:
     ref = workspace_reference()
     if ref is None:
-        pytest.fail("vendor/ must hold exactly one jar (the plugin under study)")
+        pytest.fail(f"{VENDOR} must hold exactly one jar (the plugin under study)")
     return ref
 
 

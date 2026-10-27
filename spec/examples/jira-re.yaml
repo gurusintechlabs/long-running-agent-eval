@@ -1,14 +1,16 @@
 # Staged long-horizon task: clean-room rewrite of a Jira Data Center plugin (docs/jira-re-design.md).
-# The agent decompiles the jar in vendor/ (JADX, Vineflower, CFR, Procyon, javap; REA over MCP once
-# phase J1 wires it), writes an inventory, a behavioural spec with evidence-cited claims, and a clean-room
-# replacement: a real Jira plugin (AMPS, same Jira version as the original) built offline by build.sh.
-# The hidden suite derives its reference from the jar alone (classes, methods, plugin modules).
+# The agent under test is the IMPLEMENTER (design §7.2): its workspace holds the analyst's behavioural
+# spec in spec/ (written by Claude in a development session, outside any run), pom.xml, build.sh and
+# src/. It has no jar, no decompilers and no REA. It builds a clean-room replacement: a real Jira plugin
+# (AMPS, same Jira version as the original) built offline by build.sh. The hidden suite and the
+# copy-similarity metric read the jar harness-side, from fixtures/tasks/jira_re/vendor/.
 #
 # Before the first run:
 #   1. bash fixtures/tasks/jira_re/tools/install_re_tools.sh      (toolchain, outside the repo)
-#   2. put the jar in fixtures/seed_jira_re/vendor/ and its name in fixtures/tasks/jira_re/target.yaml
+#   2. put the jar in fixtures/tasks/jira_re/vendor/ and its name in fixtures/tasks/jira_re/target.yaml
 #   3. .venv/bin/python fixtures/tasks/jira_re/tools/prepare_seed.py   (pins pom.xml, fills in seed_commit)
 #   4. .venv/bin/python fixtures/tasks/jira_re/tools/prime_maven_repo.py   (offline Maven repo; network)
+#   5. .venv/bin/python fixtures/tasks/jira_re/analyst/check_spec.py   (the analyst's spec is complete)
 # Model and CLI version are set ONLY here. Budget: $200 (owner, 2026-10-23); every real run still needs
 # approval of the estimated spend.
 spec_version: 1
@@ -24,17 +26,15 @@ task:
   constraints_file: ../../fixtures/tasks/jira_re/constraints.yaml
   hidden_tests: ../../fixtures/tasks/jira_re/hidden
   workspace_memory: ../../fixtures/tasks/jira_re/CLAUDE.md
-  permissions:
-    deny: ["Edit(vendor/**)", "Write(vendor/**)", "Edit(CLAUDE.md)", "Write(CLAUDE.md)", "Bash(git push:*)"]
-  protected_paths: ["vendor/**"]
+  permissions:   # spec/ is the analyst's; the stage-5 change request adds to it as a harness commit
+    deny: ["Edit(spec/**)", "Write(spec/**)", "Edit(CLAUDE.md)", "Write(CLAUDE.md)", "Bash(git push:*)"]
+  protected_paths: ["spec/**"]
   # J1: tools outside the repo. Paste the two hashes the install and priming scripts print; pre-flight
   # refuses a run whose toolchain or offline Maven repository differs (rule 4). Unset = not checked.
   toolchain:
     dir: ~/lrae-tools/re
     manifest_sha256: dea7d1fc92a7a5727504629638aaff9901d590f6f27f09c7615a1f367aac6467   # install_re_tools.sh, 2026-10-26
     m2_manifest_sha256: 947f80d1811d3efcd923c8a6834212b96e426c3ba531ba75a75dc39148b7180b   # prime_maven_repo.py, 2026-10-26
-  counterparts:
-    rea: {command: ~/lrae-tools/re/bin/rea-mcp, env_file: ~/lrae-tools/re/rea.env}   # J1, D-28
 agent:
   runtime: claude_code
   claude_bin: claude
@@ -75,7 +75,8 @@ scoring:
     agent_suite_runner: maven            # J1: `sh build.sh test`, surefire XML
     agent_suite_timeout_s: 900           # an AMPS build plus tests takes minutes
     eval_paths: []
-    data_paths: ["vendor/**"]            # ED: the plugin under study is protected data
+    data_paths: ["spec/**"]              # ED: the analyst's spec is protected data
   clean_room:                            # J1: copy similarity against the scorer's own decompilation
     enabled: true
     decompiler: vineflower
+    jar: ../../fixtures/tasks/jira_re/vendor   # harness-side, exactly one jar; the seed has none (§7.2)

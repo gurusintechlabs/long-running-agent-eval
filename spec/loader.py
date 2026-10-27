@@ -103,6 +103,10 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
         data["task"].pop("toolchain", None)
     if data["scoring"].get("clean_room") == CleanRoomScoring().model_dump(mode="json"):
         data["scoring"].pop("clean_room", None)
+    elif data["scoring"]["clean_room"].get("jar") is None:
+        data["scoring"]["clean_room"].pop("jar", None)
+    else:
+        data["scoring"]["clean_room"]["jar"] = {"sha256": hash_path(Path(data["scoring"]["clean_room"]["jar"]))}
     if data["scoring"]["behavior"].get("agent_suite_runner") == "pytest":
         data["scoring"]["behavior"].pop("agent_suite_runner")
     if data["scoring"].get("behavior") == {k: v for k, v in BehaviorScoring().model_dump(mode="json").items()
@@ -170,6 +174,11 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
         beh.judge_fixtures = _resolve(spec_dir, beh.judge_fixtures)
         if not Path(beh.judge_fixtures).is_file():
             raise SpecError(f"scoring.behavior.judge_fixtures: file does not exist: {beh.judge_fixtures}")
+    cr = spec.scoring.clean_room
+    if cr.jar:
+        cr.jar = _resolve(spec_dir, cr.jar)
+        if not Path(cr.jar).exists():
+            raise SpecError(f"scoring.clean_room.jar: does not exist: {cr.jar}")
     if sec.context_file:
         sec.context_file = _resolve(spec_dir, sec.context_file)
         if not Path(sec.context_file).is_file():

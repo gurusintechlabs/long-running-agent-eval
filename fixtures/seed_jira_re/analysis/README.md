@@ -1,4 +1,4 @@
 # analysis/
 
-Stage deliverables: `INVENTORY.md`, `inventory.json` (stage 0), `SPEC.md`, `claims.jsonl` (stage 1),
-`ARCHITECTURE.md`, `rewrite_map.json` (stage 2), `AUDIT.md` (stage 5).
+Your deliverables: `PLAN.md` (stage 0), `ARCHITECTURE.md`, `rewrite_map.json` (stage 1),
+`QUESTIONS.md` (any time), `CHANGES-APPLIED.md` (stage 5).

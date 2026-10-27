@@ -27,6 +27,7 @@ import yaml
 TASK = Path(__file__).resolve().parents[1]
 REPO = TASK.parents[2]
 SEED = REPO / "fixtures" / "seed_jira_re"
+VENDOR = TASK / "vendor"   # the jar, harness-side: the implementer's seed has none (design §7.2)
 TARGET = TASK / "target.yaml"
 PLACEHOLDER = "REPLACE_WITH_PLUGIN.jar"
 
@@ -156,12 +157,12 @@ def plugin_key(jar: Path) -> str | None:
         return ET.fromstring(z.read("atlassian-plugin.xml")).get("key")
 
 
-def load(target_file: Path = TARGET, seed: Path = SEED) -> Target:
+def load(target_file: Path = TARGET, vendor: Path = VENDOR) -> Target:
     cfg = yaml.safe_load(target_file.read_text()) or {}
     name = str(cfg.get("jar") or "")
     if not name or name == PLACEHOLDER or "/" in name:
         raise SystemExit(f"set 'jar:' in {target_file} to the jar's file name")
-    jar = seed / "vendor" / name
+    jar = vendor / name
     if not jar.is_file():
         raise SystemExit(f"{jar} does not exist")
 

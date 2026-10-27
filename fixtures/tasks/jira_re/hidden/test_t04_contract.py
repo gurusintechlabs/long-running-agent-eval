@@ -1,10 +1,10 @@
-"""t04 (stages 2-4): the replacement keeps the original's external contract in its plugin descriptor."""
+"""t04 (from stage 1): the replacement keeps the original's external contract in its plugin descriptor."""
 import pytest
 
 from _support import module_keys, need_module, original_plugin_key, rewrite_descriptor, stage
 
 
-@stage(2)
+@stage(1)
 def test_plugin_key_matches_the_original():
     want = original_plugin_key()
     if want is None:
@@ -13,7 +13,7 @@ def test_plugin_key_matches_the_original():
     assert got == want, f"plugin key is {got!r} (after expanding pom properties); the original's is {want!r}"
 
 
-@stage(2)
+@stage(1)
 @pytest.mark.parametrize("key", module_keys())
 def test_module_is_declared_with_its_original_key_and_type(key):
     m = need_module(key)

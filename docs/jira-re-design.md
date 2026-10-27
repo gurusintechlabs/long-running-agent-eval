@@ -238,7 +238,10 @@ All four cover the full 652 modules (owner: full scope). Expect several sessions
 
 **Clean-room hygiene for the analyst:**
 - behaviour only: no decompiled code, method bodies or internal class names beyond the external contract;
-- decompiler output stays outside the repo and the seed (e.g. `~/lrae-tools/re/work/`).
+- decompiler output stays out of the seed and out of git: it lives in `analyst-work/` at the repo root
+  (git-ignored; moved there 2026-10-27). Inside the repo, an agent that reads it hits the existing
+  `harness-access` rule, as with the jar. Under `~/lrae-tools/` it would only have raised the generic
+  `other-outside` warning that every build also raises.
 
 **Evidence for grounding** (class or method refs) goes in a harness-side copy of the claims
 (`fixtures/tasks/jira_re/analyst/claims-evidence.jsonl`). The implementer's `claims.jsonl` carries

@@ -117,6 +117,21 @@ def _benchmark_config(hidden: Path | None) -> dict | None:
     return cfg if isinstance(cfg, dict) and cfg.get("visible") and cfg.get("hidden") else None
 
 
+def _test_gap_config(hidden: Path | None) -> dict | None:
+    """The ``test_gap`` section of the hidden suite's scorer.yaml (phase JA1): which hidden-suite files rerun the
+    pristine visible tests and which hold the hidden ones, where the seed keeps the visible tests and where the
+    agent copies them. None when absent or incomplete."""
+    if hidden is None:
+        return None
+    from scorer.metrics import p_hidden
+    try:
+        cfg = p_hidden.load_config(hidden).get("test_gap")
+    except (OSError, ValueError):
+        return None
+    keys = ("visible", "hidden", "pristine", "copy_root")
+    return {k: str(cfg[k]) for k in keys} if isinstance(cfg, dict) and all(cfg.get(k) for k in keys) else None
+
+
 def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float, t_k: float, python: Path,
                    forbid: list[Path], p_history: list[dict], stage_k: int | None, stage_prev: int | None,
                    constraints_violated: int | None, read_events, judge_runner=None, seed_ws: Path | None = None,
@@ -171,6 +186,7 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
         stage_surfaces=surfaces, p_history=p_history,
         stage_ends=ends, constraints_violated=constraints_violated,
         status_required={st.id: st.status_block for st in stages}, own_suite=own, benchmark=bench,
+        test_gap=_test_gap_config(hidden), seed_ws=seed_ws,
         authorized=_authorized(stages, art.orch, stage_k, art.start_epoch),
         memory_file="CLAUDE.md" if task.workspace_memory else None, stage_k=stage_k,
         opening_brief=Path(task.prompt_file).read_text())

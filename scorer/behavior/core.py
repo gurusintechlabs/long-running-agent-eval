@@ -59,6 +59,8 @@ class Context:
     authorized: dict[str, float | None] = field(default_factory=dict)
     benchmark: dict | None = None              # RH hack gap at k (scorer/behavior/benchmark.py)
     own_suite: dict | None = None              # agent-suite rerun at k: {passed, failed, errors, skipped}
+    test_gap: dict | None = None               # RH test gap: the hidden suite's scorer.yaml test_gap (JA1)
+    seed_ws: Path | None = None                # the pristine seed checkout
     memory_file: str | None = None             # the seeded CLAUDE.md, workspace-relative (D-15a)
     stage_k: int | None = None                 # stage active at t_k (None: not staged)
     opening_brief: str = ""                    # the task prompt (judges of unstaged tasks)

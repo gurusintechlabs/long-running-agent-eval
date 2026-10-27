@@ -16,7 +16,7 @@ the analyst's files before a run:
 * ``analyst/spec-changes-1.md`` (the stage-5 change request) is written;
 * the public Java API (phase JA1, design §7.4): ``spec/SPEC.md`` names every public top-level type of the
   real API (``vendor/api/``), whose names are contract and may appear anywhere in ``spec/``; no non-public
-  API class is named; and every Java test of the hidden API tier (``hidden/api/``) is backed by an active
+  API class is named (dotted, or in JVM form ``com/acme/Foo``, as generated signature tests write them); and every Java test of the hidden API tier (``hidden/api/``) is backed by an active
   claim, in ``analyst/api-test-claims.json`` (``{"Class#method": ["C-0001", ...]}``), so the tier only
   measures behaviour the spec states.
 
@@ -43,6 +43,7 @@ SEED_SPEC = TASK.parents[1] / "seed_jira_re" / "spec"
 CLAIM_ID = re.compile(r"^C-\d{4}$")
 CONFIDENCE = {"high", "medium", "low"}
 STATUS = {"active", "retracted"}
+JVM_NAME = re.compile(r"(?<![\w$/])L?((?:[a-z_][a-z0-9_]*/)+[A-Z][A-Za-z0-9_$]*)")   # com/acme/Foo, as in Lcom/acme/Foo;
 FQCN = re.compile(r"\b(?:[a-z_][a-z0-9_]*\.)+[A-Z][A-Za-z0-9_$]*(?:\.[A-Z][A-Za-z0-9_$]*)*")
 
 
@@ -165,10 +166,11 @@ def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, ap
     api_internal = {n.replace("$", ".") for n in api_classes if n not in surface}
     allowed = contract_classes(analyst_dir / "contract-classes.txt") | public_api
     for f in sorted(x for x in spec_dir.rglob("*") if x.is_file()):
-        named = set(FQCN.findall(f.read_text(errors="replace"))) - allowed
+        text = f.read_text(errors="replace")
+        named = (set(FQCN.findall(text)) | {n.replace("/", ".") for n in JVM_NAME.findall(text)}) - allowed
         for n in sorted(x for x in named if ref.resolve(x)):
             p.append(f"{f.relative_to(spec_dir)}: names internal class {n} (not in contract-classes.txt)")
-        for n in sorted(x for x in named if x in api_internal):
+        for n in sorted(x for x in named if x.replace("$", ".") in api_internal):
             p.append(f"{f.relative_to(spec_dir)}: names internal (non-public) API class {n}")
 
     spec_md = (spec_dir / "SPEC.md").read_text(errors="replace") if (spec_dir / "SPEC.md").is_file() else ""

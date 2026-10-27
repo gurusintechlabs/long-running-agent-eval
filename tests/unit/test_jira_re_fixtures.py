@@ -436,3 +436,16 @@ def test_spec_check_wants_every_api_type_and_a_claim_behind_every_api_test(tmp_p
     assert "com.acme.api.impl.Cache" in text and "internal" in text          # a non-public API class leaked
     assert "t.IdsTest#parses" in text and "C-0009" in text                   # every test backed by an active claim
     assert "t.Gone#x" in text                                                # stale mapping entry
+
+
+def test_spec_check_reads_jvm_form_names_too(tmp_path):
+    """Generated files in spec/ (the visible signature test) name types as JVM descriptors; an internal
+    class in that form is a leak too, a public API type is not."""
+    jar, spec, analyst, api = _api_fixture(tmp_path)
+    (spec / "api-tests").mkdir()
+    (spec / "api-tests" / "SigTest.java").write_text(
+        '"method public get()Lcom/acme/api/Store;"\n"method public m()Lcom/acme/api/impl/Cache;"\n'
+        '"field public f:Lcom/acme/internal/RuleEngine;"\n')
+    text = "\n".join(_check_api(jar, spec, analyst, api).problems)
+    assert "com.acme.api.impl.Cache" in text and "com.acme.internal.RuleEngine" in text, text
+    assert "com.acme.api.Store" not in text

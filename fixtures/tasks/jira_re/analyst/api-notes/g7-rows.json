@@ -1,0 +1,930 @@
+{
+ "packages": {
+  "com.almworks.jira.structure.api.pinger": "Internal scheduling helper that calls registered callbacks periodically on one shared, low-priority daemon thread. Meant for the plugin's own components; it is exported as a service but is not a supported extension point.",
+  "com.almworks.jira.structure.api.planningtask": "Read and update access to planning tasks: issue-like items that exist only inside the plugin (item type `CoreItemTypes.PLANNING_TASK`) and carry a subset of the standard issue fields plus values of supported custom fields. Marked internal; the contract may change between versions.",
+  "com.almworks.jira.structure.api.process": "Tracking and reporting of long-running background operations (backup, restore, maintenance, import/export, resynchronisation, automation runs). Contains a persistent process registry with status, progress, cancel flag and display parameters for a progress page, and lightweight in-memory progress reporting interfaces.",
+  "com.almworks.jira.structure.api.property": "Small key/value property stores kept in the plugin's own database tables: one global store and one store scoped to individual structures. Values are strings; numeric and boolean helpers convert on the fly.",
+  "com.almworks.jira.structure.api.pull": "Versioning primitives for incremental (pull-based) data delivery. A data source has a current `DataVersion`; a client that knows an older version asks for an update and receives either the changes since that version or a full replacement when the versions are not comparable.",
+  "com.almworks.jira.structure.api.query": "The structure query language: a query evaluated against a `Forest` that selects rows by their position in the hierarchy, by the issues they show (issue keys, issue IDs, embedded JQL) and by pluggable named constraints. Queries are obtained by parsing text (`StructureQueryParser`) or with a fluent builder (`StructureQueryBuilder`). Other plugins can add named constraints through the `structure-query-constraint` module type by implementing `StructureQueryConstraint`. The text syntax is described on `StructureQueryParser.parse(String)`.",
+  "com.almworks.jira.structure.api.rest": "Plain data-transfer objects used as JSON request and response bodies of the plugin's REST resources. They have public mutable fields, no validation, and static converters to and from the corresponding model types.",
+  "com.almworks.jira.structure.api.rest.effect": "JSON transfer objects that report the side effects (\"effects\") produced by automation in response to a forest change, grouped into batches that can be inspected and possibly undone.",
+  "com.almworks.jira.structure.api.row": "Rows, the building blocks of forests. A row is an immutable triple of a row ID (unique across the instance), an item identity and a semantics code; the same item can appear in many rows. The package holds the row manager service, the `StructureRow` contract with its standard implementations, and static helpers for special row IDs (super-root, temporary rows).",
+  "com.almworks.jira.structure.api.settings": "Global and per-user configuration of the plugin: which projects it is enabled for, application-level permissions and who holds them, default structures, preferences for the panel shown on issue and project pages, and the attribute sensitivity settings that control which computed values may be shown when they depend on items a user cannot see."
+ },
+ "types": {
+  "com.almworks.jira.structure.api.pinger.Pinger": {
+   "summary": "Service that repeatedly calls registered `Pinger.Pingable` callbacks at a requested period. Implemented by the plugin and available as an OSGi component; internal. All callbacks run on a single daemon thread of below-normal priority, which wakes up roughly every 166 ms, so periods are honoured only approximately and a slow callback delays all others. The thread is started on demand and exits after about two minutes with nothing registered. After the plugin stops, registrations are dropped and new ones are ignored.",
+   "members": {
+    "MIN_PING_TIME": "Smallest allowed ping period, 500 (milliseconds). `ping` rejects shorter periods.",
+    "ping(com.almworks.jira.structure.api.pinger.Pinger.Pingable, long)": "Registers the callback (arg 1) to be called about every `period` milliseconds (arg 2). The first call happens roughly one period after registration. Returns immediately. Throws `NullPointerException` if the callback is null and `IllegalArgumentException` if the period is below `MIN_PING_TIME`. Registering the same callback twice creates two independent registrations. Silently ignored when the service has been stopped.",
+    "stopPinging(com.almworks.jira.structure.api.pinger.Pinger.Pingable)": "Removes every registration of the given callback (compared by identity). A call that is already running is not interrupted. Unknown callbacks and calls after shutdown are ignored; errors are logged, never thrown."
+   }
+  },
+  "com.almworks.jira.structure.api.pinger.Pinger.Pingable": {
+   "summary": "Callback registered with `Pinger`. Implemented by the caller. It is invoked on the pinger's shared background thread, never concurrently with itself for one registration.",
+   "members": {
+    "ping(long)": "Called once per period. The argument is the current value of `System.nanoTime()` at the start of the ping round (useful only for measuring elapsed time). Return `true` to keep being called, `false` to be unregistered. Throwing any exception (or linkage error) also unregisters the callback; the error is logged as a warning."
+   }
+  },
+  "com.almworks.jira.structure.api.planningtask.PlanningTask": {
+   "summary": "Read-only snapshot of one planning task's field values. Instances are created by `PlanningTaskManager`; they reflect the stored data at the moment they were obtained and do not change afterwards. Reading does not check the current user's permissions. Internal API.",
+   "members": {
+    "getSummary()": "Returns the summary (title) of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getDescription()": "Returns the description text of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getAssignee()": "Returns the assigned user of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getDueDate()": "Returns the due date (a calendar date without time zone) of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getOriginalEstimate()": "Returns the original time estimate in milliseconds of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getRemainingEstimate()": "Returns the remaining time estimate in milliseconds of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getEnvironment()": "Returns the environment text of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getReporter()": "Returns the reporter user of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getPriority()": "Returns the priority of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getIssueType()": "Returns the issue type the task is modelled on of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getProject()": "Returns the project the task belongs to of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getLabels()": "Returns the list of labels of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getAffectedVersions()": "Returns the list of affected versions of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getFixVersions()": "Returns the list of fix versions of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getComponents()": "Returns the list of project components of the planning task, or null when it is not set. The stored value is checked against the field configuration that applies to the task (its project and issue type); a value that is not valid there is reported as null.",
+    "getSprint()": "Returns the sprint the task is assigned to, or null when not set, when the agile (sprint) custom field does not exist, or when the value is not valid for the task.",
+    "getTextCustomFieldValue(com.atlassian.jira.issue.fields.CustomField)": "Returns the value of the given custom field (arg 1) on this planning task as text, or null when not set or not valid for the task's field configuration. Throws `IllegalArgumentException` if the plugin does not support that custom field for planning tasks, or if the field's type is not single-line or multi-line text.",
+    "getDateTimeCustomFieldValue(com.atlassian.jira.issue.fields.CustomField)": "Returns the value of the given custom field (arg 1) on this planning task as a `java.util.Date` (date and time), or null when not set or not valid for the task's field configuration. Throws `IllegalArgumentException` if the plugin does not support that custom field for planning tasks, or if the field's type is not date-time.",
+    "getNumberCustomFieldValue(com.atlassian.jira.issue.fields.CustomField)": "Returns the value of the given custom field (arg 1) on this planning task as a `Double`, or null when not set or not valid for the task's field configuration. Throws `IllegalArgumentException` if the plugin does not support that custom field for planning tasks, or if the field's type is not number.",
+    "getDateCustomFieldValue(com.atlassian.jira.issue.fields.CustomField)": "Returns the value of the given custom field (arg 1) on this planning task as a `LocalDate`, or null when not set or not valid for the task's field configuration. Throws `IllegalArgumentException` if the plugin does not support that custom field for planning tasks, or if the field's type is not date picker (date only).",
+    "getLabelsCustomFieldValue(com.atlassian.jira.issue.fields.CustomField)": "Returns the value of the given custom field (arg 1) on this planning task as a list of labels, or null when not set or not valid for the task's field configuration. Throws `IllegalArgumentException` if the plugin does not support that custom field for planning tasks, or if the field's type is not labels.",
+    "getProjectCustomFieldValue(com.atlassian.jira.issue.fields.CustomField)": "Returns the value of the given custom field (arg 1) on this planning task as a `Project`, or null when not set or not valid for the task's field configuration. Throws `IllegalArgumentException` if the plugin does not support that custom field for planning tasks, or if the field's type is not project picker.",
+    "getSingleVersionCustomFieldValue(com.atlassian.jira.issue.fields.CustomField)": "Returns the value of the given custom field (arg 1) on this planning task as one `Version`, or null when not set or not valid for the task's field configuration. Throws `IllegalArgumentException` if the plugin does not support that custom field for planning tasks, or if the field's type is not single version picker.",
+    "getMultiVersionCustomFieldValue(com.atlassian.jira.issue.fields.CustomField)": "Returns the value of the given custom field (arg 1) on this planning task as a list of `Version`, or null when not set or not valid for the task's field configuration. Throws `IllegalArgumentException` if the plugin does not support that custom field for planning tasks, or if the field's type is not multi version picker.",
+    "getSingleUserCustomFieldValue(com.atlassian.jira.issue.fields.CustomField)": "Returns the value of the given custom field (arg 1) on this planning task as one user, or null when not set or not valid for the task's field configuration. Throws `IllegalArgumentException` if the plugin does not support that custom field for planning tasks, or if the field's type is not single user picker."
+   }
+  },
+  "com.almworks.jira.structure.api.planningtask.PlanningTaskManager": {
+   "summary": "Entry point for reading and changing planning tasks by their numeric ID (the long ID of the item identity with type `CoreItemTypes.PLANNING_TASK`). Implemented by the plugin and exported as a public OSGi component. Internal API.",
+   "members": {
+    "getPlanningTask(long)": "Returns a snapshot of the planning task with the given ID, or null if no such task exists. No permission check is made.",
+    "getPlanningTasks(java.util.Collection)": "Returns snapshots for the given IDs, in the order of the collection, silently skipping IDs that do not exist. Never null. The collection must not be null or contain nulls.",
+    "getUpdateBuilder(long)": "Returns a new, empty update builder for the task with the given ID. Does not check that the task exists; that happens in `PlanningTaskUpdateBuilder.update()`."
+   }
+  },
+  "com.almworks.jira.structure.api.planningtask.PlanningTaskUpdateBuilder": {
+   "summary": "Collects field changes for one planning task and applies them together with `update()`. Obtained from `PlanningTaskManager.getUpdateBuilder(long)`; mutable and not thread-safe. Setting the same field twice keeps the last value. Fields not set are left unchanged.",
+   "members": {
+    "setSummary(String)": "Records a new summary. Returns this builder. Throws `IllegalArgumentException` if the value is null, empty or only whitespace (a task must have a summary).",
+    "setDescription(String)": "Records a new value for the description (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setAssignee(com.atlassian.jira.user.ApplicationUser)": "Records a new value for the assignee (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setDueDate(java.time.LocalDate)": "Records a new value for the due date (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setOriginalEstimate(Long)": "Records a new value for the original estimate, in milliseconds, (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setRemainingEstimate(Long)": "Records a new value for the remaining estimate, in milliseconds, (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setEnvironment(String)": "Records a new value for the environment text (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setReporter(com.atlassian.jira.user.ApplicationUser)": "Records a new value for the reporter (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setPriority(com.atlassian.jira.issue.priority.Priority)": "Records a new value for the priority (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setIssueType(com.atlassian.jira.issue.issuetype.IssueType)": "Records a new issue type for the task. Returns this builder. Declared non-null; the builder itself does not check. Not determined: whether `update()` then rejects a null or clears the field (depends on the field configuration validation).",
+    "setProject(com.atlassian.jira.project.Project)": "Records a new project for the task. Returns this builder. Declared non-null; the builder itself does not check. Not determined: whether `update()` then rejects a null or clears the field (depends on the field configuration validation).",
+    "setLabels(java.util.List)": "Records a new value for the labels (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setAffectedVersions(java.util.List)": "Records a new value for the affected versions (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setFixVersions(java.util.List)": "Records a new value for the fix versions (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setComponents(java.util.List)": "Records a new value for the components (null clears it). Returns this builder. Nothing is written until `update()`.",
+    "setSprint(com.almworks.jira.structure.api.agile.Sprint)": "Records a new sprint (null removes the task from its sprint). Only the sprint's ID is used; it is looked up in the agile application. Returns this builder. Throws `StructureRuntimeException` when sprint support is not available (no sprint custom field or agile services missing) and `IllegalArgumentException` when no sprint with that ID exists.",
+    "setTextCustomFieldValue(String, com.atlassian.jira.issue.fields.CustomField)": "Records a new value (arg 1, null clears it) for the custom field given as arg 2. Returns this builder. Throws `IllegalArgumentException` at once if the plugin does not support that custom field for planning tasks or its type is not single-line or multi-line text. Nothing is written until `update()`.",
+    "setDateTimeCustomFieldValue(java.util.Date, com.atlassian.jira.issue.fields.CustomField)": "Records a new value (arg 1, null clears it) for the custom field given as arg 2. Returns this builder. Throws `IllegalArgumentException` at once if the plugin does not support that custom field for planning tasks or its type is not date-time. Nothing is written until `update()`.",
+    "setNumberCustomFieldValue(Double, com.atlassian.jira.issue.fields.CustomField)": "Records a new value (arg 1, null clears it) for the custom field given as arg 2. Returns this builder. Throws `IllegalArgumentException` at once if the plugin does not support that custom field for planning tasks or its type is not number. Nothing is written until `update()`.",
+    "setDateCustomFieldValue(java.time.LocalDate, com.atlassian.jira.issue.fields.CustomField)": "Records a new value (arg 1, null clears it) for the custom field given as arg 2. Returns this builder. Throws `IllegalArgumentException` at once if the plugin does not support that custom field for planning tasks or its type is not date picker. Nothing is written until `update()`.",
+    "setLabelsCustomFieldValue(java.util.List, com.atlassian.jira.issue.fields.CustomField)": "Records a new value (arg 1, null clears it) for the custom field given as arg 2. Returns this builder. Throws `IllegalArgumentException` at once if the plugin does not support that custom field for planning tasks or its type is not labels. Nothing is written until `update()`.",
+    "setProjectCustomFieldValue(com.atlassian.jira.project.Project, com.atlassian.jira.issue.fields.CustomField)": "Records a new value (arg 1, null clears it) for the custom field given as arg 2. Returns this builder. Throws `IllegalArgumentException` at once if the plugin does not support that custom field for planning tasks or its type is not project picker. Nothing is written until `update()`.",
+    "setSingleVersionCustomFieldValue(com.atlassian.jira.project.version.Version, com.atlassian.jira.issue.fields.CustomField)": "Records a new value (arg 1, null clears it) for the custom field given as arg 2. Returns this builder. Throws `IllegalArgumentException` at once if the plugin does not support that custom field for planning tasks or its type is not single version picker. Nothing is written until `update()`.",
+    "setMultiVersionCustomFieldValue(java.util.List, com.atlassian.jira.issue.fields.CustomField)": "Records a new value (arg 1, null clears it) for the custom field given as arg 2. Returns this builder. Throws `IllegalArgumentException` at once if the plugin does not support that custom field for planning tasks or its type is not multi version picker. Nothing is written until `update()`.",
+    "setSingleUserCustomFieldValue(com.atlassian.jira.user.ApplicationUser, com.atlassian.jira.issue.fields.CustomField)": "Records a new value (arg 1, null clears it) for the custom field given as arg 2. Returns this builder. Throws `IllegalArgumentException` at once if the plugin does not support that custom field for planning tasks or its type is not single user picker. Nothing is written until `update()`.",
+    "update()": "Validates the recorded changes against the task's field configuration and stores them, acting as the current user. Throws `StructureException` when: the plugin is not licensed; the current user cannot use the plugin; the task does not exist or is not visible to the user; the task belongs to a structure the user cannot edit; or a value is invalid for its field (the message names the problem). Tasks not owned by any structure can be changed by any user who can use the plugin. The builder can be reused after the call."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProcessButtonParameters": {
+   "summary": "Description of one button shown on the progress page of a background process: a localizable caption and a target URL. Mutable bean, also serialized to JSON when process parameters are stored, so it needs a no-argument constructor and getters/setters. Not thread-safe.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.I18nText, String)": "Creates a button with the given caption (arg 1) and URL (arg 2). Either may be null.",
+    "<init>()": "Creates a button with null caption and null URL (for deserialization).",
+    "getCaption()": "The localizable caption text (i18n key plus arguments), or null.",
+    "setCaption(com.almworks.jira.structure.api.util.I18nText)": "Sets the caption; null allowed.",
+    "getUrl()": "The URL the button leads to, or null. Not determined: whether relative URLs are resolved against the Jira base URL; the plugin's own callers pass page paths.",
+    "setUrl(String)": "Sets the URL; null allowed.",
+    "equals(Object)": "True when the other object is of exactly the same class and has equal caption and URL (nulls compare equal to nulls).",
+    "hashCode()": "Hash consistent with `equals`, computed from caption and URL."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProcessDisplayParameters": {
+   "summary": "What the progress page of a background process shows: a localizable process name and a list of buttons. Mutable bean (also stored as JSON with the process record). Build one with `ProcessDisplayParameters.Builder` or the setters. Not thread-safe.",
+   "members": {
+    "<init>()": "Creates parameters with no name and an empty, modifiable button list.",
+    "<init>(com.almworks.jira.structure.api.process.ProcessDisplayParameters)": "Copy constructor: same name and a new list holding the same button objects (the buttons themselves are shared, not copied). Throws `NullPointerException` if the argument is null.",
+    "getName()": "The localizable name of the process, or null.",
+    "setName(com.almworks.jira.structure.api.util.I18nText)": "Sets the process name; null allowed.",
+    "getButtons()": "The live, modifiable list of buttons (never copied). Null only if `setButtons(null)` was called.",
+    "setButtons(java.util.List)": "Replaces the button list with the given list object (stored as is, not copied); null allowed.",
+    "equals(Object)": "True when the other object is of exactly the same class with equal name and equal button lists (order matters).",
+    "hashCode()": "Hash consistent with `equals`, from name and buttons."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProcessDisplayParameters.Builder": {
+   "summary": "Fluent builder for `ProcessDisplayParameters`. It wraps one instance and `build()` returns that same instance, so the builder must not be used after `build()` if the result is to stay unchanged.",
+   "members": {
+    "<init>()": "Starts from empty parameters.",
+    "<init>(com.almworks.jira.structure.api.process.ProcessDisplayParameters)": "Starts from a copy of the given parameters (see the copy constructor). Throws `NullPointerException` for null.",
+    "withProcessName(String, Object[])": "Sets the process name to the i18n key (arg 1) with the given message arguments (arg 2). Returns this builder.",
+    "addButton(String, String, Object[])": "Appends a button with URL (arg 1) and a caption made of the i18n key (arg 2) and message arguments (arg 3). Returns this builder.",
+    "build()": "Returns the parameters built so far (the builder's own instance, not a copy)."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProcessFeedback": {
+   "summary": "The side of a background process that the worker uses: report status and poll for cancellation. Obtained from `ProcessHandleManager.getFeedback(Long)` or as part of a `ProcessHandle`.",
+   "members": {
+    "setStatus(com.almworks.jira.structure.api.process.ProcessStatus)": "Stores a new status for the process and refreshes its timestamp (the timestamp drives automatic cleanup, see `ProcessHandleManager`). A null status is ignored. If the process record no longer exists the call does nothing (an error is logged).",
+    "isCancelled()": "True if someone has requested cancellation of the process (see `ProcessInfo.cancel()`). False if not, or if the process record no longer exists. The worker is expected to poll this and stop; nothing is interrupted automatically."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProcessHandle": {
+   "summary": "Full handle to one background process, combining read access (`ProcessInfo`), worker feedback (`ProcessFeedback`) and display control (`ProcessUIController`). Returned by `ProcessHandleManager.createNew`. Handles are cheap views over the persistent process record: every call reads or writes the stored state (through a cache), so several handles for the same ID see the same data and the handle may be used from any thread or cluster node.",
+   "members": {
+    "getId()": "The process ID, a positive number assigned when the record was created. Use it to find the process again through `ProcessHandleManager`."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProcessHandleManager": {
+   "summary": "Registry of background processes, kept in the plugin's database so that progress is visible across requests and cluster nodes. Implemented by the plugin and exported as a public OSGi component. No permission checks are made by this service; callers decide who may see a process with `ProcessInfo.isVisibleTo`. Process records whose timestamp (creation or last status change) is older than 30 days are deleted by the plugin's periodic maintenance, except those still referenced by automation.",
+   "members": {
+    "createNew(com.atlassian.jira.user.ApplicationUser, com.almworks.jira.structure.api.process.ProcessDisplayParameters)": "Creates and stores a new process record with status `PENDING`, no activity, percent complete -1 (unknown) and not cancelled, and returns a handle to it. Arg 1 is the managing user (the only user who may see it; null means visible to everyone). Arg 2 is the display parameters, may be null. Throws `StructureRuntimeException` if the parameters cannot be serialized.",
+    "getInfo(Long)": "Returns a read view of the process with the given ID, or null if the ID is null or no such process exists (also null, with an error logged, if the record cannot be loaded).",
+    "getFeedback(Long)": "Returns the worker-side view of the process with the given ID, or null under the same conditions as `getInfo`.",
+    "getUIController(Long)": "Returns the display-control view of the process with the given ID, or null under the same conditions as `getInfo`.",
+    "delete(long)": "Deletes the process record with the given ID. Existing handles then behave as for a missing process (status null, percent -1, not cancelled; updates are ignored). Not determined: behaviour for an ID that does not exist (passed to the database layer as is)."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProcessInfo": {
+   "summary": "Read view of a background process, plus the ability to request cancellation. Obtained from `ProcessHandleManager.getInfo(Long)` or a `ProcessHandle`. Values are read from the stored record at call time.",
+   "members": {
+    "getStatus()": "The current status, or null if the process record no longer exists.",
+    "getParameters()": "The display parameters (name and buttons) last stored, or null if none were set or the record no longer exists.",
+    "isVisibleTo(com.atlassian.jira.user.ApplicationUser)": "True if the given user may see this process: when the process has no managing user, or the managing user equals the argument. A null argument matches only processes without a managing user. False if the record no longer exists.",
+    "getActivity()": "Localizable description of what the process is doing right now, or null if never set or the record is gone.",
+    "getPercentComplete()": "Progress in percent, 0 to 100, or -1 when unknown (not set yet, or the record is gone).",
+    "cancel()": "Requests cancellation by setting the stored cancel flag (once set it cannot be cleared). Does nothing if already cancelled. It only signals the worker, which must poll `ProcessFeedback.isCancelled()`. If the record is gone the call is ignored."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProcessStatus": {
+   "summary": "Life-cycle state of a background process. Each constant has a stable integer code used for storage.",
+   "members": {
+    "PENDING": "Created but not started yet. Code 0. Initial status of new processes.",
+    "RUNNING": "Work in progress. Code 1.",
+    "FINISHED": "Work has ended (successfully or not). Code 2.",
+    "values()": "",
+    "valueOf(String)": "",
+    "getValue()": "The integer storage code: 0, 1 or 2 as listed on the constants.",
+    "valueOf(int)": "Maps a storage code back to a status: 0 gives `PENDING`, 1 gives `RUNNING`, and any other number (including negatives) gives `FINISHED`. Never throws, never returns null."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProcessUIController": {
+   "summary": "The side of a background process that controls what the progress page shows. Obtained from `ProcessHandleManager.getUIController(Long)` or a `ProcessHandle`.",
+   "members": {
+    "setParameters(com.almworks.jira.structure.api.process.ProcessDisplayParameters)": "Replaces the stored display parameters. Null, or parameters equal to the stored ones, are ignored. If the record is gone, nothing happens (an error is logged).",
+    "setProgress(com.almworks.jira.structure.api.util.I18nText, Integer)": "Updates the current activity text (arg 1) and/or percent complete (arg 2). A null argument leaves that value unchanged; a value equal to the stored one is not rewritten. Throws `IllegalArgumentException` if the percentage is outside -1..100 (-1 means unknown)."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProgressGauge": {
+   "summary": "Read side of an in-memory progress tracker: lets an observer see what a task is doing, how far it is, and ask it to stop. The plugin's own tracker implements both this and `ProgressSink`; it is thread-safe.",
+   "members": {
+    "getActivity()": "The localizable description of the current activity, or null if none was set.",
+    "getPercentComplete()": "Progress in percent, 0 to 100, rounded, including the scaled progress of delegated sub-sinks; -1 if the tracker has not been initialized with a positive total.",
+    "cancel()": "Sets the cancelled flag. The worker sees it through `ProgressSink.isCancelled()`. Cancelling a delegate cancels the whole tracker."
+   }
+  },
+  "com.almworks.jira.structure.api.process.ProgressSink": {
+   "summary": "Write side of an in-memory progress tracker, used by code doing the work. Work is measured in abstract units: call `initialize` once with the total, then report units done. A part of the units can be handed to a sub-task with `delegate`, which gets its own sink with its own unit scale. In the plugin's implementation all methods are thread-safe.",
+   "members": {
+    "setActivity(String, Object[])": "Sets the current activity as an i18n key (arg 1) with message arguments (arg 2). On a delegate this sets the activity of the root tracker.",
+    "initialize(int)": "Sets the total number of units to the argument and resets progress to 0. Throws `IllegalStateException` if already initialized with a positive total, and `IllegalArgumentException` if the total is negative. Initializing with 0 is allowed but leaves the tracker unusable for `increment`, `setDone` and `delegate` (they then fail as not initialized).",
+    "increment(int)": "Marks the given number of additional units as done. Throws `IllegalStateException` if not initialized, and `IllegalArgumentException` if the count is negative or larger than the units still left (units already delegated count as used).",
+    "increment()": "Same as `increment(1)`.",
+    "setDone(int)": "Sets the absolute number of units done. Throws `IllegalStateException` if not initialized, and `IllegalArgumentException` if the value is lower than the current done count or higher than the total.",
+    "complete()": "Marks all remaining units of this sink as done (nothing to do if no units are left, including an uninitialized sink) and then completes every delegate created from it, recursively. Does not throw.",
+    "isCancelled()": "True if `cancel()` was called on the tracker (or on any of its delegates, which share the flag). Also returns true, and sets the flag, when the calling thread has been interrupted; the thread's interrupt status is cleared in that case.",
+    "delegate(int)": "Reserves the given number of this sink's units for a sub-task and returns a new sink for it. The sub-sink must be initialized with its own total; its progress is scaled into the reserved units when computing percent complete. Activity, cancellation and the lock are shared with the parent. Throws `IllegalStateException` if this sink is not initialized and `IllegalArgumentException` if the count is negative or exceeds the units left."
+   }
+  },
+  "com.almworks.jira.structure.api.property.PropertyService": {
+   "summary": "Global string key/value store persisted in the plugin's database, with a non-expiring in-memory cache of values. Implemented by the plugin and exported as a public OSGi component. Internal API: no permission checks are made. Writing an empty or null value deletes the key. Values are read as strings; boolean and long helpers parse them.",
+   "members": {
+    "getString(String, String)": "Returns the stored value for the key (arg 1), or the default (arg 2) when there is none. Never null when the default is not null. If loading fails, the default is returned and a warning logged.",
+    "getBoolean(String, boolean)": "Returns true if the stored value is exactly `true` (case-sensitive), false for any other stored value, and the default (arg 2) when no value is stored.",
+    "getLong(String, long)": "Returns the stored value parsed as a decimal long, or the default (arg 2) when no value is stored or it cannot be parsed.",
+    "set(String, String)": "Stores the value (arg 2) under the key (arg 1); a null or empty value deletes the key. The key is trimmed before storing and must not be null or blank (`IllegalArgumentException`). The local cache entry is refreshed. Note: the getters do not trim the key, so keys with surrounding spaces are written and read under different names.",
+    "set(String, boolean)": "Stores `true` or `false` as text under the key. Same key rules as `set(String, String)`.",
+    "set(String, long)": "Stores the decimal text of the number under the key. Same key rules as `set(String, String)`.",
+    "remove(String)": "Deletes the key; same as setting a null value. Same key rules as `set(String, String)`.",
+    "invalidate(String)": "Drops the cached value for the key on this node so that the next read goes to the database (for example after the table was changed by other means). Does not change stored data."
+   }
+  },
+  "com.almworks.jira.structure.api.property.StructurePropertyService": {
+   "summary": "Key/value store for properties attached to individual structures, persisted in the plugin's database and cached with a moderate expiry. Implemented by the plugin and exported as a public OSGi component; also returned by `StructureComponents`. No permission checks. Keys should be at most 170 characters (checked only when assertions are enabled). Properties of deleted structures are removed by maintenance.",
+   "members": {
+    "getString(long, String, String)": "Returns the property value for the structure ID (arg 1) and key (arg 2), or the default (arg 3) if there is none. A load failure returns the default (warning logged).",
+    "getLong(long, String, long)": "Returns the property value parsed as a decimal long, or the default (arg 3) if absent or unparsable.",
+    "setValue(long, String, String)": "Stores the value (arg 3) for the structure ID and key. A null, empty or whitespace-only value deletes the property. Not checked: that the structure exists.",
+    "setValue(long, String, long)": "Stores the decimal text of the number. Same rules as the string variant.",
+    "getAllKeys(long)": "Returns the set of keys that have a stored value for the given structure ID (a new modifiable set; empty if none). Read directly from the database.",
+    "removeAllProperties(long)": "Deletes every property of the given structure ID."
+   }
+  },
+  "com.almworks.jira.structure.api.pull.DataVersion": {
+   "summary": "Immutable version stamp of a versioned data source: a signature identifying the data source instance (it changes, for example, after a restart or reset, making older stamps meaningless) and a version counter that grows with every change. Two stamps are comparable only when their signatures are equal. String form is `xxxxxxxx:n` (signature as 8 lower-case hex digits, then the decimal version).",
+   "members": {
+    "ZERO": "The stamp with signature 0 and version 0, used as the starting point by clients that have no data yet; it is normally not comparable with any real source and therefore yields a full update.",
+    "<init>(int, int)": "Creates a stamp with the given signature (arg 1) and version (arg 2). No checks.",
+    "isComparable(com.almworks.jira.structure.api.pull.DataVersion)": "True if the argument is not null and has the same signature as this stamp.",
+    "isBefore(com.almworks.jira.structure.api.pull.DataVersion)": "True if both stamps are comparable and this version number is strictly smaller. For a null or incomparable argument it returns false (and throws `AssertionError` when Java assertions are enabled), so callers should check `isComparable` first.",
+    "increment()": "Returns a stamp with the same signature and version plus one.",
+    "increment(int)": "Returns a stamp with the same signature and version plus the count; returns this same instance for 0. Throws `IllegalArgumentException` for a negative count.",
+    "getSignature()": "The signature identifying the data source instance.",
+    "getVersion()": "The version counter.",
+    "toString()": "`String.format(\"%08x:%d\", signature, version)`, e.g. `0000002a:17`.",
+    "equals(Object)": "True for another object of exactly this class with equal signature and version.",
+    "hashCode()": "`31 * signature + version`."
+   }
+  },
+  "com.almworks.jira.structure.api.pull.VersionedDataSource": {
+   "summary": "Contract for a data source that supports incremental retrieval. Implemented by the plugin's sources (forests, item changes, attribute subscriptions and similar); clients keep the version of the last update they received and pass it back to get what changed.",
+   "members": {
+    "getUpdate(com.almworks.jira.structure.api.pull.DataVersion)": "Returns the changes since the given version, stamped with the version the client will have after applying them. If the argument equals the current version the update is empty; if it is incomparable (other signature) or too old to compute a delta, the update is full. Never null; the argument must not be null.",
+    "getCurrentVersion()": "The current version stamp of the source. Never null."
+   }
+  },
+  "com.almworks.jira.structure.api.pull.VersionedDataUpdate": {
+   "summary": "Base class of updates returned by a `VersionedDataSource`. Subclasses carry the actual data and override `isFull` / `isEmpty`. An update is either full (replace everything the client has), incremental (apply on top of the client's data), and possibly empty (nothing changed).",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.pull.DataVersion)": "Creates an update stamped with the given version, which is the version the client will be at after applying it. Throws `IllegalArgumentException` if the version is null.",
+    "getVersion()": "The version stamp of this update; never null. Final.",
+    "isFull()": "True if the update replaces the client's data entirely. The base implementation returns false.",
+    "isEmpty()": "True if the update contains no changes. The base implementation returns false.",
+    "isIncremental()": "True if the update must be applied on top of the client's earlier data; always the negation of `isFull()`."
+   }
+  },
+  "com.almworks.jira.structure.api.query.QueryContext": {
+   "summary": "Evaluation context handed to a `StructureQueryConstraint` while a query runs. It describes the forest being searched, addressed by row index (0-based position in the forest, in forest order), and offers issue lookups performed as the searching user. Created by the plugin per query execution; valid only during that execution and not thread-safe. Index arguments must be within 0..size()-1 unless stated otherwise.",
+   "members": {
+    "rowId(int)": "The row ID at the given index.",
+    "row(int)": "The full row at the given index, loaded from the row manager with normal item access. Throws `MissingRowException` if the row no longer exists.",
+    "rows(com.almworks.integers.IntIterator)": "Lazily converts an iterator of indices into an iterator of the corresponding row IDs, in the same order.",
+    "isIssue(int)": "True if the row at the index shows a Jira issue.",
+    "issueId(int)": "The issue ID shown by the row at the index, or 0 if the row is not an issue row. Results are cached per context.",
+    "depth(int)": "The depth of the row at the index; 0 for top-level rows.",
+    "size()": "Number of rows in the forest.",
+    "parent(int)": "Index of the parent row of the row at the index, or -1 for top-level rows (also -1 for a negative argument).",
+    "subtreeEnd(int)": "Index just past the last descendant of the row at the index (exclusive end of its subtree); so the subtree occupies indices idx..subtreeEnd(idx)-1. For a negative index it returns `size()`.",
+    "getForest()": "The forest the query is evaluated against.",
+    "resolveRowIdsToIssues(com.almworks.integers.LongIterator, boolean, com.almworks.integers.func.LongLongProcedure)": "For each row ID from the iterator (arg 1) that is an issue row, calls the procedure (arg 3) with (row ID, issue ID). Non-issue rows and missing rows are skipped. Arg 2 tells whether the row IDs are sorted ascending (a performance hint). Callback order is not guaranteed to match input order.",
+    "filterIssues(com.atlassian.query.Query, com.almworks.integers.LongList)": "Returns, as a new sorted array without duplicates, those issue IDs from the list (arg 2, which must be sorted ascending; duplicates allowed) that match the JQL query (arg 1) and are visible to the searching user (unless security is overridden for the current thread). A null query keeps every visible issue. A search failure is thrown as an unchecked exception and makes the whole query return no rows.",
+    "resolveIssueIdToRows(long)": "Returns the IDs of all rows, anywhere in the instance and not only in this forest, that show the given issue. No permission check.",
+    "resolveIssueKeyToRows(String)": "Looks up the issue by key (case-insensitive) and returns all rows that show it, as for `resolveIssueIdToRows`. Returns an empty iterable if the issue does not exist or the searching user cannot browse it (unless security is overridden)."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQuery": {
+   "summary": "A parsed or built query that selects rows of a `Forest`. Obtained from `StructureQueryParser.parse(String)` or `StructureQueryBuilder`. Execution and validation run as the current user (the thread's authentication context); if security is overridden for the thread, validation is skipped and issue visibility is not checked. A query that fails validation for the current user returns no rows from every execute/check method. Instances cache the last validation and the last evaluation context, so they are not thread-safe; equality compares the query logic (after simplification), not the text. Results are row indices or row IDs in forest order. `toString()` of the plugin's implementation returns the original text, or for built queries a generated text in the same syntax (where all-rows prints as `!EMPTY` and constraint arguments are double-quoted without escaping).",
+   "members": {
+    "<init>()": "Protected constructor for implementations; clients obtain queries from the parser or builder.",
+    "validate()": "Checks the query for the current user and returns the messages (never null; errors make the query unusable for execution). Checks: embedded JQL is valid for the user; every referenced issue key/ID exists and is visible (`BROWSE_PROJECTS`) to the user, and belongs to a project where the plugin is enabled; each named constraint accepts its arguments; no saved-filter references form a cycle. Search failures during the check become warnings.",
+    "getSanitizedQueryString()": "Returns the query text with details the current user must not see removed: issue keys the user cannot see are replaced by their numeric ID when known, otherwise by `?`, and embedded JQL is replaced by Jira's sanitized form of that JQL for the user. Validates first if not yet validated for this user. Never null.",
+    "execute(com.almworks.jira.structure.api.forest.raw.Forest)": "Runs the query on the forest and returns the matching row IDs in forest order as a new array. Empty if validation fails. A search error is logged and yields an empty or partial result.",
+    "executeUnbuffered(com.almworks.jira.structure.api.forest.raw.Forest)": "Same as `execute` but returns a lazy iterator; results are computed while iterating, so the forest must not change meanwhile.",
+    "executeIndices(com.almworks.jira.structure.api.forest.raw.Forest)": "Runs the query and returns the indices (positions) of matching rows in ascending order as a new array.",
+    "executeIndicesUnbuffered(com.almworks.jira.structure.api.forest.raw.Forest)": "Lazy variant of `executeIndices`.",
+    "checkRow(Long, com.almworks.jira.structure.api.forest.raw.Forest)": "True if the row with the given ID (arg 1) is in the forest (arg 2) and matches the query. False for a null ID, a row not in the forest, or a query that fails validation. Relations are still evaluated against the whole forest.",
+    "checkIndex(int, com.almworks.jira.structure.api.forest.raw.Forest)": "True if the row at the given index matches; false for an index out of range.",
+    "getQueryString()": "The text this query was parsed from, or null for queries made with the builder."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilder": {
+   "summary": "Fluent, type-safe builder for `StructureQuery`, equivalent to the text syntax. Start with `begin()` (or `StructureQueryBuilderFactory.builder()`), add constraints, combine them through the `and` / `or` fields, and finish with `Head.end()`. The type parameter B is the type returned after each completed constraint, so nested groups (`sub()` ... `endsub()`) return to the right level. Precedence matches the text syntax: constraints joined by `and` form a group, and `or` starts a new group; the result is the union of the groups. Builders are mutable, single-use and not thread-safe. Example: `StructureQueryBuilder.begin().child.in.issueKey(\"A-1\").and.not().leaf().end()`.",
+   "members": {
+    "and": "Step for adding the next constraint joined with AND to the current group.",
+    "or": "Step for adding the next constraint as the start of a new OR group (if the current group is empty, it is added to it instead).",
+    "begin()": "Creates a new builder using the plugin's `StructureQueryBuilderFactory` OSGi component and returns its first step. Throws `IllegalStateException` if the factory is not available (plugin not running or not visible to the caller).",
+    "<init>(com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStep, com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStep)": "For implementations: creates a builder whose `and` and `or` fields are the given steps."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilder.BasicConstraintStep": {
+   "summary": "Step at which a basic constraint is added. Each method adds one constraint (combined with any pending negation or relation from the preceding steps) and returns the builder of type B to continue. When reached after a relation and operator (e.g. `child.in`), the constraint is the operand of that relation.",
+   "members": {
+    "jql(com.atlassian.query.Query)": "Adds a constraint matching issue rows whose issue matches the JQL query (as the searching user). A null query, or a query without a condition, matches every issue row visible to the user.",
+    "issueKey(String)": "Adds a constraint matching rows that show the issue with this key. Equivalent to `issues(List.of(key), null)`.",
+    "issueKeys(Iterable)": "Adds a constraint matching rows that show any of the issues with these keys. The keys are copied.",
+    "issueKeys(String[])": "Varargs form of `issueKeys(Iterable)`; a null array means no keys.",
+    "issueId(long)": "Adds a constraint matching rows that show the issue with this ID.",
+    "issueIds(com.almworks.integers.LongList)": "Adds a constraint matching rows that show any of these issue IDs. The list is copied.",
+    "issueIds(long[])": "Varargs form of `issueIds(LongList)`; a null array means no IDs.",
+    "issues(Iterable, com.almworks.integers.LongList)": "Adds one constraint matching rows that show any of the listed issues, given by keys (arg 1) and/or IDs (arg 2); either may be null. Both are copied. Keys are resolved case-insensitively when the query is validated and executed.",
+    "leaf()": "Adds a constraint matching rows that have no children (text form `leaf`).",
+    "root()": "Adds a constraint matching top-level rows (text form `root`).",
+    "empty()": "Adds a constraint matching no rows (text form `empty`). As the operand of a relation it has the special meaning described on `StructureQueryParser.parse`.",
+    "all()": "Adds a constraint matching every row. No text keyword exists; it prints as `!EMPTY`.",
+    "constraint(String, String[])": "Adds a named constraint (arg 1, as registered by a `structure-query-constraint` module, matched case-insensitively) with the given arguments (arg 2). Throws `NullPointerException` if any argument is null. An unknown name is not an error here: at execution it matches nothing (warning logged); a constraint that throws during execution also matches nothing.",
+    "constraint(String, Iterable)": "Same as the varargs form, taking the arguments from an iterable (copied).",
+    "sub()": "Opens a parenthesized group and returns its first step. Finish the group with `Sub.endsub()`, which adds the whole group as one constraint here and returns the builder of type B.",
+    "query(com.almworks.jira.structure.api.query.StructureQuery)": "Embeds an existing query as one constraint. Only queries created by this plugin's parser or builder can be embedded; any other implementation (or null) is ignored with a warning and the builder is returned unchanged."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilder.Head": {
+   "summary": "Top-level builder, the type returned after constraints at the outermost level. Created by the plugin's factory.",
+   "members": {
+    "end()": "Finishes building and returns the query. An empty builder produces a query matching nothing. The query has no original text (`getQueryString()` is null).",
+    "<init>(com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStep, com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStep)": "For implementations: creates the head with the given `and` and `or` steps."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilder.OpStep": {
+   "summary": "Step after a relation has been chosen (e.g. after `child`): pick the operator by field, then give the operand constraint. Fields that share a meaning are the same object.",
+   "members": {
+    "in": "Rows having at least one relative of the chosen kind that matches the operand (text `in`). Same object as `equals` and `is`.",
+    "notIn": "Complement of `in` (text `not in`). Same object as `notEquals` and `isNot`.",
+    "of": "The relatives of the chosen kind of rows matching the operand (text `of`), e.g. `child.of` gives children of matching rows.",
+    "equals": "Same as `in` (text `=`).",
+    "notEquals": "Same as `notIn` (text `!=`).",
+    "is": "Same as `in` (text `is`); reads naturally with `empty()`, e.g. `child.is.empty()` = leaves.",
+    "isNot": "Same as `notIn` (text `is not`).",
+    "or()": "Joins another relation to the one already chosen, giving their union (text `R1 or R2 in C`). Returns a step on which the next relation is picked; the operator and operand then apply to the combined relation.",
+    "<init>(com.almworks.jira.structure.api.query.StructureQueryBuilder.RelationStepHelper)": "For implementations: wires the operator fields from the helper (`in`, `equals`, `is` from its inverse-composition step; `notIn`, `notEquals`, `isNot` from its negated step; `of` from its composition step)."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilder.RelationConstraintStartStep": {
+   "summary": "Step offering the relations, one public field per relation; each leads to an `OpStep`.",
+   "members": {
+    "child": "Relation to the row's children.",
+    "parent": "Relation to the row's parent.",
+    "descendant": "Relation to all rows below the row.",
+    "ancestor": "Relation to all rows above the row.",
+    "prevSibling": "Relation to earlier rows with the same parent (preceding siblings).",
+    "nextSibling": "Relation to later rows with the same parent (following siblings).",
+    "sibling": "Relation to all other rows with the same parent (union of previous and next siblings).",
+    "self": "Identity relation: a row is related to itself only.",
+    "issue": "Identity relation restricted to rows that show an issue.",
+    "myHelper": "For implementations: the helper that supplies the relation steps and negation.",
+    "<init>(com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStepHelper)": "For implementations: copies the relation steps from the helper and keeps it."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilder.RelationStepHelper": {
+   "summary": "Implementation hook that supplies the three operator variants for one relation. Not used by clients.",
+   "members": {
+    "invComp": "Step for the `in` operator of this relation.",
+    "invCompNeg": "Step for the negated (`not in`) operator.",
+    "comp": "Step for the `of` operator.",
+    "<init>()": "For implementations.",
+    "or()": "Returns the step that joins another relation to this one (see `OpStep.or()`)."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStep": {
+   "summary": "Step at the start of a constraint: choose a relation (fields from `RelationConstraintStartStep`), a basic constraint (methods from `BasicConstraintStep`), or negate.",
+   "members": {
+    "not()": "Returns a step whose next constraint is negated. Calling it twice cancels out. The negation applies to the whole next constraint, including a relation constraint.",
+    "<init>(com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStepHelper)": "For implementations."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStepHelper": {
+   "summary": "Implementation hook that supplies the relation steps and negation for a `StartStep`. Not used by clients.",
+   "members": {
+    "self": "Step for the identity relation.",
+    "issue": "Step for the issue-identity relation.",
+    "child": "Step for the child relation.",
+    "parent": "Step for the parent relation.",
+    "descendant": "Step for the descendant relation.",
+    "ancestor": "Step for the ancestor relation.",
+    "prevSibling": "Step for the preceding-sibling relation.",
+    "nextSibling": "Step for the following-sibling relation.",
+    "sibling": "Step for the sibling relation.",
+    "<init>()": "For implementations.",
+    "not()": "Returns a start step with negation toggled."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilder.Sub": {
+   "summary": "Builder for a parenthesized group opened with `BasicConstraintStep.sub()`.",
+   "members": {
+    "endsub()": "Closes the group, adds it as one constraint to the enclosing builder (with any negation or relation pending there) and returns that builder.",
+    "<init>(com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStep, com.almworks.jira.structure.api.query.StructureQueryBuilder.StartStep)": "For implementations: creates the group with the given `and` and `or` steps."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryBuilderFactory": {
+   "summary": "Factory for query builders. Implemented by the plugin and exported as a public OSGi component; also available from `StructureComponents`. `StructureQueryBuilder.begin()` is a shortcut that looks it up.",
+   "members": {
+    "builder()": "Returns the first step of a new, independent builder."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryConstraint": {
+   "summary": "Extension point for named constraints in the query language. Other plugins implement it and declare it with a `structure-query-constraint` module whose `fname` attribute gives the name used in queries (matched case-insensitively; if two modules use the same name, one replaces the other and a warning is logged). The plugin calls `validate` when a query is validated and `filter` when it is executed, possibly concurrently for different queries, so implementations should be stateless or thread-safe.",
+   "members": {
+    "validate(java.util.List)": "Called with the constraint's arguments (never null, may be empty) during query validation. Return a message set (never null; a null return breaks validation with an exception): each error is reported prefixed with the constraint name and makes the query invalid, warnings are passed on. Return an empty set when the arguments are acceptable. `StructureQueryConstraints.validateArgumentCount` helps with arity checks.",
+    "filter(com.almworks.integers.IntIterator, java.util.List, com.almworks.jira.structure.api.query.QueryContext)": "Called at execution. Arg 1 iterates the candidate row indices in ascending order; arg 2 is the argument list; arg 3 gives access to the forest. Return a `Sequence` that passes on the matching indices, which must be a subset of the input in ascending order. Return `Sequence.EMPTY` to match nothing. Exceptions (here or while the sequence advances) are caught by the plugin, logged, and treated as matching nothing further."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryConstraint.Acceptor": {
+   "summary": "Receiver of matching row indices, given to `Sequence.advance`. Implemented by the plugin. Indices must be pushed in ascending order and must come from the input of the constraint.",
+   "members": {
+    "accept(int)": "Reports one matching row index.",
+    "accept(com.almworks.integers.IntIterable)": "Reports several matching row indices, in ascending order.",
+    "willAccept(int)": "Optional hint that about the given number of indices will follow, so storage can be pre-allocated. It does not oblige the caller to push them."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryConstraint.BulkFilter": {
+   "summary": "Helper base class for constraints that decide on many rows at once: it takes candidate indices from the input in chunks of a fixed size and passes each chunk to `bulkFilter`.",
+   "members": {
+    "myBulkSize": "Maximum number of indices per chunk, as given to the constructor.",
+    "<init>(com.almworks.integers.IntIterator, int)": "Creates the filter over the input iterator (arg 1) with chunk size (arg 2, must be positive).",
+    "advance(com.almworks.jira.structure.api.query.StructureQueryConstraint.Acceptor)": "Reads up to `myBulkSize` indices from the input; if none are left returns false, otherwise calls `bulkFilter` with them and returns true.",
+    "bulkFilter(com.almworks.integers.IntList, com.almworks.jira.structure.api.query.StructureQueryConstraint.Acceptor)": "Implement: decide which of the given indices (ascending; the list is reused between calls, do not keep it) match and push them to the acceptor in ascending order."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryConstraint.EmptySequence": {
+   "summary": "Sequence that yields nothing. The shared instance is `Sequence.EMPTY`.",
+   "members": {
+    "<init>()": "Creates an empty sequence.",
+    "advance(com.almworks.jira.structure.api.query.StructureQueryConstraint.Acceptor)": "Always returns false without pushing anything."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryConstraint.Sequence": {
+   "summary": "Lazy, step-wise producer of matching row indices returned by `StructureQueryConstraint.filter`. The plugin calls `advance` repeatedly until it returns false; it may stop earlier if it needs no more results. Single-threaded use.",
+   "members": {
+    "EMPTY": "Shared sequence that matches nothing.",
+    "advance(com.almworks.jira.structure.api.query.StructureQueryConstraint.Acceptor)": "Performs one step of work, pushing zero or more matching indices (ascending, continuing from earlier steps) to the acceptor. Returns true if more steps may follow, false when the sequence is exhausted. A step may push nothing and still return true."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryConstraint.SimpleFilter": {
+   "summary": "Helper base class for constraints that decide row by row: implement `matches` and each step tests one input index.",
+   "members": {
+    "<init>(com.almworks.integers.IntIterator)": "Creates the filter over the candidate indices.",
+    "matches(int)": "Implement: return true if the row at the given index satisfies the constraint.",
+    "advance(com.almworks.jira.structure.api.query.StructureQueryConstraint.Acceptor)": "Takes the next input index, pushes it if `matches` returns true, and returns true; returns false when the input is exhausted."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryConstraints": {
+   "summary": "Static helpers for implementing `StructureQueryConstraint`. Not instantiable.",
+   "members": {
+    "validateArgumentCount(java.util.List, int, int, com.atlassian.jira.util.MessageSet)": "Checks that the number of arguments (arg 1) is between the minimum (arg 2) and maximum (arg 3) inclusive. Adds a localized error (in the current user's language) to the message set (arg 4) if there are too few, and another if there are too many; returns that same message set. The minimum must not exceed the maximum (checked only with assertions enabled)."
+   }
+  },
+  "com.almworks.jira.structure.api.query.StructureQueryParser": {
+   "summary": "Parser for the text form of the query language. Implemented by the plugin and exported as a public OSGi component; also available from `StructureComponents`. Thread-safe; each call returns a new query.",
+   "members": {
+    "parse(String)": "Parses query text into a `StructureQuery`. The returned query remembers the original text (`getQueryString`). The text is not validated against the instance here (unknown issues, invalid JQL field names and constraint argument errors are found by `validate`). Throws `NullPointerException` for null and `StructureException` (invalid-query error, carrying the position and a localized message with up to 40 characters of context and line/column) for a syntax error.\n\nSyntax (keywords are case-insensitive; multi-word keywords may be written with underscores or in camelCase, e.g. `prev_sibling` or `prevSibling`; whitespace between tokens is free):\n- `A or B` (also `||`, `|`), `A and B` (also `&&`, `&`), `not A` (also `!`). `not` binds tightest, then `and`, then `or`. Parentheses group: `( ... )`.\n- Basic constraints: `empty` or `null` (matches nothing); `leaf`/`leaves` (rows without children); `root`/`roots` (top-level rows); a comma-separated list of issue keys and/or numeric issue IDs, e.g. `PROJ-1, proj-2, 10001` (an issue key is letters/digits, a hyphen and digits, accepted in any letter case; a key or ID must be followed by end of text, whitespace or punctuation); embedded JQL in square brackets, e.g. `[status = Open ORDER BY key]` (the closing bracket is found while skipping single- and double-quoted strings, where backslash escapes the next character, and custom field references such as `cf[10010]`; an ORDER BY part is ignored; `[]` with an empty condition matches every issue row the user can see); or a named constraint (see below).\n- Relational constraints: `RELATION OPERATOR C`, where C is a single clause (possibly negated, possibly itself relational; use parentheses for `and`/`or`). Relations: `self`; `issue`/`issues`; `child`/`children`/`sub_issue`/`sub_issues`; `parent`/`parents`; `descendant(s)`; `ancestor(s)`; `preceding_sibling`/`prev_sibling`/`previous_sibling` (plural forms too); `following_sibling`/`next_sibling` (plural too); `sibling(s)`. Combined forms `issue_or_R`, `issues_or_R`, `R_or_issue(s)`, `self_or_R`, `R_or_self` exist for R = child, parent, descendant, ancestor and the sibling relations, and relations can also be joined explicitly: `self or child in C`.\n- Operators: `in`, `=`, `is` select rows having at least one relative of the given kind that matches C (e.g. `child in C` = rows with a child matching C; `ancestor in C` = rows below a row matching C). `of` selects the relatives themselves (e.g. `child of C` = children of rows matching C; `descendant of C` = everything below rows matching C). `not in`, `!=`, `is not` are the complement of `in`. When C is `empty`: `R in empty` / `R is empty` = rows having no such relative (`child is empty` = leaves); `R of empty` = rows that are not such a relative of any row (`child of empty` = roots). `self` is identity; `issue` is identity restricted to issue rows.\n- Named constraints: `name(arg1, arg2, ...)`, `name()`, `name arg` (one argument, up to whitespace) or bare `name` when followed by `and`, `or`, `)` or the end. Names come from installed `structure-query-constraint` modules and are matched case-insensitively; the plugin itself defines `folder`, `memo`, `item`, `rowId` and `planningtask`. An unquoted argument runs up to the next `,` or `)` and is trimmed. A quoted argument uses `\"...\"` or `'...'`; inside it `\\\"`, `\\'` and `\\\\` stand for the escaped character and any other backslash is kept literally. An empty argument between commas is a syntax error."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestAttributeSpec": {
+   "summary": "JSON form of an `AttributeSpec`: attribute ID, parameters and value format ID. Public mutable fields; JSON property names equal the field names. Static helpers convert to and from the model class.",
+   "members": {
+    "id": "The attribute ID (e.g. a field or attribute key).",
+    "params": "Attribute parameters as a JSON object (map), or null when there are none.",
+    "format": "The value format ID. Recognized IDs are those of `ValueFormat.HTML`, `TEXT`, `JSON_OBJECT`, `JSON_ARRAY`, `NUMBER`, `BOOLEAN`, `ID`, `TIME`, `DURATION` and `ANY`.",
+    "<init>()": "Creates an empty spec (all fields null).",
+    "fromRest(com.almworks.jira.structure.api.rest.RestAttributeSpec)": "Converts to an `AttributeSpec`. Returns null for a null argument, and also returns null (with a rate-limited warning in the log) when the spec cannot be converted, e.g. unknown format or invalid ID/parameters.",
+    "fromRestNotNull(com.almworks.jira.structure.api.rest.RestAttributeSpec)": "Converts to an `AttributeSpec`, never returning null. Throws `IllegalArgumentException` for a null argument, an unrecognized format ID (message names the format), or any other problem rejected by the `AttributeSpec` constructor.",
+    "toRest(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates the JSON form of the given spec: its ID, its format ID, and its parameters map, or null instead of an empty map.",
+    "fromRestCollection(java.util.Collection)": "Converts each element with `fromRest`, dropping nulls and unconvertible ones, and returns a new list in the original order. A null collection gives an empty list.",
+    "toString()": "Debug text `(id,format,params)`."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestForestSpec": {
+   "summary": "JSON form of a `ForestSpec`, identifying which forest a REST call refers to. Unknown JSON properties are ignored on input. Exactly one of `structureId`, `sQuery` or `type` = `clipboard` must be set when it is converted with `ForestSpec.fromRest`, which also enforces the other rules noted on the fields.",
+   "members": {
+    "structureId": "ID of the structure whose forest is meant, or null.",
+    "version": "Specific historical version of the structure, or null for the current one. Allowed only together with `structureId`.",
+    "sQuery": "A query-based forest (see `RestSQuery`), or null.",
+    "type": "Special forest type; the only recognized value is `clipboard` (the user's clipboard forest, tied to the HTTP session). Null otherwise.",
+    "transforms": "Ordered list of transformations (generators applied on top of the base forest), or null/empty for none.",
+    "title": "When true, the forest includes a title row for the structure. Allowed only with `structureId`. Null means false.",
+    "<init>()": "Creates an empty spec.",
+    "hashCode()": "Hash over all six fields.",
+    "equals(Object)": "True for another object of exactly this class with all six fields equal.",
+    "toString()": "Debug text listing all fields.",
+    "toString(com.almworks.jira.structure.api.rest.RestForestSpec)": "Null-safe debug text: `null` for a null spec, otherwise the spec's `toString()`."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestJobId": {
+   "summary": "Base of request bodies for REST calls that may run as background jobs. If the server cannot finish within its time limit it answers with an object of this class holding only `jobId`; the client then repeats the request with that ID to collect the result.",
+   "members": {
+    "jobId": "ID of a background job started by an earlier call. Null in a first request (a new job is started). The job must belong to the same user, otherwise the call fails as job not found.",
+    "<init>()": "Creates an object with null `jobId`."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestSQuery": {
+   "summary": "JSON form of a query-based forest definition.",
+   "members": {
+    "query": "The query text (for example JQL); interpreted according to `type`.",
+    "type": "Query language: `jql`, `text` or `cql` are the known values (see `ForestSpec.SQuery`). A null type or query becomes an empty string when converted.",
+    "<init>()": "Creates an empty object.",
+    "equals(Object)": "True for another object of exactly this class with equal `query` and `type`.",
+    "hashCode()": "Hash of `query` and `type`.",
+    "toString()": "Debug text with query and type."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestTransformSpec": {
+   "summary": "JSON form of one forest transformation.",
+   "members": {
+    "module": "Complete key of the generator module that performs the transformation.",
+    "key": "Not used by the conversion to `ForestSpec` and ignored by `equals`/`hashCode`. Not determined: its intended meaning (kept for the client's own use).",
+    "params": "Parameters of the transformation as a JSON object, or null.",
+    "<init>()": "Creates an empty object.",
+    "equals(Object)": "True for another object of exactly this class with equal `module` and `params` (the `key` field is ignored).",
+    "hashCode()": "Hash of `module` and `params`.",
+    "toString()": "Debug text with module and params."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueRequest": {
+   "summary": "Request body for retrieving attribute values for rows of one or more forests (the plugin's value REST resource, which also accepts anonymous users). Inherits `jobId` for the background-job protocol.",
+   "members": {
+    "requests": "One entry per forest; the response contains one entry per request in the same order.",
+    "<init>()": "Creates an empty request."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueRequest.ForestRowValueRequest": {
+   "summary": "Part of a value request that concerns one forest.",
+   "members": {
+    "forestSpec": "The forest whose rows are meant. Required; a missing or invalid spec fails the request.",
+    "signature": "Forest signature known to the client. The value resource does not use it.",
+    "rows": "Row IDs to compute values for. If null or empty, the response entry has no data.",
+    "attributes": "Attributes to compute. If null or empty, the response entry has no data. Specs that cannot be converted are dropped silently.",
+    "<init>()": "Creates an empty entry."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueResponse": {
+   "summary": "Response body with attribute values, one entry per requested forest.",
+   "members": {
+    "responses": "Entries in the order of `RestValueRequest.requests`.",
+    "itemTypes": "Dictionary from numeric item-type IDs (as strings) to item type keys, for decoding compact item references. The value resource never emits item references, so here it is always an empty object.",
+    "itemsVersion": "The lowest (oldest) items version among all computed entries, telling the client which item changes the values already reflect; signature 0 and version 0 when nothing was computed.",
+    "<init>()": "Creates an empty response."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueResponse.AttributeResponseData": {
+   "summary": "Values of one attribute for the rows of one response entry.",
+   "members": {
+    "attribute": "The attribute these values belong to (normalized JSON form).",
+    "values": "One value per row, aligned with `ForestRowValueResponse.rows`; a value may be null when not available.",
+    "trailMode": "Not set by the current implementation (always null). Not determined: intended meaning.",
+    "trails": "Not filled by the current implementation (an empty list). Not determined: intended meaning.",
+    "<init>()": "Creates an empty object."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueResponse.ForestRowValueResponse": {
+   "summary": "Values for one forest.",
+   "members": {
+    "forestSpec": "The forest spec from the request, echoed back unchanged.",
+    "rows": "The row IDs that values are given for, in request order, with inaccessible rows removed. Null when the request had no rows or no attributes.",
+    "data": "One entry per requested attribute. Null when nothing was computed.",
+    "forestVersion": "Version of the forest the values were computed for.",
+    "inaccessibleRows": "Requested rows left out: first those whose item no longer exists (other than issues), then those the user may not see. Null when there are none.",
+    "<init>()": "Creates an empty object."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestVersion": {
+   "summary": "JSON form of a `DataVersion`.",
+   "members": {
+    "signature": "Signature part of the version.",
+    "version": "Counter part of the version.",
+    "<init>()": "Creates a version with both fields 0.",
+    "fromModel(com.almworks.jira.structure.api.pull.DataVersion)": "Creates the JSON form of the given version. Throws `NullPointerException` for null.",
+    "toModel()": "Creates a `DataVersion` with the same signature and version."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.effect.RestEffect": {
+   "summary": "JSON form of one `AppliedEffect`: something that automation did as a consequence of a user's change to a forest. Internal.",
+   "members": {
+    "generatorRowId": "Row ID of the generator or automation row that produced the effect.",
+    "external": "True if the effect changed data outside the forest itself (for example a Jira issue); false if it only changed the structure.",
+    "description": "Human-readable description of the effect.",
+    "reversible": "True if the effect can be undone.",
+    "<init>()": "Creates an empty object.",
+    "fromAppliedEffect(com.almworks.jira.structure.api.forest.action.AppliedEffect)": "Copies the four properties of the given effect into a new object. The argument must not be null."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.effect.RestEffectBatch": {
+   "summary": "JSON form of an `AppliedEffectBatch`: the effects caused by one forest change, identified by a batch ID. Internal.",
+   "members": {
+    "batchId": "ID of the batch, used for example to undo it.",
+    "effects": "The effects of the batch, in the batch's order.",
+    "<init>()": "Creates an empty object.",
+    "fromAppliedBatch(com.almworks.jira.structure.api.forest.action.AppliedEffectBatch)": "Creates the JSON form of the batch, converting each effect with `RestEffect.fromAppliedEffect`. Throws `NullPointerException` for null."
+   }
+  },
+  "com.almworks.jira.structure.api.row.DummyRow": {
+   "summary": "Row that holds a ready item object instead of resolving it, used for rows that do not exist in the row manager (for example previews of items not created yet). Immutable. Internal.",
+   "members": {
+    "<init>(long, com.almworks.jira.structure.api.item.ItemIdentity, long, Object)": "Creates the row from row ID (arg 1), item identity (arg 2), semantics (arg 3) and the item object (arg 4, may be null). Throws `IllegalArgumentException` if the row ID is 0 or -1 (see `StructureRows.validateForestRowId`).",
+    "getRowId()": "The row ID given at construction.",
+    "getItemId()": "The item identity given at construction.",
+    "getSemantics()": "The semantics code given at construction.",
+    "getItem(Class)": "Returns the stored item cast to the requested class, or null if it is null or not an instance of that class. No access check."
+   }
+  },
+  "com.almworks.jira.structure.api.row.ItemAccessMode": {
+   "summary": "How a row retrieval should treat the row's item. Affects only what `StructureRow.getItem` returns later.",
+   "members": {
+    "NORMAL_ACCESS": "The item is loaded lazily when first requested, and only if the current user may see it; otherwise `getItem` returns null.",
+    "ITEM_NOT_NEEDED": "The caller needs only row ID, item identity and semantics; `getItem` always returns null. Cheapest mode.",
+    "SKIP_ACCESS_CHECK": "The item is loaded lazily without checking the current user's access. For trusted system code only.",
+    "values()": "",
+    "valueOf(String)": ""
+   }
+  },
+  "com.almworks.jira.structure.api.row.MissingRowException": {
+   "summary": "Unchecked exception thrown when a requested row ID does not exist.",
+   "members": {
+    "<init>(long)": "Creates the exception for the row ID with the message `row <id> is not found`.",
+    "<init>(long, String)": "Creates the exception for the row ID (arg 1) with a custom message (arg 2).",
+    "getRowId()": "The row ID that was not found."
+   }
+  },
+  "com.almworks.jira.structure.api.row.RowManager": {
+   "summary": "Service that creates rows and looks them up. Implemented by the plugin and exported as a public OSGi component; also available from `StructureComponents`. Thread-safe. Rows are either persistent (stored in the database, created with `createRow`) or transient (created by generators at forest-build time, kept in memory and lost on restart). Row IDs are positive; 0, -1 and values up to -100 have special meanings (see `StructureRows`). No permission checks are made on lookups.",
+   "members": {
+    "createRow(com.almworks.jira.structure.api.item.ItemIdentity, long)": "Creates a new persistent row for the item (arg 1) with the semantics code (arg 2; see `CoreSemantics`, 0 for none) and returns its new, never reused ID. Each call creates a new row even for the same item. The item is not checked for existence.",
+    "findRows(com.almworks.jira.structure.api.item.ItemIdentity)": "Returns an iterator over the IDs of all rows (persistent first, then transient) that show the item. Empty for null or an unknown item. The result is a snapshot.",
+    "findRows(com.almworks.jira.structure.api.item.ItemIdentity, java.util.function.LongConsumer)": "Passes the ID of every row showing the item to the consumer. Nothing happens for null.",
+    "findRows(com.almworks.jira.structure.api.item.ItemIdentity, java.util.function.LongPredicate)": "Passes row IDs showing the item to the predicate until it returns false. Persistent rows come first, then transient rows. Nothing happens for null; database errors are logged and end the search silently.",
+    "createMapper(com.almworks.jira.structure.api.forest.raw.Forest)": "Internal: returns a `RowMapper` that maps row IDs a client may hold (for example from an older build of a generated forest) to the matching rows of the given forest.",
+    "collectItemIds(com.almworks.integers.LongIterable)": "Returns the set of item identities shown by the given rows, ignoring rows that do not exist. Null gives an empty set."
+   }
+  },
+  "com.almworks.jira.structure.api.row.RowMapper": {
+   "summary": "Internal helper that translates row IDs into rows of a specific forest. In generated forests the transient rows are recreated on every rebuild under new IDs; each new row remembers the row it replaces (its original) and the generator that created it, and the mapper follows that chain. Created by `RowManager.createMapper`.",
+   "members": {
+    "mapRow(long)": "Returns the ID to use in the mapper's forest for the requested row ID: the ID itself if the row is in the forest (or is the super-root -1); otherwise, for a transient row, follows the chain of original rows until it reaches a row in the forest or a row whose creating generator is in the forest; returns 0 when no match exists (persistent row not in forest, missing row, row without creator, a cycle, or more than about 100 steps).",
+    "map(com.almworks.integers.LongList)": "Maps a list of row IDs with `mapRow` and returns the result as a `Mapping`. When every row maps to itself, the mapping is marked as identical and no new lists are created."
+   }
+  },
+  "com.almworks.jira.structure.api.row.RowMapper.Mapping": {
+   "summary": "Result of mapping a list of row IDs with a `RowMapper`. Immutable once created (the lists are not copied, so callers should not change them).",
+   "members": {
+    "identical(com.almworks.integers.LongList)": "Creates a mapping where every row maps to itself; both row lists are the given list and there is no map.",
+    "mapped(com.almworks.integers.LongList, com.almworks.integers.LongList, com.almworks.integers.wrappers.LongLongHppcOpenHashMap)": "Creates a mapping from the requested rows (arg 1), the mapped rows (arg 2) and the map from requested to mapped ID for rows that changed (arg 3).",
+    "getRequestedRows()": "The row IDs that were asked for.",
+    "getMappedRows()": "The rows to use in the forest, in request order; rows that could not be mapped are left out, so this list can be shorter than the requested one.",
+    "getMap()": "Map from requested ID to mapped ID for rows that changed, or null for an identical mapping.",
+    "isMapped()": "True if a map exists (i.e. the mapping is not identical).",
+    "createMappedResultColumn(com.almworks.jira.structure.api.attribute.ValueColumn)": "Wraps a column of values computed for the mapped rows so that it can be read with the requested row IDs: a requested ID is translated through the map (unchanged if absent; a null row is treated as 0) and the value of the mapped row is returned. Returns the column itself for an identical mapping, and an empty column for a null argument."
+   }
+  },
+  "com.almworks.jira.structure.api.row.RowRetriever": {
+   "summary": "Read access to rows by ID, with bulk helpers. `RowManager` extends it; the plugin also uses other implementations internally. The default methods build on `getRow(long, ItemAccessMode)` and `scanRows(... five arguments)`.",
+   "members": {
+    "IGNORE_MISSING_ROWS": "A collector that discards everything; pass it as the missing-row collector to skip missing rows silently.",
+    "getRow(long)": "Same as `getRow(rowId, ItemAccessMode.NORMAL_ACCESS)`.",
+    "getRow(long, com.almworks.jira.structure.api.row.ItemAccessMode)": "Returns the row with the given ID (arg 1); arg 2 decides how its item will be loaded (see `ItemAccessMode`). Never null. Throws `MissingRowException` if no such row exists. The item is not loaded at this point.",
+    "scanRows(com.almworks.integers.LongIterable, boolean, com.almworks.jira.structure.api.row.ItemAccessMode, com.almworks.integers.LongCollector, java.util.function.Predicate)": "Visits the rows with the given IDs (arg 1; null means no rows) and passes each loaded row to the callback. Stops as soon as the predicate (arg 5) returns false. Arg 3 is the item access mode. A missing row ID is added to the missing-row collector if one is given (use `IGNORE_MISSING_ROWS` to just skip them); with a null collector the first missing row throws `MissingRowException`. The `sorted` flag only says that the IDs are in ascending order (an optimization hint); implementations may visit rows in a different order than given, e.g. sorted by ID or grouped by storage. ",
+    "scanRows(com.almworks.integers.LongIterable, boolean, com.almworks.integers.LongCollector, java.util.function.Predicate)": "Same as the five-argument form with `NORMAL_ACCESS`.",
+    "scanRows(com.almworks.integers.LongIterable, com.almworks.integers.LongCollector, java.util.function.Predicate)": "Same as the five-argument form with unsorted input and `NORMAL_ACCESS`.",
+    "scanRows(com.almworks.integers.LongIterable, java.util.function.Predicate)": "Same as the five-argument form with unsorted input, `NORMAL_ACCESS` and no collector, so a missing row throws `MissingRowException`.",
+    "scanAllRows(com.almworks.integers.LongIterable, boolean, com.almworks.jira.structure.api.row.ItemAccessMode, com.almworks.integers.LongCollector, java.util.function.Consumer)": "Visits the rows with the given IDs (arg 1; null means no rows) and passes each loaded row to the callback. Visits all rows (no early stop). Arg 3 is the item access mode. A missing row ID is added to the missing-row collector if one is given (use `IGNORE_MISSING_ROWS` to just skip them); with a null collector the first missing row throws `MissingRowException`. The `sorted` flag only says that the IDs are in ascending order (an optimization hint); implementations may visit rows in a different order than given, e.g. sorted by ID or grouped by storage. ",
+    "scanAllRows(com.almworks.integers.LongIterable, boolean, com.almworks.integers.LongCollector, java.util.function.Consumer)": "Same with `NORMAL_ACCESS`.",
+    "scanAllRows(com.almworks.integers.LongIterable, com.almworks.integers.LongCollector, java.util.function.Consumer)": "Same with unsorted input and `NORMAL_ACCESS`.",
+    "scanAllRows(com.almworks.integers.LongIterable, java.util.function.Consumer)": "Same with unsorted input, `NORMAL_ACCESS` and no collector (missing rows throw `MissingRowException`).",
+    "scanAllExistingRows(com.almworks.integers.LongIterable, boolean, com.almworks.jira.structure.api.row.ItemAccessMode, java.util.function.Consumer)": "Visits all existing rows among the IDs with the given access mode, silently skipping missing ones. Never throws `MissingRowException`.",
+    "scanAllExistingRows(com.almworks.integers.LongIterable, boolean, java.util.function.Consumer)": "Same with `NORMAL_ACCESS`.",
+    "scanAllExistingRows(com.almworks.integers.LongIterable, java.util.function.Consumer)": "Same with unsorted input and `NORMAL_ACCESS`.",
+    "reduceOverRows(com.almworks.integers.LongIterable, Object, java.util.function.BiFunction)": "Folds over the rows: starts with arg 2 and for each row computes `accumulator.apply(row, current)` (arg 3). Returns the final value, or the starting value for null or empty input. Uses `NORMAL_ACCESS`; a missing row throws `MissingRowException`.",
+    "collectIssueIds(com.almworks.integers.LongIterable, boolean, com.almworks.integers.LongCollector)": "Adds to the collector (arg 3) the issue ID of every given row that shows an issue (missing rows and non-issue rows are skipped) and returns the same collector. Duplicates are added as often as they occur. Items are not loaded, so no access check is made. Arg 2 is the sorted hint.",
+    "collectIssueIds(com.almworks.integers.LongIterable, com.almworks.integers.LongCollector)": "Same with unsorted input.",
+    "collectItemIds(com.almworks.integers.LongIterable)": "Returns the set of item identities shown by the given rows (missing rows skipped). Null gives an empty set."
+   }
+  },
+  "com.almworks.jira.structure.api.row.ShallowRow": {
+   "summary": "Row with only row ID, item identity and semantics; it never provides the item object. Immutable and thread-safe. Used when items are not needed (`ItemAccessMode.ITEM_NOT_NEEDED`). Internal.",
+   "members": {
+    "<init>(long, com.almworks.jira.structure.api.item.ItemIdentity, long)": "Creates the row. Throws `IllegalArgumentException` if the row ID is 0 or -1.",
+    "getRowId()": "The row ID given at construction.",
+    "getItemId()": "The item identity given at construction.",
+    "getSemantics()": "The semantics code given at construction.",
+    "getItem(Class)": "Always null.",
+    "toString()": "The item identity with its item type in shortened form (see `CoreItemTypes`), a colon and the semantics code."
+   }
+  },
+  "com.almworks.jira.structure.api.row.SimpleRow": {
+   "summary": "Standard row implementation that resolves its item lazily through an `ItemResolver` the first time `getItem` is called, then caches the result (thread-safe, resolved at most once). Created through the static `create` methods (the constructor is private). A variant that skips the user's access check exists for trusted code; it is obtained through the `create` methods with the skip flag, `tryMakeUnchecked` or `StructureRows.makeUnchecked`. Internal.",
+   "members": {
+    "myRowId": "The row ID (for subclasses).",
+    "myItemId": "The item identity (for subclasses).",
+    "mySemantics": "The semantics code (for subclasses).",
+    "myResolver": "The resolver used to load the item (for subclasses).",
+    "create(long, com.almworks.jira.structure.api.item.ItemIdentity, long, com.almworks.jira.structure.api.item.ItemResolver)": "Creates a row from row ID, item identity, semantics and resolver that checks the current user's access when loading the item. With a null resolver a `ShallowRow` is returned instead. Throws `IllegalArgumentException` for row ID 0 or -1.",
+    "create(long, com.almworks.jira.structure.api.item.ItemIdentity, long, com.almworks.jira.structure.api.item.ItemResolver, com.almworks.jira.structure.api.row.ItemAccessMode)": "Creates a row according to the access mode (arg 5): a `ShallowRow` for `ITEM_NOT_NEEDED` or a null resolver, a row without access check for `SKIP_ACCESS_CHECK`, otherwise a checking row. Throws `IllegalArgumentException` for row ID 0 or -1.",
+    "create(long, com.almworks.jira.structure.api.item.ItemIdentity, long, com.almworks.jira.structure.api.item.ItemResolver, boolean)": "Creates a row that loads its item without access check if arg 5 is true, with the check otherwise. A null resolver gives a `ShallowRow`. Throws `IllegalArgumentException` for row ID 0 or -1.",
+    "getRowId()": "The row ID given at construction.",
+    "getItemId()": "The item identity given at construction.",
+    "getSemantics()": "The semantics code given at construction.",
+    "getQualifier()": "Label used by `toString`: `SimpleRow`, or `SimpleRow(unchecked)` for the variant without access check.",
+    "toString()": "`<qualifier>[<rowId>:<itemId>:<semantics>]`.",
+    "getItem(Class)": "Loads the item on first call (through the resolver, with or without the user's access check depending on the variant). If loading throws, the exception propagates from that first call and the row is nevertheless marked as loaded, so later calls return null and returns it cast to the requested class, or null if not loaded, invisible to the user, or not an instance of that class.",
+    "resolve()": "Loads the item object: through the resolver with access check, or without it in the unchecked variant. Called at most once per row.",
+    "tryMakeUnchecked(com.almworks.jira.structure.api.row.StructureRow)": "If the argument is a checking `SimpleRow`, returns a new row with the same data and resolver that loads its item without access check; otherwise returns the argument unchanged (already unchecked, or another row class)."
+   }
+  },
+  "com.almworks.jira.structure.api.row.StructureRow": {
+   "summary": "A row of a forest: row ID, item identity, semantics and, on demand, the item object. Implementations are immutable apart from lazy item loading and safe to share between threads. Obtained from `RowManager` / `RowRetriever`; also implemented by the plugin's helper classes in this package.",
+   "members": {
+    "ROW_ZERO": "Placeholder row with row ID 0 and item `ItemIdentity.ITEM_ZERO`, used where a non-null row is needed but there is none.",
+    "getRowId()": "The row ID: positive for real rows, -1 for the super-root, -100 and below for temporary rows in forest actions, 0 only for `ROW_ZERO`.",
+    "getItemId()": "Identity of the item shown in the row. Never null.",
+    "getSemantics()": "Code describing how the row came to be in the forest (see `CoreSemantics`: 0 none, 1 title, 2 group, 3 inserted, 4 extension); 0 for ordinary rows.",
+    "getItem(Class)": "The item object (for example a Jira `Issue` for issue rows) if it can be loaded and is an instance of the requested class, otherwise null. Depending on how the row was obtained, the item is null when the current user may not see it, and it is always null for rows retrieved with `ITEM_NOT_NEEDED`. Request `Object.class` to get the item regardless of class."
+   }
+  },
+  "com.almworks.jira.structure.api.row.StructureRow.ZeroRow": {
+   "summary": "Class of `StructureRow.ROW_ZERO`. All instances behave the same.",
+   "members": {
+    "<init>()": "Creates a zero row; use `ROW_ZERO` instead.",
+    "getRowId()": "Always 0.",
+    "getItemId()": "Always `ItemIdentity.ITEM_ZERO`.",
+    "getItem(Class)": "Always null.",
+    "getSemantics()": "Always 0.",
+    "toString()": "`0:` followed by the item identity's text."
+   }
+  },
+  "com.almworks.jira.structure.api.row.StructureRows": {
+   "summary": "Static helpers for row IDs and rows. Not instantiable. Special row IDs: 0 is never a valid row; -1 is the super-root (the invisible parent of all top-level rows); -100 and lower are temporary IDs used in forest actions to refer to rows that do not exist yet.",
+   "members": {
+    "STARTING_TEMPORARY_ROW_ID": "-100, the first (highest) temporary row ID; temporary IDs count down from it.",
+    "validateForestRowId(long)": "Throws `IllegalArgumentException` if the ID is 0 (message says the row ID must be non-zero) or -1 (message says -1 is reserved for the super-root). Any other value passes.",
+    "validateForestRowIds(com.almworks.integers.LongList)": "Validates each ID as `validateForestRowId`; the exception message is prefixed with the offending position as `[index] `. A null list passes.",
+    "withoutSuperRoot(com.almworks.integers.LongIterator)": "Returns a lazy iterator over the given IDs with every -1 left out.",
+    "withoutSuperRoot(com.almworks.integers.LongIterable)": "Returns a lazy iterable that applies `withoutSuperRoot` to each new iterator of the argument.",
+    "isSuperRoot(long)": "True if the ID is -1.",
+    "isSuperRoot(com.almworks.jira.structure.api.row.StructureRow)": "True if the row is not null and its ID is -1.",
+    "isGenerator(com.almworks.jira.structure.api.row.StructureRow)": "True if the row's item type is `CoreItemTypes.GENERATOR`. False for null.",
+    "isEffector(com.almworks.jira.structure.api.row.StructureRow)": "True if the row's item type is `CoreItemTypes.EFFECTOR`. False for null.",
+    "isAutomation(com.almworks.jira.structure.api.row.StructureRow)": "True if the row is a generator or an effector row.",
+    "isLoopMarker(com.almworks.jira.structure.api.row.StructureRow)": "True if the row's item type is `CoreItemTypes.LOOP_MARKER` (a marker row inserted where a generated hierarchy would repeat itself). False for null.",
+    "isItemType(com.almworks.jira.structure.api.row.StructureRow, String)": "True if both arguments are non-null and the row's item type equals the given type key exactly.",
+    "isTemporary(long)": "True if the ID is -100 or lower.",
+    "temporaryRow(int)": "Returns the temporary row ID for the given sequence number: `-100 - sequence`. Throws `IllegalArgumentException` for a negative number.",
+    "isItemVisibleForSure(com.almworks.jira.structure.api.row.StructureRow)": "True if the row (after unwrapping `TransientRow` wrappers) is a `SimpleRow` that loads its item without access check, meaning visibility has already been established by the caller. False otherwise, which does not mean the item is invisible.",
+    "makeShallow(com.almworks.jira.structure.api.row.StructureRow)": "Returns a row with the same ID, item and semantics that never loads the item (a `ShallowRow`); a `TransientRow` wrapper is kept with the shallow row inside. Returns the argument if it is already shallow.",
+    "makeUnchecked(com.almworks.jira.structure.api.row.StructureRow)": "Returns an equivalent row that loads its item without access check (see `SimpleRow.tryMakeUnchecked`), keeping any `TransientRow` wrapper. Rows of other classes are returned unchanged."
+   }
+  },
+  "com.almworks.jira.structure.api.row.SuperRootRow": {
+   "summary": "The super-root: a virtual row with ID -1 that is the parent of all top-level rows of a forest. It never appears in a forest itself. Singleton, immutable.",
+   "members": {
+    "SUPER_ROOT_ROW_ID": "-1, the row ID of the super-root.",
+    "SUPER_ROOT_ROW": "The singleton instance.",
+    "SUPER_ROOT_ITEM_TYPE": "`super-root`, the item type of the super-root's item.",
+    "SUPER_ROOT_ITEM": "Item identity with type `super-root` and long ID -1.",
+    "SUPER_ROOT_SEMANTICS": "-1, the semantics of the super-root.",
+    "SUPER_ROOT_INDEX": "-1, the forest index that stands for the super-root (for example as the parent index of top-level rows). Internal.",
+    "SUPER_ROOT_DEPTH": "-1, the depth of the super-root (top-level rows have depth 0). Internal.",
+    "getRowId()": "Always -1.",
+    "getItemId()": "Always `SUPER_ROOT_ITEM`.",
+    "getSemantics()": "Always -1.",
+    "getItem(Class)": "Always null.",
+    "toString()": "`super-root`."
+   }
+  },
+  "com.almworks.jira.structure.api.row.TransientRow": {
+   "summary": "Wrapper that marks a row as transient, i.e. created by a generator while building a forest, and records which generator created it and which row it was derived from. All row data come from the wrapped (delegate) row. Immutable. Internal.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.row.StructureRow, long, long)": "Wraps the delegate row (arg 1; required, but null is not checked and only fails later) with the creator row ID (arg 2, the generator row) and original row ID (arg 3, the row this one was derived from, 0 if none).",
+    "getRowId()": "The delegate's row ID.",
+    "getItemId()": "The delegate's item identity.",
+    "getSemantics()": "The delegate's semantics.",
+    "getItem(Class)": "The delegate's item, as returned by the delegate.",
+    "getCreatorId()": "Row ID of the generator that created this row, or 0.",
+    "getOriginalId()": "Row ID of the row this one was derived from (for example the row it replaces from an earlier build of the forest), or 0.",
+    "toString()": "`TransientRow[<rowId>:<itemId>:<semantics>:<creatorId>:<originalId>]`.",
+    "getCreatorId(com.almworks.jira.structure.api.row.StructureRow)": "The creator ID if the row is a `TransientRow`, otherwise 0 (also for null).",
+    "getOriginalId(com.almworks.jira.structure.api.row.StructureRow)": "The original ID if the row is a `TransientRow`, otherwise 0 (also for null).",
+    "getDelegate(com.almworks.jira.structure.api.row.StructureRow)": "Unwraps nested `TransientRow` wrappers and returns the innermost row; returns the argument itself if it is not a wrapper (including null).",
+    "replaceDelegate(com.almworks.jira.structure.api.row.StructureRow, java.util.function.Function)": "Applies the function (arg 2) to the innermost row. For a plain row returns the function's result, or the row itself if the result is null. For a wrapper returns a new single `TransientRow` around the result with the outer wrapper's creator and original IDs, or the original wrapper if the function returned null or the same row."
+   }
+  },
+  "com.almworks.jira.structure.api.settings.AttributeSensitivityMode": {
+   "summary": "Global policy for \"sensitive\" attributes: computed values (typically aggregates) that could reveal information about items the viewing user cannot see. The plugin withholds sensitive values in such cases. Each mode has a stable integer code used for storage.",
+   "members": {
+    "STANDARD": "Default mode (code 0). Attributes are sensitive unless their value format is one the plugin considers harmless by default or its value class is annotated with `NonSensitiveInStandardMode`; attributes listed as non-sensitive in the settings are exempt.",
+    "STRICT": "Every attribute is treated as sensitive (code 1), except those explicitly listed as non-sensitive in the settings.",
+    "PERMISSIVE": "No attribute is treated as sensitive (code 2); the non-sensitive list is ignored.",
+    "values()": "",
+    "valueOf(String)": "",
+    "getCode()": "The integer storage code: 0, 1 or 2.",
+    "valueOf(int)": "Returns the mode with the given code. Throws `IllegalArgumentException` for any other number (message says the code is not a valid sensitivity mode)."
+   }
+  },
+  "com.almworks.jira.structure.api.settings.AttributeSensitivitySettings": {
+   "summary": "The attribute sensitivity configuration: a mode and a list of attributes explicitly declared non-sensitive. Read and written through `StructureConfiguration`; `ImmutableAttributeSensitivitySettingsBean` is the standard implementation.",
+   "members": {
+    "getSensitivityMode()": "The global mode. Never null.",
+    "getNonSensitiveAttributes()": "Attributes declared non-sensitive (used by `STANDARD` and `STRICT` modes). An entry also covers more specific variants of the same attribute (a generalization match), and an entry with format `ValueFormat.ANY` matches the attribute in any format. Never null."
+   }
+  },
+  "com.almworks.jira.structure.api.settings.AutoSwitchStrategy": {
+   "summary": "What the plugin's panel on an issue or project page does with the selected structure when the user opens the page. Each constant has a string code used for storage.",
+   "members": {
+    "AUTOSWITCH_OFF": "Keep whatever structure was shown last. Code `off`.",
+    "STRUCTURE_WITH_ISSUE": "Switch to a structure that contains the current issue. Code `withIssue`. This is the plugin's default.",
+    "DEFAULT_STRUCTURE": "Switch to the default structure (for the project, else the global one). Code `default`.",
+    "PLUGIN_DEFAULT_AUTOSWITCH_STRATEGY": "The default strategy used when nothing is configured: `STRUCTURE_WITH_ISSUE`.",
+    "values()": "",
+    "valueOf(String)": "",
+    "getStringCode()": "The storage code: `off`, `withIssue` or `default`.",
+    "fromStringCode(String)": "Returns the strategy whose code equals the argument exactly (case-sensitive), or null for null or an unknown code."
+   }
+  },
+  "com.almworks.jira.structure.api.settings.ImmutableAttributeSensitivitySettingsBean": {
+   "summary": "Immutable implementation of `AttributeSensitivitySettings`. Thread-safe.",
+   "members": {
+    "DEFAULT": "Settings used when nothing is configured: mode `STANDARD` and no non-sensitive attributes.",
+    "<init>(com.almworks.jira.structure.api.settings.AttributeSensitivityMode, java.util.Collection)": "Creates settings with the mode (arg 1) and an unmodifiable copy of the attributes (arg 2) as a set (duplicates collapse). Throws `NullPointerException` if the collection is null; a null mode is not checked.",
+    "getSensitivityMode()": "The mode given at construction.",
+    "getNonSensitiveAttributes()": "Unmodifiable set of the attributes given at construction."
+   }
+  },
+  "com.almworks.jira.structure.api.settings.StructureConfiguration": {
+   "summary": "Global configuration of the plugin, stored in Jira application properties (and, for UI preferences, in user properties) and cached. Implemented by the plugin and exported as a public OSGi component; also available from `StructureComponents` and `StructurePluginHelper`. Covers: the projects the plugin is enabled for; application permissions (who may use the plugin, create structures, configure synchronization and automation, and further permissions from `CoreAppPermissions`); default structures; panel UI settings; attribute sensitivity. Setters perform no permission check on the caller; protect them yourself. Defaults when nothing is stored: enabled for all projects, and every application permission granted to anyone.",
+   "members": {
+    "isEnabledForAllProjects()": "True if the plugin is enabled in all projects (default true). If the setting cannot be loaded, false.",
+    "getPickedProjectIds()": "IDs of the projects explicitly selected for the plugin (used when not enabled for all projects), sorted ascending without duplicates. Never null.",
+    "getPickedProjects()": "The selected projects that still exist, in the order Jira lists projects. Never null.",
+    "getCurrentlyEnabledProjects()": "All projects when enabled for all projects, otherwise the selected ones. Never null.",
+    "isProjectEnabled(com.atlassian.jira.project.Project)": "True if the plugin is enabled in the given project (always true when enabled for all). False for null.",
+    "isEnabledForAnyone()": "Returns true if the use-the-plugin permission is granted to everyone who can use the plugin, without listing subjects. Same as `isAllowedForAnyone(CoreAppPermissions.USE)`.",
+    "getEnabledPermissionSubjects()": "Returns the users, groups and roles explicitly granted the use-the-plugin permission (used when it is not granted to everyone). Same as `getPermissionSubjects(CoreAppPermissions.USE)`.",
+    "isCreateEnabledForAnyone()": "Returns true if the create-structures permission is granted to everyone who can use the plugin, without listing subjects. Same as `isAllowedForAnyone(CoreAppPermissions.CREATE_STRUCTURE)`.",
+    "getCreatorPermissionSubjects()": "Returns the users, groups and roles explicitly granted the create-structures permission (used when it is not granted to everyone). Same as `getPermissionSubjects(CoreAppPermissions.CREATE_STRUCTURE)`.",
+    "isSynchronizationEnabledForAnyone()": "Returns true if the synchronization permission is granted to everyone who can use the plugin, without listing subjects. Same as `isAllowedForAnyone(CoreAppPermissions.SYNCHRONIZATION)`.",
+    "getSynchronizationPermissionSubjects()": "Returns the users, groups and roles explicitly granted the synchronization permission (used when it is not granted to everyone). Same as `getPermissionSubjects(CoreAppPermissions.SYNCHRONIZATION)`.",
+    "isAutomationEnabledForAnyone()": "Returns true if the automation permission is granted to everyone who can use the plugin, without listing subjects. Same as `isAllowedForAnyone(CoreAppPermissions.AUTOMATION)`.",
+    "getAutomationPermissionSubjects()": "Returns the users, groups and roles explicitly granted the automation permission (used when it is not granted to everyone). Same as `getPermissionSubjects(CoreAppPermissions.AUTOMATION)`.",
+    "setEnabledForAllProjects(boolean)": "Enables the plugin for all projects (true) or only for the selected ones (false). No permission check on the caller.",
+    "setPickedProjectIds(String)": "Stores the selected projects as a comma-separated list (null is stored as empty). Entries may be numeric project IDs or project keys (keys are matched case-insensitively when read); a list should use one kind only, because once one kind is found while reading, entries of the other kind are ignored. Blank entries and unknown keys are skipped.",
+    "setPickedProjectIds(com.almworks.integers.LongIterable)": "Stores the given project IDs as the selected projects (comma-separated decimal list). Null stores an empty selection.",
+    "setPickedProjectIds(java.util.Collection)": "Same as the iterable variant, for a collection of `Long`; null stores an empty selection.",
+    "setEnabledForAnyone(boolean)": "Grants (true) or stops granting (false) the use-the-plugin permission to everyone. Same as `setAllowedForAnyone(CoreAppPermissions.USE, value)`. No permission check on the caller.",
+    "setEnabledPermissionSubjectsEncoded(String)": "Stores the explicit holders of the use-the-plugin permission as a comma-separated list of encoded `PermissionSubject`s (null is stored as empty). Same as `setPermissionSubjectsEncoded(CoreAppPermissions.USE, value)`. Entries that cannot be parsed are silently dropped when read back.",
+    "setCreateEnabledForAnyone(boolean)": "Grants (true) or stops granting (false) the create-structures permission to everyone. Same as `setAllowedForAnyone(CoreAppPermissions.CREATE_STRUCTURE, value)`. No permission check on the caller.",
+    "setCreatorPermissionSubjectsEncoded(String)": "Stores the explicit holders of the create-structures permission as a comma-separated list of encoded `PermissionSubject`s (null is stored as empty). Same as `setPermissionSubjectsEncoded(CoreAppPermissions.CREATE_STRUCTURE, value)`. Entries that cannot be parsed are silently dropped when read back.",
+    "setSynchronizationEnabledForAnyone(boolean)": "Grants (true) or stops granting (false) the synchronization permission to everyone. Same as `setAllowedForAnyone(CoreAppPermissions.SYNCHRONIZATION, value)`. No permission check on the caller.",
+    "setSynchronizationPermissionSubjectsEncoded(String)": "Stores the explicit holders of the synchronization permission as a comma-separated list of encoded `PermissionSubject`s (null is stored as empty). Same as `setPermissionSubjectsEncoded(CoreAppPermissions.SYNCHRONIZATION, value)`. Entries that cannot be parsed are silently dropped when read back.",
+    "setAutomationEnabledForAnyone(boolean)": "Grants (true) or stops granting (false) the automation permission to everyone. Same as `setAllowedForAnyone(CoreAppPermissions.AUTOMATION, value)`. No permission check on the caller.",
+    "setAutomationPermissionSubjectsEncoded(String)": "Stores the explicit holders of the automation permission as a comma-separated list of encoded `PermissionSubject`s (null is stored as empty). Same as `setPermissionSubjectsEncoded(CoreAppPermissions.AUTOMATION, value)`. Entries that cannot be parsed are silently dropped when read back.",
+    "addConfigurationScopeClause(com.atlassian.jira.jql.builder.JqlClauseBuilder)": "Adds to the JQL builder (a new one is created for null) a condition restricting issues to the projects where the plugin is enabled, joined with AND, and returns the builder. Adds nothing when enabled for all projects. If no project is enabled, it adds a condition on a project ID that cannot exist (2147483647), so the query matches nothing.",
+    "getConfigurationScopeQuery()": "Returns a JQL query matching only issues in projects where the plugin is enabled, or null when it is enabled for all projects.",
+    "isStructureAvailable(com.atlassian.jira.user.ApplicationUser)": "True if the given user (null = anonymous) may use the plugin at all. False if the plugin is enabled for no project. Otherwise true for Jira administrators (unless the administrator bypass is turned off with a dark feature); for others, the use permission must be granted to anyone or to a subject matching the user, and the user must be able to browse at least one project where the plugin is enabled.",
+    "isStructureCreationAllowed(com.atlassian.jira.user.ApplicationUser)": "Same as `isAllowed(CoreAppPermissions.CREATE_STRUCTURE, user)`.",
+    "isSynchronizationAllowed(com.atlassian.jira.user.ApplicationUser)": "Same as `isAllowed(CoreAppPermissions.SYNCHRONIZATION, user)`.",
+    "isAutomationAccessAllowed(com.atlassian.jira.user.ApplicationUser)": "Same as `isAllowed(CoreAppPermissions.AUTOMATION, user)`.",
+    "isAllowedForAnyone(com.almworks.jira.structure.api.permissions.StructureAppPermission)": "True if the given application permission is granted to everyone (default true when never set). The permission must be one the plugin knows (the `CoreAppPermissions` constants, compared by key); an unknown one fails with `NullPointerException`.",
+    "getPermissionSubjects(com.almworks.jira.structure.api.permissions.StructureAppPermission)": "The subjects explicitly granted the permission, in stored order, skipping entries that cannot be parsed. Empty if none. Same restriction on the permission argument as `isAllowedForAnyone`.",
+    "setAllowedForAnyone(com.almworks.jira.structure.api.permissions.StructureAppPermission, boolean)": "Grants (true) or stops granting (false) the permission (arg 1) to everyone. No permission check on the caller. Same restriction on the permission argument.",
+    "setPermissionSubjectsEncoded(com.almworks.jira.structure.api.permissions.StructureAppPermission, String)": "Stores the explicit holders of the permission (arg 1) as a comma-separated list of `PermissionSubject` encoded strings (arg 2; null is stored as empty). No validation; unparsable entries are dropped when read.",
+    "setPermissionSubjects(com.almworks.jira.structure.api.permissions.StructureAppPermission, java.util.Collection)": "Encodes the subjects with `PermissionSubject.toEncodedString()`, joins them with commas and stores them as with `setPermissionSubjectsEncoded`. Null stores an empty list.",
+    "isAllowed(com.almworks.jira.structure.api.permissions.StructureAppPermission, com.atlassian.jira.user.ApplicationUser)": "True if the user holds the application permission: the user must not be null and must pass `isStructureAvailable`; then true if the permission is granted to anyone, if the user is a Jira administrator (unless the administrator bypass is disabled), or if any stored subject matches the user. Anonymous users never hold application permissions through this method.",
+    "getDefaultStructureId(com.atlassian.jira.project.Project)": "ID of the default structure for the project (arg; null means the global default). Falls back to the global default when the project has none; 0 when no default is set at all.",
+    "setDefaultStructureId(com.atlassian.jira.project.Project, Long)": "Sets the default structure for the project (arg 1) to the ID (arg 2). With a null project it sets the global default (null stores 0, meaning none). With a project, a null ID removes the project's own default. No check that the structure exists or that the caller may change settings.",
+    "isDefaultStructureSetForProject(com.atlassian.jira.project.Project)": "True if the project has its own default structure (not counting the global fallback). False for null.",
+    "getUISettings(com.atlassian.jira.user.ApplicationUser, com.atlassian.jira.project.Project)": "Effective panel UI settings: the system-wide settings, overridden by the user's own settings where those are set (null user = system settings only). The project argument is currently ignored. Built-in defaults: issue page auto-switch `STRUCTURE_WITH_ISSUE`, project/version/component pages `AUTOSWITCH_OFF`, auto-collapse true, keep structure while navigating true. Never null.",
+    "setUISettings(com.atlassian.jira.user.ApplicationUser, com.atlassian.jira.project.Project, com.almworks.jira.structure.api.settings.UISettings)": "Stores UI settings for the user (arg 1), or system-wide when the user is null. Only non-null values are written, so this cannot clear a value. Only the auto-switch strategies for `ISSUE_VIEW` and `PROJECT_TAB` are stored (the latter also governs version and component pages); others are ignored. The project argument is ignored.",
+    "clearUISettings(com.atlassian.jira.user.ApplicationUser, com.atlassian.jira.project.Project)": "Removes all of the user's own UI settings so the system-wide ones apply again. Does nothing for a null user (system settings cannot be cleared this way). The project argument is ignored.",
+    "getAttributeSensitivitySettings()": "The current attribute sensitivity settings; `ImmutableAttributeSensitivitySettingsBean.DEFAULT` when none are stored. An unknown stored mode code is read as `STANDARD`; stored attributes that cannot be converted are skipped. Never null.",
+    "setAttributeSensitivitySettings(com.almworks.jira.structure.api.settings.AttributeSensitivitySettings)": "Stores the attribute sensitivity settings (as JSON) and clears all of the plugin's caches on all cluster nodes so computed values are re-evaluated. No permission check on the caller."
+   }
+  },
+  "com.almworks.jira.structure.api.settings.StructurePage": {
+   "summary": "Places in the Jira UI where the plugin's widget can appear. Each constant has a stable string ID, used as its JSON value.",
+   "members": {
+    "STRUCTURE_BOARD": "The plugin's own full page. ID `structure`.",
+    "STRUCTURE_BOARD_WITH_DETAILS": "Deprecated: the full page with an issue details panel. ID `structure-with-details`.",
+    "ISSUE_VIEW": "The panel on the issue page. ID `issue`.",
+    "PROJECT_TAB": "The project page tab. ID `project`.",
+    "COMPONENT_TAB": "The component page tab. ID `component`.",
+    "VERSION_TAB": "The version page tab. ID `version`.",
+    "ISSUE_NAVIGATOR": "The issue search page. ID `navigator`.",
+    "GADGET": "The dashboard gadget. ID `gadget`.",
+    "GREENHOPPER_TAB": "The tab on agile boards. ID `greenhopper`.",
+    "values()": "",
+    "valueOf(String)": "",
+    "getId()": "The string ID listed on the constant; also the JSON representation.",
+    "forId(String)": "Returns the page with exactly this ID (case-sensitive), or null for null or an unknown ID. Used when reading JSON.",
+    "enumSet(java.util.Collection)": "Returns a new `EnumSet` holding the given pages, or null when the collection is null or empty. Null elements are not allowed."
+   }
+  },
+  "com.almworks.jira.structure.api.settings.UISettings": {
+   "summary": "Preferences for the plugin's panel on issue and project pages. Every value may be unset (null), meaning \"inherit\" (user settings fall back to system settings). Returned by `StructureConfiguration.getUISettings`; `UISettingsBean` is a mutable implementation for passing new values.",
+   "members": {
+    "getAutoSwitchStrategy(com.almworks.jira.structure.api.settings.StructurePage)": "The auto-switch strategy for the given page, or null if not set. In the effective settings returned by the configuration: `ISSUE_VIEW` has its own value; `PROJECT_TAB`, `VERSION_TAB` and `COMPONENT_TAB` share one value; `GREENHOPPER_TAB` is always `AUTOSWITCH_OFF`; all other pages always report the plugin default `STRUCTURE_WITH_ISSUE`.",
+    "getAutoCollapseStructurePanel()": "Whether the panel on the issue page starts collapsed when the issue is not in the shown structure; null if not set.",
+    "getKeepStructureWhileNavigating()": "Whether the panel keeps showing the same structure when the user moves to another issue; null if not set.",
+    "isAnythingSet()": "True if at least one value is set (non-null)."
+   }
+  },
+  "com.almworks.jira.structure.api.settings.UISettingsBean": {
+   "summary": "Mutable implementation of `UISettings` used to pass new values to `StructureConfiguration.setUISettings`. All values start unset. Not thread-safe.",
+   "members": {
+    "<init>()": "Creates settings with nothing set.",
+    "<init>(com.almworks.jira.structure.api.settings.UISettings)": "Copies the auto-switch strategy of every page and the auto-collapse flag from the argument (nothing for null). Note: the keep-while-navigating flag is not copied and stays unset.",
+    "getAutoSwitchStrategy(com.almworks.jira.structure.api.settings.StructurePage)": "The strategy set for this exact page, or null.",
+    "setAutoSwitchStrategy(com.almworks.jira.structure.api.settings.StructurePage, com.almworks.jira.structure.api.settings.AutoSwitchStrategy)": "Sets the strategy for the page (arg 1), or unsets it when arg 2 is null. Returns this bean. Throws `NullPointerException` if the page is null.",
+    "getAutoCollapseStructurePanel()": "The auto-collapse flag, or null if unset.",
+    "getKeepStructureWhileNavigating()": "The keep-while-navigating flag, or null if unset.",
+    "setKeepStructureWhileNavigating(Boolean)": "Sets the keep-while-navigating flag; null unsets it.",
+    "setAutoCollapseStructurePanel(Boolean)": "Sets the auto-collapse flag; null unsets it.",
+    "isAnythingSet()": "True if any page strategy or either flag is set."
+   }
+  }
+ }
+}

@@ -1,0 +1,748 @@
+{
+ "packages": {
+  "com.almworks.jira.structure.api.util": "General-purpose helpers shipped with the API and used throughout the plugin and by client plugins: small functional-programming primitives (`La`, `La2`, `La3`), value and ordering helpers (`ComparableTuple`, `TotalOrder`), JSON and map access (`MapObject`, `JsonMapUtil`, `SpecParams`), forest/row-tree indexing (`IndexedForest`, `RowTree`), null-safe numeric and type helpers, Jira component and user lookup shortcuts, and debug/logging helpers. Most classes are static utility holders or small mutable value objects with no thread-safety guarantees unless stated."
+ },
+ "types": {
+  "com.almworks.jira.structure.api.util.CallableE": {
+   "summary": "A `java.util.concurrent.Callable` whose `call()` is declared to throw one specific checked exception type `E` instead of the general `Exception`. Clients implement it (usually as a lambda) to pass code that returns a value of type `V` and may fail with `E`, for example to `JiraComponents.withThreadContextClassLoaderOf`. It has no state of its own.",
+   "members": {
+    "call()": "Runs the computation and returns its result (may be null if the implementation chooses). May throw the declared checked exception type `E` or any unchecked exception."
+   }
+  },
+  "com.almworks.jira.structure.api.util.ComparableTuple": {
+   "summary": "An immutable, totally ordered tuple of strings and numbers, used as a sort key (for example as a comparable attribute value). Instances are created only through the static `of(...)` factories; the constructor is private. Elements are compared position by position; numbers always sort before strings at the same position, and a shorter tuple that is a prefix of a longer one sorts first. Instances are immutable and safe to share between threads.",
+   "members": {
+    "NIL": "The empty tuple (zero elements). It sorts before every non-empty tuple, equals only other empty tuples, has hash code 0 and prints as `()`.",
+    "of(long)": "Returns a one-element tuple holding the given integer number. Never throws.",
+    "of(double)": "Returns a one-element tuple holding the given floating-point number. `NaN` and infinities are accepted; see `compareTo` for how they order.",
+    "of(String)": "Returns a one-element tuple holding the given string. Throws `IllegalArgumentException` (no message) if the string is null. The empty string is allowed.",
+    "of(String, String)": "Returns a two-element tuple (a, b). Throws `IllegalArgumentException` if either argument is null.",
+    "of(long, long)": "Returns a two-element tuple of the two integer numbers, in argument order. Never throws.",
+    "of(String[])": "Returns a tuple whose elements are the strings of the array, in order. The array is copied, so later changes to it do not affect the tuple. Throws `IllegalArgumentException` if the array itself is null. Null elements inside the array are not rejected here, but such a tuple will fail with `NullPointerException` (or misbehave) when compared, hashed or printed; callers must not pass null elements. An empty array yields an empty tuple equal to `NIL`.",
+    "of(Long[])": "Returns a tuple whose elements are the given `Long` values, in order; the array is copied. Throws `IllegalArgumentException` if the array is null. Null elements are not checked and will cause `NullPointerException` on comparison or hashing.",
+    "of(String, long)": "Returns the two-element tuple (a, b) with a string first and a number second. Throws `IllegalArgumentException` if `a` is null.",
+    "of(String, long, String)": "Returns the three-element tuple (a, b, c). Throws `IllegalArgumentException` if `a` or `c` is null.",
+    "of(java.util.List)": "Builds a tuple from a list of mixed values, in list order. Each element must be a `String`, a `java.lang.Number` (any subclass) or another `ComparableTuple`; a nested tuple is flattened, that is, its elements are inserted in place rather than as a single element (so `of([of(1,2), \"x\"])` equals the tuple (1, 2, \"x\")). Throws `IllegalArgumentException` if the list is null, if any element is null, or if any element has another type. An empty list yields an empty tuple.",
+    "compareTo(com.almworks.jira.structure.api.util.ComparableTuple)": "Compares lexicographically. For each position up to the shorter length: two strings compare with `String.compareTo` (case-sensitive, UTF-16 code unit order); a string is greater than a number (returns 1 when this side holds the string, -1 when the other side does); two numbers are compared first by their `longValue()` (truncated toward zero) and, only if those are equal, by their `doubleValue()`. The first non-zero element result is returned, normalized to -1 or 1 for numbers (strings return the raw `String.compareTo` difference). If all shared positions are equal, the shorter tuple is smaller (-1/1), equal lengths give 0. Consequences: integer 1 and double 1.0 are equal; double 1.5 is greater than integer 1; `NaN` has long value 0, so against any number whose long value is 0 (including another NaN) the double step returns 1 in both directions; NaN is therefore not consistently ordered and should not be used. Throws `NullPointerException` if `other` is null.",
+    "equals(Object)": "True if the other object is also a `ComparableTuple` (exact class) and `compareTo` returns 0. So a tuple holding integer 2 equals a tuple holding double 2.0.",
+    "hashCode()": "Start with 0; for each element in order, multiply the running value by 31 and add the element's hash: for a string its `String.hashCode()`, for a number the `java.lang.Double.hashCode()` of its `doubleValue()`. Integer overflow wraps silently. This keeps equal tuples (e.g. 2 and 2.0) with equal hash codes.",
+    "toString()": "Returns the elements in parentheses separated by commas with no spaces; strings are wrapped in single quotes (no escaping), numbers use their own `toString()`. Examples: `()` for `NIL`, `('abc',5)` for of(\"abc\", 5), `(1.5)` for of(1.5)."
+   }
+  },
+  "com.almworks.jira.structure.api.util.ConsiderateLogger": {
+   "summary": "A wrapper over an SLF4J `org.slf4j.Logger` that rate-limits repeated messages per caller-chosen source key, so a recurring problem does not flood the log. For each source key, the first message is written; further messages for that key arriving within the configured interval after the last written one are dropped and counted; the next message after the interval has passed is written, preceded by a summary line saying how many were dropped. Created directly by clients with `new`. Safe for concurrent use (state is kept in a concurrent map with atomic counters; under a race two first messages for a new key may both pass).",
+   "members": {
+    "<init>(org.slf4j.Logger)": "Creates a throttling logger writing to the given logger, with the default interval of 5 minutes. The logger must not be null (not checked; a null logger fails with `NullPointerException` when the first message is written).",
+    "<init>(org.slf4j.Logger, long)": "Creates a throttling logger with an explicit suppression interval, given in nanoseconds (as measured by `System.nanoTime()`). An interval of 0 or less effectively disables suppression only for messages that arrive at a different nanosecond timestamp; normal values are positive.",
+    "info(String, String)": "Logs `source + \" \" + message` at INFO level, unless an earlier message for the same source key was written less than or exactly one interval ago, in which case the message is dropped and counted. When a message for this key is written after drops, a summary line is first written of the form `<count> info log entries from <source> were not shown` (at INFO) or `<count> warnings from <source> were not shown` (at WARN); the level and wording of the summary are fixed by whichever method (info or warn) was first called for that source key, and both methods share one throttle per key. The source must not be null (`NullPointerException`). The INFO-enabled state of the logger is not consulted before throttling.",
+    "info(String, String, Throwable)": "Same as `info(String, String)` but passes the throwable to the underlying logger so its stack trace is logged with the message. Throttling and summary behaviour are identical.",
+    "warn(String, String)": "Same as `info(String, String)` but writes the message at WARN level. Shares the throttle of the same source key with `info`.",
+    "warn(String, String, Throwable)": "Same as `warn(String, String)` with the throwable attached to the logged message.",
+    "reset()": "Forgets the throttling state of all source keys: the next message for any key is written immediately, and any counts of dropped messages are discarded without a summary line.",
+    "setInterval(long)": "Changes the suppression interval, in nanoseconds, for all source keys; takes effect for the next message. No validation."
+   }
+  },
+  "com.almworks.jira.structure.api.util.I18nText": {
+   "summary": "A serializable reference to a localizable message: an i18n key plus format arguments, to be resolved into text later in the viewer's locale (for example with `StructureUtil.getTextInCurrentUserLocale(I18nText)`). It is a mutable Java bean, JSON-serializable with Jackson using the properties `i18nKey` and `arguments`. Created directly by clients; not thread-safe.",
+   "members": {
+    "<init>(String, Object[])": "Creates a message reference with the given key (null allowed but not useful) and arguments. Each argument is normalized when stored: null stays null, any `java.lang.Number` is kept as is, and every other object is replaced by its `toString()` result; the stored array is a new array. The varargs array itself must not be null (passing a null array throws `NullPointerException`); calling with no arguments gives an empty array. This is also the Jackson creator, binding JSON properties `i18nKey` and `arguments`.",
+    "<init>()": "Creates an empty instance with null key and null arguments, intended for bean-style frameworks; fill it with the setters.",
+    "getI18nKey()": "Returns the i18n key of the message, possibly null.",
+    "setI18nKey(String)": "Replaces the i18n key. No validation.",
+    "getArguments()": "Returns the stored arguments array itself (not a copy); it may be null for an instance built with the no-argument constructor. Elements are strings, numbers or null when set through the main constructor; `setArguments` may have stored anything.",
+    "setArguments(Object[])": "Replaces the arguments array with the given array as is (no copying and no string normalization, unlike the constructor). Null is allowed.",
+    "equals(Object)": "True if the other object has exactly the same runtime class, an equal key (null equals null) and arguments arrays that are equal element by element (nested arrays compared deeply, null arrays equal only to null).",
+    "hashCode()": "Computed in the style of Apache Commons Lang `HashCodeBuilder` with its defaults (initial 17, multiplier 37): start from 17, fold in the key's hash (0 if null), then fold in each argument's hash in order (0 for null elements; nested arrays element-wise); a null arguments array contributes a single 0 step. Consistent with `equals`.",
+    "toString()": "If the arguments array is null or empty, returns the key alone (which can be null). Otherwise returns the key immediately followed, without any separator, by the arguments joined with commas, where null arguments become empty text; e.g. key `a.b` with arguments `x`, `1` gives `a.bx,1`. This is a debugging form, not the localized text."
+   }
+  },
+  "com.almworks.jira.structure.api.util.IndexedForest": {
+   "summary": "A read-only navigation index over a `com.almworks.jira.structure.api.forest.raw.Forest`, answering parent, children, sibling and subtree-end questions by row index in amortized constant time. Clients create it with `new IndexedForest(forest)`. Indexes are computed lazily on first use and cached, so the wrapped forest must not change while the index is in use (changes are not detected). Not thread-safe: even read-only queries mutate internal caches. Row positions are zero-based indices into the forest; -1 is used both as the virtual parent of top-level rows and as the 'none' result.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.forest.raw.Forest)": "Wraps the given forest (not copied). Reads its size immediately, so a null forest throws `NullPointerException`. No other work is done until queries are made.",
+    "subtreeEnd(int)": "Returns the index just past the last descendant of the row at `idx`, i.e. the index of the next row whose depth is less than or equal to that row's depth, or `size()` if there is none. For a leaf this is `idx + 1`. Any negative `idx` returns `size()` (the whole forest). An `idx` at or beyond `size()` fails with an index exception from the internal list.",
+    "parent(int)": "Returns the index of the parent of the row at `idx`, or -1 if that row is top-level (depth 0) or `idx` is negative. An index beyond the forest size fails with the forest's own index exception.",
+    "children(int)": "Returns an iterator over the indices of the direct children of the row at `idx`, in forest order. `idx` = -1 iterates the top-level rows. For any other out-of-range index or a row without children, returns an empty iterator. The iterator is lazy and computes siblings as it goes.",
+    "roots()": "Returns an iterator over the indices of all top-level (depth 0) rows, in order; same as `children(-1)`. Empty for an empty forest.",
+    "childrenRows(int)": "Returns the row IDs (not indices) of the direct children of the row at `idx` (-1 for top-level rows), in order, as a new `LongList`. Returns the shared empty `LongList.EMPTY` when there are no children or the index is out of range.",
+    "firstChild(int)": "Returns the index of the first child of the row at `idx`, which is always `idx + 1` when that row is exactly one level deeper; otherwise -1. For `idx` = -1 returns 0 if the forest is non-empty, else -1. Any other out-of-range index returns -1.",
+    "nextSibling(int)": "Returns the index of the next row with the same parent as the row at `idx` (that is, `subtreeEnd(idx)` if that position exists and has the same depth), or -1 if it is the last child or `idx` is out of range (negative or at least `size()`).",
+    "depth(int)": "Returns the depth of the row at `idx` (0 for top-level rows), straight from the forest. Out-of-range indices fail as the forest's accessor does.",
+    "row(int)": "Returns the row ID at position `idx`, straight from the forest. Out-of-range indices fail as the forest's accessor does.",
+    "rows(com.almworks.integers.IntIterator)": "Returns a lazy iterator that maps each index produced by the given index iterator to the row ID at that position. The source iterator is consumed as the result is iterated.",
+    "size()": "Returns the number of rows in the wrapped forest.",
+    "getForest()": "Returns the forest this index was created for (the same instance).",
+    "root(int)": "Returns the index of the top-level ancestor of the row at `idx` (the row itself if it is top-level). A negative `idx` is returned unchanged."
+   }
+  },
+  "com.almworks.jira.structure.api.util.IndexedRowTree": {
+   "summary": "A `RowTree` that additionally keeps a lookup table from row ID to node, so nodes can be found by row ID in constant time. Row IDs must be unique within the tree. Created by clients with a constructor or with `create(Forest)`. Not thread-safe.",
+   "members": {
+    "<init>(int)": "Creates an empty tree whose lookup table is pre-sized for about `size` rows (a capacity hint only). A negative size throws `IllegalArgumentException` from the underlying hash map.",
+    "<init>()": "Creates an empty tree with a default capacity hint of 16.",
+    "create(com.almworks.jira.structure.api.forest.raw.Forest)": "Creates a new indexed tree and appends the whole forest under its super-root, preserving order and nesting. All row IDs in the forest are expected to be distinct.",
+    "createNode(long, int)": "Overrides the node factory: creates the node as the base class does and registers it in the row-ID lookup. A duplicate row ID is a broken invariant: with Java assertions enabled it raises `AssertionError`; otherwise the new node silently replaces the old one in the lookup.",
+    "forgetNode(com.almworks.jira.structure.api.util.RowTree.Node)": "Overrides the removal hook: unregisters the node and, recursively, all of its descendants from the row-ID lookup. Called by `remove`.",
+    "getNodeWithRowId(long)": "Returns the node for the given row ID. Row ID 0 returns the super-root. Returns null if no node with that ID is currently in the tree.",
+    "hasRow(long)": "True if a node with this row ID is currently registered. The super-root (ID 0) is not registered, so `hasRow(0)` is false."
+   }
+  },
+  "com.almworks.jira.structure.api.util.IntegersUtil": {
+   "summary": "Static helpers over the primitive collections of the `com.almworks.integers` library. Not instantiable.",
+   "members": {
+    "isMutuallyExclusive(com.almworks.integers.LongList, com.almworks.integers.LongList)": "True if the two lists have no value in common (duplicates and order do not matter); true if either list is empty. Null lists throw `NullPointerException`. The lists are not modified.",
+    "isMutuallyExclusive(com.almworks.integers.LongSet, com.almworks.integers.LongSet)": "True if the two sets have no value in common; true if either set is empty. Null sets throw `NullPointerException`."
+   }
+  },
+  "com.almworks.jira.structure.api.util.ItemDisplayable": {
+   "summary": "An immutable pair of a human-readable description of an item and an optional link to it, used for showing items in messages and UI (for example by `StructureUtil.getItemDisplayable`). Created with its constructor. Thread-safe.",
+   "members": {
+    "<init>(String, String)": "Creates the pair. `description` is meant to be non-null (not checked at run time); `url` may be null when the item has no page to link to. The URL may be absolute or relative to the Jira base URL, depending on the producer.",
+    "getDescription()": "Returns the display text for the item, as given to the constructor.",
+    "getUrl()": "Returns the link to the item, or null if there is none."
+   }
+  },
+  "com.almworks.jira.structure.api.util.IterationControl": {
+   "summary": "A handle passed into callback-style iterations that lets the callback stop the iteration early. Implemented by the code running the iteration (the API's forest scanning, through the sub-interface `com.almworks.jira.structure.api.forest.raw.ForestIterationControl`); callers never create it.",
+   "members": {
+    "cancel()": "Asks the running iteration to stop: no further elements are visited after the current callback returns. Calling it more than once has no additional effect."
+   }
+  },
+  "com.almworks.jira.structure.api.util.JavaListToLongListAdapter": {
+   "summary": "A read-only `com.almworks.integers.LongList` view of a Java `java.util.List`, where each element is converted to a `long` by a given function on every access. Nothing is copied or cached, so changes to the source list are visible through the view. Created by clients with the constructor. Thread safety is that of the source list.",
+   "members": {
+    "<init>(java.util.List, java.util.function.ToLongFunction)": "Creates the view over `source`, converting elements with `f`. Neither argument is checked; nulls fail later on use.",
+    "size()": "Returns the current size of the source list.",
+    "get(int)": "Returns `f` applied to the source element at `index`. An out-of-range index throws whatever the source list throws (typically `IndexOutOfBoundsException`); exceptions from `f` propagate."
+   }
+  },
+  "com.almworks.jira.structure.api.util.JiraComponents": {
+   "summary": "Static shortcuts for obtaining Jira platform services from inside a plugin, plus a helper to run code under a given thread context class loader. Every returned service is wrapped in a dynamic proxy implementing the requested interface which, for the duration of each call, switches the calling thread's context class loader to the class loader of the real service object and restores it afterwards; exceptions thrown by the service are rethrown unwrapped. Proxies for the named getters and for `getComponent`/`getComponentOfType` are cached per interface class in a static concurrent map until the cache is cleared. The class is also registered in the plugin as a component (Spring lifecycle and the API's caching-component contract) only so that the proxy cache is cleared on plugin start, stop and global cache resets. All static methods are safe to call from any thread.",
+   "members": {
+    "<init>()": "Public constructor used by the plugin's component container; clients have no reason to create instances, all useful methods are static.",
+    "getOSGiComponentInstanceOfType(Class)": "Looks up an OSGi service implementing the given interface (through Jira's component accessor) and returns it wrapped in a class-loader-switching proxy, or null if no such service is available. The interface class must be an interface (checked only by a Java assertion). Unlike the other getters, this result is not cached: every call creates a new proxy around the currently registered service.",
+    "getComponentOfType(Class)": "Looks up a Jira component by interface type (Jira's `getComponentOfType`) and returns it wrapped in a class-loader-switching proxy, or null if not found. The proxy is cached per interface: later calls return the same proxy (wrapping the service found the first time) until the cache is cleared. Note that this cache is shared with `getComponent` and the named getters for the same interface.",
+    "getComponent(Class)": "Looks up a Jira component by interface (Jira's `getComponent`) and returns it as a cached class-loader-switching proxy, or null if not available. Same caching as `getComponentOfType`.",
+    "getJiraAuthenticationContext()": "Returns Jira's `JiraAuthenticationContext` (current user, locale, i18n helper), as a cached class-loader-switching proxy; null if Jira cannot provide it.",
+    "getProjectManager()": "Returns Jira's `ProjectManager` as a cached class-loader-switching proxy; null if unavailable.",
+    "getProjectComponentManager()": "Returns Jira's `ProjectComponentManager` (project components) as a cached proxy; null if unavailable.",
+    "getConstantsManager()": "Returns Jira's `ConstantsManager` (issue types, statuses, priorities, resolutions) as a cached proxy; null if unavailable.",
+    "getVersionManager()": "Returns Jira's `VersionManager` as a cached proxy; null if unavailable.",
+    "getOptionsManager()": "Returns Jira's `OptionsManager` (custom field options) as a cached proxy; null if unavailable.",
+    "getUserManager()": "Returns Jira's `UserManager` as a cached proxy; null if unavailable.",
+    "getGroupManager()": "Returns Jira's `GroupManager` as a cached proxy; null if unavailable.",
+    "getUserUtil()": "Returns Jira's `UserUtil` as a cached proxy; null if unavailable.",
+    "getPluginAccessor()": "Returns the Atlassian plugin system's `PluginAccessor` as a cached proxy; null if unavailable.",
+    "getPermissionManager()": "Returns Jira's `PermissionManager` as a cached proxy; null if unavailable.",
+    "getApplicationProperties()": "Returns Jira's `ApplicationProperties` as a cached proxy; null if unavailable.",
+    "getIssueManager()": "Returns Jira's `IssueManager` as a cached proxy; null if unavailable.",
+    "getAvatarManager()": "Returns Jira's `AvatarManager` as a cached proxy; null if unavailable.",
+    "getComponentClassManager()": "Returns Jira's `ComponentClassManager` (loads classes from plugins) as a cached proxy; null if unavailable.",
+    "getGlobalPermissionManager()": "Returns Jira's `GlobalPermissionManager` as a cached proxy; null if unavailable.",
+    "afterPropertiesSet()": "Spring initialization callback: clears the static proxy cache. Final.",
+    "destroy()": "Spring shutdown callback: clears the static proxy cache. Final.",
+    "clearCaches()": "Clears the static proxy cache, so the next lookups wrap freshly obtained services. Called by the plugin when caches are reset.",
+    "clearUserCaches(com.atlassian.jira.user.ApplicationUser)": "Does nothing; there is no per-user state.",
+    "withThreadContextClassLoaderOf(Object, com.almworks.jira.structure.api.util.CallableE)": "Runs `code` with the current thread's context class loader set to the class loader of `object` (if `object` is itself a `Class`, that class's loader; otherwise the loader of the object's runtime class; a bootstrap class gives a null loader), and returns the code's result. The previous context class loader is always restored, also when the code throws; the code's exception (of type `E` or unchecked) propagates unchanged. A null `object` throws `NullPointerException` before anything runs."
+   }
+  },
+  "com.almworks.jira.structure.api.util.JiraFunc": {
+   "summary": "A library of ready-made `La` functions (constants) that extract common properties from Jira objects (projects, issues, issue constants, versions, users, options, links) or look Jira objects up by ID, plus factories for project-permission predicates. All constants are stateless and thread-safe; unless stated otherwise each one returns null for a null argument. Lookup functions query Jira services through `JiraComponents` on every call. Some constants declare a result class (noted per constant), which is what `La.array` needs.",
+   "members": {
+    "PROJECT_ID": "Maps a Jira `Project` to its numeric ID. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "PROJECT_NAME": "Maps a `Project` to its name. Null input gives null.",
+    "PROJECT_KEY": "Maps a `Project` to its project key (e.g. `ABC`). Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "PROJECT_DESCRIPTION": "Maps a `Project` to its description text (may itself be null). Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_ID": "Maps an `Issue` to its numeric issue ID. Null input gives null.",
+    "KEY_PROJECT": "Looks up a `Project` by project key through Jira's project manager; null if the key is null or no such project exists. Each call queries Jira.",
+    "ID_PROJECT": "Looks up a `Project` by numeric ID through Jira's project manager; null if the ID is null or unknown.",
+    "ID_ISSUETYPE": "Looks up an `IssueType` by its string ID through Jira's constants manager; null for a null or unknown ID.",
+    "ID_STATUS": "Looks up a workflow `Status` by its string ID through Jira's constants manager; null for a null or unknown ID.",
+    "ID_PRIORITY": "Looks up a `Priority` by its string ID through Jira's constants manager; null for a null or unknown ID.",
+    "ID_RESOLUTION": "Looks up a `Resolution` by its string ID through Jira's constants manager; null for a null or unknown ID.",
+    "ID_COMPONENT": "Looks up a project component (`ProjectComponent`) by numeric ID; null for a null ID or when Jira reports that the component does not exist (the not-found exception is swallowed).",
+    "ID_VERSION": "Looks up a project `Version` by numeric ID through Jira's version manager; null for a null or unknown ID.",
+    "PROJECTROLE_ID": "Maps a `ProjectRole` to its numeric ID. Null input gives null.",
+    "PRINCIPAL_NAME": "Maps a `java.security.Principal` to its name. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "GROUP_NAME": "Maps a Crowd `Group` to its group name. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "MODULE_COMPLETE_KEY": "Maps a plugin `ModuleDescriptor` to its complete key (plugin key, colon, module key). Null input gives null.",
+    "LINKTYPE_ID": "Maps an `IssueLinkType` to its numeric ID. Null input gives null.",
+    "SHAREDENTITY_ID": "Maps a `SharedEntity` (filter, dashboard and the like) to its numeric ID. Null input gives null.",
+    "CUSTOMFIELD_TYPE": "Maps a `CustomField` to its `CustomFieldType`. Null input gives null.",
+    "CUSTOMFIELDTYPE_KEY": "Maps a `CustomFieldType` to its complete module key. Null input gives null.",
+    "CUSTOMFIELD_ID": "Maps a `CustomField` to its string field ID (form `customfield_10000`). Null input gives null.",
+    "CUSTOMFIELD_LONG_ID": "Maps a `CustomField` to its numeric ID (the number part of the field ID). Null input gives null.",
+    "FIELD_NAME": "Maps any Jira `Field` to its display name. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUETYPE_SUBTASK": "Maps an `IssueType` to `Boolean.TRUE` if it is a sub-task type, otherwise `Boolean.FALSE`. Null input gives `FALSE` (never null).",
+    "ISSUECONSTANT_ID": "Maps an `IssueConstant` (issue type, status, priority, resolution) to its string ID. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUECONSTANT_NAME": "Maps an `IssueConstant` to its untranslated name. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUECONSTANT_NAME_LOCAL": "Maps an `IssueConstant` to its name translated into the current user's language (Jira's name translation). Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUECONSTANT_SEQUENCE": "Maps an `IssueConstant` to its sequence (position in Jira's administration ordering); may be null. Null input gives null.",
+    "NEGATED_ISSUECONSTANT_SEQUENCE": "Maps an `IssueConstant` to the arithmetic negation of its sequence, for reverse ordering; null if the input or its sequence is null.",
+    "WORKFLOW_NAME": "Maps a `JiraWorkflow` to its name. Null input gives null.",
+    "APPLICATION_USER_NAME": "Maps an `ApplicationUser` to its display name (the full human name, not the login name). Null input gives null.",
+    "USER_NAME": "Maps an `ApplicationUser` to its display name, exactly like `APPLICATION_USER_NAME` (despite the name, not the login name). Null input gives null.",
+    "USER_KEY": "Maps an `ApplicationUser` to its stable user key. Null input gives null.",
+    "VERSION_ACTIVE": "Maps a `Version` to `TRUE` if it is not archived and `FALSE` if archived (release state is ignored). Null input gives null. Declares `Boolean` as its result class, so `La.array` works with it.",
+    "VERSION_SEQUENCE": "Maps a `Version` to its sequence number (ordering within the project). Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "VERSION_PROJECT": "Maps a `Version` to the `Project` it belongs to. Null input gives null. Declares `Project` as its result class, so `La.array` works with it.",
+    "PROJECTCONSTANT_ID": "Maps a `ProjectConstant` (version or component) to its numeric ID. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "PROJECTCONSTANT_NAME": "Maps a `ProjectConstant` to its name. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "PROJECTCONSTANT_DESCRIPTION": "Maps a `ProjectConstant` to its description. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "PROJECTCONSTANT_PROJECTID": "Maps a `ProjectConstant` to the numeric ID of its project. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "GENERICVALUE_LONG_ID": "Maps an OFBiz `GenericValue` entity to its `id` field read as a `Long`. Null input gives null; any exception while reading (missing field, wrong type) is swallowed and gives null.",
+    "GENERICVALUE_STRING_ID": "Maps an OFBiz `GenericValue` entity to its `id` field read as a `String`; null input or any exception while reading gives null.",
+    "ISSUE_PROJECT": "Maps an `Issue` to its `Project`. Null input gives null.",
+    "ISSUE_PROJECTID": "Maps an `Issue` to its project's numeric ID. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "ISSUE_ISSUETYPE": "Maps an `Issue` to its `IssueType`. Null input gives null.",
+    "ISSUETYPE_ID": "Maps an `IssueType` to its string ID. Null input gives null.",
+    "ISSUETYPE_NAME": "Maps an `IssueType` to its name translated for the current user (not the raw name). Null input gives null.",
+    "ISSUE_PRIORITY": "Maps an `Issue` to its `Priority` (null if the issue has none). Null input gives null.",
+    "ISSUE_STATUS": "Maps an `Issue` to its workflow `Status`. Null input gives null.",
+    "ISSUE_RESOLUTION": "Maps an `Issue` to its `Resolution`; null for unresolved issues. Null input gives null.",
+    "ISSUE_ISSUETYPEID": "Composition of `ISSUE_ISSUETYPE` then `ISSUETYPE_ID`: the issue's issue type ID; null if the issue or its type is null.",
+    "ISSUE_PRIORITYID": "Composition of `ISSUE_PRIORITY` then `ISSUECONSTANT_ID`: the issue's priority ID; null if there is no issue or no priority. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_RESOLUTIONID": "Composition of `ISSUE_RESOLUTION` then `ISSUECONSTANT_ID`: the issue's resolution ID; null when unresolved or for null input. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_STATUSID": "Composition of `ISSUE_STATUS` then `ISSUECONSTANT_ID`: the issue's status ID; null for null input. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_SUMMARY": "Maps an `Issue` to its summary. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_DESCRIPTION": "Maps an `Issue` to its description (may be null). Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_ENVIRONMENT": "Maps an `Issue` to its environment text (may be null). Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_KEY": "Maps an `Issue` to its issue key (e.g. `ABC-12`). Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_ORIGINAL_ESTIMATE": "Maps an `Issue` to its original time estimate in seconds; null if not set. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "ISSUE_REMAINING_ESTIMATE": "Maps an `Issue` to its remaining time estimate in seconds; null if not set. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "ISSUE_TIME_SPENT": "Maps an `Issue` to the total time logged on it, in seconds; null if none. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "ISSUE_TOTAL_TIME": "Maps an `Issue` to time spent plus remaining estimate, in seconds, where a missing one of the two counts as 0 (see `NumericFunctions.longAddOrNull`). Returns null if both are missing, if the sum is 0 or negative, or for null input. Declares `Long` as its result class, so `La.array` works with it.",
+    "ISSUE_WORK_RATIO": "Maps an `Issue` to Jira's work ratio for it (time spent as a whole-number percentage of the original estimate, as computed by Jira's `WorkRatio` utility; the value for issues without an original estimate is whatever that utility returns). Null input gives null.",
+    "ISSUE_VOTES": "Maps an `Issue` to its number of votes. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "ISSUE_WATCHES": "Maps an `Issue` to its number of watchers. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "USERKEY_APPLICATIONUSER": "Resolves a user key to an `ApplicationUser` via `JiraUsers.byKey`. Null key gives null; an unknown key gives whatever Jira's user lookup returns (normally null). The lookup runs with the thread context class loader temporarily switched to Jira's. Declares `ApplicationUser` as its result class, so `La.array` works with it.",
+    "ISSUE_ASSIGNEEID": "Maps an `Issue` to its assignee's user key; null if unassigned. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_ASSIGNEE": "The issue's assignee as an `ApplicationUser` (`ISSUE_ASSIGNEEID` then `USERKEY_APPLICATIONUSER`); null if unassigned or input is null. Declares `ApplicationUser` as its result class, so `La.array` works with it.",
+    "ISSUE_REPORTERID": "Maps an `Issue` to its reporter's user key; null if none. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_REPORTER": "The issue's reporter as an `ApplicationUser` (`ISSUE_REPORTERID` then `USERKEY_APPLICATIONUSER`); null if none. Declares `ApplicationUser` as its result class, so `La.array` works with it.",
+    "ISSUE_CREATORID": "Maps an `Issue` to its creator's user key; null if not recorded. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "ISSUE_CREATOR": "The issue's creator as an `ApplicationUser` (`ISSUE_CREATORID` then `USERKEY_APPLICATIONUSER`); null if not recorded. Declares `ApplicationUser` as its result class, so `La.array` works with it.",
+    "ISSUE_CREATED": "Maps an `Issue` to its creation time as a `java.sql.Timestamp`. Null input gives null. Declares `Timestamp` as its result class, so `La.array` works with it.",
+    "ISSUE_UPDATED": "Maps an `Issue` to its last-update time. Null input gives null. Declares `Timestamp` as its result class, so `La.array` works with it.",
+    "ISSUE_DUE_DATE": "Maps an `Issue` to its due date; null if not set. Null input gives null. Declares `Timestamp` as its result class, so `La.array` works with it.",
+    "ISSUE_RESOLUTION_DATE": "Maps an `Issue` to the time it was resolved; null if unresolved. Null input gives null. Declares `Timestamp` as its result class, so `La.array` works with it.",
+    "ISSUE_AFFECTED_VERSIONS": "Maps an `Issue` to its collection of affects versions, as Jira returns it. Null input gives null.",
+    "ISSUE_FIX_VERSIONS": "Maps an `Issue` to its collection of fix versions, as Jira returns it. Null input gives null.",
+    "ISSUE_COMPONENTS": "Maps an `Issue` to its collection of project components. Null input gives null.",
+    "ISSUE_LABELS": "Maps an `Issue` to its set of `Label` objects. Null input gives null.",
+    "LINK_ID": "Maps an `IssueLink` to its numeric ID. Null input gives null.",
+    "LINK_SEQUENCE": "Maps an `IssueLink` to its sequence (ordering among the source issue's links); may be null. Null input gives null.",
+    "LABEL_LABEL": "Maps a `Label` to its label text. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "SECURITY_LEVEL_ID": "Maps an `IssueSecurityLevel` to its numeric ID. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "SECURITY_LEVEL_NAME": "Maps an `IssueSecurityLevel` to its name. Null input gives null. Declares `String` as its result class, so `La.array` works with it.",
+    "VALID_ISSUE_KEY": "Returns the string unchanged if it is a syntactically valid issue key according to Jira's key rules (`JiraKeyUtils.validIssueKey`), otherwise null. Does not check that the issue exists. Null input gives null.",
+    "OPTION_NAME": "Maps a custom field `Option` to a display name: its value, or for a child option of a cascading field the parent's value, space, hyphen, space, then the child's value (e.g. `Europe - France`). Null input gives null.",
+    "OPTION_SEQUENCE": "Maps an `Option` to its sequence (position among the field's options). Null input gives null.",
+    "OPTION_ID": "Maps an `Option` to its numeric option ID. Null input gives null. Declares `Long` as its result class, so `La.array` works with it.",
+    "ID_OPTION": "Looks up a custom field `Option` by numeric option ID through Jira's options manager; null for null or unknown IDs.",
+    "CANONICAL_VERSION_NAME": "Maps a `Version` to its canonical name as defined by `com.almworks.jira.structure.api.item.CoreIdentities.canonicalVersionName`: the name trimmed, lower-cased with the root locale, and cut to at most 190 characters. Used to group same-named versions across projects. Null input gives null.",
+    "<init>()": "Public constructor; the class only holds static members.",
+    "browseableBy(com.atlassian.jira.user.ApplicationUser)": "Same as `accessibleBy(user, ProjectPermissions.BROWSE_PROJECTS)`: a predicate that is true for projects the user may browse. A null user means the anonymous user.",
+    "accessibleBy(com.atlassian.jira.user.ApplicationUser, com.atlassian.jira.security.plugin.ProjectPermissionKey)": "Returns a predicate function on `Project` that yields `TRUE` when Jira's permission manager grants `permission` on that project to `user` (null user = anonymous), and `FALSE` for a null project. The permission manager is fetched once, when this method is called; permissions themselves are checked live on each call. If no permission manager is available, returns a constant-false function (or raises `AssertionError` when Java assertions are enabled). Declares `Boolean` as its result class.",
+    "hasCustomField(com.atlassian.jira.issue.fields.CustomField)": "Returns a predicate function on `Project` that is `TRUE` when the custom field applies to that project: for a field configured for all projects, every non-null project; otherwise only projects whose IDs were in the field's associated project list at the time this method was called (a snapshot, later configuration changes are not seen). Null project gives `FALSE`. A null field gives a constant-false function."
+   }
+  },
+  "com.almworks.jira.structure.api.util.JiraUsers": {
+   "summary": "Static helpers that call Jira's `ApplicationUsers` conversion utilities between user keys, Crowd directory users (`com.atlassian.crowd.embedded.api.User`) and `ApplicationUser`. Several of them temporarily set the thread context class loader to the one that loaded Jira's user classes, which is required when called from plugin code. Thread-safe and stateless.",
+   "members": {
+    "<init>()": "Public constructor; the class has only static methods and no state.",
+    "byKey(String)": "Returns the `ApplicationUser` for the given user key, as Jira resolves it, or null if the key is null (or Jira finds no such user). Runs the lookup with the context class loader switched to Jira's and restored afterwards.",
+    "from(com.atlassian.crowd.embedded.api.User)": "Converts a Crowd directory user to the corresponding `ApplicationUser` using Jira's conversion; null input gives null. Switches the context class loader during the call.",
+    "getKeyFor(com.atlassian.crowd.embedded.api.User)": "Returns the Jira user key for a Crowd directory user; null input gives null. Switches the context class loader during the call.",
+    "getKeyFor(com.atlassian.jira.user.ApplicationUser)": "Returns the user key of the given `ApplicationUser`; null input gives null (as Jira's utility does).",
+    "toDirectoryUser(com.atlassian.jira.user.ApplicationUser)": "Returns the underlying Crowd directory user of an `ApplicationUser`; null input gives null."
+   }
+  },
+  "com.almworks.jira.structure.api.util.JsonMapUtil": {
+   "summary": "Static helpers for validating and deep-copying JSON-compatible parameter maps, such as the parameter maps stored in specs of generators, attributes and views. A JSON-compatible value is a `String`, `Integer`, `Long`, `Double`, `Boolean`, a `java.util.List` of such values, a `java.util.Map` with `String` keys and such values, or an `org.json` `JSONArray`/`JSONObject`, which are converted to plain lists and maps on copy. Stateless and thread-safe.",
+   "members": {
+    "<init>()": "Public constructor; the class has only static methods.",
+    "copyParameters(java.util.Map, boolean, boolean, boolean)": "Deep-copies a parameter map. If `parameters` is null or empty: returns null when `allowNull` is true; otherwise returns an immutable empty map when `makeImmutable` is true, or a new mutable empty map when not. Otherwise returns the same as `mergeParameters(makeImmutable, verify, parameters)`. With `allowNull` false the result is never null.",
+    "mergeParameters(boolean, boolean, java.util.Map[])": "Merges the given maps, in argument order, into one new insertion-ordered map: entries of later maps replace values of earlier ones for equal keys (the key keeps its original position). Null maps (and a null varargs array) are skipped. Each value is deep-copied with `copyParameter(value, makeImmutable)`. If `verify` is true, every key must be a non-null `String` (otherwise `IllegalArgumentException` with message `null key` or `non-string key: <key>`) and every value must pass `checkValidParameter`. If `makeImmutable` is true the result and all nested lists and maps are unmodifiable views; otherwise all are mutable. Never returns null. Without verification, non-string keys would be cast and fail with `ClassCastException`.",
+    "copyParameter(Object, boolean)": "Deep-copies one value: `JSONArray`/`JSONObject` values are first converted with `jsonToList`/`jsonToMap`; lists become new `java.util.ArrayList`s with each element copied recursively; maps become new insertion-ordered maps whose keys are converted with `String.valueOf` and values copied recursively; any other value (including null) is returned as is. With `makeImmutable`, the new lists and maps are wrapped as unmodifiable. Throws `IllegalArgumentException` if JSON conversion fails. No cycle detection (a self-containing structure overflows the stack).",
+    "checkValidParameter(Object)": "Checks that a value is JSON-compatible, recursively, and returns normally if so. Throws `IllegalArgumentException` when: the value (or any nested element) is null (`null value`); it has another type (`invalid value type: <class name>`); a nested map has a non-`String` key (`invalid map: non-string key <key>`). Errors inside containers are wrapped with context, `invalid list: invalid value at index <i>: <inner message>` or `invalid map: invalid value for key <key>: <inner message>`, with the inner exception as cause. `JSONArray`/`JSONObject` are converted and checked (so JSON nulls inside them are rejected). Excessive nesting or a cyclic structure gives `IllegalArgumentException` with message `stack overflow`. Note that `Float`, `Short`, `BigDecimal` and similar numeric types are rejected.",
+    "unwrapJsonCollection(Object)": "Converts a `JSONArray` with `jsonToList` or a `JSONObject` with `jsonToMap`; any other value (including null) is returned unchanged. A JSON parsing error is reported as `IllegalArgumentException` with message `failed to convert json object: <reason>`.",
+    "jsonToList(org.json.JSONArray)": "Marked internal. Converts a `JSONArray` to a new `java.util.ArrayList`, recursively converting nested arrays and objects; JSON null elements become Java null; other elements are kept as `org.json` returns them. Throws `org.json.JSONException` on access errors and `NullPointerException` for a null argument.",
+    "jsonToMap(org.json.JSONObject)": "Marked internal. Converts a `JSONObject` to a new `java.util.HashMap` (key order is not preserved), recursively converting nested objects and arrays; JSON null values become Java null. Throws `org.json.JSONException` on access errors and `NullPointerException` for a null argument."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La": {
+   "summary": "An abstract one-argument function (`T` to `R`) that also acts as a predicate, with many helpers to map, filter, collect and compare collections. It implements both `java.util.function.Function` and `java.util.function.Predicate`. Clients subclass it (usually anonymously) implementing `la`, or use the static factories. As a predicate, a result is 'truthy' when it is non-null and not equal to `Boolean.FALSE`, `Integer` 0 or `Long` 0 (so `Double` 0.0, `Short` 0 and empty strings count as true). A `La` may optionally declare its result class, needed only by `array`. Thread safety depends on the implementation; the shared constants are stateless. Helpers that build collections never modify their input.",
+   "members": {
+    "<init>()": "Protected constructor for subclasses that do not declare a result class (`array` will then fail).",
+    "<init>(Class)": "Protected constructor for subclasses that declare the class of their results, which `array` uses to create correctly typed arrays. Null is allowed and means 'no result class'.",
+    "la(Object)": "The function itself, implemented by subclasses: computes the result for the argument. Whether null arguments or results are allowed is up to the implementation.",
+    "adapt(java.util.function.Function)": "Wraps a standard `java.util.function.Function` as a `La` that calls it. The result has no result class. Throws `NullPointerException` if `f` is null.",
+    "constant(Object)": "Returns a function that ignores its argument and always returns `result`. For the canonical `Boolean.TRUE`/`Boolean.FALSE` instances it returns the shared constants of `constantTrue()`/`constantFalse()`; otherwise a new function without result class. Null is allowed (the function always returns null).",
+    "constantFalse()": "Returns the shared function that always returns `Boolean.FALSE` (rejects everything as a predicate).",
+    "constantTrue()": "Returns the shared function that always returns `Boolean.TRUE` (accepts everything).",
+    "isEqual(Object)": "Returns a predicate that is `TRUE` for arguments equal to `value` (using `value.equals(argument)`); if `value` is null, it is `TRUE` exactly for null arguments.",
+    "inCollection(java.util.Collection)": "Returns a predicate that is `TRUE` when the collection contains the argument (`Collection.contains`, live: later changes to the collection are seen). A null collection gives the constant-false function.",
+    "instanceOf(Class)": "Returns a predicate that is `TRUE` when the argument is a non-null instance of the class. A null class gives the constant-false function.",
+    "cast(Class)": "Returns a function that returns the argument cast to the class if it is an instance of it, and null otherwise (including for null). A null class gives a function that always returns null.",
+    "compose(com.almworks.jira.structure.api.util.La, com.almworks.jira.structure.api.util.La)": "Returns the composition g after f: the result for x is `g.la(f.la(x))`. Null results of `f` are passed to `g` as is. The composed function takes the result class of `g`. Throws `NullPointerException` if either argument is null.",
+    "self()": "Returns the shared identity function (returns its argument). As a predicate it accepts truthy values. No result class.",
+    "fromMap(java.util.Map, Class)": "Returns a function that looks the argument up in the map (`map.get`, live view) and returns the value, or null if absent. `rClass` becomes the declared result class (may be null). Throws `NullPointerException` if the map is null.",
+    "apply(Object)": "Implementation of `java.util.function.Function`: same as `la(from)`. Final.",
+    "test(Object)": "Implementation of `java.util.function.Predicate`: same as `accepts(input)`, i.e. whether the result is truthy.",
+    "apply(com.almworks.jira.structure.api.util.La)": "Returns this function applied after `f`, i.e. `compose(this, f)`: for x it computes `this.la(f.la(x))`. Result class is this function's. Throws `NullPointerException` if `f` is null.",
+    "supply(com.almworks.jira.structure.api.util.La)": "Returns `g` applied after this function, i.e. `compose(g, this)`: for x it computes `g.la(this.la(x))`. Result class is `g`'s. Throws `NullPointerException` if `g` is null.",
+    "filter(Iterable)": "Returns a new mutable `java.util.ArrayList` with the elements of the iterable, in order, for which this function's result is truthy. A null iterable gives an empty list.",
+    "filter(java.util.Iterator)": "Returns a lazy iterator over the elements of `iterator` that this function accepts (see `La.FilterIterator`); `remove` is not supported. A null iterator gives an empty iterator.",
+    "filterIterable(Iterable)": "Returns a lazy `Iterable` view: each call to its `iterator()` filters a fresh iterator of the source, keeping accepted elements. A null source gives an empty immutable list.",
+    "accepts(Object)": "Evaluates the function on `value` and returns whether the result is truthy: non-null and not equal to `Boolean.FALSE`, `Integer` 0 or `Long` 0. Subclasses may override it.",
+    "hashSet(java.util.Collection)": "Returns a new `java.util.HashSet` of the results of this function for each element (all results kept, including null and falsy ones; duplicates collapse). Null input gives an empty set.",
+    "linkedHashSet(java.util.Collection)": "Like `hashSet` but returns a `java.util.LinkedHashSet` keeping the order of first occurrence.",
+    "arrayList(Object[])": "Maps each array element (varargs) through this function and returns the results in order as a new mutable list. A null or empty array gives an immutable empty list (`Collections.emptyList()`), unlike the other `arrayList` overloads.",
+    "arrayList(java.util.Collection)": "Same as `arrayList(from, true)`: a new mutable `java.util.ArrayList` with the result for every element in iteration order, null and falsy results included. Null input gives a new empty list.",
+    "iterable(Iterable)": "Returns a lazy `Iterable` whose iterators map each element of `from` through this function (see `iterator(Iterable)`). A null source gives an iterable with no elements.",
+    "iterator(Iterable)": "Returns a lazy iterator over the results of this function for the elements of `from`, computed on each `next()`. `remove()` is forwarded to the source iterator. A null source gives an empty iterator.",
+    "arrayList(java.util.Collection, boolean)": "Returns a new mutable `java.util.ArrayList` of the results of this function for each element, in iteration order. If `acceptFalsy` is false, results that are not truthy (null, `FALSE`, integer or long zero) are left out. Null input gives a new empty list.",
+    "arrayList(java.util.Iterator)": "Same as `arrayList(from, true)` for an iterator: consumes it and returns all results in a new list. Null gives a new empty list.",
+    "arrayList(java.util.Iterator, boolean)": "Consumes the iterator and returns a new list of the results, leaving out non-truthy results when `acceptFalsy` is false. Null gives a new empty list.",
+    "longList(java.util.Collection, com.almworks.jira.structure.api.util.La)": "Maps each element of the collection through `la` and returns the results that are non-null and strictly positive as a new `LongList`, in iteration order (zero, negative and null results are dropped). For a null or empty collection returns the shared `LongList.EMPTY`. A null `la` throws `NullPointerException` when the collection is non-empty.",
+    "intList(java.util.Collection, com.almworks.jira.structure.api.util.La)": "Same as `longList` for `Integer` results: returns the non-null, strictly positive values as a new `IntList`, or `IntList.EMPTY` for null or empty input.",
+    "addTo(java.util.Collection, java.util.Collection, boolean)": "Adds the result of this function for each element of `from` to the collection `to`, in iteration order, skipping non-truthy results when `acceptFalsy` is false. Returns `to`. A null `from` adds nothing.",
+    "addTo(java.util.Iterator, java.util.Collection, boolean)": "Same as the collection form but consumes an iterator. A null iterator adds nothing. Returns `to`.",
+    "transform(java.util.Iterator)": "Returns a lazy iterator mapping each element of `iterator` through this function (see `La.TransformIterator`). The argument is not checked; null fails on first use.",
+    "transformIterable(Iterable)": "Returns a lazy `Iterable` whose iterators map a fresh iterator of the source through this function. A null source fails with `NullPointerException` when iterated.",
+    "array(java.util.Collection)": "Same as `array(from, true)`.",
+    "array(java.util.Collection, boolean)": "Returns a new array whose component type is this function's declared result class, holding the results for the elements in iteration order; when `acceptFalsy` is false non-truthy results are dropped and the array is shortened to fit. A null collection gives an empty array. Throws `UnsupportedOperationException` if the function has no declared result class (even for null input), and `IllegalStateException` if the collection yields more elements than its `size()` reported while iterating.",
+    "mapInto(java.util.Collection, java.util.Map)": "For each element, computes the key with this function and puts key to the element itself into `toMap`; elements whose key is null are skipped and later elements overwrite earlier ones with the same key. Returns `toMap`. A null collection adds nothing.",
+    "mapInto(java.util.Collection, java.util.Map, com.almworks.jira.structure.api.util.La)": "For each element, computes the key with this function and the value with `valueFunction`, and puts them into `toMap`; null keys are skipped (null values are stored), later duplicates win. Returns `toMap`. A null collection adds nothing.",
+    "hashMap(java.util.Collection)": "Returns a new `java.util.HashMap` from the key computed by this function to the element, as in `mapInto` (null keys skipped, last duplicate wins).",
+    "hashMap(java.util.Collection, com.almworks.jira.structure.api.util.La)": "Returns a new `java.util.HashMap` from this function's result (key) to `valueFunction`'s result (value) for each element; null keys skipped, last duplicate wins. Null collection gives an empty map.",
+    "linkedHashMap(java.util.Collection, com.almworks.jira.structure.api.util.La)": "Like `hashMap(Collection, La)` but returns a `java.util.LinkedHashMap` keeping the order in which keys were first inserted.",
+    "indexOf(java.util.List, Object)": "Returns the index of the first list element whose result under this function equals `sample` (null matches null), or -1 if none or the list is null.",
+    "lastIndexOf(java.util.List, Object)": "Returns the index of the last list element whose result equals `sample` (null matches null), or -1 if none or the list is null.",
+    "find(java.util.Collection, Object)": "Returns the first element, in iteration order, whose result under this function equals `sample` (null matches null), or null if there is none or the collection is null or empty.",
+    "any(Iterable)": "True if this function accepts (truthy result) at least one element; stops at the first match. False for null or empty input.",
+    "not()": "Returns a predicate that is `TRUE` exactly when this function does not accept the argument (result not truthy).",
+    "and(com.almworks.jira.structure.api.util.La)": "Returns a predicate that is `TRUE` when both this function and `second` accept the argument; `second` is evaluated only if this one accepts. A null `second` fails only when it gets evaluated.",
+    "memoize()": "Returns a caching wrapper: the first call for an argument computes and stores the result (null results and null arguments are cached too); later calls with an equal argument return the stored result. The cache is an unbounded plain hash map that is never cleared, and the wrapper is not thread-safe. No result class.",
+    "memoizeConcurrent()": "Returns a thread-safe caching wrapper backed by a concurrent map. Arguments and results must not be null (null arguments or results cause `NullPointerException`, or `AssertionError` with assertions enabled). Under concurrency the delegate may run more than once for the same argument; the first stored result is kept but a racing caller may get its own computed value. Unbounded, never cleared. No result class.",
+    "comparator(java.util.Comparator)": "Returns a `java.util.Comparator` on the arguments that compares them by applying this function and comparing the results with the given comparator (see `La.LaComparator`). Throws `IllegalArgumentException` if the comparator is null.",
+    "comparator(com.almworks.jira.structure.api.util.La)": "Returns a comparator ordering arguments by the natural order of `function`'s results, with null results sorting first (see `La.ComparableComparator`). A null function throws `NullPointerException`.",
+    "liftToList()": "Returns a function from an `Iterable` of inputs to the list of this function's results for its elements (in order, all results kept). A null iterable maps to null; an empty one to an immutable empty list; otherwise a new mutable list.",
+    "notNull()": "Returns the shared predicate whose result is `TRUE` for non-null arguments and `FALSE` for null.",
+    "stringValue()": "Returns the shared function that maps an object to its `toString()`, and null to null. Declares `String` as its result class.",
+    "notNull(com.almworks.jira.structure.api.util.La, Object)": "Returns a function that calls `la` and substitutes `onNull` when its result is null. Takes `la`'s result class. A null `la` throws `NullPointerException` immediately.",
+    "image(java.util.Collection)": "Returns a live, read-only collection view of the truthy results of this function over `set`: iterating applies the function to each source element and skips non-truthy results; `size()` re-evaluates the function over the whole source each time. Duplicates are not removed. The iterator does not support `remove`. A null source gives an immutable empty list."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La.ComparableComparator": {
+   "summary": "A `java.util.Comparator` for `Comparable` values using their natural order, with null treated as smaller than any non-null value. Stateless; create with `new`.",
+   "members": {
+    "<init>()": "Creates the comparator.",
+    "compare(Comparable, Comparable)": "Returns 0 if both are null, -1 if only the first is null, 1 if only the second is null, otherwise `b1.compareTo(b2)`."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La.FilterIterator": {
+   "summary": "A lazy iterator that returns only those elements of an underlying iterator that the enclosing `La` accepts (truthy result). It is an inner class bound to its `La` instance (create with `la.new FilterIterator(it)` or via `La.filter(Iterator)`). It reads ahead one element: `hasNext()` advances the underlying iterator until it finds an accepted element. Not thread-safe.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.La, java.util.Iterator)": "Creates a filtering iterator over the given iterator for the enclosing `La` (the first, implicit parameter). Nothing is read until `hasNext()` or `next()` is called.",
+    "hasNext()": "Returns whether another accepted element exists, consuming underlying elements (and evaluating the function) up to and including that element. Repeated calls without `next()` do not advance further.",
+    "next()": "Returns the next accepted element. Throws `java.util.NoSuchElementException` if there is none.",
+    "remove()": "Not supported; always throws `UnsupportedOperationException`."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La.LaComparator": {
+   "summary": "A `java.util.Comparator` that compares two objects by first mapping each through a `La` function and then comparing the results with another comparator. The function is evaluated on every comparison (no caching). Immutable; thread safety follows the function and comparator.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.La, java.util.Comparator)": "Creates the comparator. Throws `IllegalArgumentException` with message `function is null` or `comparator is null` when the respective argument is null.",
+    "compare(Object, Object)": "Applies the function to both arguments and returns the comparator's result for the two images."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La.TransformIterator": {
+   "summary": "A lazy iterator that returns the enclosing `La`'s result for each element of an underlying iterator. Inner class bound to its `La` instance (created by `La.transform` or `la.new TransformIterator(it)`). Not thread-safe.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.La, java.util.Iterator)": "Creates the mapping iterator for the enclosing `La` (the implicit first parameter) over the given iterator, which is not checked for null.",
+    "hasNext()": "Returns whether the underlying iterator has more elements.",
+    "next()": "Takes the next underlying element and returns the function's result for it (which may be null). Throws whatever the underlying iterator throws when exhausted.",
+    "remove()": "Removes the last element from the underlying iterator, if it supports removal."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La2": {
+   "summary": "An abstract two-argument function, the binary counterpart of `La`, also implementing `java.util.function.BiFunction`. Clients subclass it implementing `la(A1, A2)` or use the static helpers for currying and constant functions. Thread safety depends on the implementation.",
+   "members": {
+    "sum": "A shared function adding two `Integer`s with `int` arithmetic (overflow wraps). Null arguments throw `NullPointerException`.",
+    "<init>()": "Constructor for subclasses.",
+    "la(Object, Object)": "The function itself, implemented by subclasses: computes the result for the two arguments.",
+    "apply(Object, Object)": "Implementation of `java.util.function.BiFunction`; same as `la(a1, a2)`.",
+    "la(Object)": "Partial application: returns a one-argument `La` that, given `a2`, returns `la(a1, a2)` with the first argument fixed to `a1`. The returned function has no result class.",
+    "uncurry(com.almworks.jira.structure.api.util.La)": "Turns a curried function (one that, given the first argument, returns a function of the second) into a two-argument function: `la(a1, a2)` computes `curried.la(a1)` and applies it to `a2`; if that intermediate function is null, the result is null.",
+    "const2(Object)": "Returns a holder that produces two-argument functions always returning `ret` (call `f()` on it). The holder exists only so that the argument types can be inferred at the use site.",
+    "bind2(com.almworks.jira.structure.api.util.La)": "Returns a holder that produces two-argument functions which ignore their first argument and apply `f` to their second (call `create()` on it)."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La2.Binder2": {
+   "summary": "Holder returned by `La2.bind2`, used to create a two-argument function that ignores its first argument. Immutable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.La)": "Stores the one-argument function to apply to the second argument. Not checked for null.",
+    "create()": "Returns a new `La2` whose result for (a1, a2) is the stored function's result for a2; a1 is ignored. The first argument type is chosen by the caller's generic context."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La2.Const": {
+   "summary": "Holder returned by `La2.const2`, used to create a two-argument function returning a fixed value. Immutable.",
+   "members": {
+    "<init>(Object)": "Stores the constant result (null allowed).",
+    "f()": "Returns a new `La2` that ignores both arguments and returns the stored value."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La3": {
+   "summary": "An abstract three-argument function. It is also a `La` of its first argument whose result is the remaining two-argument function (currying), so all `La` helpers apply to it. Clients subclass it implementing `la(A1, A2, A3)`.",
+   "members": {
+    "<init>()": "Constructor for subclasses (declares no result class).",
+    "la(Object, Object, Object)": "The function itself, implemented by subclasses: computes the result for the three arguments.",
+    "la(Object)": "Partial application of the first argument: returns a `La2` that, given (a2, a3), returns `la(a1, a2, a3)`.",
+    "bind12(com.almworks.jira.structure.api.util.La2)": "Returns a holder that creates three-argument functions which apply `f` to their first two arguments and ignore the third (call `create()` on it)."
+   }
+  },
+  "com.almworks.jira.structure.api.util.La3.Binder12": {
+   "summary": "Holder returned by `La3.bind12`, used to create a three-argument function that ignores its third argument. Immutable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.La2)": "Stores the two-argument function. Not checked for null.",
+    "create()": "Returns a new `La3` whose result for (a1, a2, a3) is the stored function's result for (a1, a2); a3 is ignored."
+   }
+  },
+  "com.almworks.jira.structure.api.util.Limits": {
+   "summary": "Constants for the maximum lengths, in characters, of string identifiers and names the plugin stores, all equal to 190. For example, the canonical version name used in item identities (`com.almworks.jira.structure.api.item.CoreIdentities.canonicalVersionName`) is cut to this length. Not determined: the exact use sites of each constant, because compile-time constants are inlined in the compiled plugin; the meanings below follow the constant names. Not instantiable.",
+   "members": {
+    "MAX_MODULE_KEY_LENGTH": "Maximum length of a plugin module key: 190.",
+    "MAX_ITEM_STRING_ID_LENGTH": "Maximum length of the string ID of an item identity (`com.almworks.jira.structure.api.item.ItemIdentity`): 190.",
+    "NODEID_MAX_LENGTH": "Maximum length of a node identifier string: 190.",
+    "MAX_SPEC_ID_LENGTH": "Maximum length of a spec identifier string: 190.",
+    "MAX_NAME_LENGTH": "Maximum length of a stored name: 190.",
+    "MAX_USER_KEY_LENGTH": "Maximum length of a stored Jira user key: 190.",
+    "MAX_PATH_LENGTH": "Maximum length of a stored path string (not determined which paths): 190."
+   }
+  },
+  "com.almworks.jira.structure.api.util.LoggingUtils": {
+   "summary": "Static logging helpers that log an exception with a full stack trace only when debug logging is on, and a compact one-line description of the cause chain otherwise. Stateless and thread-safe. Not instantiable.",
+   "members": {
+    "warnExceptionIfDebug(org.slf4j.Logger, String, Throwable)": "Logs a warning. If the logger has DEBUG enabled, logs `message` at WARN with `t` attached (full stack trace; `t` may be null). Otherwise, if `t` is non-null, logs at WARN the text `message`, a space, then `getMessageWithCauseChain(t)`, without a stack trace; if `t` is null, logs just `message`. A null logger throws `NullPointerException`.",
+    "getMessageWithCauseChain(Throwable)": "Returns the `toString()` of the throwable and of each of its causes in order (outermost first), separated by `; ` (semicolon and space). Example: `java.lang.IllegalStateException: x; java.io.IOException: y`. Returns an empty string for null. A cyclic cause chain longer than one link would not terminate."
+   }
+  },
+  "com.almworks.jira.structure.api.util.LongFilteringIterator": {
+   "summary": "A lazy `com.almworks.integers.LongIterator` that yields only those values of a source primitive-long iterator that pass a filter. Created by clients with a constructor, or in pairs by `split`. Not thread-safe; the source iterator is consumed as this one advances.",
+   "members": {
+    "<init>(com.almworks.integers.LongIterator, com.almworks.jira.structure.api.util.La)": "Creates the iterator with a `La` filter: a value passes if the function's result for the boxed value is truthy (see `La.accepts`). A null filter throws `NullPointerException` immediately.",
+    "<init>(com.almworks.integers.LongIterator, java.util.function.LongPredicate)": "Creates the iterator with a primitive predicate: a value passes when the predicate returns true. Arguments are not checked.",
+    "findNext()": "Protected step of the finding-iterator protocol: advances the source to the next passing value, makes it the current pending value and returns true, or returns false when the source is exhausted.",
+    "split(com.almworks.integers.LongIterator, com.almworks.jira.structure.api.util.La)": "Reads the whole source iterator into memory and returns a Jira `Pair` of two independent iterators over those values, in original order: the first yields the values the filter accepts, the second the values it rejects. The filter is evaluated lazily, separately by each iterator."
+   }
+  },
+  "com.almworks.jira.structure.api.util.LongListHashIndex": {
+   "summary": "A hash-based reverse index from `long` values to `int` positions, typically built from a `LongList` to answer 'where is this value in the list' in constant time. It is a snapshot: later changes to the source are not reflected. Read-only after construction; safe for concurrent reads.",
+   "members": {
+    "<init>(com.almworks.integers.LongList)": "Indexes the list: each value maps to its position. If a value occurs several times, the last occurrence's index is kept.",
+    "<init>(java.util.Map)": "Builds the index from an explicit map of value to position, skipping entries whose key or value is null or whose value is negative.",
+    "indexOf(long)": "Returns the indexed position of the value, or -1 if it is not in the index.",
+    "size()": "Returns the number of distinct values in the index."
+   }
+  },
+  "com.almworks.jira.structure.api.util.MapObject": {
+   "summary": "A lenient, read-only accessor over a JSON object (an `org.json.JSONObject`), used to read configuration parameters without exceptions: missing or mistyped values yield null, defaults or empty lists. It is backed by a `JSONObject` that is either the one passed in (shared, not copied) or built from a Java map. Typed getters follow the coercion rules of the `org.json` library's `opt...` methods. Subclassed by `SpecParams`. Not thread-safe; the lazily built map view is cached.",
+   "members": {
+    "EMPTY": "A shared instance with no keys, returned by `traverse` for missing objects. Must not be modified.",
+    "MAP_OBJECT_ARRAY_EXTRACTOR": "An element extractor for `transform`/`getList` that turns the array element at an index into a `MapObject` (via `from`) when it is a `JSONObject` or a `java.util.Map`, and into null otherwise (so it is skipped).",
+    "myObject": "Protected: the backing JSON object; never null.",
+    "myMapView": "Protected: cache of the immutable map view built by `asImmutableMap`; null until first requested.",
+    "<init>(org.json.JSONObject)": "Wraps the given JSON object without copying it (later changes to it are visible through the getters). Null is treated as a new empty object.",
+    "<init>(java.util.Map)": "Creates a new backing JSON object from the map's entries, using `org.json`'s map constructor. Not determined: handling of a null map and whether nested maps and collections are converted eagerly depends on the `org.json` version provided by the host.",
+    "from(Object)": "Returns a `MapObject` for a `JSONObject` (wrapped, shared) or a `java.util.Map` (converted), and null for anything else, including null.",
+    "transform(org.json.JSONArray, java.util.function.BiFunction)": "Applies `extractor(array, index)` to every index of the array in order and returns a new list of the non-null results. A null or empty array gives an immutable empty list.",
+    "isEmpty()": "True if the object has no keys.",
+    "has(String)": "True if the key is present (even if its value is JSON null).",
+    "getObject(String)": "Returns the value under `name` as a `MapObject` if it is a `JSONObject` (wrapped, shared) or a `java.util.Map`; returns null if absent or of another type.",
+    "traverse(String)": "Like `getObject` but returns `EMPTY` instead of null, so chained lookups never fail.",
+    "keys()": "Returns an `Iterable` over the keys of the object; each iteration reads the current keys of the backing object. Order is the backing object's (not guaranteed).",
+    "get(String)": "Returns the raw value under the key, or null if absent. A JSON null may be returned as the `org.json` null sentinel object rather than Java null.",
+    "getString(String)": "Returns the value under the key as a string, or null if absent or JSON null. Non-string values are converted with their `toString()` (so a number 5 gives `5`).",
+    "getLong(String)": "Returns the value as a `long`, or 0 if absent or not convertible. Numbers are converted with `longValue()`; numeric strings are parsed per `org.json`'s `optLong`.",
+    "getLong(String, long)": "Like `getLong(String)` but returns `defaultValue` when the key is absent or the value is not convertible.",
+    "getInt(String)": "Returns the value as an `int` (numbers narrowed with `intValue()`, numeric strings parsed per `org.json`'s `optInt`), or 0 if absent or not convertible.",
+    "getInt(String, int)": "Like `getInt(String)` but returns `defaultValue` when absent or not convertible.",
+    "getBoolean(String)": "Returns true if the value is `Boolean.TRUE` or the string `true` (any letter case); false otherwise, including when absent.",
+    "getBoolean(String, boolean)": "Returns the boolean value (a `Boolean`, or the string `true`/`false` in any letter case), or `defaultValue` if absent or not convertible.",
+    "getLongList(String)": "Returns the numeric elements of the array under the key, each converted with `longValue()`, in order; non-numeric elements (including numeric strings and nulls) are skipped. A Java collection value is treated like an array. If the key is null, absent, not an array, or the array is empty, returns an immutable empty list; otherwise a new mutable list (possibly empty).",
+    "getIntList(String)": "Like `getLongList` but converts numeric elements with `intValue()` (narrowing, may overflow).",
+    "getStringList(String)": "Returns the elements of the array under the key converted to strings with `toString()` (numbers included), in order, skipping missing elements. Not determined: whether JSON null elements are skipped or yield the text `null` depends on the host's `org.json` version. Empty-list rules as in `getLongList`.",
+    "getRawObjectList(String)": "Returns the raw elements of the array under the key, in order, skipping Java nulls. Empty-list rules as in `getLongList`.",
+    "getObjectList(String)": "Returns the elements of the array under the key that are JSON objects or maps, each as a `MapObject`, in order; other elements are skipped. Empty-list rules as in `getLongList`.",
+    "getList(String, java.util.function.BiFunction)": "General list getter: if the value under the key is a `JSONArray` (or a Java collection, converted to one), applies `extractor` to each index and returns the non-null results (see `transform`). Returns an immutable empty list if the key is null or the value is absent or not a list.",
+    "asImmutableMap()": "Returns the object's content as a Guava `ImmutableMap`, deep-converted from JSON (nested JSON objects become `java.util.HashMap`s and arrays become `java.util.ArrayList`s, which are themselves mutable). Built once on first call and cached; later changes to a shared backing object are not reflected. Throws `IllegalArgumentException` (message starting `failed to convert json object:`) on conversion errors, and `NullPointerException` if any top-level value is JSON null, because the immutable map does not accept null values.",
+    "toString()": "Returns the compact JSON text of the backing object, as produced by `org.json`.",
+    "equals(Object)": "True if the other object has exactly the same class and the backing JSON objects are equal by `JSONObject.equals`. Not determined: in common `org.json` versions that method is identity, which would make two instances equal only when they share the same backing object.",
+    "hashCode()": "Returns the backing JSON object's `hashCode()`, consistent with `equals`."
+   }
+  },
+  "com.almworks.jira.structure.api.util.MapUtils": {
+   "summary": "Static map helper. Not instantiable.",
+   "members": {
+    "isSubMap(java.util.Map, java.util.Map)": "True if every entry of `subMap` is also present in `map` with an equal value (keys and values compared with `equals`, null values allowed). An empty `subMap` is a sub-map of any map. Null arguments throw `NullPointerException`."
+   }
+  },
+  "com.almworks.jira.structure.api.util.NumericFunctions": {
+   "summary": "Null-tolerant static helpers for converting and combining `java.lang.Number` values, mainly used when aggregating attribute values. Thread-safe and stateless. Conversions use `Number.longValue()`/`doubleValue()`, so fractional values are truncated toward zero and out-of-range values follow Java's narrowing rules.",
+   "members": {
+    "<init>()": "Public constructor; the class has only static methods.",
+    "longOrZero(Number)": "Returns the number's `longValue()`, or 0 if it is null.",
+    "longOrZero(Object, java.util.function.Function)": "Applies `function` to `argument` and returns `longOrZero` of the result. Returns 0 without calling anything if `argument` or `function` is null.",
+    "longOrNull(Number)": "Returns the number as a `Long`: the same object if it already is a `Long`, otherwise a boxed `longValue()`; null for null.",
+    "longOrNull(Object, java.util.function.Function)": "Applies `function` to `argument` and returns `longOrNull` of the result; null if `argument` or `function` is null.",
+    "nonNegativeLong(Number)": "Returns `longOrZero(number)`, or 0 if that is negative.",
+    "nonNegativeLong(Object, java.util.function.Function)": "Returns `longOrZero(argument, function)`, or 0 if that is negative.",
+    "doubleOrZero(Number)": "Returns the number's `doubleValue()`, or 0.0 if it is null.",
+    "doubleOrZero(Object, java.util.function.Function)": "Applies `function` to `argument` and returns `doubleOrZero` of the result; 0.0 if `argument` or `function` is null.",
+    "doubleOrNull(Number)": "Returns the number as a `Double`: the same object if it already is a `Double`, otherwise a boxed `doubleValue()`; null for null.",
+    "doubleOrNull(Object, java.util.function.Function)": "Applies `function` to `argument` and returns `doubleOrNull` of the result; null if `argument` or `function` is null.",
+    "nonNegativeDouble(Number)": "Returns the larger of 0.0 and `doubleOrZero(number)` (per `Math.max`, so negative values and -0.0 give 0.0, while NaN stays NaN).",
+    "nonNegativeDouble(Object, java.util.function.Function)": "Returns the larger of 0.0 and `doubleOrZero(argument, function)` per `Math.max`.",
+    "nonNegativeDoubleAddOrNull(Number, Number)": "Returns null if both arguments are null; otherwise the sum of `nonNegativeDouble(a)` and `nonNegativeDouble(b)` (a null side counts as 0, negative sides are clamped to 0 before adding).",
+    "longAddOrNull(Number, Number)": "Returns null if both are null; the `longValue()` of the non-null one if only one is null; otherwise the sum of both `longValue()`s. Overflow wraps around silently; negative values are not clamped.",
+    "longAddOrNull(long, Long)": "Returns `a` if `b` is null, otherwise `a + b` (overflow wraps). Despite the name it never returns null.",
+    "equals(Number, Number)": "Null-safe equality: true if both are null, false if exactly one is null, otherwise `a.equals(b)`. Note that this uses the boxed types' `equals`, so values of different classes (e.g. `Long` 1 and `Integer` 1) are not equal."
+   }
+  },
+  "com.almworks.jira.structure.api.util.Ref": {
+   "summary": "A mutable box holding one value in a public field, typically used to return a value out of a lambda or callback. Created with `new`. Not thread-safe.",
+   "members": {
+    "value": "The held value; public and freely readable and writable; may be null.",
+    "<init>()": "Creates a box holding null.",
+    "<init>(Object)": "Creates a box holding the given value.",
+    "toString()": "Returns `String.valueOf(value)`, i.e. the text `null` when empty."
+   }
+  },
+  "com.almworks.jira.structure.api.util.RowTree": {
+   "summary": "A mutable, pointer-based tree of row IDs used to build or edit a forest incrementally and then convert it to an `com.almworks.jira.structure.api.forest.raw.ArrayForest`. The tree has an invisible super-root node (row ID 0) whose children are the top-level rows. Nodes (`RowTree.Node`) carry a row ID and an integer bit set of caller-defined flags. Clients create it with `new RowTree()`; subclasses (such as `IndexedRowTree`) may hook node creation and removal. Not thread-safe; structural invariants (row ID uniqueness, no cycles, `afterNode` being a child of the given parent) are only checked by Java assertions, if at all.",
+   "members": {
+    "<init>()": "Creates an empty tree consisting only of the super-root.",
+    "getSuperRoot()": "Returns the invisible root node (row ID 0, flags 0). Its children are the top-level rows. It is never null and is never part of `toForest()` output.",
+    "toString()": "Returns the compact nested text of the whole tree, as produced by `RowTree.Node.toFullString()` on the super-root, e.g. `(1(2,3),4)`; an empty tree gives an empty string. Flags are not shown.",
+    "appendForest(com.almworks.jira.structure.api.forest.raw.Forest)": "Adds a copy of the whole forest as new top-level nodes placed after the current last top-level node, keeping the forest's order and nesting. New nodes get flags 0. Uses the node-creation hook for every row.",
+    "appendForest(com.almworks.jira.structure.api.forest.raw.Forest, com.almworks.jira.structure.api.util.RowTree.Node, com.almworks.jira.structure.api.util.RowTree.Node)": "Adds a copy of the whole forest under `underNode`: the forest's top-level rows become children of `underNode`, placed right after `afterNode` (which must be a child of `underNode`) or, if `afterNode` is null, at the beginning, before any existing children. New nodes get flags 0.",
+    "appendForest(com.almworks.jira.structure.api.forest.raw.Forest, com.almworks.jira.structure.api.util.RowTree.Node, com.almworks.jira.structure.api.util.RowTree.Node, int, int, java.util.function.LongPredicate)": "General form. Copies part of `forest` into the tree: if `parentIndex` is negative, the whole forest; otherwise only the subtree below forest position `parentIndex` (its descendants, not the row itself). The copied top-level rows become children of `parentNode`, inserted right after `afterNode` (must be a child of `parentNode`) or first among its children if `afterNode` is null; deeper rows keep their relative nesting. Every created node gets `flags`. If `rowFilter` is non-null, a row for which it returns false is skipped together with its entire subtree. Returns the forest index just past the copied range (the first index after `parentIndex` whose depth is not deeper than the parent, or the forest size).",
+    "insertNode(long, int, com.almworks.jira.structure.api.util.RowTree.Node, com.almworks.jira.structure.api.util.RowTree.Node)": "Creates a new leaf node with the given row ID and flags (through the node-creation hook) and inserts it as a child of `parentNode`: right after `afterNode` if given (it must be a child of `parentNode`), or as the first child if `afterNode` is null. Returns the new node.",
+    "moveNode(com.almworks.jira.structure.api.util.RowTree.Node, com.almworks.jira.structure.api.util.RowTree.Node, com.almworks.jira.structure.api.util.RowTree.Node)": "Detaches `node` (with its whole subtree) from its current place and inserts it under `parentNode`, after `afterNode` or first if `afterNode` is null. Returns `node`. Moving a node under its own descendant is not detected and corrupts the tree. Moving the super-root or a detached node throws `NullPointerException`.",
+    "remove(com.almworks.jira.structure.api.util.RowTree.Node)": "Detaches `node` and its subtree from the tree and then calls the removal hook (`forgetNode`) for it. Throws `IllegalArgumentException` if `node` is the super-root. A node that is already detached causes `NullPointerException`.",
+    "toForest()": "Returns a new `com.almworks.jira.structure.api.forest.raw.ArrayForest` with all nodes except the super-root in depth-first pre-order, top-level nodes at depth 0. Flags are not included. Later changes to the tree do not affect the returned forest.",
+    "createNode(long, int)": "Protected factory hook used for every node this tree creates (by `appendForest` and `insertNode`). The base version returns a new unattached node with the given row ID and flags; subclasses may override to track nodes but must return a fresh unattached node.",
+    "forgetNode(com.almworks.jira.structure.api.util.RowTree.Node)": "Protected hook called by `remove` after a node has been detached. Does nothing in the base class."
+   }
+  },
+  "com.almworks.jira.structure.api.util.RowTree.Node": {
+   "summary": "One node of a `RowTree`: a row ID, a mutable integer bit set of flags and links to parent, children and siblings. Nodes are created only by the tree; clients navigate and read them and change them only through the tree's methods and `addFlags`. Not thread-safe.",
+   "members": {
+    "toString()": "Returns the row ID in decimal if the node has no flags, otherwise the row ID, a `#` and the flag value in decimal, e.g. `42` or `42#3`.",
+    "toFullString()": "Returns the node and its subtree as compact nested text: the row ID (omitted when it is 0, i.e. for the super-root), then, if the node has children, an opening parenthesis, the children's own full strings separated by commas, and a closing parenthesis. Example: `5(6,7(8))`. Flags are not shown.",
+    "append(StringBuilder)": "Appends the same text as `toFullString()` to the given builder and returns that builder.",
+    "getRowId()": "Returns the row ID this node stands for; 0 for the super-root.",
+    "hasFlags(int)": "True if every bit set in `flagMask` is also set in this node's flags. `hasFlags(0)` is always true.",
+    "addFlags(int)": "Sets the bits of `flagMask` in this node's flags (bitwise OR); existing bits are kept.",
+    "getParent()": "Returns the parent node; for top-level rows this is the super-root. For the super-root or a detached node the result is null, but with Java assertions enabled the call raises `AssertionError` instead.",
+    "getFirstChild()": "Returns the first child, or null if the node has no children.",
+    "getLastChild()": "Returns the last child, or null if the node has no children.",
+    "getNextSibling()": "Returns the next node with the same parent, or null if this is the last child.",
+    "getPrevSibling()": "Returns the previous node with the same parent, or null if this is the first child.",
+    "writeTo(com.almworks.integers.LongCollector, com.almworks.integers.IntCollector, int)": "Writes this node's subtree in depth-first pre-order: if `depth` is 0 or more, first adds this node's row ID to `rows` and `depth` to `depths`; then does the same for each child, in order, with `depth + 1`. Passing -1 writes only the descendants, with the children at depth 0 (this is how the super-root is serialized).",
+    "collectDirectChildren(com.almworks.integers.LongCollector)": "Adds the row IDs of this node's direct children, in order, to the collector.",
+    "findFirstWithFlags(int)": "Searches this node and then its descendants in depth-first pre-order and returns the first node for which `hasFlags(flags)` is true, or null if none matches. With `flags` = 0 it returns this node."
+   }
+  },
+  "com.almworks.jira.structure.api.util.RunnableE": {
+   "summary": "A `Runnable`-like functional interface whose `run()` may throw one checked exception type `E`. Marked as a public SPI: clients implement it (usually as a lambda) to pass actions to API methods that run them. No state.",
+   "members": {
+    "run()": "Performs the action; may throw `E` or an unchecked exception.",
+    "andThen(com.almworks.jira.structure.api.util.RunnableE)": "Returns an action that runs this action and then `another`. If this action throws, `another` is not run. A null `another` causes `NullPointerException` only when the combined action runs, after this action completes."
+   }
+  },
+  "com.almworks.jira.structure.api.util.SimpleCallable": {
+   "summary": "A `CallableE` that throws no checked exceptions (its exception type is `RuntimeException`), so callers need no try/catch. Implemented by clients, usually as a lambda. No members of its own.",
+   "members": {}
+  },
+  "com.almworks.jira.structure.api.util.SpecParams": {
+   "summary": "A `MapObject` over the parameter map of a spec (for example an attribute spec's parameters), adding typed access to nested parameter objects and to nested attribute specs. Created by clients from a parameter map. Not thread-safe.",
+   "members": {
+    "<init>(java.util.Map)": "Creates the accessor over a new JSON object built from the given parameter map (see `MapObject(Map)`).",
+    "getObject(String)": "Returns the value under `name` as a `SpecParams` if it is a JSON object or a `java.util.Map` (a JSON object is first converted into a plain map); returns null if absent or of another type. Overrides the `MapObject` version with a narrower return type.",
+    "getAttributeParameter(com.almworks.jira.structure.api.attribute.ValueFormat)": "Same as `getAttributeParameter(\"attribute\", expectedFormat)`: reads a nested attribute spec stored under the key `attribute`.",
+    "getAttributeParameter(String, com.almworks.jira.structure.api.attribute.ValueFormat)": "Reads a nested attribute spec stored under `name` as an object with keys `id` (string), optional `format` (format ID string) and optional `params` (object). Returns null if there is no such object. If both `format` and `expectedFormat` are given and the stored format is neither `expectedFormat`'s ID nor the ID of `ValueFormat.ANY`, returns null. The format of the result is `expectedFormat` when given (even if the stored one is `any`); if `expectedFormat` is null, the standard format named by the stored `format` is used, and if there is none, returns null. Builds a `com.almworks.jira.structure.api.attribute.AttributeSpec` from the ID, the format and the `params` map (null if `params` is absent or not an object). If the spec cannot be built because the values are invalid (`IllegalArgumentException`, e.g. a missing ID), returns null and logs at DEBUG level."
+   }
+  },
+  "com.almworks.jira.structure.api.util.StructureCallable": {
+   "summary": "A `CallableE` whose `call()` may throw `com.almworks.jira.structure.api.error.StructureException`. Implemented by clients, usually as a lambda, and passed to API methods that run code which can fail with the plugin's checked exception. No members of its own.",
+   "members": {}
+  },
+  "com.almworks.jira.structure.api.util.StructureRunnable": {
+   "summary": "A `RunnableE` whose `run()` may throw `com.almworks.jira.structure.api.error.StructureException`. Marked as a public SPI; implemented by clients, usually as a lambda. No members of its own.",
+   "members": {}
+  },
+  "com.almworks.jira.structure.api.util.StructureUtil": {
+   "summary": "A grab-bag of static helpers used across the plugin: lenient reading of request-style parameter maps, chunked storage of long strings in Jira application properties, debug strings for issues, structures and rows, i18n text lookup, user lookups, Jackson JSON conversion, URL encoding and small null/number helpers (several of which simply delegate to `TypeUtils`, `LoggingUtils`, `IntegersUtil` and `MapUtils`). Marked as internal: available to clients but not covered by compatibility guarantees. Stateless apart from logging; thread-safe unless noted. Some helpers query Jira services through `JiraComponents` and therefore only work inside a running Jira.",
+   "members": {
+    "MAX_PROPERTY_LENGTH": "Maximum number of characters stored in one Jira application property entry by `setLongProperty`: 250. Longer values are split into several entries.",
+    "STRING_LONG": "A `La` function that parses a string as a decimal `long` after trimming surrounding whitespace; returns null for null or unparsable input (including decimals and out-of-range numbers).",
+    "INT_ITERATOR_TO_INT": "A `La` function returning the current value of a `com.almworks.integers.IntIterator` (the value last returned by its `next`), without advancing it.",
+    "LONG_ITERATOR_TO_LONG": "A `La` function returning the current value of a `com.almworks.integers.LongIterator`, without advancing it.",
+    "<init>()": "Public constructor; the class has only static members.",
+    "applyPermissions(java.util.List, com.atlassian.jira.user.ApplicationUser, java.util.List, com.almworks.jira.structure.api.util.La, com.almworks.jira.structure.api.permissions.PermissionLevel)": "Evaluates a list of permission rules in order for `user`: starts with `pass` and, for each rule, replaces the current level with the result of that rule's `apply(user, currentLevel, stack, resolver)`; returns the final level. `stack` is the call stack used by rules to detect recursion through inherited permissions, and `resolver` maps a structure ID to its rule list for such inheritance. A null rule list returns `pass` unchanged.",
+    "getSingleParameterLong(java.util.Map, String)": "Reads the value under `name` and converts it to a `Long`: if it is a collection or an object array (including `String[]`) or a `long[]`, its first element is used (empty gives null); a `Number` gives its `longValue()`; a non-blank string is parsed as a decimal `long`, falling back to parsing it as a `double` and truncating toward zero (so `2.9` gives 2, `1e3` gives 1000 and surrounding spaces are tolerated by that fallback); anything else, a blank string or a missing key gives null. If the text cannot be parsed at all, logs a warning naming the parameter and returns null. Null map or name gives null.",
+    "getSingleParameterInteger(java.util.Map, String)": "Like `getSingleParameterLong` but returns an `Integer`; a value outside the `int` range is treated as bad (warning logged, null returned) rather than truncated.",
+    "getSingleParameterBoolean(java.util.Map, String)": "Returns the boolean under `name`: a `Boolean` value is returned as is; otherwise the value is read with `getSingleString` and is true only if it equals `true` ignoring case after trimming. Missing values, null map or null name give false.",
+    "getSingleParameter(java.util.Map, String)": "Returns `getSingleString` of the value under `name`, or null if the map or name is null.",
+    "getSingleString(Object)": "Returns a single string from a value that may be multi-valued: for a collection, its first element in iteration order (null if empty); for a `String[]`, its first element (null if empty); then `String.valueOf` of the result, or null if it is null. Other arrays are not unwrapped and give their default `toString()` text.",
+    "getSingleLong(Object)": "Converts a possibly multi-valued value to a `Long` with the same rules as `getSingleParameterLong` (first element of collections and arrays, numbers, decimal or floating text). Unparsable text gives null with a warning logged.",
+    "getStringList(Object)": "Returns a value as a list of strings: for a collection, a new list of `String.valueOf` of each non-null element, in iteration order; for a `String[]`, a fixed-size list view backed by the array (null elements kept), or an immutable empty list when the array is empty; for null, an immutable empty list; for any other value, an immutable one-element list of its `String.valueOf`.",
+    "getMultiParameter(java.util.Map, String)": "Returns `getStringList` of the value under `name`; an immutable empty list if the map or name is null.",
+    "getMultiParameterLong(java.util.Map, String)": "Returns the values under `name` (as from `getMultiParameter`) each parsed with `STRING_LONG` into a new mutable list. Values that are not valid integers are kept as null entries, so the result has the same size as the string list.",
+    "getCommaSeparatedParameter(java.util.Map, String, java.util.function.Function)": "Reads a single string parameter (see `getSingleParameter`) and, unless it is null or blank, splits it at commas and converts each part with `converter`, returning the results in order in a new list. Parts are not trimmed; empty parts between commas are kept but trailing empty parts are dropped (Java `String.split` semantics), e.g. `a,,b,` gives parts `a`, empty, `b`. Null or blank input gives an immutable empty list. Exceptions from the converter propagate.",
+    "setLongProperty(com.atlassian.jira.config.properties.ApplicationProperties, String, String)": "Stores a string of any length in Jira application properties by splitting it into chunks of at most 250 characters: the first chunk under `name`, the following ones under `name.1`, `name.2` and so on. Then removes (sets to null) any leftover numbered entries from an earlier, longer value, continuing while the next numbered key holds a non-empty value. A null value is stored as the empty string. Chunks are counted in UTF-16 code units, so a surrogate pair may be split across entries.",
+    "getLongProperty(com.atlassian.jira.config.properties.ApplicationProperties, String)": "Reads back a value stored by `setLongProperty`: concatenates the values under `name`, `name.1`, `name.2` and so on, stopping at the first missing or empty entry. Never null; returns an empty string if nothing is stored.",
+    "getBooleanSystemProperty(String, boolean)": "Reads a JVM system property as a boolean: if the property is set, returns true only if its value is `true` ignoring case and false for any other value; if it is not set, or the key is null or empty, returns `defaultValue`.",
+    "lastOrZero(com.almworks.integers.LongList)": "Returns the last element of the list, or 0 if the list is null or empty.",
+    "listsEqual(com.almworks.integers.LongList, com.almworks.integers.LongList)": "Compares two primitive long lists element by element, in order; null and empty lists are treated as equal to each other.",
+    "copyPermissionsOrNull(java.util.Collection)": "Returns null for null input; otherwise the same as `copyPermissions`.",
+    "copyPermissions(java.util.Collection)": "Returns a new mutable list containing a clone (`PermissionRule.clone()`) of every rule, in order. Null input gives an empty list; a null element throws `NullPointerException`.",
+    "getDebugIssueString(Long)": "Returns a debug label for an issue ID: `null` for null; otherwise `(KEY ID)` if the issue's key can be looked up in Jira (e.g. `(ABC-1 10000)`), or just the ID if not. The lookup ignores permissions and swallows all errors.",
+    "appendDebugIssueString(Long, StringBuilder)": "Appends the same label as `getDebugIssueString(Long)` to the builder and returns it (appends `null` for a null ID).",
+    "getDebugIssueKey(long)": "Looks up the issue key for an issue ID through Jira's issue manager, without permission checks. Returns null if the issue does not exist, Jira is unavailable, or any exception or linkage error occurs.",
+    "getDebugIssueString(com.atlassian.jira.issue.Issue)": "Returns `null` for a null issue; otherwise `(KEY ID)` using the issue's own key and ID, or just the ID if the key is null.",
+    "issueKeyOrId(com.atlassian.jira.issue.Issue, Long)": "Returns the issue's key if `issue` is non-null (which may itself be null); otherwise `issue #<issueId>` if the ID is non-null; otherwise `(no issue ID)`.",
+    "appendDebugIssueString(Long, String, StringBuilder)": "Appends `(KEY ID)` to the builder if `issueKey` is non-null, otherwise just the ID (`null` for a null ID). Returns the builder.",
+    "appendDebugStructureString(long, com.almworks.jira.structure.api.structure.StructureManager, StringBuilder)": "Appends a debug label for a structure: its name in single quotes followed by ` (#ID)`, e.g. `'Plan' (#12)`; if the structure cannot be loaded (any `StructureException`, e.g. it does not exist), appends `#ID` instead. The structure is read with security checks suspended (as a superuser), so the name is revealed regardless of the current user's access. Returns the builder.",
+    "getDebugStructureString(long, com.almworks.jira.structure.api.structure.StructureManager)": "Returns the label produced by `appendDebugStructureString` as a string.",
+    "username(com.atlassian.jira.user.ApplicationUser)": "Returns a user's login name for logs: `anonymous` for a null user, the user's name, or `user[name = null]` if the user has no name.",
+    "debugConstant(com.atlassian.jira.issue.IssueConstant)": "Returns `<null>` for null, otherwise the constant's name followed by its ID in parentheses, e.g. `Bug(1)`.",
+    "debugAction(com.opensymphony.workflow.loader.ActionDescriptor)": "Returns `<null>` for null, otherwise the workflow action's name followed by its numeric ID in parentheses, e.g. `Close(2)`.",
+    "getTextInCurrentUserLocale(String, Object[])": "Returns the localized text for the i18n key with the parameters substituted, in the language of the user the plugin currently acts for (falling back to Jira's default locale), using `com.almworks.jira.structure.api.i18n.JiraI18n.forCurrentUser()`. Unknown keys are returned as Jira's i18n helper returns them (typically the key itself).",
+    "getTextInCurrentUserLocale(com.almworks.jira.structure.api.util.I18nText)": "Same as the key-and-parameters form, using the key and arguments of the `I18nText`. A null argument throws `NullPointerException`.",
+    "getText(java.util.Locale, com.atlassian.jira.user.ApplicationUser, String, Object[])": "Returns the localized text for the key: in `locale` if given; otherwise in `user`'s language if a user is given; otherwise in Jira's default locale (see `com.almworks.jira.structure.api.i18n.JiraI18n.create`).",
+    "getJiraDefaultLocale()": "Returns Jira's configured default locale. If Jira's application properties or the default locale are unavailable, logs a warning and returns `Locale.ROOT`. Never null.",
+    "getUserKey(com.atlassian.jira.user.ApplicationUser)": "Returns the user's key, or null for a null user.",
+    "getUserName(com.atlassian.jira.user.ApplicationUser)": "Returns the user's login name (`getUsername()`), or null for a null user.",
+    "getUserByKey(String)": "Returns the user with this key (see `JiraFunc.USERKEY_APPLICATIONUSER`), or null for a null or unknown key.",
+    "getApplicationUserByName(String)": "Returns the user with this login name from Jira's user manager, or null if there is none.",
+    "getUserNameByKey(String)": "Returns the login name of the user with this key, or null if the key is null or unknown.",
+    "migrateUserNameToUserKey(String)": "Converts a legacy user name into the user key that Jira assigned to it on migration, by lower-casing it with Crowd's identifier rules (`IdentifierUtils.toLowerCase`). Null gives null. This matches only users whose key was derived from their name.",
+    "createRuntimeSignature()": "Returns a pseudo-random `int` that is very likely different on each call and each JVM run, derived from the wall-clock time, the nanosecond timer and an identity hash code (sum of the milliseconds, 1299827 times the nanosecond reading and 31 times the identity hash, then folded to 32 bits as `Long.hashCode` does). Not cryptographically secure; used to detect restarts.",
+    "getDebugRowString(long)": "Returns `(row N)` for the row ID N, e.g. `(row 42)`.",
+    "getDebugRowString(com.almworks.jira.structure.api.row.StructureRow)": "Returns the row's `toString()`, or an empty string for null.",
+    "toJson(Object)": "Serializes the object to compact JSON with a default Jackson `ObjectMapper` that omits null-valued properties. Returns an empty string for null input or if serialization fails (a warning is logged).",
+    "fromJson(String, Class)": "Deserializes JSON text into an instance of `expectedClass` with a default Jackson mapper (unknown properties are an error). Returns null for null or empty text, for the JSON literal `null`, or if parsing fails (a warning is logged).",
+    "fromJson(String)": "Parses JSON text representing an object into a `Map<String, Object>` (insertion-ordered; nested objects and arrays become maps and lists, numbers become `Integer`, `Long`, `BigInteger` or `Double` per Jackson defaults). Returns null for null or empty text, for non-object JSON, or on parse errors (a warning is logged).",
+    "toMap(Object)": "Converts a bean (or map) into a `Map<String, Object>` via Jackson, as if serialized to JSON and read back, omitting null properties. Returns null for null input or if the conversion fails (a warning is logged).",
+    "setType()": "Same as `TypeUtils.setType()`.",
+    "mapType()": "Same as `TypeUtils.mapType()`.",
+    "listType()": "Same as `TypeUtils.listType()`.",
+    "onlyOneIsTrue(boolean[])": "True if exactly one of the arguments is true; false if none or more than one is true (including for no arguments).",
+    "swap(java.util.List, int, int)": "Exchanges the elements at positions `a` and `b` of the list in place. Throws `IndexOutOfBoundsException` for invalid positions and `UnsupportedOperationException` for unmodifiable lists.",
+    "warnExceptionIfDebug(org.slf4j.Logger, String, Throwable)": "Same as `LoggingUtils.warnExceptionIfDebug`.",
+    "getMessageWithCauseChain(Throwable)": "Same as `LoggingUtils.getMessageWithCauseChain`.",
+    "getItemDescription(com.almworks.jira.structure.api.item.ItemIdentity)": "Returns a human-readable description of the item (as `getItemDisplayable` would give), obtaining the attribute service itself. Returns null if the attribute service is unavailable or any exception or linkage error occurs.",
+    "getItemDisplayable(com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.attribute.StructureAttributeService)": "Loads the item's displayable text and URL through the given attribute service (core attributes `CoreAttributeSpecs.DISPLAYABLE_TEXT` and `CoreAttributeSpecs.URL`) and returns them as an `ItemDisplayable`. If the text is missing or empty, the item identity's `toString()` is used as description; the URL may be null. Never null.",
+    "getItemDisplayable(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.attribute.StructureAttributeService)": "Same as the item-identity form for the row's item.",
+    "getItemDisplayable(java.util.Collection, com.almworks.jira.structure.api.attribute.StructureAttributeService)": "Loads displayable text and URL for all given items in one attribute-service request and returns a new map from each item identity to its `ItemDisplayable` (with the same fallback to the identity's text). Exceptions from the attribute service propagate.",
+    "getGroupName(com.atlassian.crowd.embedded.api.Group)": "Returns the group's name, or null for a null group.",
+    "isMutuallyExclusive(com.almworks.integers.LongList, com.almworks.integers.LongList)": "Same as `IntegersUtil.isMutuallyExclusive(LongList, LongList)`.",
+    "isMutuallyExclusive(com.almworks.integers.LongSet, com.almworks.integers.LongSet)": "Same as `IntegersUtil.isMutuallyExclusive(LongSet, LongSet)`.",
+    "toDebugJson(Object)": "Returns a JSON text of the object for debug output using a plain Jackson mapper (null properties included). A null object gives an empty string and a `String` is returned unchanged. If serialization fails (I/O error or out of memory), returns `?` + the error's `toString()` + `?`.",
+    "nn(Long, long)": "Same as `TypeUtils.nn(Long, long)`.",
+    "nn(Integer, int)": "Same as `TypeUtils.nn(Integer, int)`.",
+    "nnv(Object, Object)": "Same as `TypeUtils.nnv`.",
+    "lv(String, long)": "Same as `TypeUtils.lv`.",
+    "iv(String, int)": "Same as `TypeUtils.iv`.",
+    "lvn(String)": "Same as `TypeUtils.lvn`.",
+    "ivn(String)": "Same as `TypeUtils.ivn`.",
+    "nn(String)": "Same as `TypeUtils.nn(String)`: the empty string for null.",
+    "nnl(Long)": "Same as `TypeUtils.nnl`.",
+    "nni(Integer)": "Same as `TypeUtils.nni`.",
+    "getBaseUrl()": "Returns the Jira base URL as reported by the SAL `com.atlassian.sal.api.ApplicationProperties` service, or an empty string if that is null or the service is unavailable (a warning is logged in the latter case). Never null.",
+    "decodeURL(String)": "Decodes `application/x-www-form-urlencoded` text as UTF-8 (`+` becomes a space, `%XX` sequences become bytes). Null gives an empty string. Malformed input (e.g. a truncated `%` escape) is logged as an error and returned unchanged.",
+    "encodeURL(String)": "Encodes text as `application/x-www-form-urlencoded` UTF-8 (letters, digits and `.`, `-`, `*`, `_` unchanged; space becomes `+`; everything else `%XX` with upper-case hex). Null gives an empty string.",
+    "encodeURIComponent(String)": "Encodes text like JavaScript's `encodeURIComponent`: first as `encodeURL`, then spaces are written as `%20` instead of `+`, and `!`, `'`, `(`, `)` and `~` are left unescaped. Example: `a b(c)` gives `a%20b(c)`. Null gives an empty string.",
+    "isSubMap(java.util.Map, java.util.Map)": "Same as `MapUtils.isSubMap`.",
+    "isDevMode()": "Marked internal. True if the JVM system property `jira.dev.mode` or `atlassian.dev.mode` equals exactly `true` (case-sensitive).",
+    "nonBlank(String)": "Returns the value trimmed. Throws `IllegalArgumentException` with message `argument cannot be null or blank` if it is null, empty or only whitespace.",
+    "memoize(java.util.function.Supplier)": "Returns a supplier that calls `supplier` on the first `get()` only and returns that same result (null included) on every later call; the original supplier is then released. If `supplier` is already a supplier returned by this method, it is returned as is. Not thread-safe. If the first call throws, the exception propagates and every later call returns null without retrying."
+   }
+  },
+  "com.almworks.jira.structure.api.util.ToString": {
+   "summary": "Static helpers for building `toString()` texts of the form `Name{a=1,b=x}` with a `StringBuilder`: start with `begin`, add fields with `append`, finish with `end`. Stateless.",
+   "members": {
+    "BEGIN": "The text that opens the field list: `{`.",
+    "EQ": "The separator between a field name and its value: `=`.",
+    "SEP": "The separator appended after each field: `,`.",
+    "END": "The text that closes the field list: `}`.",
+    "<init>()": "Public constructor; the class has only static members.",
+    "begin(String)": "Returns a new builder containing the object name followed by `{` (a null name gives `null{`).",
+    "append(StringBuilder, String, int)": "Appends `name=value,` to the builder and returns the same builder.",
+    "append(StringBuilder, String, long)": "Appends `name=value,` (decimal) and returns the same builder.",
+    "append(StringBuilder, String, boolean)": "Appends `name=true,` or `name=false,` and returns the same builder.",
+    "append(StringBuilder, String, Object)": "Appends `name=`, the value's `String.valueOf` text (`null` for null), and `,`; returns the same builder.",
+    "end(StringBuilder)": "Removes one trailing comma, if the builder is longer than one character and ends with a comma, then appends `}` and returns the builder's whole text. Example: begin(`Foo`), append a=1, append b=x, end gives `Foo{a=1,b=x}`; with no fields it gives `Foo{}`. The builder is modified."
+   }
+  },
+  "com.almworks.jira.structure.api.util.TotalOrder": {
+   "summary": "Defines a total order over values of arbitrary, mixed types, for sorting heterogeneous data such as attribute values. Values are first normalized: all integer-like boxed numbers (`Long`, `Integer`, `Short`, `Byte`) and floating numbers (`Double`, `Float`) become `ComparableTuple` numbers so they compare numerically with each other; strings are kept as is (strict), lower-cased (case-insensitive) or turned into `java.text.CollationKey`s (collator mode) depending on how the order was created; other objects are kept unchanged. Normalized values are wrapped (`wrap`) and compared with `COMPARATOR`. Instances are created only by the static factories and are immutable; a collator-based instance shares its collator, so thread safety then follows `java.text.Collator`.",
+   "members": {
+    "COMPARATOR": "A shared comparator of `TotalOrder.ValueWrapper`s. Order: a wrapper is equal to itself; wrappers holding null sort after all others (two nulls are equal). Values of the same runtime class compare by `compareTo` if they are `Comparable`, otherwise by comparing their `toString()` texts. Values of different classes are ordered by class: `ComparableTuple` (i.e. all numbers) first, then `String`, then all other classes ordered by their simple class names (`Class.getSimpleName`, case-sensitive); classes with the same simple name compare equal. Note that collation keys produced by the JDK are instances of a subclass of `java.text.CollationKey`, so in practice they fall into the 'other classes by simple name' group rather than a group of their own. Wrappers from different `TotalOrder` instances must not be mixed (checked only by Java assertions). Null wrappers are not allowed.",
+    "withStrictStringComparison()": "Returns an order that compares strings with `String.compareTo` (case-sensitive, UTF-16 code unit order).",
+    "withCaseInsensitiveStringComparison()": "Returns an order that compares strings after lower-casing them with the root locale. Strings differing only in case are equal.",
+    "withCaseInsensitiveStringComparison(java.util.Locale)": "Returns an order that compares strings after lower-casing them with the given locale (`String.toLowerCase(Locale)`); null means the root locale.",
+    "withCollatorStringComparison(java.util.Locale)": "Returns an order that compares strings with a new `java.text.Collator` for the locale (default strength and decomposition). A null locale throws `NullPointerException`; if no collator can be obtained, throws `IllegalArgumentException`.",
+    "withCollatorStringComparison(java.util.Locale, int)": "Like the one-argument form but sets the collator strength (one of the `Collator` strength constants, e.g. `Collator.PRIMARY`). An invalid strength throws `IllegalArgumentException` from the JDK.",
+    "withCollatorStringComparison(java.util.Locale, int, int)": "Like the two-argument form but also sets the collator decomposition mode (one of the `Collator` decomposition constants). Invalid values throw `IllegalArgumentException`.",
+    "withCollator(java.text.Collator)": "Returns an order that compares strings with the given collator, which is used as is (not copied). A null collator gives strict string comparison.",
+    "wrap(Object)": "Normalizes the value as described for the class and returns it in a new `ValueWrapper` bound to this order. Null is allowed and sorts last.",
+    "wrap(Object, Object)": "Like `wrap(Object)` but returns a `PayloadWrapper` that also carries an arbitrary payload (ignored for ordering), e.g. the row the value belongs to.",
+    "compare(Object, Object)": "Wraps both values with this order and compares them with `COMPARATOR`: negative, zero or positive as `o1` sorts before, equal to or after `o2`. For repeated comparisons, wrap once and sort the wrappers instead, since normalization (e.g. building collation keys) happens on every call."
+   }
+  },
+  "com.almworks.jira.structure.api.util.TotalOrder.PayloadWrapper": {
+   "summary": "A `TotalOrder.ValueWrapper` that also carries a payload object, so that items can be sorted by a value while keeping a reference to the item. Created by `TotalOrder.wrap(Object, Object)`. Immutable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.TotalOrder, Object, Object)": "Creates a wrapper under the enclosing order (implicit first parameter) with the given already-normalized value and the payload.",
+    "getPayload()": "Returns the payload given at creation (may be null).",
+    "toString()": "Returns the value text followed by the payload's text in parentheses, e.g. `(5)(row 12)`."
+   }
+  },
+  "com.almworks.jira.structure.api.util.TotalOrder.ValueWrapper": {
+   "summary": "A normalized value bound to the `TotalOrder` that produced it, comparable with `TotalOrder.COMPARATOR`. Inner class; normally created by `TotalOrder.wrap`. Immutable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.TotalOrder, Object)": "Creates a wrapper for the given value under the enclosing order (the implicit first parameter). The value is stored as is, without normalization, so use `TotalOrder.wrap` unless the value is already normalized.",
+    "getValue()": "Returns the stored (normalized) value: a `ComparableTuple` for numbers, a string or `java.text.CollationKey` for strings, the original object otherwise, or null.",
+    "getValueClass()": "Returns the runtime class of the stored value, or null when the value is null.",
+    "isComparable()": "True if the stored value implements `Comparable`.",
+    "getOrder()": "Returns the `TotalOrder` this wrapper belongs to.",
+    "toString()": "Returns `String.valueOf` of the stored value (e.g. `(5)` for the number 5, since numbers are stored as tuples)."
+   }
+  },
+  "com.almworks.jira.structure.api.util.TypeUtils": {
+   "summary": "Static helpers for generic class literals, null defaults and lenient number parsing. Stateless and thread-safe. Several methods are also re-exported by `StructureUtil`.",
+   "members": {
+    "<init>()": "Public constructor; the class has only static methods.",
+    "setType()": "Returns `java.util.Set.class` typed as `Class<Set<T>>`, for generic-safe casts such as `setType().cast(obj)`.",
+    "mapType()": "Returns `java.util.Map.class` typed as `Class<Map<K, V>>`.",
+    "listType()": "Returns `java.util.List.class` typed as `Class<List<T>>`.",
+    "nn(Long, long)": "Returns the unboxed value, or `defaultValue` if it is null.",
+    "nn(Integer, int)": "Returns the unboxed value, or `defaultValue` if it is null.",
+    "nnv(Object, Object)": "Returns `value` if non-null, otherwise `defaultValue` (which is expected to be non-null but is not checked).",
+    "lv(String, long)": "Parses the string as a decimal `long` with `Long.parseLong` (no trimming, optional leading sign); returns `defaultValue` if the string is null or not a valid number (including out-of-range values and surrounding spaces).",
+    "iv(String, int)": "Parses the string as a decimal `int` with `Integer.parseInt`; returns `defaultValue` if null or invalid (spaces, decimals, overflow).",
+    "lvn(String)": "Like `lv` but returns null instead of a default when the string is null or invalid.",
+    "ivn(String)": "Like `iv` but returns null when the string is null or invalid.",
+    "nn(String)": "Returns the string, or the empty string if it is null.",
+    "nnl(Long)": "Returns the unboxed value, or 0 if null.",
+    "nni(Integer)": "Returns the unboxed value, or 0 if null.",
+    "fitsIntoInt(long)": "True if the value lies within the `int` range (from -2147483648 to 2147483647 inclusive), i.e. converting it to `int` loses nothing."
+   }
+  }
+ }
+}

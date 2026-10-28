@@ -397,3 +397,11 @@ Resolved 2026-10-28:
   in `spec/`. It also requires `SPEC.md` to name every public API type, and every API test to be backed by an
   active claim (`analyst/api-test-claims.json`).
 
+**Part 2 as built (phase JS3, 2026-10-28, `docs/phase-JS3-summary.md`):**
+- The API's spec is its own file, `spec/API.md` (SPEC.md Part 2 points to it), because of its size (1.2 MB).
+- `analyst/build_api.py` generates it: every client-visible API type (566, member types included) and the two
+  OSGi-export types from the plugin jar, each with its Java declaration and one row per public or protected
+  member (3,997), read from the class files. Meanings come from `analyst/api-notes/*.json`, in the analyst's
+  own words. Stale notes and internal class names fail the build; `--check`, `--skeleton PKG`.
+- `check_spec.py` now wants a heading for every API type and package in API.md, with nothing pending
+  (counted per top-level type), instead of SPEC.md naming every type.

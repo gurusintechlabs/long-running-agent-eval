@@ -15,7 +15,7 @@ import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
 
 /**
- * The exact signatures of a sample of public API types, as spec/SPEC.md lists them (generated). The
+ * The exact signatures of a sample of public API types, as spec/API.md lists them (generated). The
  * replacement is measured against every public type. Copy this directory into src/test/java; these tests
  * must pass unchanged.
  *

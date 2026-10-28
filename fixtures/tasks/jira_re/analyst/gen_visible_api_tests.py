@@ -7,7 +7,7 @@ Writes ``hidden/api/visible/cleanroom/apitests/ApiSignatureSampleTest.java``: fo
 one JUnit test that checks, by reflection, that the rewrite declares the type with the original's kind,
 access, modifiers, superclass and interfaces, and every public or protected member with the original's
 erased descriptor and modifiers (the same surface ``hidden/_classfile.py`` compares; generic signatures and
-constant values are checked by the hidden tier only). The names are contract (spec/SPEC.md); the strings
+constant values are checked by the hidden tier only). The names are contract (spec/API.md); the strings
 come from the real API jar in ``vendor/api/``. Reflection only, so the file compiles before the API exists.
 
 ``prepare_seed.py`` copies ``hidden/api/visible/`` into the seed's ``spec/api-tests/``. ``--check`` writes
@@ -47,7 +47,7 @@ import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
 
 /**
- * The exact signatures of a sample of public API types, as spec/SPEC.md lists them (generated). The
+ * The exact signatures of a sample of public API types, as spec/API.md lists them (generated). The
  * replacement is measured against every public type. Copy this directory into src/test/java; these tests
  * must pass unchanged.
  *

@@ -1,0 +1,611 @@
+{
+ "packages": {
+  "com.almworks.jira.structure.api.effect": "Effects: serializable descriptions of a single change to Jira or to a structure (`StoredEffect`), the extension point that turns them into executable changes (`EffectProvider`, `Effect`, `EffectResponse`), and ready-made factory methods for common issue changes (`CoreEffects`). Effects are produced by effectors and applied later by the plugin's effector process engine.",
+  "com.almworks.jira.structure.api.effectbatch": "Internal bookkeeping for undo and redo of forest actions performed through generators. Types here are marked internal; they are public only so that the plugin's modules can share them, and third parties should not rely on them.",
+  "com.almworks.jira.structure.api.effector": "Effectors: an extension point for automation that walks a forest and proposes changes (effects) for the items in it. Contains the `Effector` module interface, the function it returns, the collector and context it receives, its response type and its well-known parameter names.",
+  "com.almworks.jira.structure.api.effector.instance": "Persistent effector instances: an effector module key plus saved parameters, optionally attached to a structure (they appear as effector rows in that structure). Provides the read model and a manager for creating, reading, updating and deleting them.",
+  "com.almworks.jira.structure.api.effector.process": "Effector processes: the asynchronous, persistent jobs that first compute a preview of effects and then apply them, with per-effect records and undo. Provides the process read model, its status lifecycle, the records and the manager service used to start, confirm, cancel, undo and query processes.",
+  "com.almworks.jira.structure.api.error": "Error reporting for the whole API: the checked `StructureException` with its builder, the `StructureError` code interface with categories, the built-in catalogue of error codes `StructureErrors`, and two auxiliary exception classes.",
+  "com.almworks.jira.structure.api.event": "Change notifications about Jira issues and links as seen by the plugin (`IssueEventBridge`, `IssueListener`, `JiraChangeEvent` and subclasses, `JiraChangeType`), plus two plain event objects the plugin publishes on the Jira event publisher (`StructureDeletedEvent`, `StructureItemConvertedEvent`)."
+ },
+ "types": {
+  "com.almworks.jira.structure.api.effect.CoreEffects": {
+   "summary": "Static factory methods that build `StoredEffect` values understood by the effect providers bundled with the plugin. It cannot be instantiated. Each method only builds an immutable description; nothing is changed until an effector process applies the effect, at which point the change is made on behalf of the process owner with Jira's normal issue update rules and permissions. Every result names a bundled provider module by its complete key (the plugin key followed by `:` and the module name given per method below) and carries the issue as parameter `issue` (the issue id, a `Long`). A null `issue` (or a null collection or custom field) causes a `NullPointerException`. The notification flag parameter is not set by these helpers. Methods that take a `CustomField` first check its type and throw `IllegalArgumentException` if the field's type is not the expected Jira custom field type (or, for version and group pickers, if its single/multiple setting does not match).",
+   "members": {
+    "emitWarning(com.almworks.jira.structure.api.util.I18nText, java.util.List)": "Builds a warning pseudo-effect. It is shown in the process preview but never applied and never produces an effect record; a preview that contains only warnings finishes without applying anything. Arguments: the localizable warning text (not null) and the identities of the items it concerns (not null, may be empty). Stored as module `warning-effect-provider` with parameters `i18nKey` (the text's key), `arguments` (the text's arguments converted with `String.valueOf`) and `affectedItems` (the item identities as strings).",
+    "assignIssue(com.atlassian.jira.issue.Issue, com.atlassian.jira.user.ApplicationUser)": "Builds an effect that sets the assignee of the given issue. Arguments: the issue (not null) and the new value; null means unassign. Stored as provider module `assignee-effect-provider` with parameter `assignee` holding the user key (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setIssueReporter(com.atlassian.jira.issue.Issue, com.atlassian.jira.user.ApplicationUser)": "Builds an effect that sets the reporter of the given issue. Arguments: the issue (not null) and the new value; null clears the reporter. Stored as provider module `reporter-effect-provider` with parameter `reporter` holding the user key (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setIssuePriority(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.priority.Priority)": "Builds an effect that sets the priority of the given issue. Arguments: the issue (not null) and the new value; null clears the priority. Stored as provider module `priority-effect-provider` with parameter `priority` holding the priority id (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setIssueDescription(com.atlassian.jira.issue.Issue, String)": "Builds an effect that sets the description of the given issue. Arguments: the issue (not null) and the new value; null clears it. Stored as provider module `description-effect-provider` with parameter `description` holding the text (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setIssueEnvironment(com.atlassian.jira.issue.Issue, String)": "Builds an effect that sets the environment field of the given issue. Arguments: the issue (not null) and the new value; null clears it. Stored as provider module `environment-effect-provider` with parameter `environment` holding the text (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setIssueResolution(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.resolution.Resolution)": "Builds an effect that sets the resolution of the given issue. Arguments: the issue (not null) and the new value; null clears (unresolves) it. Stored as provider module `resolution-effect-provider` with parameter `resolution` holding the resolution id (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setIssueSummary(com.atlassian.jira.issue.Issue, String)": "Builds an effect that sets the summary of the given issue. Arguments: the issue (not null) and the new value; null means no value (Jira rejects an empty summary, so the change is reported as a problem rather than applied). Stored as provider module `summary-effect-provider` with parameter `summary` holding the text (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setIssueDueDate(com.atlassian.jira.issue.Issue, java.util.Date)": "Builds an effect that sets the due date of the given issue. Arguments: the issue (not null) and the new value; null clears it. Stored as provider module `due-date-effect-provider` with parameter `dueDate` holding the date as epoch milliseconds (`Long`) (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setIssueResolutionDate(com.atlassian.jira.issue.Issue, java.util.Date)": "Deprecated. Builds an effect that sets the resolution date of the given issue. Arguments: the issue (not null) and the new value; null clears it. Stored as provider module `resolution-date-effect-provider` with parameter `resolutionDate` holding the date as epoch milliseconds (`Long`) (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value. Note: this release of the plugin registers no provider under that module key, so during preview the effect is replaced by a warning saying no provider exists, and it is never applied.",
+    "setIssueStatus(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.status.Status)": "Builds an effect that sets the status (through a workflow transition) of the given issue. Arguments: the issue (not null) and the new value; a null status is stored as an absent parameter, which the bundled provider rejects (the effect turns into a warning in the preview). Stored as provider module `status-effect-provider` with parameter `status` holding the status id (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setOriginalEstimate(com.atlassian.jira.issue.Issue, Long)": "Builds an effect that sets the original time estimate of the given issue. Arguments: the issue (not null) and the new value; null clears it. Stored as provider module `original-estimate-effect-provider` with parameter `originalEstimate` holding the duration in milliseconds (not seconds as Jira stores it; the bundled provider converts, and treats a zero estimate on the issue as no value) (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setRemainingEstimate(com.atlassian.jira.issue.Issue, Long)": "Builds an effect that sets the remaining time estimate of the given issue. Arguments: the issue (not null) and the new value; null clears it. Stored as provider module `remaining-estimate-effect-provider` with parameter `remainingEstimate` holding the duration in milliseconds (not seconds as Jira stores it; the bundled provider converts, and treats a zero estimate on the issue as no value) (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setSprint(com.atlassian.jira.issue.Issue, Long)": "Builds an effect that sets the agile sprint the issue belongs to of the given issue. Arguments: the issue (not null) and the new value; the second argument is the sprint id; null removes the issue from its sprint. Stored as provider module `sprint-effect-provider` with parameter `to` holding the sprint id (omitted when null). Applying it is a no-op when the issue already has that value; the undo effect restores the previous value.",
+    "setSingleSelectCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, com.atlassian.jira.issue.customfields.option.Option)": "Builds an effect that sets a single-value custom field (single select list). Arguments: the issue, the custom field (must be of Jira type `SelectCFType`, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `single-select-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding the option id (omitted when null). The undo effect restores the previous value.",
+    "setProjectPickerCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, com.atlassian.jira.project.Project)": "Builds an effect that sets a single-value custom field (project picker). Arguments: the issue, the custom field (must be of Jira type `ProjectCFType`, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `project-picker-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding the project id (omitted when null). The undo effect restores the previous value.",
+    "setSingleUserCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, com.atlassian.jira.user.ApplicationUser)": "Builds an effect that sets a single-value custom field (single user picker). Arguments: the issue, the custom field (must be of Jira type `UserCFType`, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `single-user-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding the user key (omitted when null). The undo effect restores the previous value.",
+    "setSingleVersionCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, com.atlassian.jira.project.version.Version)": "Builds an effect that sets a single-value custom field (version picker that allows one version). Arguments: the issue, the custom field (must be of Jira type `VersionCFType` configured as single-valued, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `single-version-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding the version id (omitted when null). The undo effect restores the previous value.",
+    "setTextCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, String)": "Builds an effect that sets a single-value custom field (text field). Arguments: the issue, the custom field (must be of Jira type `GenericTextCFType` or a subtype, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `text-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding the text (omitted when null). The undo effect restores the previous value.",
+    "setNumberCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, Number)": "Builds an effect that sets a single-value custom field (number field). Arguments: the issue, the custom field (must be of Jira type `NumberCFType`, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `number-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding the number; a `BigInteger` is first converted to `Long` and a `BigDecimal` to `Double`, other `Number` types are kept as is (omitted when null). The undo effect restores the previous value. Only `Integer`, `Long` and `Double` survive parameter validation: passing a `Float`, `Short`, `Byte` or other `Number` subtype makes the call fail with `IllegalArgumentException`.",
+    "setDateCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Date)": "Builds an effect that sets a single-value custom field (date picker). Arguments: the issue, the custom field (must be of Jira type `DateCFType`, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `date-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding epoch milliseconds (omitted when null). The undo effect restores the previous value.",
+    "setDateTimeCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Date)": "Builds an effect that sets a single-value custom field (date-time picker). Arguments: the issue, the custom field (must be of Jira type `DateTimeCFType`, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `date-time-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding epoch milliseconds (omitted when null). The undo effect restores the previous value.",
+    "setSingleGroupCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, com.atlassian.crowd.embedded.api.Group)": "Builds an effect that sets a single-value custom field (group picker that allows one group). Arguments: the issue, the custom field (must be of Jira type `MultiGroupCFType` configured as single-valued, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `single-group-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding the group name (omitted when null). The undo effect restores the previous value.",
+    "setCascadeCustomField(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, com.atlassian.jira.issue.customfields.option.Option)": "Builds an effect that sets a single-value custom field (cascading select). Arguments: the issue, the custom field (must be of Jira type `CascadingSelectCFType`, else `IllegalArgumentException`) and the new value; null clears the field. Stored as module `cascade-custom-field-effect-provider` with parameters `customField` (the field id string such as `customfield_10010`) and `value` holding the option id (a parent or a child option) (omitted when null). The undo effect restores the previous value.",
+    "setIssueLabels(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that replaces the whole value with exactly the given labels as the issue's Labels field. Arguments: the issue and the values (not null; may be empty). Values are reduced to their trimmed text with duplicates removed, order kept. Stored as module `labels-effect-provider` with parameter `set` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set. The collection parameter is not annotated, but null still fails with `NullPointerException`.",
+    "addIssueLabels(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that adds the given labels to the issue's Labels field. Arguments: the issue and the values (not null; may be empty). Values are reduced to their trimmed text with duplicates removed, order kept. Stored as module `labels-effect-provider` with parameter `add` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set. The collection parameter is not annotated, but null still fails with `NullPointerException`.",
+    "removeIssueLabels(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that removes the given labels from the issue's Labels field. Arguments: the issue and the values (not null; may be empty). Values are reduced to their trimmed text with duplicates removed, order kept. Stored as module `labels-effect-provider` with parameter `remove` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set. The collection parameter is not annotated, but null still fails with `NullPointerException`.",
+    "setIssueComponents(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that replaces the whole value with exactly the given components as the issue's Component/s. Arguments: the issue and the values (not null; may be empty). Values are reduced to component ids with duplicates removed, order kept. Stored as module `components-effect-provider` with parameter `set` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "addIssueComponents(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that adds the given components to the issue's Component/s. Arguments: the issue and the values (not null; may be empty). Values are reduced to component ids with duplicates removed, order kept. Stored as module `components-effect-provider` with parameter `add` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "removeIssueComponents(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that removes the given components from the issue's Component/s. Arguments: the issue and the values (not null; may be empty). Values are reduced to component ids with duplicates removed, order kept. Stored as module `components-effect-provider` with parameter `remove` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "setIssueAffectedVersions(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that replaces the whole value with exactly the given versions as the issue's Affects Version/s. Arguments: the issue and the values (not null; may be empty). Values are reduced to version ids with duplicates removed, order kept. Stored as module `affects-versions-effect-provider` with parameter `set` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "addIssueAffectedVersions(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that adds the given versions to the issue's Affects Version/s. Arguments: the issue and the values (not null; may be empty). Values are reduced to version ids with duplicates removed, order kept. Stored as module `affects-versions-effect-provider` with parameter `add` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "removeIssueAffectedVersions(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that removes the given versions from the issue's Affects Version/s. Arguments: the issue and the values (not null; may be empty). Values are reduced to version ids with duplicates removed, order kept. Stored as module `affects-versions-effect-provider` with parameter `remove` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "setIssueFixVersions(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that replaces the whole value with exactly the given versions as the issue's Fix Version/s. Arguments: the issue and the values (not null; may be empty). Values are reduced to version ids with duplicates removed, order kept. Stored as module `fix-versions-effect-provider` with parameter `set` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "addIssueFixVersions(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that adds the given versions to the issue's Fix Version/s. Arguments: the issue and the values (not null; may be empty). Values are reduced to version ids with duplicates removed, order kept. Stored as module `fix-versions-effect-provider` with parameter `add` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "removeIssueFixVersions(com.atlassian.jira.issue.Issue, java.util.Collection)": "Builds an effect that removes the given versions from the issue's Fix Version/s. Arguments: the issue and the values (not null; may be empty). Values are reduced to version ids with duplicates removed, order kept. Stored as module `fix-versions-effect-provider` with parameter `remove` holding that list. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "setCustomFieldVersions(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that replaces the whole value with exactly the given versions as a multi-version custom field. Arguments: the issue, the custom field (must be of Jira type `VersionCFType` configured as multi-valued, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to version ids with duplicates removed, order kept. Stored as module `multi-versions-custom-field-effect-provider` with parameter `set` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "addCustomFieldVersions(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that adds the given versions to a multi-version custom field. Arguments: the issue, the custom field (must be of Jira type `VersionCFType` configured as multi-valued, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to version ids with duplicates removed, order kept. Stored as module `multi-versions-custom-field-effect-provider` with parameter `add` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "removeCustomFieldVersions(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that removes the given versions from a multi-version custom field. Arguments: the issue, the custom field (must be of Jira type `VersionCFType` configured as multi-valued, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to version ids with duplicates removed, order kept. Stored as module `multi-versions-custom-field-effect-provider` with parameter `remove` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "setCustomFieldOptions(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that replaces the whole value with exactly the given options as a multi-select custom field. Arguments: the issue, the custom field (must be of Jira type `MultiSelectCFType` or a subtype such as checkboxes, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to option ids with duplicates removed, order kept. Stored as module `multi-select-custom-field-effect-provider` with parameter `set` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "addCustomFieldOptions(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that adds the given options to a multi-select custom field. Arguments: the issue, the custom field (must be of Jira type `MultiSelectCFType` or a subtype such as checkboxes, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to option ids with duplicates removed, order kept. Stored as module `multi-select-custom-field-effect-provider` with parameter `add` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "removeCustomFieldOptions(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that removes the given options from a multi-select custom field. Arguments: the issue, the custom field (must be of Jira type `MultiSelectCFType` or a subtype such as checkboxes, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to option ids with duplicates removed, order kept. Stored as module `multi-select-custom-field-effect-provider` with parameter `remove` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "setCustomFieldUsers(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that replaces the whole value with exactly the given users as a multi-user custom field. Arguments: the issue, the custom field (must be of Jira type `MultiUserCFType`, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to user keys with duplicates removed, order kept. Stored as module `multi-user-custom-field-effect-provider` with parameter `set` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "addCustomFieldUsers(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that adds the given users to a multi-user custom field. Arguments: the issue, the custom field (must be of Jira type `MultiUserCFType`, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to user keys with duplicates removed, order kept. Stored as module `multi-user-custom-field-effect-provider` with parameter `add` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "removeCustomFieldUsers(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that removes the given users from a multi-user custom field. Arguments: the issue, the custom field (must be of Jira type `MultiUserCFType`, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to user keys with duplicates removed, order kept. Stored as module `multi-user-custom-field-effect-provider` with parameter `remove` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "setCustomFieldGroups(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that replaces the whole value with exactly the given groups as a multi-group custom field. Arguments: the issue, the custom field (must be of Jira type `MultiGroupCFType` configured as multi-valued, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to group names with duplicates removed, order kept. Stored as module `multi-group-custom-field-effect-provider` with parameter `set` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "addCustomFieldGroups(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that adds the given groups to a multi-group custom field. Arguments: the issue, the custom field (must be of Jira type `MultiGroupCFType` configured as multi-valued, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to group names with duplicates removed, order kept. Stored as module `multi-group-custom-field-effect-provider` with parameter `add` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "removeCustomFieldGroups(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that removes the given groups from a multi-group custom field. Arguments: the issue, the custom field (must be of Jira type `MultiGroupCFType` configured as multi-valued, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to group names with duplicates removed, order kept. Stored as module `multi-group-custom-field-effect-provider` with parameter `remove` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "setCustomFieldLabels(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that replaces the whole value with exactly the given labels as a labels custom field. Arguments: the issue, the custom field (must be of Jira type `LabelsCFType`, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to their trimmed text with duplicates removed, order kept. Stored as module `multi-labels-custom-field-effect-provider` with parameter `set` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "addCustomFieldLabels(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that adds the given labels to a labels custom field. Arguments: the issue, the custom field (must be of Jira type `LabelsCFType`, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to their trimmed text with duplicates removed, order kept. Stored as module `multi-labels-custom-field-effect-provider` with parameter `add` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "removeCustomFieldLabels(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.fields.CustomField, java.util.Collection)": "Builds an effect that removes the given labels from a labels custom field. Arguments: the issue, the custom field (must be of Jira type `LabelsCFType`, else `IllegalArgumentException`) and the values (not null; may be empty). Values are reduced to their trimmed text with duplicates removed, order kept. Stored as module `multi-labels-custom-field-effect-provider` with parameter `remove` holding that list and `customField` holding the field id. Adding values already present or removing absent ones changes nothing. The undo effect restores the previous set.",
+    "addIssueComment(com.atlassian.jira.issue.Issue, String)": "Builds an effect that adds a comment to the issue. Arguments: the issue and the comment body (Jira wiki markup); a null or blank body makes the effect a no-op when applied. Stored as module `add-comment-effect-provider` with parameter `comment`. The comment is authored by the user applying the process. The undo effect deletes the created comment. When several comment effects target the same issue in one preview, only the last non-blank one is kept and the others are attached to it as conflicting alternatives.",
+    "deleteIssueComment(com.atlassian.jira.issue.Issue, com.atlassian.jira.issue.comments.Comment)": "Builds an effect that deletes an existing comment of the issue. Arguments: the issue and the comment (not null). Stored as module `delete-comment-effect-provider` with parameter `comment` holding the comment id. Applying fails with an error record if the comment cannot be found or the applying user may not delete it. The undo effect adds a new comment with the same body (a new comment id; original author and dates are not restored)."
+   }
+  },
+  "com.almworks.jira.structure.api.effect.Effect": {
+   "summary": "A ready-to-run change, returned inside a valid `EffectResponse` by an `EffectProvider`. Implemented by effect providers (usually as a lambda). The plugin calls it at most once, while applying an effector process, on a background thread with the process owner as the current user.",
+   "members": {
+    "apply()": "Performs the change and returns a `StoredEffect` that would undo it (the plugin saves it in the effect record and uses it for undo processes). Must not return null. Throw `StructureException` to report a failure: the plugin records an error record using the exception's localized text and continues with the next effect. Other runtime exceptions are also caught and recorded as a generic apply failure."
+   }
+  },
+  "com.almworks.jira.structure.api.effect.EffectProvider": {
+   "summary": "Extension point that knows how to validate, describe and execute one kind of `StoredEffect`. Other plugins register implementations as effect-provider modules in their plugin descriptor; a stored effect selects its provider by the module's complete key (`StoredEffect.getModuleKey()`). The plugin calls the provider while computing an effector preview (`optimize`, then `resolve` for validation) and again when applying (`resolve`, then `Effect.apply()`).",
+   "members": {
+    "resolve(com.almworks.jira.structure.api.effect.StoredEffect)": "Checks the stored effect against the current state of Jira and the current user's permissions and returns an `EffectResponse`: valid (with the executable `Effect`, a success message, a description and the affected items), error (with the reason), or empty (nothing to do, e.g. the value is already set). Must not return null and should not change anything itself. It may be called more than once for the same effect (once during preview, once just before applying). During preview an error response turns the effect into a warning and an empty response drops the effect (unless it carries a `conflicts` parameter); during apply an empty response produces no record and an error response produces an error record.",
+    "optimize(java.util.List)": "Given all effects of one preview that belong to this provider, in production order, returns the list to keep. Lets a provider merge or drop redundant effects (for example, several updates of the same field of the same issue). The default returns the input unchanged. The bundled providers keep the last value per issue and field and attach the overridden values to it as a `conflicts` parameter. Must not return null."
+   }
+  },
+  "com.almworks.jira.structure.api.effect.EffectResponse": {
+   "summary": "The outcome of `EffectProvider.resolve(StoredEffect)`: one of three immutable variants, `Valid`, `Error` or `Empty`, all of which carry a human-readable description of the effect and the list of affected items. Create instances with the static factories `valid`, `error` and `empty` (or the public constructors of `Error` and `Empty`); the base class itself cannot be instantiated or subclassed outside the API.",
+   "members": {
+    "getEffect()": "The executable effect. Null in the base class and in `Error` and `Empty`; only `Valid` returns a non-null value.",
+    "getAffectedItems()": "Identities of the items (typically issues) the effect touches; never null, possibly empty. The list is returned as given to the factory (not copied).",
+    "getDescription()": "Localizable text describing what the effect would do, used in previews. Never null.",
+    "getSuccessMessage()": "Localizable text to record after the effect was applied successfully. Null except in `Valid`.",
+    "getError()": "Localizable text explaining why the effect cannot be applied. Null except in `Error`.",
+    "isError()": "True only for the `Error` variant.",
+    "isEmpty()": "True only for the `Empty` variant, meaning there is nothing to change.",
+    "valid(com.almworks.jira.structure.api.effect.Effect, com.almworks.jira.structure.api.util.I18nText, com.almworks.jira.structure.api.util.I18nText, java.util.List)": "Creates a `Valid` response. Arguments in order: the executable effect, the success message, the description and the affected items. None should be null (not checked).",
+    "error(com.almworks.jira.structure.api.util.I18nText, com.almworks.jira.structure.api.util.I18nText, java.util.List)": "Creates an `Error` response. Arguments in order: the error text, the description and the affected items. None should be null (not checked).",
+    "empty(com.almworks.jira.structure.api.util.I18nText, java.util.List)": "Creates an `Empty` response meaning the effect would change nothing. Arguments: the description and the affected items. None should be null (not checked)."
+   }
+  },
+  "com.almworks.jira.structure.api.effect.EffectResponse.Empty": {
+   "summary": "Variant of `EffectResponse` meaning that applying the effect would change nothing. Immutable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.I18nText, java.util.List)": "Creates the response from a description and the affected items (both expected non-null, not checked). Same as `EffectResponse.empty`.",
+    "isEmpty()": "Always true."
+   }
+  },
+  "com.almworks.jira.structure.api.effect.EffectResponse.Error": {
+   "summary": "Variant of `EffectResponse` meaning that the effect cannot be applied, with the reason. Immutable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.I18nText, com.almworks.jira.structure.api.util.I18nText, java.util.List)": "Creates the response. Arguments in order: the error text, the description and the affected items (all expected non-null, not checked). Same as `EffectResponse.error`.",
+    "getError()": "The error text given at construction; never null.",
+    "isError()": "Always true."
+   }
+  },
+  "com.almworks.jira.structure.api.effect.EffectResponse.Valid": {
+   "summary": "Variant of `EffectResponse` carrying an executable `Effect` and the message to record on success. Immutable; obtained only through `EffectResponse.valid` (the constructor is private).",
+   "members": {
+    "getEffect()": "The executable effect given at creation; never null.",
+    "getSuccessMessage()": "The success message given at creation; never null."
+   }
+  },
+  "com.almworks.jira.structure.api.effect.StoredEffect": {
+   "summary": "An immutable, JSON-serializable description of one change: the complete module key of the `EffectProvider` that understands it, plus a map of parameters. Effectors produce these, previews and effect records store them, and undo uses them. Create with `builder(String)`, `CoreEffects`, or the constructor (also used for JSON deserialization with properties `moduleKey` and `parameters`). Instances are value objects: equality and hash code use the module key and parameters.",
+   "members": {
+    "<init>(String, java.util.Map)": "Creates a stored effect. Arguments: the provider's complete module key (expected non-null, not checked) and the parameters. The parameters are deep-copied into an unmodifiable map, keeping insertion order; null or empty means no parameters. Every key must be a `String` and every value must be non-null and one of `String`, `Integer`, `Long`, `Double`, `Boolean`, a list of such values or a map with string keys of such values (nested to any depth); otherwise `IllegalArgumentException` is thrown.",
+    "getModuleKey()": "The complete module key (plugin key, `:`, module key) of the effect provider that must handle this effect. Never null.",
+    "getParameters()": "The effect's parameters as an unmodifiable map (nested lists and maps are also unmodifiable). Never null; empty if there are none.",
+    "builder(String)": "Returns a new mutable `Builder` with the given module key and no parameters.",
+    "equals(Object)": "True if the other object is a `StoredEffect` with an equal module key and equal parameters.",
+    "toString()": "Debug text containing the module key and parameters; the format is not a contract.",
+    "hashCode()": "Hash code consistent with `equals`, computed from the module key and parameters."
+   }
+  },
+  "com.almworks.jira.structure.api.effect.StoredEffect.Builder": {
+   "summary": "Mutable, non-thread-safe builder for `StoredEffect`. Can be reused: each `build()` makes an independent immutable copy.",
+   "members": {
+    "<init>(String)": "Starts a builder with the given module key and no parameters.",
+    "<init>(com.almworks.jira.structure.api.effect.StoredEffect)": "Starts a builder pre-filled with the module key and all parameters of an existing stored effect, to derive a modified copy.",
+    "setModuleKey(String)": "Replaces the module key. Returns this builder.",
+    "setParameter(String, Object)": "Sets the parameter with the given key to the value; a null value removes the parameter instead. Values are validated only at `build()`. Returns this builder.",
+    "build()": "Creates the immutable `StoredEffect` from the current module key and parameters. Throws `IllegalArgumentException` if a parameter value is not of an allowed type (see the `StoredEffect` constructor)."
+   }
+  },
+  "com.almworks.jira.structure.api.effectbatch.EffectBatch": {
+   "summary": "Internal record of the effects of one user action performed on a generated forest (for example moving rows that makes generators change issues), kept so that the action can be undone and redone. Created by the plugin's forest engine and stored in `EffectService`. Fields are public and partly mutable; instances are synchronized on by the plugin while undoing or redoing. Not intended for third-party use.",
+   "members": {
+    "spec": "The forest specification the action was performed on.",
+    "version": "The forest version right after the action; undo/redo re-applies row replacements only if the forest's version signature still matches.",
+    "movedRows": "Ids of the rows the user moved in the action.",
+    "effects": "The generator effects performed, in order, each with its inverse.",
+    "redoReplace": "Rows to substitute in the forest when the batch is redone; null if not applicable.",
+    "undoReplace": "Rows to substitute in the forest when the batch is undone; null if not applicable.",
+    "state": "Whether the batch is currently applied or undone; starts as `APPLIED` and is updated by undo/redo.",
+    "timestamp": "Time of creation or last undo/redo, from `System.nanoTime()` (only meaningful for comparisons within one JVM). Used to expire batches.",
+    "userKey": "Key of the user who performed the action (the current user at construction; may be null for anonymous).",
+    "<init>(com.almworks.jira.structure.api.forest.ForestSpec, com.almworks.jira.structure.api.pull.DataVersion, com.almworks.integers.LongIterable, com.almworks.jira.structure.api.effectbatch.RowsToReplace, com.almworks.jira.structure.api.effectbatch.RowsToReplace, java.util.List)": "Creates a batch from, in order: the forest spec, the forest version, the moved rows, the redo replacement, the undo replacement and the effect pairs. Sets state to `APPLIED`, the timestamp to now and the user key to the current user.",
+    "getTimestamp()": "Same as the `timestamp` field.",
+    "getUserKey()": "Same as the `userKey` field."
+   }
+  },
+  "com.almworks.jira.structure.api.effectbatch.EffectPair": {
+   "summary": "Internal: one generator effect performed as part of an `EffectBatch`, with the effect that reverses it. Immutable.",
+   "members": {
+    "generatorRowId": "Row id of the generator that produced the effect; used to report problems against that row.",
+    "external": "True if the effect changes data outside the forest (for example a Jira issue field) rather than only the forest itself.",
+    "effect": "The effect as performed (re-run on redo).",
+    "inverse": "The effect that reverses it (run on undo); null if it cannot be undone.",
+    "<init>(long, boolean, com.almworks.jira.structure.api.generator.ActionEffect, com.almworks.jira.structure.api.generator.ActionEffect)": "Creates a pair from, in order: generator row id, external flag, effect, inverse (nullable)."
+   }
+  },
+  "com.almworks.jira.structure.api.effectbatch.EffectService": {
+   "summary": "Internal store of recent `EffectBatch` objects for undo/redo of forest actions. The plugin's implementation keeps them in memory only (lost on restart), and expires batches older than about 71 seconds since their last use (configurable). Not intended for third-party use.",
+   "members": {
+    "recordBatch(com.almworks.jira.structure.api.effectbatch.EffectBatch)": "Stores the batch and returns a new id for it. Ids are unique within the running node; the high 32 bits identify the node's runtime instance.",
+    "loadBatch(long)": "Returns the batch with the given id, or null if it does not exist, has expired, was recorded by another runtime instance, or belongs to a different user than the current one (unless security checks are overridden)."
+   }
+  },
+  "com.almworks.jira.structure.api.effectbatch.EffectState": {
+   "summary": "Internal: whether an `EffectBatch` is currently in effect or reverted.",
+   "members": {
+    "APPLIED": "The batch's effects are in effect (initial state, and after redo).",
+    "UNDONE": "The batch's effects have been reversed by undo.",
+    "values()": "",
+    "valueOf(String)": ""
+   }
+  },
+  "com.almworks.jira.structure.api.effectbatch.RowsToReplace": {
+   "summary": "Internal undo/redo helper describing which forest fragments must be re-inserted and how old row ids map to new ones when generated rows are replaced. Also acts as a row-to-generator function (`LongToLong`). Fields are public and mutable; the plugin updates them during undo/redo.",
+   "members": {
+    "forests": "Forest fragments to insert, keyed by the id of the parent row they belong under (0 for the top level).",
+    "replacements": "Mapping from old row ids to the row ids that replace them.",
+    "replacingGenerator": "The generator row id to report for every row when `replacingGenerators` is null.",
+    "replacingGenerators": "Per-row mapping from row id to the generator row id responsible for it; null means use `replacingGenerator` for all rows.",
+    "<init>(com.almworks.jira.structure.api.forest.raw.Forest, long, com.almworks.integers.wrappers.LongLongHppcOpenHashMap, long, com.almworks.integers.wrappers.LongLongHppcOpenHashMap)": "Creates the object for a single fragment. Arguments in order: the fragment, the parent row id it goes under, the row id replacements, the single replacing generator id, and the per-row generator map (nullable).",
+    "<init>(com.almworks.integers.LongObjMap, com.almworks.integers.wrappers.LongLongHppcOpenHashMap, long, com.almworks.integers.wrappers.LongLongHppcOpenHashMap)": "Creates the object from, in order: fragments keyed by parent row id, the row id replacements, the single replacing generator id and the per-row generator map (nullable). Arguments are stored as given.",
+    "invoke(long)": "Returns the generator row id responsible for the given row: `replacingGenerator` if there is no per-row map, otherwise the mapped value (0 when the row is not in the map)."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.CoreEffectorParameters": {
+   "summary": "Names of parameters shared by the effectors bundled with the plugin and by its effector configuration UI. Constants only; instantiating the class is possible but useless.",
+   "members": {
+    "FIELD_ID": "Parameter `fieldId`: the target Jira field id (system field id or `customfield_NNNNN`).",
+    "ATTRIBUTE_JSON": "Parameter `attributeJson`: the source attribute specification, serialized as JSON.",
+    "JQL": "Parameter `jql`: a JQL query restricting which issues the effector acts on.",
+    "NAME_PARAM": "Parameter `effectorName`: the user-given display name of an effector instance. When set and not blank, the plugin shows it instead of the generated summary; the plugin's edit form stores it in the instance parameters.",
+    "SEND_NOTIFICATIONS": "Parameter `sendNotifications`: boolean, whether Jira should send notifications for the issue updates the effects make.",
+    "COLLECTION_OPERATION": "Parameter `collectionOperation`: for multi-value fields, which operation to perform, one of `set`, `add` or `remove` (the bundled forms default to `set`).",
+    "<init>()": "Default constructor; the class has no instance state."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.EffectCollector": {
+   "summary": "Sink that receives the effects an `EffectorFunction` produces. Implemented by the plugin and passed to `EffectorFunction.produceEffects`; not thread-safe, so call it only from the thread that invoked the function.",
+   "members": {
+    "addEffect(com.almworks.jira.structure.api.effect.StoredEffect)": "Appends an effect to the process preview, after any previously added effects. The order of addition is the preview order (before providers' `optimize` regroups effects by provider module key, keeping the first-seen order of keys). Use `CoreEffects.emitWarning` to add a warning instead of a change."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.Effector": {
+   "summary": "Extension point for an automation that inspects a forest and proposes changes. Other plugins register implementations as effector modules in their plugin descriptor; the module's complete key identifies the effector in effector instances and processes. The plugin calls `getEffectorFunction` when an effector process starts calculating; the form and summary methods are called by the plugin's configuration UI; `isAvailable` decides whether the effector is offered to users.",
+   "members": {
+    "getEffectorFunction(java.util.Map, com.almworks.jira.structure.api.effector.EffectorContext)": "Validates the saved parameters and prepares the function that will produce effects. Arguments: the instance or one-off parameters (never null, possibly empty) and the context, through which the effector must request any attribute values it needs (requests made after this method returns are ignored). Return `EffectorFunctionResponse.valid` with the function, or an errors response; error texts are turned into warnings in the preview and the effector produces no effects. Called on a background thread with the process owner as the current user; must not return null.",
+    "isAvailable()": "Whether the effector may be offered and configured on this system. Unavailable effectors are hidden from the list of effectors in the UI. Default: true.",
+    "addDefaultFormParameters(java.util.Map)": "Fills the template variables for the configuration form of a new effector instance. The argument is the mutable map of form variables. Throw `EffectorUnavailableException` if the effector cannot be configured now; its localized message is shown to the user.",
+    "addParametersToForm(java.util.Map, java.util.Map)": "Fills the configuration form for editing an existing instance. Arguments: the saved instance parameters (read-only) and the mutable map of form variables to fill. Throw `EffectorUnavailableException` if the effector cannot be configured now.",
+    "buildParametersFromForm(java.util.Map, com.atlassian.jira.util.ErrorCollection)": "Converts submitted form values into instance parameters. Arguments: the submitted form (keys are field names, values usually arrays of strings as delivered by the web layer) and an error collection to which validation errors are added (field errors appear next to the fields; any error makes the plugin show the form again instead of saving). Returns the parameters to save; must not return null and values must be JSON-compatible. The plugin adds `effectorName` itself. Throw `EffectorUnavailableException` if the effector cannot be configured now.",
+    "addParametersForSummary(java.util.Map, java.util.Map)": "Adds values used to render the short human-readable summary of an instance. Arguments: the saved instance parameters and the mutable map of summary template values to fill. Default does nothing. Not called when the instance has a non-blank `effectorName`.",
+    "addPlaceholdersForSummaryTemplate(java.util.Map)": "Adds placeholder strings for each summary template value so the UI can render a generic summary template, for example mapping `applyDelay` to `{applyDelay}`. The argument is the mutable map to fill. Default does nothing."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.EffectorContext": {
+   "summary": "Context passed to `Effector.getEffectorFunction`. Implemented by the plugin, one per process; not thread-safe.",
+   "members": {
+    "requireAttribute(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Declares that the effector function needs the given attribute. The plugin loads all declared attributes for all rows of the forest in one consistent snapshot and passes them as `RowValues` to `EffectorFunction.produceEffects`. Calling it more than once with the same spec has no extra effect.",
+    "getForestSpec()": "The forest the process runs on: for effector instances, the structure that owns the instances; for one-off runs, the forest spec given to `EffectorProcessManager.startProcess`. Never null."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.EffectorFunction": {
+   "summary": "The working part of an effector, returned by `Effector.getEffectorFunction` inside a valid `EffectorFunctionResponse`. Implemented by effector authors. Called once per process (per instance) on a background thread with the process owner as the current user.",
+   "members": {
+    "produceEffects(com.almworks.jira.structure.api.forest.item.ItemForest, com.almworks.jira.structure.api.attribute.RowValues, com.almworks.jira.structure.api.effector.EffectCollector, com.almworks.jira.structure.api.process.ProgressSink)": "Inspects the forest and adds proposed effects to the collector. Arguments: the forest with its items (for an effector instance, the sub-forest under the parent of the instance's row, or the whole forest if the row is at top level; for a one-off run, the whole forest), the values of the attributes requested via `EffectorContext.requireAttribute` (for all rows of the full forest), the collector, and a progress sink to report progress and to check for cancellation. Should stop early when the sink reports cancellation. Must not modify anything itself. An exception thrown here fails the calculation (status `CALCULATION_FAILED`) with the exception's message."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.EffectorFunctionResponse": {
+   "summary": "Result of `Effector.getEffectorFunction`: either `Valid` with a function or `Errors` with at least one message. Immutable; created only through the static factories (the constructor is private, so there are no other subclasses).",
+   "members": {
+    "valid(com.almworks.jira.structure.api.effector.EffectorFunction)": "Returns a `Valid` response wrapping the function (expected non-null, not checked).",
+    "error(String, Object[])": "Returns an `Errors` response with one message, built from an i18n key and its arguments.",
+    "errors(com.almworks.jira.structure.api.util.I18nText[])": "Returns an `Errors` response with the given messages in order. Throws `IllegalArgumentException` if none are given.",
+    "errors(java.util.List)": "Returns an `Errors` response with the given messages in order (the list is kept, not copied). Throws `IllegalArgumentException` if the list is empty."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.EffectorFunctionResponse.Errors": {
+   "summary": "Failure variant of `EffectorFunctionResponse`. Each message becomes a warning in the process preview.",
+   "members": {
+    "getErrors()": "The error messages, never null or empty."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.EffectorFunctionResponse.Valid": {
+   "summary": "Success variant of `EffectorFunctionResponse`.",
+   "members": {
+    "getEffectorFunction()": "The function to run; never null when created properly."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.EffectorUnavailableException": {
+   "summary": "Checked exception an `Effector` throws from its form methods when it cannot be configured at the moment (for example a required feature or another plugin is missing). Carries a separate message for logs and for users.",
+   "members": {
+    "<init>(String)": "Creates the exception with one text used both as the log message and as the user-facing localized message.",
+    "<init>(String, String)": "Creates the exception with a log message (first argument) and a user-facing, already localized message (second argument).",
+    "getLocalizedMessage()": "The user-facing message given at construction (equal to `getMessage()` when the one-argument constructor was used). The plugin shows it as the error of the configuration dialog."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.instance.EffectorInstance": {
+   "summary": "A saved effector configuration: effector module key, parameters and the owning structure. Instances are created by the plugin (returned by `EffectorInstanceManager.getEffectorInstance`) and are immutable value objects; equality covers all four properties. In a forest an effector instance appears as an item of the effector item type with the same id.",
+   "members": {
+    "getId()": "The instance id, a positive number assigned at creation; also the id of the corresponding effector item.",
+    "getModuleKey()": "Complete module key of the `Effector` this instance runs. Never null.",
+    "getParameters()": "The saved parameters as an unmodifiable map (empty if none were saved). Never null.",
+    "getOwningStructure()": "Id of the structure the instance belongs to, or null if it is not attached to any structure. Only instances with an owning structure can be run."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.instance.EffectorInstanceManager": {
+   "summary": "Service for persisting effector instances. Implemented by the plugin and obtained as an OSGi component (injection). Data is stored in the plugin's database tables and cached. Changes are recorded as item changes so that forests showing the instances refresh. Note: the implementation performs no permission checks; callers must check that the current user may configure effectors in the owning structure.",
+   "members": {
+    "createEffectorInstance(String, java.util.Map, Long)": "Creates and saves a new instance and returns its id. Arguments: the effector's complete module key (not checked against installed effectors), the parameters (null or empty stores none; must be serializable to JSON) and the owning structure id (nullable). The plugin's implementation never throws `StructureException` here; it fails with an unchecked exception if the plugin is stopped or storage fails.",
+    "getEffectorInstance(long)": "Returns the instance with the given id. Throws `StructureException` (a storage error) if loading fails. Although declared not-null, the plugin's implementation returns null when no instance has that id; callers should handle null.",
+    "updateEffectorInstance(long, String, java.util.Map, Long)": "Replaces the module key, parameters and owning structure of an existing instance. Arguments in order: instance id, new module key, new parameters (null or empty clears them), new owning structure id (null detaches). Throws `StructureException` with `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE` if the id does not exist.",
+    "deleteEffectorInstance(long)": "Deletes the instance with the given id. Deleting a missing id silently does nothing. Does not remove rows referring to it from forests."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.process.EffectRecord": {
+   "summary": "The persisted result of applying one preview effect in an effector process: success message or error, the undo effect and the affected items. Created by the plugin while applying and read through `EffectorProcessManager.getEffectRecords`. Immutable value object.",
+   "members": {
+    "getProcessId()": "Id of the effector process the record belongs to.",
+    "getEffectMessage()": "On success, the provider's success message; on failure, the error message. Never null.",
+    "isError()": "True if the effect could not be applied (no provider, provider returned an error, or applying threw).",
+    "getUndoEffect()": "The effect that reverses this change, as returned by `Effect.apply()`; null for error records.",
+    "getAffectedItems()": "Identities of the items the effect touched, as reported by the provider; never null (empty if unknown, e.g. when no provider was found).",
+    "getTimestamp()": "When the effect was applied, in epoch milliseconds.",
+    "getPreviewIndex()": "Zero-based index of the effect in the process preview list (`EffectorPreview.getPreviewEffects()`); used to resume interrupted processes and to select records for undo."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.process.EffectorPreview": {
+   "summary": "The calculated outcome of the calculation phase of an effector process: the list of effects that will be applied, or the errors that stopped the calculation. Immutable as returned by the plugin.",
+   "members": {
+    "getErrors()": "Errors that made the calculation fail (status `CALCULATION_FAILED`). Never null; empty when calculation succeeded.",
+    "getPreviewEffects()": "The effects to apply, in application order, after provider optimization and validation; may include warning pseudo-effects, which are shown but not applied. Never null."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.process.EffectorProcess": {
+   "summary": "A snapshot of an effector process: a persistent background job that first calculates a preview of effects and then applies them. Returned by `EffectorProcessManager`; immutable, so re-read it to see progress. Progress percentages and cancellation are tracked by a separate process handle.",
+   "members": {
+    "getId()": "The process id (positive).",
+    "getProcessHandleId()": "Id of the plugin's generic process handle that tracks this process's progress and cancellation in the UI.",
+    "getEffectorPreview()": "The preview, if one is stored: set when calculation finishes or fails, and cleared (null) again when the process completes or is stopped. Null while pending or calculating.",
+    "getStatus()": "The current status (see `EffectorProcess.Status`). Never null.",
+    "getUserKey()": "Key of the user who started the process; effects are applied on that user's behalf. Never null.",
+    "getStartTime()": "Epoch milliseconds when calculation started, overwritten with the time applying started; null if the process has not started yet.",
+    "getFinishTime()": "Epoch milliseconds when the last phase ended (calculation finished, failed or stopped; applying completed or stopped). Reset to null while applying is in progress; null before the first phase ends.",
+    "getRevertedProcessId()": "For an undo process, the id of the process it reverts; null for normal processes.",
+    "isAcknowledged()": "True once the owner has dismissed the finished process (see `EffectorProcessManager.acknowledgeFinished`). Unacknowledged processes are those listed by `getRunningProcessesForUser`."
+   }
+  },
+  "com.almworks.jira.structure.api.effector.process.EffectorProcess.Status": {
+   "summary": "Lifecycle status of an effector process. Normal flow: `PENDING` -> `CALCULATING` -> `CALCULATED` (only when confirmation is required) -> `QUEUED` -> `IN_PROGRESS` -> `COMPLETED` or `COMPLETED_WITH_ERRORS`. A process whose preview is empty or contains only warnings goes straight to `COMPLETED`.",
+   "members": {
+    "PENDING": "Created and waiting for its calculation to start.",
+    "CALCULATING": "The effectors are running and the preview is being computed.",
+    "CALCULATED": "The preview is ready and waits for the user to confirm (`confirm`) or discard (`deleteCalculated`).",
+    "CALCULATION_FAILED": "Calculation failed; the errors are in the preview's `getErrors()`.",
+    "CALCULATION_STOPPED": "Calculation was cancelled by the user, or abandoned because the node restarted while calculating.",
+    "QUEUED": "Waiting in the apply queue; processes are applied one at a time, oldest queued first.",
+    "IN_PROGRESS": "Effects are being applied.",
+    "COMPLETED": "Applying finished with no error records (also used for previews with nothing to apply).",
+    "COMPLETED_WITH_ERRORS": "Applying finished but at least one effect produced an error record, or applying aborted with an unexpected error.",
+    "APPLY_INTERRUPTED": "Applying (or waiting in the queue) was cut short by a node shutdown or failover; can be continued with `resumeInterrupted`.",
+    "APPLY_STOPPED": "Applying was cancelled by the user; the effects already applied stay applied.",
+    "values()": "",
+    "valueOf(String)": ""
+   }
+  },
+  "com.almworks.jira.structure.api.effector.process.EffectorProcessManager": {
+   "summary": "Service to start, observe and control effector processes. Implemented by the plugin and obtained as an OSGi component (injection). All methods act as the current user. Processes are stored in the database and run on background jobs: calculation runs right after start; applying is done by a periodic job (about every 2 seconds) that takes one queued process at a time, cluster-wide on a single node. Methods that take a process id throw `StructureException` (not found or not accessible) unless the current user started the process, is a Jira administrator, or security checks are overridden.",
+   "members": {
+    "validateStartProcess(java.util.List, long)": "Checks, without starting anything, that the current user may run the given effector instances from the given structure. Same checks and exceptions as `startProcess(List, long, boolean)`.",
+    "validateStartProcess(String, java.util.Map, com.almworks.jira.structure.api.forest.ForestSpec)": "Checks, without starting anything, that the current user may run a one-off effector. Same checks and exceptions as `startProcess(String, Map, ForestSpec, boolean)`; the parameters are not validated.",
+    "startProcess(java.util.List, long, boolean)": "Starts a process that runs the given saved effector instances and returns its id. Arguments: the instances (not empty), the id of the structure the user runs them from, and whether the preview must be confirmed before applying (if false, a non-empty preview is queued for applying automatically). Instances are evaluated in forest order by depth, then position; each sees the sub-forest under its row's parent. Throws `StructureException` with `EFFECTOR_EXECUTION_DENIED` if the user lacks the global permission to execute effectors, or if an instance belongs to a structure other than the given one and the user lacks the permission to run effectors on queries; with `INVALID_PARAMETER` if the list is empty, an instance's module is not installed or an instance has no owning structure; with `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` if the user cannot view an owning structure. Problems found later (instance row missing or duplicated in the forest) make the process fail with `CALCULATION_FAILED`.",
+    "startProcess(String, java.util.Map, com.almworks.jira.structure.api.forest.ForestSpec, boolean)": "Starts a one-off process that runs an effector with the given parameters over the given forest, without a saved instance, and returns its id. Arguments: the effector's complete module key, its parameters, the forest spec and the confirmation flag (as above). Throws `StructureException` with `EFFECTOR_EXECUTION_DENIED` if the user lacks the global permission to execute effectors or the permission to run effectors on queries; `INVALID_PARAMETER` if no such effector is installed; `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` if the forest spec refers to a structure the user cannot view.",
+    "startUndoProcess(long, java.util.Collection)": "Starts a process that reverts the applied effects of a finished process and returns the new process id. Arguments: the process to revert and the preview indexes of the records to revert (null means all successful records). The undo effects of the selected successful records are queued for applying immediately, without confirmation, in record order. Throws `StructureException`: `EFFECTOR_EXECUTION_DENIED` without the global execute permission; not-found if the process is not accessible; `INVALID_PARAMETER` if the process status is not `COMPLETED`, `COMPLETED_WITH_ERRORS`, `APPLY_INTERRUPTED` or `APPLY_STOPPED`, or if no successful record matches.",
+    "getProcess(long)": "Returns the current snapshot of the process. Throws `StructureException` if it does not exist or the current user may not see it.",
+    "getEffectRecords(long)": "Returns the records of all effects applied so far by the process (successes and errors). Order: Not determined (database order, in practice usually application order); use `getPreviewIndex()` to sort. Same access check as `getProcess`.",
+    "confirm(long)": "Confirms a calculated preview so that it is queued for applying. Throws `StructureException` with `INVALID_PARAMETER` if the status is not `CALCULATED`, the preview is missing or it has no effects; with `GENERIC_ERROR` if the status changed concurrently. If the preview contains only warnings, the process is completed instead and nothing is queued.",
+    "confirm(long, java.util.Collection)": "Deprecated. Like `confirm(long)`, but when the second argument is not null only the preview effects at those zero-based indexes are kept (out-of-range indexes are ignored; `INVALID_PARAMETER` if none remain) and the stored preview is replaced by that subset before queuing. Null applies all effects.",
+    "cancel(long)": "Requests cancellation of a calculating or applying process. Asynchronous: the job notices the request at its next check and the status becomes `CALCULATION_STOPPED` or `APPLY_STOPPED`. Effects already applied are not reverted. A queued process that was cancelled stops as soon as applying begins (`APPLY_STOPPED`). Not determined: the effect on a process waiting for confirmation (`CALCULATED`). Throws `StructureException` with `GENERIC_ERROR` if the process handle cannot be found.",
+    "acknowledgeFinished(long)": "Marks a finished process (status `COMPLETED`, `COMPLETED_WITH_ERRORS`, `APPLY_INTERRUPTED` or `APPLY_STOPPED`) as acknowledged, removing it from `getRunningProcessesForUser`. Throws `StructureException` with `GENERIC_ERROR` if the process is in another status.",
+    "deleteCalculated(long)": "Deletes a process whose status is `CALCULATED`, `CALCULATION_STOPPED` or `CALCULATION_FAILED`, together with its process handle (used to discard a preview). Throws `StructureException` with `GENERIC_ERROR` if the process is in another status.",
+    "resumeInterrupted(long)": "Puts an `APPLY_INTERRUPTED` process back into the apply queue (status `QUEUED`, acknowledged flag cleared); applying continues with the preview effects that have no record yet. Throws `StructureException` with `GENERIC_ERROR` if the process is in another status.",
+    "findProcesses(com.atlassian.jira.user.ApplicationUser, com.almworks.jira.structure.api.effector.process.EffectorProcess.Status, Long)": "Returns processes matching all given filters, newest first: started by the given user (null = any user), in the given status (null = any) and for the given structure id (null = any; matches the structure of instance runs or the structure in a one-off run's forest spec). Never null. Note: performs no permission check, so any caller can list other users' processes.",
+    "getRunningProcessesForUser(com.atlassian.jira.user.ApplicationUser)": "Returns all processes of the given user that are not yet acknowledged (running, waiting or finished but not dismissed), newest first. Never null. Performs no permission check."
+   }
+  },
+  "com.almworks.jira.structure.api.error.StructureError": {
+   "summary": "An error code: a numeric code plus a category. The built-in codes are the `StructureErrors` enum; other plugins may implement this interface (typically with an enum) for their own codes, annotated with `CodeRange` to declare the range they use. Default methods offer shortcuts for building a `StructureException` with this code, e.g. `StructureErrors.INVALID_PARAMETER.forStructure(id).withMessage(...)`.",
+   "members": {
+    "getCode()": "The numeric error code. Codes are meant to be unique across all error enums; the built-in ones lie in 0..6999.",
+    "getCategory()": "The broad category of the error, used to choose a reaction (for example an HTTP status). Should not be null.",
+    "name()": "A symbolic name for logs and messages. Default: `error#` followed by the code; enum implementations return the constant name instead.",
+    "is(com.almworks.jira.structure.api.error.StructureErrorCategory)": "True if this error's category is the given one.",
+    "isOneOf(com.almworks.jira.structure.api.error.StructureErrorCategory[])": "True if this error's category equals any of the given categories; false for an empty argument list.",
+    "isOneOf(com.almworks.jira.structure.api.error.StructureError[])": "True if this error equals (by `equals`) any of the given errors; false for an empty argument list.",
+    "builder()": "Returns a new `StructureException.Builder` for this error.",
+    "withLocalizedMessage(String, Object[])": "Shortcut: builds an exception with this error and a localizable message from an i18n key and arguments. Returns the exception; does not throw it.",
+    "withMessage(String)": "Shortcut: builds an exception with this error and a plain, non-localized message (nullable). Returns the exception.",
+    "withoutMessage()": "Shortcut: builds an exception with this error and no message. Returns the exception.",
+    "forStructure(Long)": "Starts a builder for this error that refers to the given structure id (nullable).",
+    "forView(Long)": "Starts a builder for this error that refers to the given view id (nullable).",
+    "forRow(Long)": "Starts a builder for this error that refers to the given row id (nullable).",
+    "forItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Starts a builder for this error that refers to the given item (nullable).",
+    "forIssue(long)": "Starts a builder for this error that refers to the issue item with the given id.",
+    "causedBy(Throwable)": "Starts a builder for this error with the given cause (nullable)."
+   }
+  },
+  "com.almworks.jira.structure.api.error.StructureError.CodeRange": {
+   "summary": "Annotation for a `StructureError` implementation type that declares the inclusive range of codes it uses, so that ranges of different code sets do not overlap. Retained at runtime; applies to types only.",
+   "members": {
+    "from()": "Lowest code in the range (inclusive).",
+    "to()": "Highest code in the range (inclusive)."
+   }
+  },
+  "com.almworks.jira.structure.api.error.StructureErrorCategory": {
+   "summary": "Broad classes of errors, used to decide how to react (for example which HTTP status to send).",
+   "members": {
+    "GENERAL": "Any problem not covered by the other categories, usually a failed operation.",
+    "INVALID_INPUT": "The caller supplied a bad argument or an operation that is not valid in the current state.",
+    "NO_PERMISSION": "The current user is not allowed to perform the operation.",
+    "NOT_FOUND": "The requested object does not exist or the user may not see it (the two cases are deliberately not distinguished).",
+    "INTERNAL": "An internal failure, such as failing to obtain a lock.",
+    "values()": "",
+    "valueOf(String)": ""
+   }
+  },
+  "com.almworks.jira.structure.api.error.StructureErrors": {
+   "summary": "The built-in error codes, in range 0..6999 (`CodeRange`). Each constant has a fixed numeric code and category; codes and categories are part of the contract (clients and the REST layer see them). `name()` returns the constant name.",
+   "members": {
+    "GENERIC_ERROR": "Unspecified failure; also used when a `StructureException` is created with a null error.",
+    "LICENSE_PROBLEM": "The plugin's license is missing or invalid, so modifying operations are refused.",
+    "LOCK_FAILED": "A required lock could not be acquired (for example a timeout while locking data for an update).",
+    "INVALID_PARAMETER": "An argument or request parameter is invalid, or the object is in a state that does not allow the operation.",
+    "DECISION_REQUIRED": "The operation needs an explicit choice from the user before it can continue. Not used by the plugin code examined.",
+    "FOREST_SOURCE_ACTION_FAILED": "An action on a forest (move, add, remove rows) could not be performed by the forest source, for example because a generator refused it.",
+    "UPDATE_ITEM_FAILED": "Changing an item (for example a Jira issue) failed.",
+    "CREATE_ITEM_FAILED": "Creating a new item failed.",
+    "FOREST_CHANGE_PROHIBITED_BY_PARENT_PERMISSIONS": "The forest change is not allowed because of the permissions that apply to the parent part of the forest (for example a sub-structure or an automation-managed region).",
+    "PROJECT_NOT_ENABLED_FOR_STRUCTURE": "The issue's project is not enabled for use with the plugin.",
+    "STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE": "The structure does not exist or the user may not view it.",
+    "NOT_ALLOWED_TO_CREATE_STRUCTURE": "The user may not create structures.",
+    "STRUCTURE_ADMIN_DENIED": "The user lacks the administer (control) permission level on the structure.",
+    "STRUCTURE_EDIT_DENIED": "The user lacks edit permission on the structure.",
+    "JIRA_ADMIN_DENIED": "The operation requires Jira administrator rights.",
+    "STRUCTURE_PLUGIN_ACCESS_DENIED": "The user is not allowed to use the plugin at all.",
+    "ARCHIVED_STRUCTURE_EDIT_DENIED": "The structure is archived and therefore cannot be changed.",
+    "STRUCTURE_OWNER_EDIT_DENIED": "The user may not change the structure's owner to the requested user.",
+    "STRUCTURE_AUTOMATION_EDIT_DENIED": "The user may not change the automation (generators or effectors) of the structure.",
+    "VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE": "The view does not exist or the user may not see it.",
+    "VIEW_ADMIN_DENIED": "The user lacks control permission on the view.",
+    "VIEW_EDIT_DENIED": "The user lacks edit permission on the view.",
+    "VIEW_CREATION_DENIED": "The user may not create views.",
+    "PERSPECTIVE_CREATION_DENIED": "The user may not create perspectives (saved, shareable display states).",
+    "ITEM_EDIT_DENIED": "The user may not edit the item.",
+    "AUTOMATION_ACCESS_DENIED": "The user may not use or configure the automation involved (for example a generator in the forest).",
+    "EFFECTOR_EXECUTION_DENIED": "The user may not run effectors (globally, or on queries and sub-structures).",
+    "JOB_NOT_EXISTS": "The background job with the given id does not exist.",
+    "ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE": "The item does not exist or the user may not see it.",
+    "SUBSCRIPTION_NOT_EXISTS_OR_NOT_ACCESSIBLE": "The data subscription does not exist or belongs to someone else.",
+    "INVALID_FOREST_OPERATION": "The forest change is inconsistent, for example it refers to a row that is not in the forest or not under the given parent.",
+    "UNSUPPORTED_FOREST_SOURCE_OPERATION": "The forest source does not support the requested kind of change.",
+    "UNAVAILABLE_MODULE": "A required extension module (for example a generator) is not installed or could not be loaded.",
+    "MODULE_ERROR": "An extension module failed while being called.",
+    "SIGNATURE_MISMATCH": "The client's forest version signature does not match the current one (the forest was rebuilt), so the change based on it is rejected and the client must reload.",
+    "AUTOMATION_FAILED": "The forest's automation is in a failed or stopped state, so its content cannot be produced.",
+    "CONSISTENT_OPERATION_FAILED": "An operation that needs a consistent snapshot of data could not obtain one (after retries) because the data kept changing.",
+    "SAVED_COLUMN_NOT_EXISTS_OR_NOT_ACCESSIBLE": "The saved column does not exist or the user may not see it.",
+    "SAVED_COLUMN_MANAGEMENT_DENIED": "The user may not create, change or delete saved columns.",
+    "NOTE_NOT_EXISTS_OR_NOT_ACCESSIBLE": "The note item does not exist or the user may not see it.",
+    "NOTE_EDIT_DENIED": "The user may not edit the note.",
+    "values()": "",
+    "valueOf(String)": "",
+    "getCode()": "The numeric code of the constant, as listed in its declaration.",
+    "getCategory()": "The category of the constant, as listed in its declaration; never null.",
+    "toString()": "The constant name followed by the code in square brackets, e.g. `INVALID_PARAMETER[2400]`."
+   }
+  },
+  "com.almworks.jira.structure.api.error.StructureException": {
+   "summary": "The checked exception used throughout the API. It carries a `StructureError` code and optionally the structure, view, row and item it refers to, a plain message or an i18n key with arguments, and a cause. Usually created through `StructureError` shortcuts or `StructureException.Builder`. `getMessage()` is an English text of the form `<details> - structure <error name> (code:<code> structure:<id> view:<id> row:<id> item:<item>)`, where details is the plain message or the message key rendered in English, and ids are included only when positive (item only when set). When the item lookup feature is enabled (a system property; on by default only in development mode), a description of the row's or item's object is appended in parentheses.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.error.StructureError)": "Creates an exception with the error (null means `GENERIC_ERROR`) and nothing else.",
+    "<init>(com.almworks.jira.structure.api.error.StructureError, String)": "Creates an exception with the error and a plain message.",
+    "<init>(com.almworks.jira.structure.api.error.StructureError, Long)": "Creates an exception with the error and a structure id (nullable).",
+    "<init>(com.almworks.jira.structure.api.error.StructureError, Long, Long)": "Creates an exception with the error, structure id and row id (both nullable).",
+    "<init>(com.almworks.jira.structure.api.error.StructureError, Long, Long, String)": "Creates an exception with the error, structure id, row id and plain message.",
+    "<init>(com.almworks.jira.structure.api.error.StructureError, Long, Long, String, Throwable)": "Creates an exception with the error, structure id, row id, plain message and cause.",
+    "<init>(com.almworks.jira.structure.api.error.StructureError, Long, Long, Long)": "Creates an exception with the error, structure id, row id and view id (note the order: structure, row, view).",
+    "<init>(com.almworks.jira.structure.api.error.StructureError, Long, Long, Long, String)": "Creates an exception with the error, structure id, row id, view id and plain message.",
+    "<init>(com.almworks.jira.structure.api.error.StructureError, Throwable, Long, Long, Long, com.almworks.jira.structure.api.item.ItemIdentity, String, String, Object[])": "Protected full constructor used by the builder and subclasses. Arguments in order: error (null means `GENERIC_ERROR`), cause, structure id, view id, row id, item, plain message, i18n message key, key arguments; all nullable. If a key is given it marks the exception as localized; if the plain message is null, the key rendered in English is used as the problem details.",
+    "toString()": "The class name, followed by `: ` and `getMessage()` when the message is not null.",
+    "getError()": "The error code; never null (`GENERIC_ERROR` if none was given).",
+    "getProblemDetails()": "The non-localized problem text: the plain message, or the English rendering of the message key, or if both are empty `error ` followed by the error's `toString()`. Never null.",
+    "getStructure()": "The structure id the error refers to, or 0 if none.",
+    "getView()": "The view id the error refers to, or 0 if none.",
+    "getRow()": "The row id the error refers to, or 0 if none.",
+    "getItem()": "The item the error refers to, or null.",
+    "isLocalized()": "True if the exception was created with an i18n message key.",
+    "getLocalizedMessage()": "The message for the current user: the message key rendered in the current user's locale if localized, otherwise `getProblemDetails()`. Never null.",
+    "getLocalizedMessage(com.atlassian.jira.user.ApplicationUser)": "Like `getLocalizedMessage()` but rendered in the given user's locale (null user means the default locale).",
+    "asI18nText()": "The message as an `I18nText`: the key and arguments if localized, otherwise a text holding `getProblemDetails()`."
+   }
+  },
+  "com.almworks.jira.structure.api.error.StructureException.Builder": {
+   "summary": "Fluent builder for `StructureException`, normally obtained from `StructureError.builder()` or its shortcuts. The `for...` and `causedBy` methods return the builder; the `with...` methods finish and return the exception (they do not throw it). Not thread-safe.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.error.StructureError)": "Starts a builder for the given error (null means `GENERIC_ERROR` in the result).",
+    "withLocalizedMessage(String, Object[])": "Finishes with a localized message: the i18n key and its arguments. The English rendering becomes the problem details; a null key gives an empty message and no localization. Returns the exception.",
+    "withLocalizedMessage(com.almworks.jira.structure.api.util.I18nText)": "Finishes with a localized message taken from the text's key and arguments; null means no message. Returns the exception.",
+    "withMessage(String)": "Finishes with a plain, non-localized message (nullable). Returns the exception.",
+    "withoutMessage()": "Finishes with no message. Returns the exception.",
+    "forStructure(Long)": "Sets the structure id the error refers to (null means none). Returns this builder.",
+    "forView(Long)": "Sets the view id the error refers to. Returns this builder.",
+    "forRow(Long)": "Sets the row id the error refers to. Returns this builder.",
+    "forItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Sets the item the error refers to (nullable). Returns this builder.",
+    "forIssue(long)": "Sets the item to the issue with the given id. Returns this builder.",
+    "causedBy(Throwable)": "Sets the cause. Returns this builder."
+   }
+  },
+  "com.almworks.jira.structure.api.error.StructureProviderException": {
+   "summary": "Checked exception that provider-type extensions (for example attribute loader providers and export renderer providers) throw to say they cannot serve a particular request. The plugin logs it and continues without that provider's contribution (e.g. skips an export column).",
+   "members": {
+    "<init>()": "Creates the exception with no message and no cause.",
+    "<init>(Throwable)": "Creates the exception with a cause.",
+    "<init>(String)": "Creates the exception with a message.",
+    "<init>(String, Throwable)": "Creates the exception with a message and a cause."
+   }
+  },
+  "com.almworks.jira.structure.api.error.StructureRuntimeException": {
+   "summary": "Base unchecked exception of the API, used for failures that callers are not expected to handle, such as storage failures, missing rows (`MissingRowException`) or unknown item types (`ItemTypeNotFoundException`).",
+   "members": {
+    "<init>(String)": "Creates the exception with a message.",
+    "<init>(String, Throwable)": "Creates the exception with a message and a cause.",
+    "<init>(Throwable)": "Creates the exception with a cause."
+   }
+  },
+  "com.almworks.jira.structure.api.event.IssueChangeEvent": {
+   "summary": "A change notification about one issue. Created by the plugin from Jira issue events and other sources and delivered to `IssueListener`s; other code may create and report its own via `IssueEventBridge.reportEvent`. Immutable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.event.JiraChangeType, long, com.atlassian.jira.event.issue.IssueEvent)": "Creates the event. Arguments: the change type (not null, else `NullPointerException`), the issue id and the original Jira event (nullable).",
+    "<init>(com.almworks.jira.structure.api.event.JiraChangeType, long)": "Creates the event for the issue id without an original Jira event.",
+    "<init>(com.almworks.jira.structure.api.event.JiraChangeType, com.atlassian.jira.event.issue.IssueEvent)": "Creates the event from a Jira issue event, taking the issue id from the event's issue. If the event, its issue or the id is missing, the id is 0 (an assertion error is raised instead when JVM assertions are enabled).",
+    "getIssueId()": "The id of the changed issue (0 if unknown).",
+    "getJiraEvent()": "The Jira event that caused this notification, or null if it came from another source.",
+    "toString()": "The change type followed by the issue id in parentheses, e.g. `ISSUE_UPDATED(10001)`.",
+    "getAffectedIssuesSorted()": "A one-element list containing the issue id.",
+    "getIssueId(com.almworks.jira.structure.api.event.JiraChangeEvent)": "Returns the issue id if the given event is an `IssueChangeEvent`, otherwise 0 (also for null)."
+   }
+  },
+  "com.almworks.jira.structure.api.event.IssueEventBridge": {
+   "summary": "Service that fans out issue and link change notifications to registered `IssueListener`s. Implemented by the plugin and obtained as an OSGi component (injection). The plugin feeds it from the Jira event publisher (issue events, field value changes, issue links, remote links, issue properties) and from its own agile integrations. Listeners are called synchronously on the thread that reports the change; notifications are suppressed while Jira has notifications disabled for an import.",
+   "members": {
+    "addListener(com.almworks.jira.structure.api.event.IssueListener)": "Registers a listener; null is ignored. Adding the same listener twice makes it receive each event twice. Listeners are held strongly, so remove them when done.",
+    "removeListener(com.almworks.jira.structure.api.event.IssueListener)": "Unregisters a listener (one registration); unknown or null listeners are ignored.",
+    "reportChanges(com.almworks.integers.LongList, com.almworks.jira.structure.api.event.JiraChangeType)": "Reports that each issue in the list changed with the given change type: one `IssueChangeEvent` per id, in list order, delivered immediately to all listeners. A null list is ignored. The change type should not be null (an `IssueChangeEvent` cannot be created without one).",
+    "reportEvent(com.almworks.jira.structure.api.event.JiraChangeEvent)": "Delivers the given event immediately to all listeners; null is ignored."
+   }
+  },
+  "com.almworks.jira.structure.api.event.IssueListener": {
+   "summary": "Callback for issue and link change notifications, registered with `IssueEventBridge.addListener`. Implemented by clients.",
+   "members": {
+    "onIssueChanged(com.almworks.jira.structure.api.event.JiraChangeEvent)": "Called for every reported change, synchronously on the reporting thread (often a Jira request or event thread), so it should return quickly. The argument is never null; check its type for `IssueChangeEvent` or `LinkChangeEvent` details. Exceptions thrown here are logged and do not affect other listeners."
+   }
+  },
+  "com.almworks.jira.structure.api.event.JiraChangeEvent": {
+   "summary": "Base class of change notifications delivered by `IssueEventBridge`: a change type and the list of affected issues. Instances of this base class carry no issues. Immutable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.event.JiraChangeType)": "Creates the event with the given change type. Throws `NullPointerException` if it is null.",
+    "getChangeType()": "The kind of change; never null.",
+    "getAffectedIssuesSorted()": "Ids of the issues affected, in ascending order. Empty in the base class.",
+    "toString()": "The change type's name."
+   }
+  },
+  "com.almworks.jira.structure.api.event.JiraChangeType": {
+   "summary": "Kinds of Jira changes reported through `IssueEventBridge`. The plugin maps standard Jira issue event types to the matching constant and uses `GENERIC_EVENT` for other issue events.",
+   "members": {
+    "ISSUE_CREATED": "An issue was created.",
+    "ISSUE_UPDATED": "An issue was edited (also used for field value change events and issue property changes).",
+    "ISSUE_DELETED": "An issue was deleted.",
+    "ISSUE_MOVED": "An issue was moved to another project or issue type.",
+    "ISSUE_ASSIGNED": "An issue's assignee changed.",
+    "ISSUE_RESOLVED": "An issue was resolved.",
+    "ISSUE_CLOSED": "An issue was closed.",
+    "ISSUE_REOPENED": "An issue was reopened.",
+    "ISSUE_STARTED": "Work on an issue was started (start-progress transition).",
+    "ISSUE_STOPPED": "Work on an issue was stopped (stop-progress transition).",
+    "ISSUE_WORKFLOW": "A workflow transition happened. Not produced by the plugin code examined.",
+    "COMMENT_CREATED": "A comment was added.",
+    "COMMENT_UPDATED": "A comment was edited. The plugin also reports comment deletions with this type.",
+    "COMMENT_DELETED": "A comment was deleted. Note: the plugin never produces it; it maps Jira's comment-deleted event to `COMMENT_UPDATED`.",
+    "WORKLOG_CREATED": "Work was logged.",
+    "WORKLOG_UPDATED": "A worklog was edited.",
+    "WORKLOG_DELETED": "A worklog was deleted.",
+    "GENERIC_EVENT": "Some other or unspecified change to an issue (Jira's generic event, unmapped or custom issue event types, field value change events).",
+    "CUSTOM_EVENT": "A custom Jira event. Not produced by the plugin code examined (custom events arrive as `GENERIC_EVENT`).",
+    "LINK_CREATED": "An issue link was created; reported as a `LinkChangeEvent`.",
+    "LINK_DELETED": "An issue link was deleted; reported as a `LinkChangeEvent`.",
+    "REMOTE_LINK_CREATED": "A remote (web) link was added to an issue.",
+    "REMOTE_LINK_REMOVED": "A remote link was removed from an issue.",
+    "REMOTE_LINK_UPDATED": "A remote link of an issue was changed.",
+    "SUBTASKS_REORDERED": "The order of an issue's sub-tasks changed.",
+    "GH_RANK_UPDATED": "The agile (board) rank of issues changed.",
+    "GH_SPRINT_UPDATED": "An issue's agile sprint changed (also reported for sub-tasks of a moved parent).",
+    "GH_EPIC_UPDATED": "An issue's epic link changed.",
+    "UNKNOWN_CHANGE": "A change of unknown nature was detected (for example a request that may have modified issues).",
+    "values()": "",
+    "valueOf(String)": ""
+   }
+  },
+  "com.almworks.jira.structure.api.event.LinkChangeEvent": {
+   "summary": "A notification that an issue link was created or deleted (types `LINK_CREATED` or `LINK_DELETED`). Created by the plugin from Jira issue link events. Immutable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.event.JiraChangeType, long, long, long)": "Creates the event. Arguments in order: change type (not null), link type id, source (outward) issue id, destination (inward) issue id.",
+    "getLinkTypeId()": "The Jira issue link type id.",
+    "getSourceId()": "The id of the link's source issue.",
+    "getDestinationId()": "The id of the link's destination issue.",
+    "getAffectedIssuesSorted()": "A new two-element list with the source and destination ids in ascending order (the same id twice for a self-link).",
+    "toString()": "Text of the form `<type>(<linkTypeId>:<sourceId>=><destinationId>)`.",
+    "getSourceId(com.almworks.jira.structure.api.event.JiraChangeEvent)": "Returns the source issue id if the event is a `LinkChangeEvent`, else 0 (also for null).",
+    "getDestinationId(com.almworks.jira.structure.api.event.JiraChangeEvent)": "Returns the destination issue id if the event is a `LinkChangeEvent`, else 0 (also for null).",
+    "getLinkTypeId(com.almworks.jira.structure.api.event.JiraChangeEvent)": "Returns the link type id if the event is a `LinkChangeEvent`, else 0 (also for null)."
+   }
+  },
+  "com.almworks.jira.structure.api.event.StructureDeletedEvent": {
+   "summary": "Published by the plugin on the Jira `EventPublisher` after a structure has been deleted, so that other components and plugins can clean up related data. Immutable.",
+   "members": {
+    "<init>(long)": "Creates the event for the given structure id.",
+    "getStructureId()": "The id of the deleted structure."
+   }
+  },
+  "com.almworks.jira.structure.api.event.StructureItemConvertedEvent": {
+   "summary": "Published by the plugin on the Jira `EventPublisher` when an item in a structure was converted into another item and fully replaced it (for example a placeholder item converted into a new issue). Immutable.",
+   "members": {
+    "<init>(long, com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.item.ItemIdentity)": "Creates the event. Arguments in order: structure id, the original item, the item that replaces it (both expected non-null, not checked).",
+    "getStructureId()": "The structure in which the conversion happened.",
+    "getSourceItemId()": "The item that was converted (and replaced).",
+    "getTargetItemId()": "The new item that replaced it."
+   }
+  }
+ }
+}

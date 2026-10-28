@@ -1,0 +1,838 @@
+{
+ "packages": {
+  "com.almworks.jira.structure.api.statistics": "Internal hooks for counting feature usage inside the plugin. The original aggregates these counters locally and could upload them to the vendor; the replacement must keep the API callable but never upload usage statistics or contact the vendor (SPEC.md §1.8).",
+  "com.almworks.jira.structure.api.structure": "The structure entity itself: reading and editing a structure's metadata (name, description, owner, permission rules, archive flag), looking structures up and checking access, creating, copying and deleting them, and listening for content changes.",
+  "com.almworks.jira.structure.api.structure.favorite": "Per-user favourite structures and the derived popularity count (how many users marked a structure as favourite).",
+  "com.almworks.jira.structure.api.structure.history": "Read access to the change history of structure forests: each saved forest modification produces a numbered history entry made of add, copy, move and remove changes. Includes a filterable activity query across structures and reconstruction of a forest as it was at an earlier version.",
+  "com.almworks.jira.structure.api.sync": "Synchronizers: extension modules that keep a structure's forest consistent with some Jira data (links, epics, sprints, filters, and so on). Contains the extension-point interface and a convenience base class, the manager that installs and runs synchronizer instances, the event data handed to incremental runs, and the audit log of actions synchronizers performed.",
+  "com.almworks.jira.structure.api.sync.util": "Helpers for writing synchronizers: a per-run logger with formatting helpers for issues, rows and forests, a parent lookup that accounts for pending moves, and a change-callback interface.",
+  "com.almworks.jira.structure.api.template": "Extension point for the \"create structure\" wizard: a template is a module (`new-structure-template` in a plugin descriptor) that contributes a sequence of form steps and then configures the newly created structure (name, permissions, initial content, automation).",
+  "com.almworks.jira.structure.api.view": "Views: named, shareable grid configurations (columns, display modes, pinned columns) for displaying structures, plus per-structure and global settings saying which views appear in the view menu and which is the default on each page.",
+  "com.almworks.jira.structure.generic": "Not part of the public API jar: a service exported by the plugin itself (public OSGi component) that stores the change history of generic items (items managed by the generic item service: each create or update of such an item is recorded with old and new values)."
+ },
+ "types": {
+  "com.almworks.jira.structure.api.statistics.StatisticSource": {
+   "summary": "Callback that contributes named numeric values to the plugin's usage-statistics report. Implemented by plugin components (and potentially other plugins) and registered with `StructureStatisticsRecorder.addStatisticSource`. Marked internal. In the replacement the report is never sent anywhere (SPEC.md §1.8), so sources may be registered but their values are at most kept locally.",
+   "members": {
+    "getStatistics()": "Returns a map from statistic name to its current value, computed at the time of the call (for example a count of structures). Called whenever a statistics report is assembled; an exception thrown here is logged and the source is skipped for that report."
+   }
+  },
+  "com.almworks.jira.structure.api.statistics.StructureStatisticsRecorder": {
+   "summary": "Service (OSGi component, internal) for recording usage counters. Recording calls are cheap and asynchronous: values are accumulated in memory and periodically (every 10 minutes by default) written to the plugin's local statistics store; data older than 40 days is purged. The original could upload a daily report to the vendor when an administrator opted in; the replacement never uploads usage statistics or contacts the vendor (SPEC.md §1.8). Thread-safe.",
+   "members": {
+    "addUniqueUserCountAsync(String)": "Records that the current user (as known to `StructureAuth`) used the feature named by the argument; the statistic counts distinct users. Does nothing when there is no current user (anonymous) or when the name is null or blank (a warning is logged). Throws the plugin's stopped exception if the plugin is not running.",
+    "addTotalCountAsync(String)": "Increments the total counter named by the argument by 1. Same as `addTotalCountAsync(name, 1.0)`.",
+    "addTotalCountAsync(String, double)": "Adds the second argument to the running total of the counter named by the first argument. A null or blank name is ignored with a logged warning. Throws the plugin's stopped exception if the plugin is not running.",
+    "addToIntValueDistrAsync(String, int, int[])": "Records one observation of an integer value into a histogram. Arguments: statistic prefix, the value, and ascending bin upper bounds. The value falls into the first bin whose bound is greater than or equal to it, or into an overflow bin named `inf` when it exceeds all bounds; the counter `<prefix>.<bound>` (or `<prefix>.inf`) is then incremented by 1. With no bins nothing is recorded.",
+    "addStatisticSource(com.almworks.jira.structure.api.statistics.StatisticSource)": "Registers a source whose values are added to every statistics report assembled afterwards. The same object may be added more than once (it is then queried more than once). Not persisted across restarts.",
+    "removeStatisticSource(com.almworks.jira.structure.api.statistics.StatisticSource)": "Unregisters one registration of the given source; does nothing if it was not registered.",
+    "addTotalCountAndActiveUserAsync(String)": "Convenience: increments the total counter named by the argument by 1 and also records the current user under the distinct-user statistic `activeUser.<name>`."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.Structure": {
+   "summary": "A structure's metadata as a mutable, unsaved working copy. Instances are obtained from `StructureManager` (`getStructure`, `getAllStructures`, `createStructure`, copies) and are snapshots: they do not reflect later changes by others. Setters only change the local copy and return the same object for chaining; nothing is persisted until `saveChanges()`. The forest (the rows) is not part of this object; it is accessed via the forest service. Not thread-safe; use one instance per thread.",
+   "members": {
+    "getId()": "The structure's numeric ID (positive). For a new structure that has not been saved yet, returns 0.",
+    "getName()": "The structure's name; never null (empty string when unset).",
+    "getDescription()": "The structure's description; never null (empty string when unset).",
+    "getOwner()": "The owner resolved to a Jira user from `getOwnerUserKey()`; null when there is no owner or the user key no longer resolves to a user.",
+    "getOwnerUserKey()": "The Jira user key of the structure's owner, or null when the structure has no owner. The owner can always administer the structure.",
+    "getPermissions()": "A copy of the structure's own permission rules, in evaluation order (later rules override earlier ones for the same user). Never null; changing the returned list does not affect the structure. These rules complement the owner and global administrators, who always have full access.",
+    "isEditRequiresParentIssuePermission()": "True when editing the structure additionally requires that the user can edit the parent issue of any issue being added, moved or removed under it (the parent-issue edit check is applied on every forest change).",
+    "isArchived()": "True when the structure is archived. Archived structures are read-only (forest changes are refused) and are excluded from most listings by default.",
+    "setName(String)": "Sets the name in the working copy. Null becomes the empty string; names longer than 190 characters are shortened with a trailing ellipsis. A blank name makes `saveChanges()` fail. Returns this.",
+    "setDescription(String)": "Sets the description in the working copy (null clears it). Returns this.",
+    "setOwner(com.atlassian.jira.user.ApplicationUser)": "Sets the owner in the working copy from a Jira user (null clears the owner); equivalent to `setOwnerUserKey` with the user's key. Returns this.",
+    "setOwnerUserKey(String)": "Sets the owner by Jira user key in the working copy; null clears the owner. The key is not validated here; ownership-change permission is checked by `saveChanges()`. Returns this.",
+    "setPermissions(java.util.Collection)": "Replaces the permission rules in the working copy with the given rules (null means no rules). Rules are validated on `saveChanges()`. Returns this.",
+    "setEditRequiresParentIssuePermission(boolean)": "Sets the parent-issue edit check flag (see `isEditRequiresParentIssuePermission`) in the working copy. Returns this.",
+    "setArchived(boolean)": "Sets the archived flag in the working copy. Returns this.",
+    "saveChanges()": "Persists the working copy and returns this. If nothing was changed since the copy was obtained or last saved, does nothing. For a new structure, creates it (the ID becomes available from `getId()`), gives it an empty forest and, when no owner was set, makes the current user the owner. Throws `IllegalStateException` when the name is blank. Unless security is overridden (`StructureAuth.sudo`), creation requires the global right to create structures (`StructureException` with `NOT_ALLOWED_TO_CREATE_STRUCTURE`), and updating requires ADMIN level on the structure (`STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` when the user has no access at all, `STRUCTURE_ADMIN_DENIED` otherwise). Changed permission rules are validated (`StructureException` on invalid rules). Assigning the owner to another user requires being a Jira administrator, or holding the Jira user-picker permission together with ADMIN on the structure or being the previous owner; otherwise `STRUCTURE_OWNER_EDIT_DENIED`. Also fails when the plugin license does not allow writes.",
+    "getEffectivePermission()": "The access level the current user has to this structure, computed now from the stored (not the unsaved) settings. `ADMIN` when security is overridden; `NONE` for a structure that has not been saved yet."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.StructureListener": {
+   "summary": "Extension point notified after structure forests change. Register with `StructureManager.addListener`. Called synchronously on the thread that finished writing history, once per batch of recorded changes; exceptions are logged and do not affect other listeners. Implementations should be fast and must not assume a particular user context.",
+   "members": {
+    "onStructuresChanged(com.almworks.integers.LongObjMap)": "Called with a map from structure ID to the history entry that was just recorded for that structure (one entry per changed structure in the batch). The map should be treated as read-only."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.StructureManager": {
+   "summary": "Main service (OSGi component) for structure metadata: lookup, access checks, creation, copying, deletion and change listeners. Implemented by the plugin. Unless stated otherwise, calls act as the current user from `StructureAuth`, and permission checks are skipped when security is overridden. Methods taking a `PermissionLevel` treat null as \"no minimum level\", so a null level returns structures even when the user's level is NONE. If the plugin is not available to the current user (license or global access restriction), listings are empty. Lists of structures are sorted by name with the current user's locale collation unless noted. Thread-safe.",
+   "members": {
+    "getStructure(Long, com.almworks.jira.structure.api.permissions.PermissionLevel)": "Returns the structure with the given ID (first argument) if the current user has at least the given level (second argument; null means any). Throws `StructureException` with `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` when the ID is null, the structure does not exist or the level is insufficient (the two cases are deliberately indistinguishable). Archived structures are returned too.",
+    "getAllStructures(com.almworks.jira.structure.api.permissions.PermissionLevel)": "All non-archived structures on which the current user has at least the given level (null means any). Same as `getAllStructures(level, false)`.",
+    "getAllStructures(com.almworks.jira.structure.api.permissions.PermissionLevel, boolean)": "All structures on which the current user has at least the given level (null means any); the second argument includes archived structures when true. Sorted by name. Never null.",
+    "getArchivedStructures(com.almworks.jira.structure.api.permissions.PermissionLevel)": "Only the archived structures on which the current user has at least the given level (null means any), sorted by name.",
+    "getStructuresOwnedBy(com.atlassian.jira.user.ApplicationUser)": "Non-archived structures whose owner is the given user and which the current user can at least view, sorted by name. Null user yields an empty list.",
+    "getStructuresByName(String, com.almworks.jira.structure.api.permissions.PermissionLevel)": "Non-archived structures with the given name that the current user can access at the given level. Same as the three-argument form with `false`.",
+    "getStructuresByName(String, com.almworks.jira.structure.api.permissions.PermissionLevel, boolean)": "Structures whose name equals the given name ignoring case and surrounding whitespace, accessible at the given level (null means any); the third argument also searches archived structures. A null or blank name returns an empty list. Several structures may share a name.",
+    "hasNonArchivedStructuresForUser()": "True if the current user can view at least one non-archived structure.",
+    "getSingleViewableStructureId()": "If the current user can view exactly one non-archived structure, its ID; otherwise (none, or more than one, or the plugin is not available to the user) null. Used to skip a structure picker. The result may be cached per user.",
+    "isIssueInStructureNoAccessCheck(Long, Long)": "True if the issue (first argument, issue ID) appears in the stored forest of the structure (second argument) according to the plugin's issue-to-structure index. No permission check is made. Only static content counts: issues added by generators are not indexed.",
+    "getViewableStructuresWithIssue(Long)": "Non-archived structures the current user can view whose stored forest contains the given issue (by issue ID), sorted the same way as the plugin's structure pickers for the current user. Null issue ID returns an empty list.",
+    "getStructurePermission(Long)": "The current user's access level to the structure with the given ID. Returns `PermissionLevel.NONE` when the ID is null or the structure does not exist. Does not take security override into account.",
+    "getStructurePermission(Long, com.atlassian.jira.user.ApplicationUser)": "The access level of the given user (second argument; null means anonymous) to the given structure. `NONE` when the structure does not exist.",
+    "isAccessible(Long, com.almworks.jira.structure.api.permissions.PermissionLevel)": "True when the structure exists and the current user has at least the given level (null level means any existing structure). Always true for an existing structure when security is overridden.",
+    "isGeneratorConfigurationAllowed(Long, com.atlassian.jira.user.ApplicationUser)": "True when the given user has at least AUTOMATE level on the structure and also holds the plugin's application permission to configure generators.",
+    "isEffectorConfigurationAllowed(Long, com.atlassian.jira.user.ApplicationUser)": "True when the given user has at least AUTOMATE level on the structure and also holds the plugin's application permission to configure effectors.",
+    "isEffectorExecutionAllowed(Long, com.atlassian.jira.user.ApplicationUser)": "True when the given user can at least VIEW the structure and also holds the plugin's application permission to run effectors.",
+    "createStructure()": "Returns a new, unsaved `Structure` with no ID, empty name and default settings. Nothing is stored until `saveChanges()` is called on it; set a name first.",
+    "copyStructure(Long, com.atlassian.jira.user.ApplicationUser, boolean)": "Creates and saves a copy of the structure (first argument) including its forest, and returns the saved copy. The forest is copied as static content (automation rows are copied as they are). Second argument: owner of the copy, null keeps the source's owner. Third argument: also copy permission rules and the parent-issue flag. The copy's name is a localized \"copy of <name>\" text including the date. Requires the right to create structures, VIEW on the source, and ADMIN on the source when copying permissions (`StructureException` with the matching error otherwise); also fails when the license is read-only.",
+    "copyStructureWithoutForest(Long, com.atlassian.jira.user.ApplicationUser, boolean)": "Like `copyStructure` but returns an unsaved copy of the metadata only; the caller must call `saveChanges()`, and the new structure's forest will be empty. Arguments and permission checks are the same.",
+    "deleteStructure(Long)": "Deletes the structure, its forest, its change history and its issue index entries, then publishes a structure-deleted event. Null ID does nothing. Requires ADMIN on the structure unless security is overridden (`StructureException` with `STRUCTURE_ADMIN_DENIED`, also when the structure does not exist). Fails when the license is read-only. Favourites and views referring to it are not removed here.",
+    "addListener(com.almworks.jira.structure.api.structure.StructureListener)": "Registers a listener for forest changes (see `StructureListener`). Listeners are held strongly until removed; remove them when your plugin stops.",
+    "removeListener(com.almworks.jira.structure.api.structure.StructureListener)": "Unregisters a listener previously added; does nothing if it was not registered."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.favorite.StructureFavoriteManager": {
+   "summary": "Service (OSGi component) that stores which structures each user marked as favourite and derives each structure's popularity (number of users who marked it). Implemented by the plugin; values are cached. Thread-safe.",
+   "members": {
+    "isFavorite(Long, com.atlassian.jira.user.ApplicationUser)": "True if the given user (second argument) has the structure (first argument) among favourites. False when either argument is null. No access check.",
+    "setFavorite(Long, com.atlassian.jira.user.ApplicationUser, boolean)": "Marks (third argument true) or unmarks (false) the structure as a favourite of the given user. Idempotent. Does nothing when the structure ID or user is null. No permission or existence check is made: any structure ID can be stored.",
+    "getPopularity(Long)": "Number of users who have the structure as a favourite (0 or more). 0 for a null ID or on storage errors.",
+    "getFavorites(com.atlassian.jira.user.ApplicationUser)": "The user's non-archived favourite structures. Same as `getFavorites(user, false)`.",
+    "getFavorites(com.atlassian.jira.user.ApplicationUser, boolean)": "The given user's favourite structures that still exist and that the current user (from `StructureAuth`, not necessarily the given user) can view; the second argument includes archived ones. Sorted as in the plugin's structure pickers for the given user. Null user returns an empty list.",
+    "getAllFavorites()": "A snapshot of all favourites: user key to the ascending list of distinct favourite structure IDs. Users are ordered by key. Includes IDs of structures that may no longer exist. No access check.",
+    "sortByPopularity(java.util.List, com.atlassian.jira.user.ApplicationUser)": "Sorts the given mutable list in place: most popular first, ties broken by the plugin's structure ordering for the given user; null elements go last. Null or empty list is left alone.",
+    "filterByPopularity(java.util.List, int, int)": "Returns a new list with the structures from the first argument whose popularity is within the inclusive range given by the second (minimum) and third (maximum) arguments, preserving order. Null list returns an empty list."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.history.ForestVersion": {
+   "summary": "Immutable value: the complete forest of a structure at one version together with the history entry that produced that version. Returned by `HistoryService.getForestVersion`. Public fields only.",
+   "members": {
+    "fullForest": "The entire forest of the structure as it was right after the version was recorded.",
+    "entry": "The history entry for this version. For version 0 (the initial empty state) a synthetic entry with no changes, timestamp 0 and no user.",
+    "weight": "Estimated memory size of this object, used by caches. Computed in the constructor from the sizes of the full forest and of every change's forest and row lists; a rough approximation, not a byte count.",
+    "<init>(com.almworks.jira.structure.api.forest.raw.Forest, com.almworks.jira.structure.api.structure.history.HistoryEntry)": "Creates the value from the full forest (first argument) and its entry (second, must not be null) and computes `weight`."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.history.HistoryConsumer": {
+   "summary": "Callback receiving history entries one at a time from `HistoryService`. Implemented by callers, typically as a lambda.",
+   "members": {
+    "consume(com.almworks.jira.structure.api.structure.history.HistoryEntry)": "Receives the next entry. Return true to continue, false to stop the iteration early."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.history.HistoryEntry": {
+   "summary": "Immutable record of one saved modification of a structure's forest, identified by structure ID and version number. Versions of one structure increase by one with every recorded change; each entry lists the elementary changes in the order applied. Created by the plugin when recording history; can be constructed by callers (for example in tests). Equality is by value of all fields.",
+   "members": {
+    "<init>(long, int, int, long, String, Long, java.util.List)": "Arguments in order: structure ID, version, previous version, timestamp (milliseconds since epoch), author user key (null or empty string are stored as null), synchronizer instance ID that made the change (null if none), and the list of changes (not copied; must not be null).",
+    "getStructure()": "ID of the structure the entry belongs to.",
+    "getVersion()": "Forest version produced by this entry (1 for the first recorded change).",
+    "getPrevVersion()": "Forest version that this entry was applied to. Normally `getVersion() - 1`.",
+    "getTimestamp()": "When the change was recorded, in milliseconds since the epoch.",
+    "getUserKey()": "Jira user key of the user who made the change; null when unknown or anonymous.",
+    "getSynchronizer()": "ID of the synchronizer instance that made the change, or null if it was not made by a synchronizer.",
+    "getChanges()": "The changes in this entry, in the order applied. Never null. Entries returned by `getHistoryEntriesWithoutChanges` have an empty list. In activity queries the list may be shortened (changes involving rows the user cannot see are filtered out) or truncated by a change limit.",
+    "toString()": "Debug text listing all fields; format not part of the contract.",
+    "equals(Object)": "True for another `HistoryEntry` with equal structure, versions, timestamp, user key, synchronizer and change list.",
+    "hashCode()": "Hash consistent with `equals`."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.history.HistoryEntry.Change": {
+   "summary": "Immutable description of one elementary forest change inside a `HistoryEntry`: which rows were added, copied, moved or removed, and where. Positions are given as a parent path (list of row IDs from a root down to the parent, empty or null for top level) plus the preceding sibling. Equality is by value.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.structure.history.HistoryEntry.Operation, com.almworks.jira.structure.api.forest.raw.Forest, com.almworks.integers.LongList, com.almworks.integers.LongList, com.almworks.integers.LongList, com.almworks.integers.LongList, int, com.almworks.integers.LongList)": "Arguments in order: operation; the forest fragment affected; path from (old parent path); after from (old preceding sibling); path to (new parent path); after to (new preceding sibling); direction; original rows. Values are stored as given (not copied).",
+    "getOperation()": "The kind of change.",
+    "getForest()": "The forest fragment that was added, copied (the new rows), moved or removed, with its subtrees.",
+    "getPathFrom()": "For MOVE and REMOVE: the row IDs from the top level down to the former parent of the fragment (empty when it was at top level). Null for ADD and COPY.",
+    "getAfterFrom()": "For MOVE and REMOVE: the former preceding sibling, as a list of at most one row ID (empty when the fragment was first among its siblings). Null for ADD and COPY. During forest reconstruction the plugin may prepend further preceding siblings to this list.",
+    "getPathTo()": "For ADD, COPY and MOVE: the row IDs from the top level down to the new parent, including the parent itself (empty for top level). Null for REMOVE.",
+    "getAfterTo()": "For ADD, COPY and MOVE: the new preceding sibling as a list of at most one row ID (empty when inserted first). Null for REMOVE.",
+    "getDirection()": "For MOVE: 1 if the fragment moved further down the forest, -1 if it moved up, 0 if its position index did not change. 0 for other operations.",
+    "getOriginalRows()": "For COPY: for each row of `getForest()` in the same order, the ID of the row it was copied from, or 0 when that source row was not (or no longer) in this structure. Null for other operations.",
+    "toString()": "Debug text listing all fields; format not part of the contract.",
+    "equals(Object)": "True for another `Change` with equal operation, forest, paths, preceding siblings, direction and original rows.",
+    "hashCode()": "Hash consistent with `equals`."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.history.HistoryEntry.Operation": {
+   "summary": "Kind of an elementary forest change recorded in history. Each constant has a lower-case external name used in REST and query parameters.",
+   "members": {
+    "ADD": "Rows were inserted into the forest (external name `add`).",
+    "COPY": "Rows were inserted as copies of other rows (external name `copy`).",
+    "MOVE": "Existing rows were moved to another position (external name `move`).",
+    "REMOVE": "Rows were removed from the forest (external name `remove`).",
+    "values()": "",
+    "valueOf(String)": "",
+    "getExternalName()": "The lower-case external name: `add`, `copy`, `move` or `remove`.",
+    "forExternalName(String)": "The constant whose external name equals the argument exactly (case-sensitive); null when there is no match or the argument is null."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.history.HistoryQuery": {
+   "summary": "Immutable filter for `HistoryService.queryActivity`. All conditions are combined with AND. Each dimension has an inclusion (`is...`) and an exclusion (`not...`) list; for structures, authors, issues and projects only the inclusion list is applied when it is non-empty, otherwise the exclusion list. ID lists must be sorted ascending. Created by its constructors; all collections are copied or defaulted to empty, never null (except `operations`).",
+   "members": {
+    "ALL_OPERATIONS": "Unmodifiable list of all `Operation` constants in declaration order.",
+    "operations": "Operations to match: an entry matches when it contains at least one change of these kinds. Null means all operations (no restriction); the constructor stores null when all four were given.",
+    "isIssuesSorted": "Issue IDs (sorted): match entries that touched at least one of these issues. Never null.",
+    "notIssuesSorted": "Issue IDs (sorted): when there is no inclusion list, match entries that touched some issue other than these. Never null.",
+    "isStructuresSorted": "Structure IDs (sorted): match entries of any of these structures. Never null.",
+    "notStructuresSorted": "Structure IDs (sorted): when there is no inclusion list, exclude entries of these structures. Never null.",
+    "isAuthors": "User keys: match entries made by one of these users. Null elements are ignored. Never null.",
+    "notAuthors": "User keys: when there is no inclusion set, exclude entries made by these users. Never null.",
+    "isProjectsSorted": "Project IDs (sorted): match entries that touched issues of at least one of these projects. Never null.",
+    "notProjectsSorted": "Project IDs (sorted): when there is no inclusion list, match entries touching issues of some other project. Never null.",
+    "isSynchronizersSorted": "Synchronizer instance IDs (sorted) to include. Special values: -2 means \"made without a synchronizer\", -1 means \"made by any synchronizer\". Never null.",
+    "notSynchronizersSorted": "Synchronizer instance IDs (sorted) to exclude, with the same special values -2 and -1. Applied together with the inclusion list. Never null.",
+    "isAncestors": "Item identities: keep only entries having a change located under one of these items (an item on the from or to parent path), or, when an issue or project filter is set, a change whose fragment contains such an item with a matching issue below it. Never null.",
+    "notAncestors": "Item identities: drop entries whose every change is located under one of these items, in the same sense as `isAncestors`. Never null.",
+    "minDate": "Earliest timestamp to include (inclusive), milliseconds since epoch; null for no lower bound.",
+    "maxDate": "Latest timestamp to include (inclusive), milliseconds since epoch; null for no upper bound.",
+    "startId": "Paging cursor: only entries whose internal history key is strictly less than this value are returned. The key of an entry is `(structureId << 32) | version`. Null to start from the newest.",
+    "<init>(Iterable, com.almworks.integers.LongList, com.almworks.integers.LongList, com.almworks.integers.LongList, com.almworks.integers.LongList, Iterable, Iterable, com.almworks.integers.LongList, com.almworks.integers.LongList, com.almworks.integers.LongList, com.almworks.integers.LongList, java.util.Set, java.util.Set, java.util.Date, java.util.Date, Long)": "Arguments in field order: operations, issues in, issues out, structures in, structures out, authors in, authors out, projects in, projects out, synchronizers in, synchronizers out, ancestors in, ancestors out, min date, max date, start key. Any argument may be null (meaning no restriction). For operations pass `ALL_OPERATIONS` (or any collection containing all four) for no restriction. Not determined: what a null or empty operations argument does in a query; the original stores an empty set and then builds no operation condition for it, so behaviour is undefined; a replacement should treat it as no restriction or reject it. Long lists are kept as given (not copied) and must already be sorted; dates are converted to milliseconds.",
+    "<init>(long, Long)": "Query for all activity of one structure (first argument), all operations, starting below the given paging key (second argument, nullable).",
+    "toString()": "Compact debug text listing the non-empty conditions; computed once and cached. Format not part of the contract."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.history.HistoryService": {
+   "summary": "Service (OSGi component) for reading recorded forest history. Implemented by the plugin. Only `queryActivity` and `getForestVersion` apply the current user's permissions; the per-structure methods read history without access checks, so callers must check access themselves. Thread-safe.",
+   "members": {
+    "queryActivity(com.almworks.jira.structure.api.structure.history.HistoryQuery, int, com.almworks.jira.structure.api.structure.history.HistoryConsumer)": "Streams entries matching the query (first argument) to the consumer (third), newest first (by timestamp, then key, descending), with all their changes. Second argument: maximum number of entries delivered (0 or less for no limit). Unless security is overridden, entries of structures the current user cannot view are skipped and changes involving rows the user cannot see are removed (an entry left with no changes is skipped). Stops when the consumer returns false.",
+    "queryActivity(com.almworks.jira.structure.api.structure.history.HistoryQuery, int, int, com.almworks.jira.structure.api.structure.history.LimitedHistoryConsumer)": "Same as the three-argument form, but the third argument limits how many changes are loaded per entry (0 or less loads all); the consumer receives each entry together with its total number of changes, which may exceed the size of the truncated change list.",
+    "getHistoryEntries(long, int, int, com.almworks.jira.structure.api.structure.history.HistoryConsumer)": "Streams the entries of the structure (first argument) with versions greater than the second argument and up to and including the third, oldest first, with changes. A negative \"from\" version means from the very beginning. Returns nothing when both versions are equal. Throws `IllegalArgumentException` when \"to\" is less than \"from\" or negative. No access check.",
+    "getHistoryEntries(long, int, int)": "Same range and rules as the streaming form, collected into a list (oldest first).",
+    "getHistoryEntriesWithoutChanges(long, int, int)": "Same as `getHistoryEntries(long, int, int)` but each entry's change list is empty (cheaper when only metadata is needed).",
+    "getLatestHistoryEntryVersion(long)": "Highest recorded history version of the structure, or 0 when it has no history. No access check.",
+    "getEarliestHistoryEntryVersionGtEqDate(long, long)": "Lowest version of the structure (first argument) whose entry was recorded at or after the timestamp (second argument, epoch milliseconds); 0 when there is none.",
+    "getEntryCount(long)": "Number of history entries stored for the structure.",
+    "getEntryCountGtEqDate(long, long)": "Number of history entries of the structure (first argument) recorded at or after the timestamp (second argument, epoch milliseconds).",
+    "getForestVersion(long, int)": "Reconstructs the full forest of the structure (first argument) as of the given version (second argument) and returns it with that version's entry. Version 0 gives the initial state with a synthetic empty entry. Requires VIEW access for the current user; otherwise `StructureException` `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`. A version below 0, above the current version, or missing from history gives `StructureException` `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE`. Results are cached; the forest is not filtered by row visibility."
+   }
+  },
+  "com.almworks.jira.structure.api.structure.history.LimitedHistoryConsumer": {
+   "summary": "Callback for `HistoryService.queryActivity` with a per-entry change limit. Implemented by callers.",
+   "members": {
+    "consume(com.almworks.jira.structure.api.structure.history.HistoryEntry, int)": "Receives the next entry (first argument) and the total number of changes the entry has (second argument), which may be larger than the possibly truncated change list. Return true to continue, false to stop."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.AbstractSynchronizer": {
+   "summary": "Recommended base class for synchronizer extension modules (`structure-synchronizer` module type in a plugin descriptor). Supplies JSON-map parameter storage, issue lookup helpers, descriptor access, and audit logging: subclasses implement `doSync` and `doResync`, returning a result whose actions are written to the `SyncAuditLog`. Instances are created by the plugin framework (one per module) and shared by all sync instances of that module, so they must be thread-safe and keep per-instance state in `SyncInstance.transientData`. Subclasses still implement `isAvailable`, `isAutosyncSupported`, the description and form methods.",
+   "members": {
+    "myStructureComponents": "The service bundle passed to the constructor, for subclass use.",
+    "myStructureManager": "The structure manager taken from the service bundle.",
+    "myRowManager": "The row manager taken from the service bundle.",
+    "myAuditLog": "The synchronizer audit log taken from the service bundle; used by `sync` and `resync` to record actions.",
+    "<init>(com.almworks.jira.structure.api.StructureComponents)": "Creates the synchronizer, taking the audit log, structure manager and row manager from the given service bundle (normally injected).",
+    "init(com.almworks.jira.structure.api.sync.SynchronizerDescriptor)": "Stores the module descriptor returned later by `getDescriptor()`. Expected to be called once, before use, with this module's descriptor by the module-descriptor framework. Not determined: the plugin's own code never calls it; the call comes from the platform's module initialisation.",
+    "getDescriptor()": "The descriptor set by `init`. Null if `init` was not called (despite the not-null contract).",
+    "getText(String, Object[])": "Localized text for the given i18n key (first argument) with message parameters (rest), resolved through the descriptor's i18n helper, which uses the current user's locale. Fails if `init` was not called.",
+    "addDefaultFormParameters(java.util.Map)": "Does nothing by default; override to put default values for a new instance's configuration form into the given map.",
+    "storeParameters(Object)": "Serializes the parameters to a JSON string. Null gives null. Parameters must be a `Map` (of JSON-compatible values); any other type throws `IOException`.",
+    "restoreParameters(String)": "Parses a JSON object string produced by `storeParameters` back into a map; null gives null. Throws `IOException` on malformed input.",
+    "castParameters(Object)": "Returns the parameters object as a string-keyed map, or null when it is null or not a `Map` (the latter is logged as a warning).",
+    "parametersAsMapObject(Object)": "The parameters wrapped as a `MapObject`, or null when `castParameters` gives null.",
+    "parametersAsNNMapObject(Object)": "Like `parametersAsMapObject` but returns an empty `MapObject` instead of null.",
+    "verifyStructureEditPermissions(long)": "Same as the two-argument form using the current thread's `SyncLogger` (so it must be called during a sync run).",
+    "verifyStructureEditPermissions(long, com.almworks.jira.structure.api.sync.util.SyncLogger)": "True when the current user (the sync instance owner during a run) has at least EDIT level on the structure (first argument). When false, logs a warning through the given logger that the run cannot proceed for this user.",
+    "getIssue(long)": "The issue with the given ID from Jira's issue manager, or null when it does not exist or lookup fails (logged). No permission check.",
+    "getIssue(String)": "The issue with the given key, or null when not found or lookup fails (logged). No permission check.",
+    "getIssueManager()": "Jira's `IssueManager`, looked up lazily from the component registry and cached. Throws `StructureRuntimeException` if it is not available.",
+    "getIssueByRowId(long)": "The issue shown in the given row, or null when the row is missing or does not show an issue.",
+    "getIssueIdByRowId(long)": "The ID of the issue shown in the given row, or 0 when the row does not show an issue or does not exist (a missing row is logged through the current `SyncLogger`, so this must be called during a sync run).",
+    "getIssueIdByRow(com.almworks.jira.structure.api.row.StructureRow)": "Static helper: the issue ID of the row's item if the item is an issue, otherwise 0.",
+    "sync(com.almworks.jira.structure.api.sync.SyncInstance, com.almworks.jira.structure.api.sync.IncrementalSyncData, com.almworks.jira.structure.api.forest.ForestSource)": "Runs `doSync` with the same arguments, then, if the returned actions are to be recorded (see `SyncAuditLog.isActionGroupRecorded`), writes them to the audit log with a description built by `SyncAuditLogHelper.createAuditLogEntryDescription` (action `sync`, the events, the instance owner and parameters, plus the result description). Exceptions from `doSync` propagate and nothing is logged to the audit log.",
+    "resync(com.almworks.jira.structure.api.sync.SyncInstance, com.almworks.jira.structure.api.forest.ForestSource)": "Runs `doResync`, then records its actions in the audit log as for `sync`, with action `resync` and no events.",
+    "doSync(com.almworks.jira.structure.api.sync.SyncInstance, com.almworks.jira.structure.api.sync.IncrementalSyncData, com.almworks.jira.structure.api.forest.ForestSource)": "Implement the incremental run here: react to the changes in the second argument for the instance (first) by modifying Jira or the forest (third). Return `success(actions)` or a `failure(...)`; must not return null. May throw `StructureException`.",
+    "doResync(com.almworks.jira.structure.api.sync.SyncInstance, com.almworks.jira.structure.api.forest.ForestSource)": "Implement the full run here: bring the forest (second argument) and Jira fully in line according to the instance's parameters. Same return contract as `doSync`.",
+    "success(java.util.List)": "Creates a successful run result carrying the given action descriptions (each a `MapObject`); its description is `{result: success}`.",
+    "failure(String)": "Creates a failed run result with the given reason text and no actions.",
+    "failure(Throwable)": "Creates a failed run result describing the given exception and no actions.",
+    "failure(Throwable, String)": "Creates a failed run result with both an exception and a reason text (either may be null)."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.AbstractSynchronizer.SyncRunAuditEntry": {
+   "summary": "Result of one `doSync`/`doResync` call of an `AbstractSynchronizer`: the actions performed and a description of the outcome. Protected nested type; create instances with the `success` and `failure` factory methods.",
+   "members": {
+    "getActions()": "Descriptions of the individual actions performed (for example a link created), in order; recorded in the audit log.",
+    "getDescription()": "A small map describing the outcome, merged into the audit entry description (key `result` is `success` or `failure`)."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.AbstractSynchronizer.SyncRunAuditEntry.Failure": {
+   "summary": "Failed run result: no actions, and a description with `result` = `failure` plus the optional reason and exception details.",
+   "members": {
+    "<init>(Throwable, String)": "Creates the result from an optional exception (first argument) and optional reason text (second).",
+    "getActions()": "Always an empty list.",
+    "getDescription()": "The map produced by `SyncAuditLogHelper.getFailureDescription(reason, throwable)`."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.AbstractSynchronizer.SyncRunAuditEntry.Success": {
+   "summary": "Successful run result carrying the list of performed actions.",
+   "members": {
+    "<init>(java.util.List)": "Creates the result with the given action list (kept as given).",
+    "getActions()": "The action list passed to the constructor.",
+    "getDescription()": "Always the immutable map `{result: success}`."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.IncrementalSyncData": {
+   "summary": "The changes an incremental (autosync) run must react to: Jira issue events and structure history entries that happened since the instance last ran, excluding changes made by this same sync instance. Created by the plugin and passed to `StructureSynchronizer.sync`; for full resyncs an empty instance is passed. Not thread-safe; derived lists are computed lazily and cached.",
+   "members": {
+    "getJiraEvents()": "Jira change events since the last run, oldest first. Never null.",
+    "getStructureEvents()": "History entries of the instance's structure since the last run, oldest first, as events. Never null.",
+    "getJiraChangedIssuesSorted(com.almworks.jira.structure.api.event.JiraChangeType[])": "Sorted, distinct IDs of issues affected by Jira events of the given change types; with no types given, all events count. A null array returns an empty list.",
+    "getStructureChangedRowsSorted()": "Sorted, distinct row IDs affected by the structure events: all rows of added, copied and removed fragments, and the top rows of moved fragments.",
+    "getStructureChangedIssuesSorted()": "Sorted, distinct IDs of issues shown in the rows from `getStructureChangedRowsSorted()`.",
+    "getPreviousParentRowsSorted()": "Sorted, distinct row IDs of the former parents of moved or removed fragments (top-level fragments contribute nothing)."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SourceOfTruth": {
+   "summary": "Which side wins when a synchronizer finds Jira data and the structure disagree. Each constant has a lower-case code used in stored parameters.",
+   "members": {
+    "JIRA": "Jira data is authoritative; the structure is adjusted to match (code `jira`).",
+    "STRUCTURE": "The structure is authoritative; Jira data is changed to match (code `structure`).",
+    "values()": "",
+    "valueOf(String)": "",
+    "fromCode(String)": "The constant for a code, compared ignoring case. Throws `IllegalArgumentException` when the code is null or unknown.",
+    "getCode()": "The lower-case code: `jira` or `structure`."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.StructureSyncManager": {
+   "summary": "Service (OSGi component) that manages synchronizer instances: installing a synchronizer module on a structure with parameters and an owner, enabling or disabling automatic (incremental) synchronization, requesting full resyncs, editing and uninstalling. Instances run in background jobs as their owner. Note: this service performs no permission checks of its own; callers (UI, REST) are responsible for checking that the user may manage synchronizers on the structure. Every state change is also written to the `SyncAuditLog`. Thread-safe.",
+   "members": {
+    "getInstalledSynchronizer(Long)": "The installed instance with the given ID, or null when the ID is null or no such instance exists. If the synchronizer module is currently not installed or enabled, an instance is still returned but its `getSynchronizer()` is null.",
+    "getInstalledSynchronizersForStructure(Long)": "All instances installed on the given structure, or an empty list for a null ID or none. Order not specified (storage order).",
+    "installSynchronizer(com.almworks.jira.structure.api.sync.StructureSynchronizer, Long, Object, com.atlassian.jira.user.ApplicationUser)": "Installs a new instance of the synchronizer (first argument) on the structure (second) with the given parameters (third, stored via the synchronizer's `storeParameters`) and owner (fourth); runs will execute as that owner. The instance starts with autosync disabled. Returns the new instance. Throws `StructureSynchronizerException` when the synchronizer or user is null, the synchronizer is not available, the structure ID is null or not positive, the synchronizer is not a registered module, or the parameters cannot be stored. The structure's existence is not checked.",
+    "installSynchronizerOffline(String, String, Long, String, boolean)": "Installs an instance from stored data without loading the module (used for import/restore). Arguments: complete module key, already-serialized parameters, structure ID, owner user key, and whether autosync starts enabled. Returns the new instance ID. Throws `StructureSynchronizerException` when the structure ID is null or not positive, or the owner key is blank or not an existing user. The module key is not checked.",
+    "uninstallSynchronizer(Long)": "Deletes the instance with the given ID (stopping its autosync). Null or unknown ID does nothing.",
+    "uninstallAllSynchronizers()": "Deletes every synchronizer instance on all structures.",
+    "uninstallSynchronizersForStructure(Long)": "Deletes all instances on the given structure. Null does nothing.",
+    "isAutosyncEnabled(Long)": "True when the instance exists and its automatic incremental synchronization is enabled. False for null.",
+    "setAutosyncEnabled(Long, boolean)": "Enables (second argument true) or disables automatic synchronization of the instance. Enabling makes the instance react to changes from that moment on. Null ID does nothing. Throws `StructureSynchronizerException` when the instance does not exist, its module is unavailable, the synchronizer reports it is not available, or it does not support autosync (also when disabling).",
+    "resync(Long, boolean, Long)": "Requests a full resynchronization of the instance (first argument); it is queued and runs asynchronously as the owner. Second argument: also enable autosync. Third: optional ID of a background process (see the process manager) whose status is updated by the run. Throws `StructureSynchronizerException` when the ID is null or unknown, the synchronizer is unavailable, enabling is requested but autosync is not supported, or the owner user no longer exists.",
+    "resyncOnce(com.almworks.jira.structure.api.sync.StructureSynchronizer, Object, Long, com.atlassian.jira.user.ApplicationUser, Long)": "Queues a one-time full synchronization without installing an instance. Arguments: synchronizer, parameters, structure ID, user to run as, optional process ID. During the run the instance ID is 0. Throws `StructureSynchronizerException` when the structure ID is null or not positive, the user is null, the synchronizer is unavailable or not registered, or parameters cannot be stored.",
+    "updateSynchronizer(Long, Object, com.atlassian.jira.user.ApplicationUser)": "Changes the parameters (second argument, null keeps them) and/or owner (third, null keeps it) of the instance (first) and returns the updated instance. Throws `StructureSynchronizerException` when the ID is null or unknown, autosync is currently enabled (disable it first), the synchronizer module is unavailable, or parameters cannot be stored or restored."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.StructureSynchronizer": {
+   "summary": "Extension point for synchronizers, declared in a plugin descriptor as a `structure-synchronizer` module (with label, description, rules text and a `form` template). One object per module serves all instances, so implementations must be thread-safe. The plugin calls `sync` for incremental runs (when autosync is enabled and there are new events) and `resync` for full runs, on a background thread with the instance owner as current user and a `SyncLogger` installed. Most implementations extend `AbstractSynchronizer`.",
+   "members": {
+    "isAvailable()": "Whether the synchronizer can currently be used (for example its required Jira feature is present). Unavailable synchronizers cannot be installed or run.",
+    "isAutosyncSupported()": "Whether the synchronizer supports incremental automatic synchronization (`sync`). If false only full resyncs are possible.",
+    "getConfigDescription(Object)": "Short human-readable summary of the given parameters, shown in the synchronizer list; null if none.",
+    "getConfigDescriptionDetails(Object)": "Additional lines describing the given parameters; null if none.",
+    "getPossibleResyncEffects(Object)": "Human-readable warnings about what a full resync with these parameters may change, shown before the user confirms; null or empty if none.",
+    "storeParameters(Object)": "Serializes parameters to a string for storage (null allowed both ways). Throw `IOException` (or `ClassCastException`) when the object is not a valid parameters object.",
+    "restoreParameters(String)": "Recreates the parameters object from a stored string; null gives null. Throws `IOException` on bad data.",
+    "getDescriptor()": "The module descriptor of this synchronizer (label, rules, i18n, complete module key, form rendering).",
+    "buildParametersFromForm(java.util.Map, com.atlassian.jira.web.action.JiraWebActionSupport)": "Builds a parameters object from submitted form fields (first argument, field name to values). Report validation problems as errors on the web action (second argument) and return null when invalid.",
+    "addDefaultFormParameters(java.util.Map)": "Puts the defaults for a new instance's form into the given map (template variables).",
+    "addFormParameters(Object, java.util.Map)": "Puts template variables representing the given existing parameters (first argument, may be null) into the map (second) so the edit form shows them.",
+    "resync(com.almworks.jira.structure.api.sync.SyncInstance, com.almworks.jira.structure.api.forest.ForestSource)": "Performs a full synchronization for the instance (first argument) on the structure's forest source (second). Throw `StructureException` on failure; the plugin logs it and records the failure.",
+    "sync(com.almworks.jira.structure.api.sync.SyncInstance, com.almworks.jira.structure.api.sync.IncrementalSyncData, com.almworks.jira.structure.api.forest.ForestSource)": "Performs an incremental synchronization for the instance (first) in response to the changes (second), using the forest source (third). Only called when autosync is supported and enabled. Throw `StructureException` on failure."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.StructureSynchronizerException": {
+   "summary": "Checked exception thrown by `StructureSyncManager` when a synchronizer instance cannot be installed, changed or run as requested.",
+   "members": {
+    "<init>(String)": "Creates the exception with a message.",
+    "<init>(String, Throwable)": "Creates the exception with a message and a cause."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SyncAuditLog": {
+   "summary": "Service (OSGi component) storing a log of what synchronizers did, grouped per run or per management action. Entries are queued in memory and written to the database in the background (about every 30 seconds), so a just-recorded group may not be visible to `getActions` immediately; if more than a million groups are pending the oldest are dropped. Groups without actions are normally not stored. Thread-safe.",
+   "members": {
+    "recordActions(com.almworks.jira.structure.api.sync.SyncInstance, com.almworks.jira.structure.api.util.MapObject, java.util.List)": "Records a group for the given instance (its ID, module key and structure) with an optional description (second argument) and actions (third, null means none). Timestamp is the current time.",
+    "recordActions(long, String, long, com.almworks.jira.structure.api.util.MapObject, java.util.List)": "Records a group with explicit sync instance ID (0 if none), module key (empty if none), structure ID (0 if none), optional description and actions.",
+    "isActionGroupRecorded(java.util.List)": "Whether a group with these actions would be stored: true when the list is non-empty, or when storing of empty groups has been turned on by a system setting.",
+    "getActions(long, long, long, long)": "Recorded groups matching all given filters, newest first. Arguments: sync instance ID (0 or less for any), structure ID (0 or less for any), earliest timestamp inclusive (`Long.MIN_VALUE` for none), latest timestamp inclusive (`Long.MAX_VALUE` for none). The number of stored records read is capped (10,000 by default), so long ranges may be truncated."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SyncAuditLog.ActionGroup": {
+   "summary": "Immutable record of one group of synchronizer actions: who (instance and module), where (structure), when, a description of the run or action, and the individual actions.",
+   "members": {
+    "<init>(long, String, long, long, com.almworks.jira.structure.api.util.MapObject, java.util.List)": "Arguments in order: sync instance ID, module key (empty string is stored as null), structure ID, timestamp in epoch milliseconds, description (nullable), actions (wrapped as unmodifiable, must not be null).",
+    "getSyncInstanceId()": "ID of the sync instance, or 0 when the group is not tied to one (for example a one-time sync or a global action).",
+    "getSyncModuleKey()": "Complete module key of the synchronizer. Groups read from the log return an empty string when unknown; a group constructed with an empty key returns null.",
+    "getStructureId()": "ID of the structure concerned, or 0 when not tied to one.",
+    "getTimestamp()": "When the group was recorded, epoch milliseconds.",
+    "getDescription()": "Description of the run or management action (for example keys `action`, `result`, `ownerKey`, `parameters`), or null.",
+    "getActions()": "The individual actions, in order; unmodifiable, never null."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SyncAuditLogHelper": {
+   "summary": "Static helpers for building the maps synchronizers put into audit log entries. All results are immutable maps.",
+   "members": {
+    "ISSUE_INFO": "Function from an issue ID to `issueInfo(id)`.",
+    "<init>()": "Public no-op constructor; the class only has static members.",
+    "issueInfo(com.atlassian.jira.issue.Issue)": "Map with the issue's `key` and `id`; empty map for null.",
+    "issueInfo(long)": "Map with `id` and, when the issue can be found, its `key`.",
+    "issueInfo(long, String)": "Map with `id` (first argument) and `key` (second, omitted when null).",
+    "issueConstantInfo(com.atlassian.jira.issue.IssueConstant)": "Map with the constant's `name` and `id` (each omitted when null); empty for null.",
+    "customFieldInfo(com.atlassian.jira.issue.fields.CustomField)": "Map with the field's `name` and numeric `id` (each omitted when null); empty for null.",
+    "createAuditLogEntryDescription(com.almworks.jira.structure.api.sync.SyncInstance, com.almworks.jira.structure.api.sync.IncrementalSyncData, java.util.Map)": "Builds the description of a run: `action` is `sync` when sync data (second argument) is given and `resync` when it is null; then all entries of the third argument; `ownerKey` and `parameters` (empty map if none) of the instance; and for sync runs `jiraEvents` and `structureEvents` as lists of event maps (see `SyncEvents`). Keys in the third argument must not repeat these keys (duplicate keys fail).",
+    "getFailureDescription(String, Throwable)": "Map with `result` = `failure`, plus `reason` when given and `exception` when given. The exception is described by `message` (if any), `class` (class name), `stackTrace` (list of frames) and, recursively, `cause`.",
+    "isFailed(com.almworks.jira.structure.api.util.MapObject)": "True when the map's `result` value is the string `failure`."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SyncDirection": {
+   "summary": "Direction of a synchronization step: from Jira into the structure or from the structure out to Jira. Has short string codes for storage.",
+   "members": {
+    "INBOUND": "Changes flow from Jira into the structure (code `IN`).",
+    "OUTBOUND": "Changes flow from the structure into Jira (code `OUT`).",
+    "CODE_OUTBOUND": "The code `OUT`.",
+    "CODE_INBOUND": "The code `IN`.",
+    "values()": "",
+    "valueOf(String)": "",
+    "getCode(com.almworks.jira.structure.api.sync.SyncDirection)": "`IN` or `OUT` for the constant; the string `null` for a null argument.",
+    "fromCode(String)": "`INBOUND` for `IN`, `OUTBOUND` for `OUT` (case-sensitive); null for null or the string `null`. Any other value throws `IllegalArgumentException`."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SyncEvent": {
+   "summary": "Base class of the events delivered to incremental synchronization: either a Jira issue change or a structure history entry. Each has a timestamp and the ID of the sync instance that caused it (if any). Immutable; only the two nested subclasses exist. Ordered by timestamp.",
+   "members": {
+    "getTimestamp()": "When the event happened, epoch milliseconds.",
+    "getSyncInstanceId()": "ID of the sync instance whose action caused the event, or null if it was not caused by a synchronizer.",
+    "compareTo(com.almworks.jira.structure.api.sync.SyncEvent)": "Orders events by timestamp only (events with equal timestamps compare as equal).",
+    "toString(StringBuilder)": "Appends `:<instanceId>` when there is one, then the time of day in UTC (`HH:mm:ss.SSS` followed by `Z`), to the builder and returns it. Used by subclasses' `toString`."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SyncEvent.Jira": {
+   "summary": "Sync event wrapping a Jira issue change event.",
+   "members": {
+    "<init>(long, Long, com.almworks.jira.structure.api.event.JiraChangeEvent)": "Arguments: timestamp, causing sync instance ID (nullable), the change event. Throws `NullPointerException` when the event is null.",
+    "getEvent()": "The wrapped Jira change event.",
+    "getAffectedIssuesSorted()": "Sorted IDs of the issues affected by the event (as reported by the event).",
+    "toString()": "Debug text starting with `j(`; format not part of the contract."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SyncEvent.Structure": {
+   "summary": "Sync event wrapping a structure history entry. Its timestamp and sync instance ID are taken from the entry.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.structure.history.HistoryEntry)": "Wraps the history entry (must not be null).",
+    "getHistoryEntry()": "The wrapped history entry.",
+    "toString()": "Debug text starting with `s(`; format not part of the contract."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SyncEvents": {
+   "summary": "Static converters from sync events to plain maps for audit log descriptions.",
+   "members": {
+    "JIRA_EVENT_TO_MAP": "Converts a Jira sync event to a map with `type` (the change type name), `issues` (list of `SyncAuditLogHelper.issueInfo` maps), `timestamp` and `syncInstanceId` (0 when none). Null in, null out.",
+    "STRUCTURE_EVENT_TO_MAP": "Converts a structure sync event to a map with `version` (history version), `timestamp` and `syncInstanceId` (0 when none). Null in, null out.",
+    "<init>()": "Public no-op constructor; the class only has static members."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SyncInstance": {
+   "summary": "One installed (or one-time) use of a synchronizer on a structure: module, structure, owner and parameters. Returned by `StructureSyncManager` and passed to synchronizer runs. A snapshot: changes made through the manager produce a new object.",
+   "members": {
+    "getId()": "The instance ID; 0 for a one-time synchronization started with `resyncOnce`.",
+    "getSynchronizer()": "The synchronizer module object, or null when the module is currently not installed or enabled.",
+    "getSynchronizerModuleKey()": "Complete module key of the synchronizer.",
+    "getStructureId()": "ID of the structure being synchronized.",
+    "getParameters()": "The synchronizer-specific parameters object (as restored by the synchronizer), or null.",
+    "getUserKey()": "User key of the owner; runs execute with this user as the current user.",
+    "transientData(String)": "A per-instance, per-key mutable holder for in-memory state that synchronizers can keep between runs; the same key returns the same holder for this object. The data is not persisted and is lost when the instance is reloaded (after changes, cache eviction or restart). Thread-safe."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.SynchronizerDescriptor": {
+   "summary": "Read-only view of a synchronizer module's declaration in its plugin descriptor. Implemented by the plugin's module type and obtained from `StructureSynchronizer.getDescriptor()`.",
+   "members": {
+    "getLabel()": "Localized display name of the synchronizer (from the module's `label` element).",
+    "getDescription()": "Localized description of the synchronizer (from the module's `description` element).",
+    "getRules()": "Localized text explaining the synchronization rules (from the module's `rules` element).",
+    "getI18nBean()": "The i18n helper for the current user, able to resolve the module's resource keys.",
+    "getCompleteKey()": "The complete module key (`<plugin key>:<module key>`), which identifies the synchronizer in stored instances.",
+    "getParametersFormHtml(java.util.Map)": "Renders the module's `form` template resource with the given template variables and returns the HTML."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.UndoingSynchronizer": {
+   "summary": "Optional extension of `StructureSynchronizer` for synchronizers that can revert actions they recorded in the audit log. Used by the plugin's audit log page and REST undo call, which run it as the logged-in user and record the result as a new audit group with action `undo`.",
+   "members": {
+    "FAILURE_REASON_UNKNOWN_ACTION": "Reason string `unknownAction`, used in a failure map when an action type cannot be undone.",
+    "undo(java.util.List)": "Tries to revert the given recorded actions (as previously written to the audit log). Returns one map per action describing the reverting action taken, or a failure description (see `SyncAuditLogHelper.getFailureDescription`) for actions that could not be undone. Exceptions are caught by the caller and recorded as a failure."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.util.HierarchyHelper": {
+   "summary": "Answers parent and ancestor questions about a forest while a synchronizer plans moves that have not been applied yet: recorded moves override the forest's real parents. Created by the caller over an indexed forest and its row index; not thread-safe.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.util.LongListHashIndex, com.almworks.jira.structure.api.util.IndexedForest)": "Creates the helper from a row-ID-to-position index (first argument) and the indexed forest (second) it describes.",
+    "recordMove(long, long)": "Records that the row (first argument) is to be placed under the new parent row (second). Later queries treat this as the row's parent. Not determined: behaviour when either row is not in the forest (the position becomes -1, which later makes the row appear top-level or fails).",
+    "getParent(long)": "The parent row ID of the row, taking recorded moves into account; 0 for top level. Throws `IllegalArgumentException` when the row is not in the forest.",
+    "isInSubtree(long, long)": "True when the row (first argument) is a proper descendant of the subtree root (second), taking recorded moves into account. False when the row is 0; true for any non-zero row when the root is 0. Throws `IllegalArgumentException` when either row is not in the forest."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.util.SyncChangeListener": {
+   "summary": "Callback a synchronizer helper can notify about forest changes it makes, for example to record audit actions. Implemented by synchronizer code.",
+   "members": {
+    "onInsert(long, com.almworks.integers.LongIterable)": "Called after items were added under the parent row (first argument; 0 for top level); the second argument lists the added issue IDs.",
+    "onMove(long, long)": "Called after an issue (second argument, issue ID) was moved under the parent row (first argument; 0 for top level)."
+   }
+  },
+  "com.almworks.jira.structure.api.sync.util.SyncLogger": {
+   "summary": "Logger for synchronizer runs. The plugin creates one per run, prefixes every message with the synchronizer label, run type and structure, and installs it in a thread-local so synchronizer code can call `SyncLogger.get()`. Messages are built by joining the given objects with spaces. Not thread-safe; use only on the sync thread.",
+   "members": {
+    "<init>(org.slf4j.Logger, com.almworks.jira.structure.api.sync.SyncInstance, com.almworks.jira.structure.api.structure.StructureManager, com.almworks.jira.structure.api.row.RowManager, boolean)": "Arguments: underlying logger, sync instance (nullable), structure manager and row manager (for descriptive output), and whether this is an automatic incremental run. The prefix starts empty.",
+    "get()": "The logger installed for the current thread. Throws `IllegalStateException` when none is installed (not on a sync thread).",
+    "set(com.almworks.jira.structure.api.sync.util.SyncLogger)": "Installs (or with null removes) the current thread's logger. Internal: throws `UnsupportedOperationException` unless the thread's context class loader is the one that loaded this API (that is, only the plugin itself may call it).",
+    "isInfo()": "Whether info level is enabled on the current thread's logger. Throws `IllegalStateException` when none is installed.",
+    "isDebug()": "Whether debug level is enabled on the current thread's logger. Throws `IllegalStateException` when none is installed.",
+    "getPrefix()": "The current message prefix; never null.",
+    "setPrefix(String)": "Replaces the message prefix; null becomes empty.",
+    "pushPrefix(String)": "Appends a space and the given text to the prefix, remembering the previous prefix for `popPrefix`.",
+    "popPrefix()": "Restores the prefix from before the last `pushPrefix`. Throws `NoSuchElementException` if there was no push.",
+    "getLogger()": "The underlying logger.",
+    "setLogger(org.slf4j.Logger)": "Replaces the underlying logger (the plugin switches to a logger named after the synchronizer class during the run).",
+    "isOneTimeSync()": "True when this run is for a one-time synchronization (instance ID 0).",
+    "isAutoSync()": "True when this run is an automatic incremental synchronization.",
+    "info(Object[])": "Logs the joined message at info level if enabled.",
+    "infoException(Throwable, Object[])": "Logs the joined message with the throwable at info level if enabled.",
+    "debug(Object[])": "Logs the joined message at debug level if enabled.",
+    "debugException(Throwable, Object[])": "Logs the joined message at debug level with the throwable (if not null) when enabled.",
+    "warn(Object[])": "Logs the joined message at warn level if enabled.",
+    "warnException(Throwable, Object[])": "Logs the joined message at warn level with the throwable (if not null) when enabled.",
+    "warnExceptionIfDebug(Throwable, Object[])": "At warn level: includes the full throwable only when debug is also enabled; otherwise appends just the throwable's message to the text.",
+    "error(Object[])": "Logs the joined message at error level if enabled.",
+    "errorException(Throwable, Object[])": "Logs the joined message at error level with the throwable (if not null) when enabled.",
+    "isInfoEnabled()": "Whether this logger's info level is enabled.",
+    "isDebugEnabled()": "Whether this logger's debug level is enabled.",
+    "createLogMessage(Object[])": "Builds the text: the prefix followed by each argument's string form separated by single spaces. Nested arrays are flattened. No space is inserted before an argument that starts with a punctuation character (such as `,`, `:` or `.`) or a control character. Null arguments print as `null`.",
+    "defaultPrefix()": "The standard prefix for this run: synchronizer label (or class name; or `<unavailable>` plus module key), run type (`autosync`, `full sync` or `one-time sync`), `#<instance id>` unless one-time, then `for structure` and a short structure description. Empty when no instance was given.",
+    "username()": "Display name of the instance owner (or the current user when there is no instance); `(null)` when unknown.",
+    "issue(Long)": "Short text for an issue ID: its key when found, else the number; with debug enabled, a longer debug description. `null` for null.",
+    "appendIssue(Long, StringBuilder)": "Appends the same text as `issue(Long)` to the builder and returns it.",
+    "issue(com.atlassian.jira.issue.Issue)": "Short text for an issue: its key, or `#<id>` when it has none; debug description when debug is enabled. `null` for null.",
+    "issues(Iterable)": "Bracketed, comma-separated list of `issue(Issue)` texts; `null` for null.",
+    "issues(com.almworks.integers.LongIterable)": "Bracketed, comma-separated list of issue texts for the given IDs; `null` for null.",
+    "structure(long)": "Short debug description of the structure with the given ID.",
+    "selectBySyncMode(Object, Object, Object)": "Returns the first argument for an automatic run, the third for a one-time sync, otherwise (full resync) the second.",
+    "appendForest(com.almworks.jira.structure.api.forest.raw.Forest, StringBuilder)": "Appends a compact text of the forest to the builder: for each row `<rowId>:<depth>:<item>` separated by commas; returns the builder.",
+    "forest(com.almworks.jira.structure.api.forest.raw.Forest)": "The text produced by `appendForest`.",
+    "appendItemForest(com.almworks.jira.structure.api.forest.item.ItemForest, StringBuilder)": "Like `appendForest` but takes items from the item forest; missing rows print as `<missing row N>`.",
+    "itemForest(com.almworks.jira.structure.api.forest.item.ItemForest)": "The text produced by `appendItemForest`.",
+    "appendRows(com.almworks.integers.LongIterable, StringBuilder)": "Appends `<rowId>:<item>` for each row, comma-separated; returns the builder.",
+    "appendItem(long, StringBuilder)": "Appends the item shown in the row (or `<missing row N>`); returns the builder.",
+    "appendItem(com.almworks.jira.structure.api.item.ItemIdentity, StringBuilder)": "Appends an item: issues as issue text, other items as `<item type>/<id>`; returns the builder.",
+    "row(long)": "Text for a row: `0` for 0, `r<id>` for negative (transient) IDs, otherwise `<item> (row N)`, or `<missing row N>`.",
+    "rows(com.almworks.integers.LongIterable)": "The text produced by `appendRows`.",
+    "warnStructureException(com.almworks.jira.structure.api.error.StructureException)": "Logs a warning tailored to common errors (structure missing or not accessible to the owner, parent-issue permission violation, edit denied, plugin not enabled for the user) and returns the logged text; for other errors logs a generic warning and returns null."
+   }
+  },
+  "com.almworks.jira.structure.api.template.EmptyTemplate": {
+   "summary": "The built-in template that creates an empty structure. It has no steps of its own: the wizard goes straight to the plugin's general final step (name, description, sharing) and the template adds nothing to the structure. Registered by the plugin as a template module; may also be subclassed.",
+   "members": {
+    "<init>()": "Creates the template; it has no state.",
+    "isEnabled()": "Always true.",
+    "getInitialStep()": "Always `__end` (`NewStructureTemplateStep.END_STEP`), so the first page shown is the general final step.",
+    "createStep(String, java.util.Map, com.almworks.jira.structure.api.template.NewStructureTemplateContext)": "Always throws `StructureTemplateException` with a localized \"unknown step\" message naming the (HTML-encoded) step, because this template defines no steps.",
+    "configureNewStructure(com.almworks.jira.structure.api.structure.Structure, java.util.Map)": "Does nothing."
+   }
+  },
+  "com.almworks.jira.structure.api.template.NewStructureTemplate": {
+   "summary": "Extension point for structure templates offered by the create-structure wizard. Declared as a `new-structure-template` module, with one velocity resource per step (resource name = step key) that renders the step's form fields. The wizard keeps all submitted values in a parameters map: for each step key, a map of that step's form field names to their submitted values (string arrays as received from the request), plus wizard-level keys starting with `__`. One object serves all users; implementations must be thread-safe.",
+   "members": {
+    "isEnabled()": "Whether the template is offered and usable now (for example only if a required Jira feature is installed). Exceptions are treated as false.",
+    "getInitialStep()": "Key of the first step to show. Return `NewStructureTemplateStep.END_STEP` to go straight to the general final step.",
+    "createStep(String, java.util.Map, com.almworks.jira.structure.api.template.NewStructureTemplateContext)": "Returns the step object for the given step key (first argument), given the parameters collected so far (second) and the wizard context (third). Not called for `__end` unless `hasCustomFinalStep()` is true. Throw `StructureTemplateException` for an unknown key; its message is shown to the user as an error.",
+    "configureNewStructure(com.almworks.jira.structure.api.structure.Structure, java.util.Map)": "Called when the user finishes the wizard, as that user. First argument: the new structure; unless the template has a custom final step it has already been saved with the name, description and permissions from the general step, otherwise it is unsaved and the template should set it up (the wizard saves it afterwards if its ID is still 0). Second argument: all collected parameters. Typical work: add generators or content. A `StructureTemplateException` aborts with its message shown to the user (a structure already saved stays created).",
+    "getCreateButtonTextKey()": "i18n key of the label of the final button. Default: the plugin's standard \"finish\" key.",
+    "prepareNewStructureUrl(com.almworks.jira.structure.api.structure.Structure)": "Relative URL to open after creation. Default: the structure board page for the new structure (`/secure/StructureBoard.jspa?s=<id>`).",
+    "shouldRedirectForNewStructure()": "Whether to always redirect to `prepareNewStructureUrl` after creation, even when the wizard was opened from the structure board (where it otherwise just reports the new structure's ID). Default false.",
+    "hasCustomFinalStep()": "Whether the template supplies its own `__end` step instead of the plugin's general step (name, description, sharing). Default false. If true, the template is responsible for naming the structure and setting permissions."
+   }
+  },
+  "com.almworks.jira.structure.api.template.NewStructureTemplateContext": {
+   "summary": "Services the wizard passes to template steps: localization, HTML escaping and error reporting for the current request. Implemented by the plugin; valid only during the request.",
+   "members": {
+    "htmlEncode(String)": "The text with HTML special characters escaped, safe to embed in HTML.",
+    "getText(String)": "Localized text for the i18n key in the current user's locale, treated as HTML-safe.",
+    "getText(String, String[])": "Localized text for the key (first argument) with the given message parameters substituted, in the current user's locale.",
+    "getErrors()": "The field errors reported so far in this request: field name to message.",
+    "addError(String, String)": "Reports a validation error for a form field (first argument, field name) with a message (second). Any error makes the wizard show the same step again instead of moving on."
+   }
+  },
+  "com.almworks.jira.structure.api.template.NewStructureTemplateStep": {
+   "summary": "One page of a template's wizard. Created by `NewStructureTemplate.createStep` for each request; the matching velocity resource renders its fields and can access the step object. Step keys are free-form strings chosen by the template, except for the reserved keys defined here.",
+   "members": {
+    "END_STEP": "Reserved step key `__end`: the final step. Unless the template has a custom final step, this is the plugin's general step asking for name, description and sharing.",
+    "START_STEP": "Reserved step key `__start`: returning it from `getNextStep` takes the user back to the template chooser.",
+    "CREATE_STRUCTURE": "Reserved step key `__create`: returning it from `getNextStep` creates the structure and finishes the wizard.",
+    "getTitleI18nKey()": "i18n key of the step's page title.",
+    "validateStep(java.util.Map, com.almworks.jira.structure.api.template.NewStructureTemplateContext)": "Checks the values submitted for this step (found in the parameters map, first argument, under this step's key) and reports problems via `context.addError` (second argument). Called when moving forward only, not when going back.",
+    "getNextStep(java.util.Map, com.almworks.jira.structure.api.template.NewStructureTemplateStep.Direction, com.almworks.jira.structure.api.template.NewStructureTemplateContext)": "Key of the step to show next, given all parameters (first argument) and whether the user pressed next or back (second). May return another step key, `END_STEP`, `START_STEP` or `CREATE_STRUCTURE`."
+   }
+  },
+  "com.almworks.jira.structure.api.template.NewStructureTemplateStep.Direction": {
+   "summary": "Which wizard button the user pressed.",
+   "members": {
+    "FORWARD": "The user pressed next (or finish).",
+    "BACK": "The user pressed back.",
+    "values()": "",
+    "valueOf(String)": "",
+    "isBack()": "True only for `BACK`."
+   }
+  },
+  "com.almworks.jira.structure.api.template.StructureTemplateException": {
+   "summary": "Checked exception a template throws to abort a wizard step or structure creation; its message is shown to the user, so it should be localized.",
+   "members": {
+    "<init>(String)": "Creates the exception with a user-facing message.",
+    "<init>(String, Throwable)": "Creates the exception with a user-facing message and a cause.",
+    "<init>(Throwable)": "Creates the exception from a cause; the message is the cause's string form."
+   }
+  },
+  "com.almworks.jira.structure.api.view.ColumnDisplayMode": {
+   "summary": "Integer constants for how a view lays out its columns horizontally. Not instantiable.",
+   "members": {
+    "AUTO_FIT": "Value 1: columns are sized to fit the available width. The default.",
+    "SCROLLABLE": "Value 2: columns keep their widths and the grid scrolls horizontally.",
+    "isValid(int)": "True only for 1 or 2."
+   }
+  },
+  "com.almworks.jira.structure.api.view.RowDisplayMode": {
+   "summary": "Integer constants for how a view renders cell text vertically. Not instantiable.",
+   "members": {
+    "ONE_LINE": "Value 11: each row is one line; long text is cut. The default.",
+    "TEXT_WRAPPING": "Value 12: cell text wraps, so rows can be taller.",
+    "isValid(int)": "True only for 11 or 12."
+   }
+  },
+  "com.almworks.jira.structure.api.view.StructureView": {
+   "summary": "A view as a working copy with change tracking, obtained from `StructureViewManager` (`getView`, `getViews`, `createView`, menu items). Getters return pending changes if set, otherwise the loaded values. Setters only record changes in memory and return this; `saveChanges()` persists them. Not thread-safe.",
+   "members": {
+    "getId()": "The view ID; 0 for a new view that has not been saved.",
+    "getName()": "The view name; never null.",
+    "getDescription()": "The view description; never null (empty when unset).",
+    "getSpecification()": "The view's columns and display settings. Columns that refer to shared saved column definitions are returned resolved to their current definition.",
+    "getOwner()": "The owner as a Jira user, or null when there is no owner or the user cannot be found.",
+    "getPermissions()": "A copy of the view's sharing rules, in evaluation order; never null.",
+    "getEffectivePermission(com.atlassian.jira.user.ApplicationUser)": "The access level the given user (null for anonymous) has to the stored view: Jira administrators get ADMIN (unless disabled by a system setting), users without access to the plugin get NONE, the owner gets ADMIN, otherwise the result of the sharing rules. Pending unsaved changes are not considered; NONE for an unsaved view.",
+    "isShared()": "True when the sharing rules grant something to someone, that is, there is at least one rule other than a \"set level to none\" rule.",
+    "isPublic()": "True when the rules give everyone (the \"anyone\" subject) at least VIEW and no later rule takes it away.",
+    "setName(String)": "Records a new name. A null leaves the name unchanged. A blank name makes `saveChanges` fail. Returns this.",
+    "setDescription(String)": "Records a new description; null leaves it unchanged. Returns this.",
+    "setOwner(com.atlassian.jira.user.ApplicationUser)": "Records a new owner; null leaves the owner unchanged. Returns this.",
+    "setPermissions(java.util.Collection)": "Records new sharing rules (copied). Null leaves the rules unchanged; an empty collection makes the view private. Returns this.",
+    "setSpecification(com.almworks.jira.structure.api.view.ViewSpecification)": "Records a new specification (null means an empty one). Returns this.",
+    "setSpecification(com.almworks.jira.structure.api.view.ViewSpecification.Builder)": "Records a new specification from a builder (kept by reference, not copied); null leaves it unchanged. Returns this.",
+    "update(com.almworks.jira.structure.api.view.StructureViewBean.Builder)": "Copies every property that is set (non-null) in the given builder into the pending changes, including the ID if set. Null does nothing. Returns this.",
+    "makePublic()": "Replaces the sharing rules with: everyone may VIEW, followed by copies of the existing rules that grant more than VIEW (EDIT, ADMIN...). Rules granting VIEW or less and non-level rules are dropped. Returns this; save to persist.",
+    "saveChanges()": "Persists the view and returns this. For a new view: requires the global right to create views (`StructureException` `VIEW_CREATION_DENIED`), makes the current user the owner (unless security is overridden), requires a non-blank name (`INVALID_PARAMETER`), and if rules are set and non-empty requires the right to share views. For an existing view with no changes, does nothing. Otherwise: changing only the specification requires EDIT on the view; changing name, description, owner or rules requires ADMIN (`VIEW_EDIT_DENIED` / `VIEW_ADMIN_DENIED`, or `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` when the user has no access); changed rules are validated and require the sharing right. Fails when the license does not allow writes. Note: an ADMIN of a view can assign any user as owner; no further check is made."
+   }
+  },
+  "com.almworks.jira.structure.api.view.StructureViewBean": {
+   "summary": "Immutable value holding a view's stored properties. Built with `StructureViewBean.Builder`; getters for owner and permissions return copies.",
+   "members": {
+    "EMPTY": "A bean with ID 0, empty name and description, no owner, no permissions and an empty specification.",
+    "getId()": "The view ID (0 if not assigned).",
+    "getName()": "The name; never null.",
+    "getDescription()": "The description; never null.",
+    "getOwner()": "A copy of the owner subject, or null.",
+    "getPermissions()": "A copy of the sharing rules; empty list when none.",
+    "getSpecification()": "The specification; never null.",
+    "toString()": "Debug text listing all fields; format not part of the contract.",
+    "equals(Object)": "True for a bean of the same class with equal ID, name, description, owner, rules and specification.",
+    "hashCode()": "Hash consistent with `equals`."
+   }
+  },
+  "com.almworks.jira.structure.api.view.StructureViewBean.Builder": {
+   "summary": "Mutable builder of `StructureViewBean`, also used as a partial update (null fields mean \"not set\") and as the JSON form of a view (null fields are omitted). Not thread-safe.",
+   "members": {
+    "<init>()": "Creates a builder with nothing set.",
+    "<init>(com.almworks.jira.structure.api.view.StructureViewBean)": "Creates a builder with all properties copied from the bean; null gives an empty builder.",
+    "clone()": "A deep copy (owner, rules and specification builder are copied).",
+    "updatePropertiesOf(com.almworks.jira.structure.api.view.StructureViewBean.Builder)": "Copies each property set in this builder (ID, name, description, owner, rules, specification) into the target builder, leaving the target's other properties unchanged. The specification builder is shared, not copied.",
+    "getId()": "The view ID, or null when not set.",
+    "setId(Long)": "Sets the view ID (null unsets it).",
+    "getName()": "The name, or null when not set.",
+    "setName(String)": "Sets the name (null unsets it).",
+    "getDescription()": "The description, or null when not set.",
+    "setDescription(String)": "Sets the description (null unsets it).",
+    "getOwner()": "A copy of the owner subject, or null.",
+    "hasOwner()": "True when an owner is set.",
+    "setOwner(com.almworks.jira.structure.api.permissions.PermissionSubject)": "Sets the owner to a copy of the subject (null unsets it).",
+    "getPermissions()": "A copy of the rules; an empty list when not set (use `hasPermissions` to tell \"not set\" from \"empty\").",
+    "hasPermissions()": "True when rules are set (possibly empty).",
+    "setPermissions(java.util.Collection)": "Sets a copy of the rules; null unsets them.",
+    "getSpecification()": "The specification builder (live reference), or null when not set.",
+    "setSpecification(com.almworks.jira.structure.api.view.ViewSpecification.Builder)": "Sets the specification builder (kept by reference); null unsets it.",
+    "isValid()": "True when an ID other than 0 is set and `isValidExceptId()` holds.",
+    "isValidExceptId()": "True when the name is set and not blank and a specification is set.",
+    "build()": "Creates the immutable bean (copies of owner and rules, specification built from its builder). Throws `IllegalStateException` when `isValid()` is false.",
+    "toString()": "Debug text; format not part of the contract."
+   }
+  },
+  "com.almworks.jira.structure.api.view.StructureViewManager": {
+   "summary": "Service (OSGi component) for views: lookup with access checks, creation and deletion, and view settings that associate views with structures and pages (per structure and global default). Acts as the current user; checks are skipped when security is overridden. A null `PermissionLevel` argument means \"no minimum\". Thread-safe.",
+   "members": {
+    "getView(Long, com.almworks.jira.structure.api.permissions.PermissionLevel)": "The view with the given ID if the current user has at least the given level (null: any) and may use the plugin. Throws `StructureException` `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` otherwise, including for a null or unknown ID.",
+    "getViews(com.almworks.jira.structure.api.permissions.PermissionLevel)": "All views the current user can access at the given level (null: any), sorted by name using the user's locale collation. Empty on storage errors.",
+    "getViewPermission(Long, com.atlassian.jira.user.ApplicationUser)": "The access level of the given user (second argument, null for anonymous) to the view (first argument); NONE when the view does not exist. See `StructureView.getEffectivePermission` for the rules.",
+    "isAccessible(Long, com.almworks.jira.structure.api.permissions.PermissionLevel)": "True when the current user has at least the given level to the view. For a nonexistent view, true only when the level is null or NONE and the user may use the plugin.",
+    "createView()": "A new, unsaved view with empty properties. Set at least a name and call `saveChanges()`.",
+    "deleteView(Long)": "Deletes the view and its associations with structures. Requires ADMIN on the view (`VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE`, `VIEW_ADMIN_DENIED` otherwise). Fails when the license does not allow writes. Structure view settings that mention the view are not rewritten.",
+    "getViewSettings(Long)": "The view settings of the structure. Requires VIEW on the structure, otherwise `StructureException` `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`. Returns settings for which `isDefined()` is false when the structure has none of its own (the global default then applies). On storage errors returns `ViewSettings.EMPTY_SETTINGS`.",
+    "setViewSettings(Long, com.almworks.jira.structure.api.view.ViewSettings)": "Replaces the structure's view settings; null (or undefined settings) removes them so the global default applies. Requires ADMIN on the structure (`STRUCTURE_ADMIN_DENIED`, or `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` without VIEW); with security overridden the structure must still exist. Fails when the license does not allow writes. The referenced views are not checked.",
+    "getDefaultViewSettings()": "The global default view settings used for structures without their own. No access check. `ViewSettings.EMPTY_SETTINGS` on storage errors.",
+    "setDefaultViewSettings(com.almworks.jira.structure.api.view.ViewSettings)": "Replaces the global default view settings (null clears them). Only Jira administrators may do this (`StructureException` `JIRA_ADMIN_DENIED`), unless security is overridden. Fails when the license does not allow writes.",
+    "getMenuItems(Long, com.almworks.jira.structure.api.settings.StructurePage)": "The views to show in the view menu for the structure (first argument; null uses only the global default) on the page (second). Uses the structure's settings if defined, otherwise the global default. Includes, in settings order, each associated view listed for that page that the current user can view; the first view marked default for the page is moved to the front and flagged as preferred. Empty when the user cannot view the structure. Component and version tabs count as the project tab; other pages count as the structure board.",
+    "getAssociatedStructures(Long)": "Structures whose view settings mention the given view and which the current user can view, sorted by name. Requires VIEW on the view (`StructureException` otherwise).",
+    "makeDefaultForStructure(Long, Long, com.almworks.jira.structure.api.settings.StructurePage)": "Makes the view (first argument) the default view of the structure (second) on the page (third), also putting it on that page's menu; starts from the global default settings if the structure has none. Other views lose their default flag for that page; a view not yet associated is added at the front. Does nothing when it is already the default. Requires ADMIN on the structure and VIEW on the view."
+   }
+  },
+  "com.almworks.jira.structure.api.view.StructureViewMenuItem": {
+   "summary": "Immutable entry of a view menu returned by `StructureViewManager.getMenuItems`: a view and whether it is the preferred (default) one for the page.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.view.StructureView, boolean)": "Creates the entry for the view (first argument) with the preferred flag (second).",
+    "isPreferred()": "True when the view is marked as default for the page in question.",
+    "getView()": "The view.",
+    "toString()": "Debug text; format not part of the contract."
+   }
+  },
+  "com.almworks.jira.structure.api.view.ViewSettings": {
+   "summary": "Immutable list of views associated with a structure (or the global default), each with the pages on whose menu it appears and the pages where it is the default. \"Undefined\" settings (no list at all) mean \"use the global default\"; defined but empty settings mean \"no views\". Build with `ViewSettings.Builder`.",
+   "members": {
+    "NO_PAGES": "Empty, unmodifiable set of pages.",
+    "ALL_PAGES": "Unmodifiable set of the pages that can have a view menu: structure board, issue view, project tab and gadget.",
+    "PAGES_WITH_DEFAULT_VIEW": "Unmodifiable set of pages that can have a default view: structure board, issue view and project tab.",
+    "EMPTY_SETTINGS": "Undefined settings (`isDefined()` false, no views).",
+    "isDefined()": "True when these settings contain a list of views (possibly empty); false when they are undefined and the global default should apply.",
+    "getAssociatedViews()": "The associated views in menu order; unmodifiable; empty when undefined.",
+    "getDefaultViewForPage(com.almworks.jira.structure.api.settings.StructurePage)": "ID of the first associated view marked default for the page (component and version tabs count as the project tab, other unlisted pages as the structure board); null when none or undefined.",
+    "hasView(Long)": "True when a view with this ID is associated. False for null.",
+    "toString()": "Debug text; format not part of the contract.",
+    "equals(Object)": "True for settings with equal view lists (both undefined also counts as equal).",
+    "hashCode()": "Hash consistent with `equals`."
+   }
+  },
+  "com.almworks.jira.structure.api.view.ViewSettings.AssociatedView": {
+   "summary": "Immutable association of one view with menu pages and default pages, part of `ViewSettings`. Built with its `Builder`.",
+   "members": {
+    "getMenuPages()": "Pages on whose view menu the view appears. Unmodifiable; when unspecified this is `ALL_PAGES`.",
+    "getDefaultPages()": "Pages where the view is the default. Unmodifiable; empty when unspecified.",
+    "getViewId()": "The view ID.",
+    "isOnMenu(com.almworks.jira.structure.api.settings.StructurePage)": "True when the view appears on the menu of the page (component and version tabs count as the project tab; pages outside `ALL_PAGES`, and null, count as the structure board).",
+    "isDefault(com.almworks.jira.structure.api.settings.StructurePage)": "True when the view is the default for the page, with the same page mapping as `isOnMenu`.",
+    "toString()": "Debug text; format not part of the contract.",
+    "equals(Object)": "True for an association with the same view ID, menu pages and default pages.",
+    "hashCode()": "Hash consistent with `equals`."
+   }
+  },
+  "com.almworks.jira.structure.api.view.ViewSettings.AssociatedView.Builder": {
+   "summary": "Mutable builder of `ViewSettings.AssociatedView`; also its JSON form (properties `view`, `menuPages`, `defaultPages`, nulls omitted). Not thread-safe.",
+   "members": {
+    "<init>()": "Creates a builder with view ID 0 and unspecified pages.",
+    "<init>(com.almworks.jira.structure.api.view.ViewSettings.AssociatedView)": "Creates a builder copying the association (null gives an empty builder).",
+    "build()": "The association, or null when the view ID is 0.",
+    "getMenuPages()": "A copy of the menu pages, or null when unspecified (meaning all pages).",
+    "setMenuPages(java.util.Set)": "Sets the menu pages. Null, an empty set, or a set equal to `ALL_PAGES` all mean \"all pages\" (stored as unspecified). The board-with-details page is replaced by the structure board and the project tab; pages not in `ALL_PAGES` are dropped.",
+    "getDefaultPages()": "A copy of the default pages, or null when none.",
+    "setDefaultPages(java.util.Set)": "Sets the default pages; null or empty means none. Pages not in `PAGES_WITH_DEFAULT_VIEW` are dropped.",
+    "getViewId()": "The view ID (JSON property `view`); 0 when not set.",
+    "setViewId(long)": "Sets the view ID.",
+    "toString()": "Debug text; format not part of the contract."
+   }
+  },
+  "com.almworks.jira.structure.api.view.ViewSettings.Builder": {
+   "summary": "Mutable builder of `ViewSettings`. Starts undefined (no view list); adding a view or calling `makeDefined` makes it defined. Not thread-safe.",
+   "members": {
+    "<init>()": "Creates an undefined builder.",
+    "<init>(com.almworks.jira.structure.api.view.ViewSettings)": "Creates a builder copying the given settings if they are defined; otherwise undefined.",
+    "getViews()": "A copy of the list of association builders, or null when undefined.",
+    "setViews(java.util.List)": "Replaces the list with a copy of the given builders; null makes the builder undefined.",
+    "build()": "Creates the settings. Associations whose builders produce null (view ID 0) are skipped. Undefined builder gives undefined settings.",
+    "addViews(long[])": "Appends each view (as with `addView(id, false)`). Null does nothing. Returns this.",
+    "addView(long, boolean)": "Appends the view, on all menus; when the second argument is true it is also the default on every page in `PAGES_WITH_DEFAULT_VIEW`. Other views keep their default flags. Returns this.",
+    "addView(int, long, java.util.Collection, java.util.Collection)": "Inserts the view (second argument) at the position (first; negative appends) with the given menu pages (third; null or empty means all) and default pages (fourth; null means none), after removing an existing entry for the same view. Throws `IllegalArgumentException` for a view ID of 0 or less and `IndexOutOfBoundsException` when the position is beyond the end of the list. Returns this.",
+    "makeDefined()": "Makes the builder defined with an empty list if it was undefined.",
+    "isDefined()": "True when the builder has a view list.",
+    "toString()": "Debug text; format not part of the contract."
+   }
+  },
+  "com.almworks.jira.structure.api.view.ViewSpecification": {
+   "summary": "Immutable description of a view's grid: ordered columns, column and row display modes, and pinned columns. Built with `ViewSpecification.Builder`.",
+   "members": {
+    "EMPTY": "Specification with no columns, `AUTO_FIT` columns, `ONE_LINE` rows and no pins.",
+    "getColumns()": "The columns in display order; unmodifiable.",
+    "getColumnDisplayMode()": "A `ColumnDisplayMode` value.",
+    "getRowDisplayMode()": "A `RowDisplayMode` value.",
+    "getPins()": "Column IDs (`csid`) of pinned (frozen) columns; unmodifiable.",
+    "toString()": "Debug text; format not part of the contract.",
+    "equals(Object)": "True for a specification with equal columns, display modes and pins.",
+    "hashCode()": "Hash consistent with `equals` (the row display mode is not included)."
+   }
+  },
+  "com.almworks.jira.structure.api.view.ViewSpecification.Builder": {
+   "summary": "Mutable builder of `ViewSpecification` with shortcuts for common columns; also its JSON form. New columns get a column ID (`csid`) one greater than the largest numeric ID already present. Defaults: no columns, `AUTO_FIT`, `ONE_LINE`, no pins. Not thread-safe.",
+   "members": {
+    "<init>()": "Creates a builder with defaults.",
+    "<init>(com.almworks.jira.structure.api.view.ViewSpecification)": "Creates a builder copying the specification (null gives defaults).",
+    "clone()": "A deep copy (column builders are cloned).",
+    "addColumns(com.almworks.jira.structure.api.view.ViewSpecification.Column.Builder[])": "Appends the given column builders as they are (by reference). Null does nothing. Returns this.",
+    "removeColumn(String)": "Removes every column whose csid equals the argument (null removes columns without a csid). Returns this.",
+    "addColumn(String, String)": "Appends a new column with the given column type key (first argument) and csid (second) and returns its builder for further setup.",
+    "addColumn(String)": "Appends a new column with the given type key and the next free numeric csid; returns its builder.",
+    "addMainColumn()": "Appends the main (summary/tree) column with key and csid both `main`. Returns this.",
+    "addFieldColumn(String)": "Appends a `field` column showing the given field ID (parameter `field`). Returns this.",
+    "addTimeAggregateColumn(String)": "Appends a `field` column for the given field with parameter `aggregate` = `sum`. Returns this.",
+    "addFieldSumColumn(String)": "Same as `addTimeAggregateColumn`: a `field` column with `aggregate` = `sum`. Returns this.",
+    "addProgressColumn()": "Appends a `progress` column. Returns this.",
+    "addTPColumn()": "Appends an `icons` column named with the localized \"type/priority\" label, showing the issue type and priority icons (parameter `fields` = [`issuetype`, `priority`]). Returns this.",
+    "addIconsColumn(String[])": "Appends an `icons` column showing the given fields (parameter `fields`). Returns this.",
+    "build()": "Creates the specification; column builders that are not valid (missing csid or key) are silently skipped.",
+    "getColumns()": "The live, mutable list of column builders.",
+    "setColumns(java.util.List)": "Replaces the column builders with a copy of the list (null gives an empty list).",
+    "setColumnDisplayMode(int)": "Sets the column mode; invalid values become `AUTO_FIT`. Returns this.",
+    "setRowDisplayMode(int)": "Sets the row mode; invalid values become `ONE_LINE`. Returns this.",
+    "getColumnDisplayMode()": "The column display mode.",
+    "getRowDisplayMode()": "The row display mode.",
+    "setPins(java.util.List)": "Sets the pinned column IDs to a copy of the list (null: none). Returns this.",
+    "getPins()": "The live, mutable list of pinned column IDs.",
+    "toString()": "Debug text; format not part of the contract."
+   }
+  },
+  "com.almworks.jira.structure.api.view.ViewSpecification.Column": {
+   "summary": "Immutable column of a view specification: a column ID unique within the view, a column type key, an optional display name and type-specific parameters.",
+   "members": {
+    "getCsid()": "The column's ID within the specification; never null.",
+    "getKey()": "The column type key (for example `main`, `field`, `progress`, `icons`, or a key contributed by another module); never null.",
+    "getName()": "Custom column header, or null to use the type's default.",
+    "getParameters()": "Immutable deep copy of the type-specific parameters (JSON-compatible values); empty when none.",
+    "toString()": "Debug text; format not part of the contract.",
+    "equals(Object)": "True for a column with equal csid, key, name and parameters.",
+    "hashCode()": "Hash consistent with `equals`."
+   }
+  },
+  "com.almworks.jira.structure.api.view.ViewSpecification.Column.Builder": {
+   "summary": "Mutable builder of a column; also its JSON form (null fields omitted). Not thread-safe.",
+   "members": {
+    "<init>()": "Creates an empty column builder.",
+    "<init>(com.almworks.jira.structure.api.view.ViewSpecification.Column)": "Creates a builder copying the column (parameters deep-copied); null gives an empty builder.",
+    "clone()": "A copy with deep-copied parameters.",
+    "getCsid()": "The column ID, or null.",
+    "setCsid(String)": "Sets the column ID.",
+    "getKey()": "The column type key, or null.",
+    "setKey(String)": "Sets the column type key.",
+    "getName()": "The custom header, or null.",
+    "setName(String)": "Sets the custom header (null for default).",
+    "getParameters()": "The live parameter map, or null when there are none.",
+    "setParameters(java.util.Map)": "Replaces parameters with a deep, mutable copy; null or empty clears them.",
+    "removeParameter(String)": "Removes the parameter with the given name. Returns this.",
+    "setParameter(String, Object)": "Sets the named parameter to a deep copy of the value; a null value removes it. Values must be JSON-compatible: string, integer, long, double, boolean, or lists and string-keyed maps of those; otherwise `IllegalArgumentException`. A null name throws `NullPointerException`. Returns this.",
+    "setStringListParameter(String, String[])": "Sets the named parameter to the list of the given strings. Returns this.",
+    "isValid()": "True when both csid and key are non-empty.",
+    "build()": "Creates the immutable column; throws `IllegalStateException` when not valid.",
+    "toString()": "Debug text; format not part of the contract."
+   }
+  },
+  "com.almworks.jira.structure.generic.GenericItemHistoryManager": {
+   "summary": "Plugin-internal service, exported as a public OSGi component, that stores and reads change-history records of generic items. The plugin's generic item service adds a record whenever an item is created or updated, and history records are themselves exposed as items of the memo-change-history-group type (`CoreIdentities.memoChangeHistoryGroup(recordId)`). No permission checks are made. Thread-safe.",
+   "members": {
+    "addRecords(java.util.List)": "Stores the given records (their own IDs are ignored; new IDs are assigned) and notifies the item change tracker about both the changed items and the new record items. Storage errors are logged and remaining records are skipped, not thrown.",
+    "getRecord(com.almworks.jira.structure.api.item.ItemIdentity)": "The record identified by a history-record item identity (memo-change-history-group type, long ID = record ID); null when the identity is of another type or no such record exists. Cached. Throws the plugin's storage exception on database errors.",
+    "loadRecords(java.util.Collection, java.util.function.Consumer)": "Passes to the consumer each existing record named by the given history-record identities (others are ignored). Records already cached are delivered first; the rest are read in chunks ordered by timestamp.",
+    "loadRecordsForItems(java.util.Collection, java.util.function.Consumer)": "Passes to the consumer all history records of the given generic items (by item identity), grouped by item type and ordered by timestamp within each chunk.",
+    "removeRecordsForItems(java.util.Collection)": "Deletes all history records of the given generic items and clears the record cache."
+   }
+  },
+  "com.almworks.jira.structure.generic.GenericItemHistoryRecord": {
+   "summary": "Immutable record of one create or update of a generic item: which item, its new and previous state, who and when.",
+   "members": {
+    "<init>(Long, com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.item.generic.GenericItem, com.almworks.jira.structure.api.item.generic.GenericItem, String, long, boolean)": "Arguments in order: record ID (null for a record not yet stored), changed item identity, new item state, previous state (null on create), author user key (nullable), timestamp in epoch milliseconds, and whether this was a creation.",
+    "getId()": "The record ID, or null when not stored yet.",
+    "getItemId()": "Identity of the generic item that changed.",
+    "getNewItem()": "The item's state after the change.",
+    "getOldItem()": "The item's state before the change; null for a creation. Records read back from storage also return null when the previous name was blank.",
+    "getAuthorKey()": "User key of the user who made the change, or null.",
+    "getTimestamp()": "When the change happened, epoch milliseconds.",
+    "isCreate()": "True when the record describes the creation of the item."
+   }
+  }
+ }
+}

@@ -1,0 +1,823 @@
+{
+ "packages": {
+  "com.almworks.jira.structure.api.attribute.loader": "The extension point for computing attribute values. Other plugins (and the plugin itself) supply `AttributeLoaderProvider` components that turn an `AttributeSpec` into an `AttributeLoader`; the loader kinds here (item, derived, single-row, aggregate, propagate, scanning) differ in what data a value may depend on, and the context interfaces are what the plugin hands to loaders while it calculates. It also holds the trail model (`TrailItemSet`) used for cache invalidation.",
+  "com.almworks.jira.structure.api.attribute.loader.basic": "Ready-made abstract base classes and a few concrete loaders (sums, inherited values, simple derivations) that make writing attribute loaders easier, plus a minimal `AttributeLoaderProvider` implementation that serves a fixed set of loaders.",
+  "com.almworks.jira.structure.api.attribute.loader.builder": "Fluent builders that create attribute loaders from lambdas (item, derived, single-row), and the loader classes those builders produce. Normally reached through the static factory methods of `AttributeLoaders` / `SharedAttributeLoaders`.",
+  "com.almworks.jira.structure.api.attribute.loader.composition": "Support for combining several loaders that serve the same attribute into one composite loader, including adapting a simpler loader kind to a more general one, and the `LoaderType` classification of loader kinds.",
+  "com.almworks.jira.structure.api.attribute.loader.delegate": "Base classes for loaders that wrap another loader of the same kind and forward every call to it; subclass to override selected behaviour.",
+  "com.almworks.jira.structure.api.attribute.loader.reduce": "Aggregate loaders that compute a row's value by reducing the values of its subtree, with pluggable reduction strategies (whole subtree, children only, leaves only, strict subtree) selected by the attribute spec's `type` parameter."
+ },
+ "types": {
+  "com.almworks.jira.structure.api.attribute.loader.AggregateAttributeContext": {
+   "summary": "Context passed to an `AggregateAttributeLoader` while it computes the value for one row; in addition to the row it exposes the row's direct children. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {
+    "getChildren()": "The direct children of the current row in the forest being calculated, in forest order. The list has the same size and order as the list of child values passed to `AggregateAttributeLoader.loadValue`. Empty for a leaf row; never null. Read-only. If the loader is not allowed to access items, the rows returned refuse to resolve their items."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.AggregateAttributeLoader": {
+   "summary": "Extension-point loader kind for values that depend on the row's subtree (totals, counts and the like). The plugin calculates children before parents and calls the loader once per row with the already computed values of the row's direct children. Implemented by plugins and returned from an `AttributeLoaderProvider`. As a multi-row loader its default caching strategy is `SHOULD`.",
+   "members": {
+    "loadValue(java.util.List, com.almworks.jira.structure.api.attribute.loader.AggregateAttributeContext)": "Computes the value for the row given by `context.getRow()`. Argument 1: the values already computed for the row's direct children, one entry per child in the same order as `context.getChildren()` (entries are never null; missing values are undefined values). Argument 2: the aggregate context. Returns the value; returning null is treated by the plugin as an undefined value (inside a composite loader null means 'not handled, try the next loader'). A runtime exception thrown here is logged and turned into an error value for that row."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.AttributeCachingStrategy": {
+   "summary": "Tells the plugin whether the values produced by a loader may be kept in its value cache between requests. Returned by `AttributeLoader.getCachingStrategy()`. A dependency's `MUST_NOT` is inherited by every attribute that depends on it.",
+   "members": {
+    "SHOULD": "Values are expensive to compute and should be cached. Default for multi-row loaders (aggregate, propagate, scanning).",
+    "MAY": "Values may be cached; computing them again is also acceptable. Default for loaders whose spec uses one of the standard value formats.",
+    "SHOULD_NOT": "Values should not be stored in the value cache (each request recomputes them), though the plugin still keeps invalidation tracking for them. Default for non-standard value formats.",
+    "MUST_NOT": "Values must never be cached, and nothing derived from them may be cached either: every attribute that depends on such an attribute is also treated as `MUST_NOT`.",
+    "values()": "",
+    "valueOf(String)": "",
+    "guessCachingStrategy(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Default strategy for a spec when a loader does not state one: `MAY` if the spec's value format is one of the standard formats known to `ValueFormat` (looked up by format id), otherwise `SHOULD_NOT`. The argument must not be null (NullPointerException)."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.AttributeContext": {
+   "summary": "Base context available to loaders and providers during attribute calculation: who the values are computed for, locale and time zone, the time of the request, the base structure, and a per-request scratch map for sharing objects between loaders. Implemented only by the plugin. When called by a loader, several getters verify that the loader declared the matching `AttributeContextDependency`; calling them without it throws IllegalStateException (if the dependency is only inherited from an attribute dependency, a warning is logged instead). When called from an `AttributeLoaderProvider` while the loader is being created, the same getters instead mark the provider's loader as not reusable and record the dependency as implied. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {
+    "getUser()": "The user on whose behalf values are calculated, or null for an anonymous user. Requires the `USER` context dependency.",
+    "getI18nHelper()": "Jira's `I18nHelper` for the calculating user's locale. Requires `USER_LOCALE` (or `USER`). Never null.",
+    "getI18n()": "The plugin's `I18n` text helper for the calculating user's locale, backed by the same Jira helper. Never null. Note: unlike `getI18nHelper()`, the plugin does not check context dependencies here.",
+    "getLocale()": "The calculating user's locale (as reported by the user's `I18nHelper`). Requires `USER_LOCALE` (or `USER`). Never null.",
+    "getTimeZone()": "The calculating user's time zone as configured in Jira. Requires `USER_TIMEZONE` (or `USER`). Never null.",
+    "getBaseStructureId()": "Id of the structure on whose forest the values are being calculated, or 0 when the calculation is not tied to a structure. Requires the `STRUCTURE` context dependency.",
+    "getLoadTimeMillis()": "Wall-clock time (milliseconds since the epoch) captured when the loading request began; the same for every value computed in that request, so use it instead of the system clock. Requires `CURRENT_TIME`.",
+    "getLoadTimeNanos()": "Value of the JVM's monotonic nanosecond timer captured when the loading request began; only meaningful for measuring intervals within this JVM. Requires `CURRENT_TIME`.",
+    "getBaseUrl()": "Jira's configured base URL without a trailing slash, or an empty string if none is configured. Never null.",
+    "putObject(Object, Object)": "Stores an object under a key in a scratch map that lives as long as the loading request and is shared by all loaders called in it (useful for request-level caches). Argument 1: the key (not null). Argument 2: the value; null removes the key. Throws IllegalArgumentException for keys that are reserved by the export framework (the keys defined in `ExportContextKeys`), which are read-only to loaders.",
+    "getObject(Object)": "Returns the object stored under the key in the request's scratch map (by `putObject` or by the plugin, e.g. export keys from `ExportContextKeys`), cast to the caller's expected type; null if absent. The cast is unchecked, so a wrong expected type fails at the caller."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.AttributeContextDependency": {
+   "summary": "Kinds of context information (besides attribute dependencies and the item/row itself) a loader's values may depend on. A loader declares them through `AttributeLoader.getContextDependencies()`; the plugin keys cached values by the declared dimensions (for example, per user) and refuses context getters for undeclared ones. Declaring `USER` implies `USER_LOCALE` and `USER_TIMEZONE`.",
+   "members": {
+    "USER": "Values depend on the calculating user (permissions, user-specific data). Cached values are kept per user. Implies locale and time zone.",
+    "USER_LOCALE": "Values depend on the calculating user's locale (e.g. localised text) but not otherwise on the user.",
+    "USER_TIMEZONE": "Values depend on the calculating user's time zone (e.g. date formatting or day boundaries).",
+    "STRUCTURE": "Values depend on which structure is being calculated (see `AttributeContext.getBaseStructureId()`); cached values are kept per structure.",
+    "CURRENT_TIME": "Values depend on the current time. Required to call the load-time getters and `AttributeLoaderContext.valueExpires`; such values expire and are periodically recalculated.",
+    "TRAIL": "The loader reports trails (`AttributeLoaderContext.addTrail`): its values depend on items other than the row's own item, and change to those items must invalidate them.",
+    "values()": "",
+    "valueOf(String)": "",
+    "guessContextDependencies(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Default context dependencies for a spec when a loader does not state them: a set containing only `USER` if the spec's format is the HTML format (`ValueFormat.HTML`), otherwise null (no context dependencies). The argument must not be null.",
+    "union(java.util.Set, com.almworks.jira.structure.api.attribute.loader.AttributeContextDependency[])": "Returns a new, mutable set holding all elements of the given set plus the additional dependencies. Argument 1 may be null (treated as empty); the varargs array and its null elements are ignored. Never returns null; the arguments are not modified."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.AttributeLoader": {
+   "summary": "Base interface of all attribute loaders: an object that computes values of exactly one attribute spec. Loaders are created by `AttributeLoaderProvider` implementations (usually from the builders in `AttributeLoaders`) and then used by the plugin, possibly from several threads and for many requests, so implementations should be stateless or thread-safe. A loader must implement exactly one of the concrete kinds (`ItemAttributeLoader`, `DerivedAttributeLoader`, `SingleRowAttributeLoader`, `AggregateAttributeLoader`, `PropagateAttributeLoader`, `ScanningAttributeLoader`); the getters here describe what the values depend on and are read once, when the plugin assembles the loader.",
+   "members": {
+    "getAttributeSpec()": "The attribute spec this loader computes values for. Never null. It should equal the spec the provider was asked for (a spec with a subset of its parameters and a convertible format is also accepted and adapted by the plugin); otherwise the plugin discards the loader with a warning.",
+    "getAttributeDependencies()": "Specs of other attributes whose values this loader reads through `AttributeLoaderContext.getDependencyAttributeValue`. The plugin loads them first and rejects reading any spec not listed here. Null or empty means no dependencies (default: null). Circular dependencies make the attribute unavailable.",
+    "getContextDependencies()": "Context information the values depend on (see `AttributeContextDependency`). Null means 'not declared' and is treated like an empty set; the default returns `AttributeContextDependency.guessContextDependencies(getAttributeSpec())`.",
+    "getCachingStrategy()": "How the plugin may cache the loader's values; null means no preference. Default: `AttributeCachingStrategy.guessCachingStrategy(getAttributeSpec())`.",
+    "getGlobalTrail()": "Items whose change must invalidate every cached value of this attribute, regardless of row (for example a configuration object the attribute reads). Null (the default) means none. A non-null global trail also disables the plugin's shortcut of re-validating cached values without recomputation."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.AttributeLoaderContext": {
+   "summary": "Context for loaders that compute values: adds access to the values of declared attribute dependencies and lets the loader report trails and expiration for the value being computed. Implemented only by the plugin. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {
+    "getDependencyAttributeValue(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Returns the already computed value of a dependency attribute for the current item or row. The spec must be one of the loader's declared `getAttributeDependencies()`, otherwise IllegalArgumentException. Never returns null: a missing value is an undefined value; if the current row is hidden from the user and the loader is a sensitive multi-row loader, the result is an inaccessible value. If an item-level loader asks for a dependency that needs the forest (a row-based attribute), IllegalArgumentException is thrown. Reading a dependency also makes the current value expire no later than the dependency's value.",
+    "getDependencyValue(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Shortcut for the plain value of `getDependencyAttributeValue(dependency)`; null when that value is undefined, an error or otherwise has no value. Same exceptions.",
+    "addTrail(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Records that the value being computed also depends on the given items, so that a change to any of them invalidates this value. Calls accumulate (union) for the current value. Null or an empty set is ignored. Requires the `TRAIL` context dependency (IllegalStateException otherwise).",
+    "addTrail(com.almworks.jira.structure.api.item.ItemIdentity)": "Same as `addTrail(TrailItemSet.of(item))`: records a single item the value depends on. Null is ignored. Reporting the current item itself is pointless (the plugin logs a warning).",
+    "valueExpires(long, java.util.concurrent.TimeUnit)": "Declares that the value being computed becomes stale after the given time, measured from the start of the request. Argument 1: the time to live, must be positive (IllegalArgumentException otherwise). Argument 2: its unit. Several calls (and dependencies' own expirations) keep the earliest expiry. Requires the `CURRENT_TIME` context dependency (IllegalStateException otherwise)."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.AttributeLoaderProvider": {
+   "summary": "Extension point through which plugins contribute attributes: given a requested attribute spec, a provider returns a loader for it or null if it does not serve that spec. Implementations are registered as plugin modules/components; the plugin asks every registered provider each time it needs a loader for a spec it has not assembled yet, and combines all loaders returned for the same spec into one composite loader (see `CompositeAttributeLoader`). Assembled loaders are cached and reused for later requests unless the provider called `AttributeProviderContext.mustNotCacheLoader()` or used user-dependent context while creating the loader.",
+   "members": {
+    "createAttributeLoader(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.loader.AttributeProviderContext)": "Returns a loader for the spec (argument 1), or null if this provider does not support it. Argument 2 gives the request context (user, locale and so on); using it makes the created loader request-specific. The returned loader's spec should equal the requested spec (a more general spec with fewer parameters and a convertible format is also accepted). Throwing `StructureProviderException` signals that the spec is recognised but cannot be served; the plugin logs it and continues with other providers, as it also does for runtime exceptions."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.AttributeLoaders": {
+   "summary": "Static entry point for creating loaders with builders. Adds Jira-issue specific factories to the general ones inherited from `SharedAttributeLoaders`. Not instantiable.",
+   "members": {
+    "issueLoader(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Starts a builder for an item loader of the given spec that supports only Jira issues (item type `com.almworks.jira.structure:type-issue`) and resolves each item to a Jira `Issue`. Use `valueFunction`/`valueFunctionAV` on it; because the item class is preset, the identity-based value functions (`valueFunctionII`, `valueFunctionIIAV`) make `build()` fail with IllegalArgumentException."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.AttributeProviderContext": {
+   "summary": "Context passed to `AttributeLoaderProvider.createAttributeLoader`. Besides the general context it lets the provider influence whether the created loader may be reused, and query the kind of other attributes. Implemented only by the plugin. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {
+    "mustNotCacheLoader()": "Tells the plugin not to reuse the loader created in this call for later requests (it will ask the providers again next time). The plugin does this automatically when the provider reads user, locale, time zone, structure or time information from the context.",
+    "isItemAttribute(com.almworks.jira.structure.api.attribute.AttributeSpec)": "True if the given attribute's values depend only on the item (not on the row's position in a forest), i.e. it is computed by item loaders or by derived loaders over such attributes. False for null and for row-based attributes. Throws IllegalArgumentException if the check recurses into the attribute currently being checked."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext": {
+   "summary": "Context passed to a `DerivedAttributeLoader`. Adds nothing to `AttributeLoaderContext`: a derived value may only use dependency values and context information. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {}
+  },
+  "com.almworks.jira.structure.api.attribute.loader.DerivedAttributeLoader": {
+   "summary": "Extension-point loader kind for values computed only from other attributes' values (and declared context), without looking at the item or the forest. The plugin can evaluate it wherever its dependencies are available: per item when all dependencies are item attributes, per row otherwise.",
+   "members": {
+    "loadValue(com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Computes the value from the dependency values obtained via the context. Returning null is treated as an undefined value (inside a composite, as 'not handled'). A runtime exception becomes an error value."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.ItemAttributeContext": {
+   "summary": "Context passed to an `ItemAttributeLoader` for one item. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {
+    "getItemId()": "Identity of the item whose value is being computed (the same as the loader's first argument). Never null.",
+    "getItem(Class)": "Resolves the current item to an object of the given class (for example Jira's `Issue` for issue items). Returns null if the item cannot be resolved (missing, or not visible to the plugin's resolver) or is not an instance of that class. Resolution happens at most once per item and uses items preloaded through `preload`."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.ItemAttributeLoader": {
+   "summary": "Extension-point loader kind for values that depend only on the item (and declared dependencies/context), not on where it appears in a structure. Values are cached per item. Implemented by plugins, usually via `AttributeLoaders.itemLoader`/`issueLoader`.",
+   "members": {
+    "isItemTypeSupported(String)": "Whether the loader can compute values for items of the given item type (an item-type key such as `com.almworks.jira.structure:type-issue`). The plugin calls `loadValue` only for supported types; other items get an undefined value.",
+    "loadValue(com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.attribute.loader.ItemAttributeContext)": "Computes the value for one item. Argument 1: the item (of a supported type). Argument 2: the context. Returning null means undefined (inside a composite, 'not handled'). A runtime exception becomes an error value.",
+    "preload(java.util.Collection, com.almworks.jira.structure.api.attribute.loader.AttributeContext)": "Called before a batch of `loadValue` calls with the ids of the items about to be loaded (only supported types), so the loader can fetch data in bulk. Default does nothing. The context here is the general context, not a per-item one."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.MultiRowAttributeLoader": {
+   "summary": "Common super-interface of the loader kinds whose value for a row depends on other rows (aggregate, propagate, scanning). Such values are cached per forest and recalculated when the relevant part of the forest changes.",
+   "members": {
+    "getCachingStrategy()": "Defaults to `AttributeCachingStrategy.SHOULD`, because multi-row values are expensive to recompute."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.NonSensitiveInStandardMode": {
+   "summary": "Marker annotation (runtime-retained, for classes) placed on a value class. When the plugin's attribute-sensitivity setting is in its standard mode, attributes whose value format's value class carries this annotation are treated as not sensitive by default, i.e. they may be computed over rows the user cannot see. Marked internal: intended for the plugin's own value types.",
+   "members": {}
+  },
+  "com.almworks.jira.structure.api.attribute.loader.PropagateAttributeContext": {
+   "summary": "Context passed to the per-child function returned by `PropagateAttributeLoader.loadChildren`, for one child row. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {
+    "getIndex()": "Zero-based position of the current row among its parent's children. Throws IllegalStateException if called outside a propagate calculation."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.PropagateAttributeContext.Parent": {
+   "summary": "Context passed to `PropagateAttributeLoader.loadChildren`, describing the parent row whose children are about to be computed. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {
+    "getChildren()": "The parent's direct children in forest order; for the top level these are the forest's root rows. Never null.",
+    "getParent()": "The parent row. For the forest's root rows it is the synthetic super-root row (row id -1). Null only when the loader is computing the value of the super-root itself (see `PropagateAttributeLoader.isLoadingSuperRoot`). Throws IllegalStateException outside a propagate calculation.",
+    "isLoadingSuperRoot()": "True when the plugin is computing the value of the super-root itself (`getParent()` is null).",
+    "isLoadingRoots()": "True when the children being computed are the forest's root rows (the parent is the super-root row, id -1)."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.PropagateAttributeLoader": {
+   "summary": "Extension-point loader kind for values that flow from parent to children (inherited values, paths, depths). The plugin processes the forest top-down: for each parent it calls `loadChildren` once with the parent's computed value and then applies the returned function to each child in order. Default caching strategy `SHOULD`.",
+   "members": {
+    "loadChildren(com.almworks.jira.structure.api.attribute.AttributeValue, com.almworks.jira.structure.api.attribute.loader.PropagateAttributeContext.Parent)": "Prepares the computation of a parent's children. Argument 1: the parent's value (undefined for root rows unless the loader computes a super-root value). Argument 2: the parent context. Returns a function taking a child row and its context and returning the child's value (a null result means undefined). Returning null from this method makes all these children undefined; a runtime exception makes them error values. The returned function is used only for this parent's children within the current request.",
+    "isLoadingSuperRoot()": "Whether the loader also computes a value for the synthetic super-root above the roots; if so, the plugin first calls `loadChildren` with an undefined parent value and a null parent, applies the function to the super-root row, and passes that value as the parent value of the root rows. Default false."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.RowAttributeContext": {
+   "summary": "Context for loaders that compute values for a row of a forest (single-row, aggregate, propagate and scanning loaders). Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {
+    "getRow()": "The row whose value is being computed. Never null while a row is being processed."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.RowAttributeLoader": {
+   "summary": "Super-interface of the loader kinds that compute per-row values in a forest (single-row and the multi-row kinds). Values are cached per forest row.",
+   "members": {
+    "preload(com.almworks.integers.LongSet, com.almworks.jira.structure.api.forest.item.ItemForest, com.almworks.jira.structure.api.attribute.loader.AttributeContext)": "Called before a batch of rows is calculated so the loader can fetch data in bulk. Argument 1: ids of the rows about to be computed. Argument 2: the forest with its items. Argument 3: the general context. Default does nothing.",
+    "isWholeForestDependent()": "True if the value of a row may change when anything in the forest changes (not only the row itself or the subtree/ancestors/preceding rows implied by the loader kind); the plugin then invalidates all values of the attribute on every forest change. Default false."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext": {
+   "summary": "Context passed to a `ScanningAttributeLoader` for one row; adds information about the row's depth and the row that precedes it in forest order. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {
+    "getDepth()": "Depth of the current row: 0 for root rows, 1 for their children, and so on (a forest title row, if present, is not counted).",
+    "getPrecedingRow()": "The row immediately before the current one in forest (depth-first) order, or null for the first row.",
+    "getPrecedingRowDepth()": "Depth of the preceding row (same scale as `getDepth()`), or -1 if there is no preceding row."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.ScanningAttributeLoader": {
+   "summary": "Extension-point loader kind for values computed by scanning the forest in order, where each row's value depends on the preceding row's value (running totals, numbering). Default caching strategy `SHOULD`.",
+   "members": {
+    "loadValue(com.almworks.jira.structure.api.attribute.AttributeValue, com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext)": "Computes the value of the current row. Argument 1: the value already computed for the preceding row in forest order (undefined for the first row; never null). Argument 2: the context. Returns the value; null means undefined; a runtime exception becomes an error value. The plugin does not call it for certain special rows, which get an undefined value."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.SharedAttributeLoaders": {
+   "summary": "Static factory methods that start the loader builders. Usually used through its subclass `AttributeLoaders`. Each call returns a new, independent, non-thread-safe builder.",
+   "members": {
+    "itemLoader(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Starts an item loader builder (`ItemAttributeLoaderBuilder`) for the spec, supporting all item types until `itemType` is called.",
+    "derivedLoader(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Starts a derived loader builder with arbitrary dependencies (`DerivedAttributeLoaderBuilder`) for the spec.",
+    "derivedLoader(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Starts a builder for a derived loader computed from one dependency. Argument 1: the spec to compute. Argument 2: the dependency.",
+    "derivedLoader(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Starts a builder for a derived loader computed from two dependencies. Argument 1: the spec to compute. Arguments 2 and 3: the x and y dependencies.",
+    "constantLoader(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeValue)": "Returns a derived loader builder, already complete, whose loader returns the given value (argument 2) for every row and item, with no dependencies. Call `build()` (other settings may still be added).",
+    "singleRowLoader(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Starts a single-row loader builder (`SingleRowAttributeLoaderBuilder`) for the spec."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.SingleRowAttributeContext": {
+   "summary": "Context passed to a `SingleRowAttributeLoader`. Adds nothing to `RowAttributeContext`. Instances are created by the plugin for one loading request and are only valid during the call they are passed to; do not keep or share them across threads.",
+   "members": {}
+  },
+  "com.almworks.jira.structure.api.attribute.loader.SingleRowAttributeLoader": {
+   "summary": "Extension-point loader kind for values that depend on the row itself (its item and row properties such as semantics or creator), but not on other rows. Values are cached per row.",
+   "members": {
+    "loadValue(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.attribute.loader.SingleRowAttributeContext)": "Computes the value for the row (argument 1, the same as `context.getRow()`). Null means undefined (inside a composite, 'not handled'); a runtime exception becomes an error value."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet": {
+   "summary": "An immutable set of items, used as a trail: the items a value depends on, whose change must invalidate it. To stay small it may be stored imprecisely: up to a limit of 50 individual items it keeps the exact items; beyond that it keeps only their item types (matching every item of those types); beyond 10 types it becomes the set of all items. So `contains` may answer true for items that were never added, but never false for ones that were. The limits are read once from the plugin's dark-feature settings `structure.trail.itemLimit` and `structure.trail.typeLimit`. Instances come from the static factories and the `NONE`/`ALL_ITEMS` constants; the concrete subclasses are public only so that visitors can distinguish them. Immutable and thread-safe.",
+   "members": {
+    "contains(com.almworks.jira.structure.api.item.ItemIdentity)": "True if a change to the given item is covered by this set (exactly, or by its item type, or because the set covers all items). False for null.",
+    "containsAny(java.util.Collection)": "True if `contains` is true for at least one item of the collection. False for a null or empty collection.",
+    "expand(com.almworks.jira.structure.api.item.ItemIdentity)": "Returns a set that also covers the given item (this set itself if already covered or if the item is null). May widen to item-type level or all items when limits are exceeded. Never null; this set is unchanged.",
+    "union(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Returns a set covering everything in this set and in the argument; the argument may be null (returns this set). The result may be less precise (type level or all items) when the combined size exceeds the limits. Never null.",
+    "accept(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.Visitor)": "Calls exactly one method of the visitor according to the set's form: `visitNone` for the empty set, `visit(OneItem)`, `visit(SpecificItems)`, `visit(OneType)`, `visit(SpecificTypes)`, or `visitAll`.",
+    "isEmpty()": "True only for the empty set (`None`).",
+    "equals(Object)": "Two trail sets are equal when they have the same form and cover the same items, types, or all items.",
+    "hashCode()": "Hash code consistent with `equals`, computed from the content (cached after the first call; never 0).",
+    "toString()": "Debug text listing the content in braces, for example `{ALL}` or `{}`; the exact format is not a contract.",
+    "of(com.almworks.jira.structure.api.item.ItemIdentity[])": "Creates a set of the given items; null elements are ignored. Empty input gives `None.NONE`; one distinct item gives a one-item set; up to the item limit an exact item set; more items are reduced to their item types (and, past the type limit, to `ALL_ITEMS`). A null array throws NullPointerException. Known defect: when the input contains nulls and exactly one distinct non-null item, the original returns a one-item set built from the first element of the input, which may be null (a set that then contains nothing).",
+    "of(java.util.Collection)": "Same as the varargs form for a collection; a null collection gives `None.NONE`. The same defect with a leading null element applies.",
+    "ofTypes(java.util.Collection)": "Creates a set covering all items of the given item types. Null elements are ignored; null or empty input gives `None.NONE`; one type gives a one-type set; past the type limit (10) the result is `ALL_ITEMS`."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet.AllItems": {
+   "summary": "Form of `TrailItemSet` that covers every item; any change invalidates values with this trail. Use the `ALL_ITEMS` constant. Immutable and thread-safe.",
+   "members": {
+    "ALL_ITEMS": "The shared instance covering all items.",
+    "<init>()": "Public by accident of the original declaration; do not call it. Use `ALL_ITEMS`: some union operations recognise the all-items set by identity with that constant, and a separate instance may make them fail.",
+    "contains(com.almworks.jira.structure.api.item.ItemIdentity)": "Always true (also for null).",
+    "expand(com.almworks.jira.structure.api.item.ItemIdentity)": "Returns this set unchanged.",
+    "union(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Returns this set unchanged, whatever the argument.",
+    "accept(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.Visitor)": "Calls `visitAll()` on the visitor."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet.Collector": {
+   "summary": "A read visitor that gathers the content of a trail set into plain Java sets; used for comparisons, hashing and printing. Obtain one with `collect`. The collector is mutable and not thread-safe; the sets it returns are its own mutable sets.",
+   "members": {
+    "collect(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Creates a collector, lets the given set visit it, and returns it filled. The argument must not be null.",
+    "getTypes()": "The item types collected from a type-level set, or null if the visited set had no types (empty, item-level, or all-items).",
+    "getItems()": "The items collected from an item-level set, or null if the visited set had no individual items (empty, type-level, or all-items).",
+    "isAll()": "True if the visited set covers all items.",
+    "visitItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Adds the item to the collected items. If the collector was prepared for a type-level set, an assertion fails when assertions are enabled; otherwise the item is still recorded.",
+    "visitType(String)": "Adds the item type to the collected types, with the same assertion behaviour as `visitItem` for a mismatching set.",
+    "visitAll()": "Marks that all items are covered.",
+    "equals(Object)": "Equal to another collector with the same items, types and all-items flag.",
+    "hashCode()": "Hash code consistent with `equals`.",
+    "toString()": "Debug text: `{ALL}` for all items, otherwise the types and items joined by commas inside braces (the original always prints a separating comma, even when one side is empty). Not a contract."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet.None": {
+   "summary": "Form of `TrailItemSet` that covers no items. Use the `NONE` constant. Immutable and thread-safe.",
+   "members": {
+    "NONE": "The shared empty trail set.",
+    "<init>()": "Public by accident of the original declaration; do not call it. Use `NONE`: some union operations recognise the empty set by identity with that constant, and a separate instance may make them fail.",
+    "contains(com.almworks.jira.structure.api.item.ItemIdentity)": "Always false.",
+    "expand(com.almworks.jira.structure.api.item.ItemIdentity)": "Returns a one-item set with the given item, or this set if the item is null.",
+    "union(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Returns the argument, or this set if the argument is null.",
+    "accept(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.Visitor)": "Calls `visitNone()` on the visitor.",
+    "toString()": "Returns `{}`."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet.OneItem": {
+   "summary": "Form of `TrailItemSet` holding exactly one item. Created by the factories, not directly. Immutable and thread-safe.",
+   "members": {
+    "contains(com.almworks.jira.structure.api.item.ItemIdentity)": "True if the argument equals the held item; false for null.",
+    "expand(com.almworks.jira.structure.api.item.ItemIdentity)": "This set if the item is null or equals the held item; otherwise a set of both items.",
+    "union(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "The argument expanded by the held item, or this set if the argument is null.",
+    "accept(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.Visitor)": "Calls `visit(OneItem)` with this set.",
+    "getItem()": "The held item (normally not null; see the defect noted on `TrailItemSet.of`)."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet.OneType": {
+   "summary": "Form of `TrailItemSet` covering all items of one item type. Created by the factories (when exact items exceed the limit, or by `ofTypes`). Immutable and thread-safe.",
+   "members": {
+    "getItemType()": "The covered item type key. Never null.",
+    "contains(com.almworks.jira.structure.api.item.ItemIdentity)": "True if the item's type is the covered type; false for null.",
+    "expand(com.almworks.jira.structure.api.item.ItemIdentity)": "This set if the item is null or of the covered type; otherwise a type-level set covering both types.",
+    "union(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "A set covering this type plus everything in the argument; since this set is type-level, item-level arguments are widened to their types. Null or empty argument returns this set; an all-items argument gives all items.",
+    "accept(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.Visitor)": "Calls `visit(OneType)` with this set."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet.ReadVisitor": {
+   "summary": "Convenience visitor for code that only wants the individual items and types of a trail set: the default methods split every form into `visitItem`/`visitType` calls and ignore the empty set. Implementers must still handle `visitAll` themselves.",
+   "members": {
+    "visitItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Called once for each individual item of an item-level set.",
+    "visitType(String)": "Called once for each item type of a type-level set.",
+    "visitNone()": "Default does nothing.",
+    "visit(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.OneItem)": "Default calls `visitItem` with the held item.",
+    "visit(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.SpecificItems)": "Default calls `visitItem` for each item, in no particular order.",
+    "visit(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.OneType)": "Default calls `visitType` with the type.",
+    "visit(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.SpecificTypes)": "Default calls `visitType` for each type, in no particular order."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet.SpecificItems": {
+   "summary": "Form of `TrailItemSet` holding a small explicit set of items (between 2 and the item limit). Created by the factories. Immutable and thread-safe.",
+   "members": {
+    "contains(com.almworks.jira.structure.api.item.ItemIdentity)": "True if the item is one of the held items.",
+    "getItems()": "The held items as an unmodifiable set.",
+    "expand(com.almworks.jira.structure.api.item.ItemIdentity)": "This set if the item is null or already held; otherwise a set with the item added (which may be reduced to type level when exceeding the limit).",
+    "union(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Null or the empty constant returns this set; the all-items constant returns all items; a type-level argument gives a type-level set covering the argument's types and the types of this set's items; an item-level argument gives the combined items (reduced to types past the limit).",
+    "accept(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.Visitor)": "Calls `visit(SpecificItems)` with this set."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet.SpecificTypes": {
+   "summary": "Form of `TrailItemSet` covering all items of several item types (between 2 and the type limit). Created by the factories. Immutable and thread-safe.",
+   "members": {
+    "contains(com.almworks.jira.structure.api.item.ItemIdentity)": "True if the item's type is one of the covered types; false for null.",
+    "expand(com.almworks.jira.structure.api.item.ItemIdentity)": "This set if the item is null or its type is already covered; otherwise a set with that type added (all items past the type limit).",
+    "union(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "A set covering these types plus everything in the argument (item-level arguments widened to their types). Null or empty argument returns this set.",
+    "accept(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.Visitor)": "Calls `visit(SpecificTypes)` with this set.",
+    "getTypes()": "The covered item types as an unmodifiable set."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.TrailItemSet.Visitor": {
+   "summary": "Visitor over the forms of a `TrailItemSet`; exactly one method is called per `accept`. Implemented by client code (see `ReadVisitor` for a simpler variant).",
+   "members": {
+    "visitNone()": "Called for the empty set.",
+    "visit(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.OneItem)": "Called for a one-item set.",
+    "visit(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.SpecificItems)": "Called for an explicit multi-item set.",
+    "visit(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.OneType)": "Called for a one-type set.",
+    "visit(com.almworks.jira.structure.api.attribute.loader.TrailItemSet.SpecificTypes)": "Called for a multi-type set.",
+    "visitAll()": "Called for the all-items set."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.AbstractAggregateLoader": {
+   "summary": "Convenience base class for `AggregateAttributeLoader` implementations: holds the spec and offers a helper for error propagation. Subclasses implement `loadValue`.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates the loader for the given spec. Throws IllegalArgumentException if the spec is null.",
+    "firstChildError(java.util.List)": "Returns the first element of the list that is an error value (null elements are skipped), or null if none is. Useful for making an aggregate an error when any child is. The list must not be null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.AbstractAttributeLoader": {
+   "summary": "Root convenience base class for loaders: stores the attribute spec and implements `getAttributeSpec()`. All other `AttributeLoader` defaults (dependencies, context dependencies, caching strategy, global trail) are inherited unchanged and may be overridden.",
+   "members": {
+    "mySpec": "The spec given to the constructor (never null), available to subclasses.",
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Stores the spec. Throws IllegalArgumentException if the spec is null.",
+    "getAttributeSpec()": "Returns the spec given to the constructor. Final.",
+    "toString()": "Debug text made of the loader's class name and its spec."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.AbstractDerivedAttributeLoader": {
+   "summary": "Convenience base class for `DerivedAttributeLoader` implementations; subclasses implement `loadValue` and usually `getAttributeDependencies`.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates the loader for the given spec. Throws IllegalArgumentException if the spec is null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.AbstractItemAttributeLoader": {
+   "summary": "Convenience base class for `ItemAttributeLoader` implementations; subclasses implement `isItemTypeSupported` and `loadValue`.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates the loader for the given spec. Throws IllegalArgumentException if the spec is null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.AbstractNaiveDistinctAggregateLoader": {
+   "summary": "Base class for aggregates that count every item once even if it occurs in several rows of the subtree (distinct totals). Each row's result carries, as loader data, an unmodifiable map from item identity to that item's own value for all items in the subtree; the parent merges the children's maps, adds its own item, and combines the map's values. 'Naive' because each row keeps a map of its whole subtree, so memory grows with subtree size.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates the loader for the given spec. Throws IllegalArgumentException if the spec is null.",
+    "loadValue(java.util.List, com.almworks.jira.structure.api.attribute.loader.AggregateAttributeContext)": "Merges the item-to-value maps carried by the defined children's values (undefined children contribute nothing), adds the current row's item with the value from `getRowValue` unless the item is already present or that value is null, and returns `combine` of all collected values with the map attached as loader data. `combine` must not return null (the result is created as a defined value).",
+    "getRowValue(com.almworks.jira.structure.api.attribute.loader.RowAttributeContext)": "Subclass hook: the current row's own contribution, or null if it has none.",
+    "combine(java.util.Collection, com.almworks.jira.structure.api.attribute.loader.AggregateAttributeContext)": "Subclass hook: combines the per-item values of the whole subtree (each distinct item once, in no particular order) into the row's total. Must not return null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.AbstractPropagateLoader": {
+   "summary": "Convenience base class for `PropagateAttributeLoader` implementations; subclasses implement `loadChildren`.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates the loader for the given spec. Throws IllegalArgumentException if the spec is null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.AbstractScanningLoader": {
+   "summary": "Base class for scanning loaders that accumulate a running value over rows and support two optional spec parameters: `baseLevel` (integer, default 0; negative treated as 0) - rows shallower than this depth get an undefined value and do not contribute; `levels` (list of 1-based level numbers) - only rows at those levels contribute, other rows are skipped and carry the running value through. Level numbers below the base level are dropped. Subclasses implement `loadValueForPassingRow`.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates the loader and reads `baseLevel` and `levels` from the spec's parameters. Throws IllegalArgumentException if the spec is null.",
+    "isLevelSkipped(com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext)": "True if a `levels` parameter was given and the current row's depth is not one of the listed levels.",
+    "isAboveBaseLevel(com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext)": "True if the base level is above 0 and the current row's depth is smaller than it.",
+    "getBaseLevel()": "The effective base level (0-based depth, at least 0). Declared nullable but always returns a number.",
+    "getLevelsSorted()": "The contributing depths from the `levels` parameter converted to 0-based depths, sorted ascending without duplicates and without depths below the base level; null if the parameter is absent.",
+    "loadValue(com.almworks.jira.structure.api.attribute.AttributeValue, com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext)": "Rows above the base level get an undefined value. Skipped rows (wrong level, or `isRowSkipped` true) carry the running value: see `carryPrecedingValueForSkippedRow`. For other rows the running value is taken from the preceding row (its value, or the value it carries as loader data if it was skipped) and `loadValueForPassingRow` gives the new value; if it equals the running value and the preceding value was defined, the preceding value object is returned, otherwise the new value (undefined if null).",
+    "loadValueForPassingRow(Object, com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext)": "Subclass hook: computes the new running value for a contributing row from the running value so far (argument 1, null at the start or when nothing has accumulated) and the context. Null means undefined.",
+    "isRowSkipped(com.almworks.jira.structure.api.attribute.AttributeValue, com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext)": "Subclass hook to exclude more rows; a skipped row carries the running value through. Arguments: the preceding row's value and the context. Default false.",
+    "carryPrecedingValueForSkippedRow(com.almworks.jira.structure.api.attribute.AttributeValue)": "Produces the value of a skipped row: if the preceding value is defined, an undefined value that carries the preceding value as loader data (so the row shows nothing but the running value continues); otherwise the preceding value itself."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.AbstractSingleRowAttributeLoader": {
+   "summary": "Convenience base class for `SingleRowAttributeLoader` implementations; subclasses implement `loadValue`.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates the loader for the given spec. Throws IllegalArgumentException if the spec is null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.InheritedValueLoader": {
+   "summary": "Propagate loader that makes each row inherit a value from its parent: a row's value is the row's own value of a dependency attribute when that is defined, otherwise the value computed for its parent. Optionally the parent's value always wins when it is defined.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec, boolean)": "Argument 1: the spec computed (must not be null). Argument 2: the dependency attribute supplying each row's own value (must not be null). Argument 3: when true, a defined parent value overrides the row's own value; when false, the row's own defined value wins.",
+    "getAttributeDependencies()": "A singleton set holding the value dependency.",
+    "loadChildren(com.almworks.jira.structure.api.attribute.AttributeValue, com.almworks.jira.structure.api.attribute.loader.PropagateAttributeContext.Parent)": "Returns a function giving each child its own dependency value if that is defined (and the parent value does not take precedence), otherwise the parent's value. Never returns null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.IssueAttributeLoader": {
+   "summary": "Base class for item loaders that compute values only for Jira issues: it supports the issue item type (`com.almworks.jira.structure:type-issue`) and resolves the item to a Jira `Issue` before calling the subclass's `getValue`.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates an issue loader for the given spec. Throws IllegalArgumentException if the spec is null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.ItemClassAttributeLoader": {
+   "summary": "Base class for item loaders that support a fixed set of item types and work on the resolved item object of a given class rather than on its identity. Items that cannot be resolved to that class get an undefined value.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, Class, String[])": "Argument 1: the spec. Argument 2: the class the item must resolve to. Argument 3: the supported item types (at least one). Throws IllegalArgumentException if the spec or the class is null, or if no item types are given.",
+    "loadValue(com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.attribute.loader.ItemAttributeContext)": "Resolves the current item to the configured class via the context; returns an undefined value if that fails, otherwise the result of `getValue`.",
+    "getValue(Object, com.almworks.jira.structure.api.attribute.loader.ItemAttributeContext)": "Subclass hook: computes the value from the resolved item (argument 1, never null) and the context. May return null (treated as undefined)."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.ItemTypeAttributeLoader": {
+   "summary": "Base class for item loaders that support a fixed set of item types given at construction.",
+   "members": {
+    "myItemTypes": "The supported item types as an unmodifiable set, available to subclasses.",
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, String[])": "Argument 1: the spec. Argument 2: the supported item type keys (duplicates collapse). Throws IllegalArgumentException if the spec is null or the item types are null or empty.",
+    "isItemTypeSupported(String)": "True if the type is one of the configured types. Final."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.LongSumLoader": {
+   "summary": "Aggregate loader summing a `Long` dependency over the forest, following the reduction strategy chosen by the spec's `type` parameter (see `ReductionStrategy`; default sums the whole subtree including the row itself).",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Argument 1: the spec computed. Argument 2: the `Long` attribute whose values are summed (each row's own contribution).",
+    "reduce(java.util.List)": "Sum of the non-null numbers in the list, or null if the list has no non-null element. Overflow wraps around silently."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.NumberAccumulator": {
+   "summary": "Mutable helper for summing numbers of mixed types precisely: stays with exact `long` arithmetic while all inputs are integral, switches to compensated (Kahan) `double` summation once a fractional value is added, and switches to `BigDecimal` (64-bit decimal precision) once a `BigDecimal` or `BigInteger` is added. Null inputs are ignored. Not thread-safe.",
+   "members": {
+    "<init>()": "Creates an empty accumulator (no value yet).",
+    "add(Number)": "Adds the number. Null is ignored.",
+    "remove(Number)": "Subtracts the number. Null is ignored. The accumulator becomes defined even if the result is zero.",
+    "removeMultiply(Number, int)": "Subtracts the number multiplied by the count (argument 2). Null is ignored.",
+    "addMultiply(Number, int)": "Adds the number multiplied by the count (argument 2, may be negative). Null is ignored; any non-null number marks the accumulator as defined.",
+    "toValue()": "The current total as an attribute value; undefined if nothing was ever added.",
+    "toNumber()": "The current total, or null if no non-null number was ever added. The type is `Long` while all inputs were integral, `Double` once a fractional value was added, or a `BigDecimal` with trailing zeros stripped once big numbers were involved.",
+    "toString()": "Debug text showing the total, marked with `L` (long) or `D` (double), or as a plain decimal."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.NumberSumLoader": {
+   "summary": "Aggregate loader summing a numeric dependency of any `Number` type with `NumberAccumulator` semantics (exact for integers, compensated for fractions, decimal for big numbers), following the reduction strategy chosen by the spec's `type` parameter.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Argument 1: the spec computed. Argument 2: the numeric attribute supplying each row's own contribution.",
+    "reduce(java.util.List)": "Sum of the non-null numbers in the list, or null if there are none.",
+    "merge(java.util.function.Supplier, java.util.function.Supplier)": "Sum of the row's own value (argument 1) and the already reduced children value (argument 2); null if both are null.",
+    "merge(java.util.function.Supplier, java.util.List)": "Sum of the row's own value (argument 1) and all non-null values in the list; null if all are null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.ScanningLongSumLoader": {
+   "summary": "Scanning loader producing a running total of a `Long` dependency in forest order, honouring the `baseLevel` and `levels` parameters of `AbstractScanningLoader`.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Argument 1: the spec computed (not null). Argument 2: the `Long` attribute added at each contributing row.",
+    "getAttributeDependencies()": "A singleton set holding the summed dependency.",
+    "loadValueForPassingRow(Long, com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext)": "The running total plus the row's dependency value, ignoring nulls; null if both are null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.ScanningNumberSumLoader": {
+   "summary": "Scanning loader producing a running total of a `Number` dependency in forest order with `NumberAccumulator` semantics, honouring the `baseLevel` and `levels` parameters.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Argument 1: the spec computed (not null). Argument 2: the numeric attribute added at each contributing row.",
+    "getAttributeDependencies()": "A singleton set holding the summed dependency.",
+    "loadValueForPassingRow(Number, com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext)": "The running total plus the row's dependency value, ignoring nulls; null if both are null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.SimpleAttributeProvider": {
+   "summary": "Minimal `AttributeLoaderProvider` serving a fixed set of loaders registered up front (marked internal). Loaders are grouped by attribute id; a request is answered with the most specific registered loader whose spec parameters all appear, with equal values, in the requested spec. Lookup is synchronized.",
+   "members": {
+    "<init>()": "Creates a provider with no loaders; subclasses register loaders, typically in their constructor.",
+    "create(com.almworks.jira.structure.api.attribute.loader.AttributeLoader[])": "Returns a provider that serves exactly the given loaders (none may be null).",
+    "registerLoader(com.almworks.jira.structure.api.attribute.loader.AttributeLoader)": "Adds a loader, filed under its spec's attribute id. Several loaders may be registered for one id. Not synchronized: register before the provider is used.",
+    "registerCompositeLoader(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.loader.AttributeLoader[])": "Combines the given loaders for one spec into a composite loader (see `CompositeAttributeLoader.create`) and registers it. Throws IllegalArgumentException if no loaders are given.",
+    "createAttributeLoader(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.loader.AttributeProviderContext)": "Among the loaders registered for the requested spec's id, picks those whose spec parameters are a subset of the requested spec's parameters; prefers the one with the most parameters, then one whose format equals the requested format. Returns null if none matches. The returned loader may have a more general spec than requested; the plugin adapts it."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.basic.SimpleDerivedAttributeLoader": {
+   "summary": "Base class for derived loaders computed from exactly one dependency. Handles missing dependency values: with 'yield' on (the default), a missing input or a null result makes the loader return null so that another loader of the same attribute may supply the value; with 'yield' off, a missing input is passed through as the result (keeping its undefined or error state) and a null result becomes an undefined value.",
+   "members": {
+    "myDependency": "The single dependency spec, available to subclasses.",
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Argument 1: the spec computed (not null). Argument 2: the dependency. Yield is on.",
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec, boolean)": "Argument 1: the spec computed (not null). Argument 2: the dependency. Argument 3: the yield flag described on the class.",
+    "getAttributeDependencies()": "A singleton set holding the dependency. Final.",
+    "loadValue(com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Reads the dependency's value; if it has no value applies the yield rule, otherwise returns the result of `getValue` wrapped as an attribute value (null result handled by the yield rule).",
+    "getValue(Object, com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Subclass hook: computes the value from the dependency's non-null value (argument 1) and the context. May return null.",
+    "idLoader(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Returns a loader for spec (argument 1) that simply copies the value of spec (argument 2), or null if the two specs' formats differ. Used to serve a spec by reusing an equivalent one."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.ArbitraryDependenciesAttributeLoaderBuilder": {
+   "summary": "Abstract builder base adding a freely chosen set of attribute dependencies to the common builder settings. Builders are mutable, not thread-safe, and return themselves from every setter for chaining.",
+   "members": {
+    "<init>()": "Creates a builder with no dependencies declared.",
+    "dependencies(com.almworks.jira.structure.api.attribute.AttributeSpec[])": "Adds each given spec as a dependency (see `dependency`). A null array or null elements are ignored.",
+    "dependency(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Adds one attribute dependency; null is ignored. Order of first addition is kept; duplicates collapse.",
+    "buildDependencies()": "For subclasses: the dependencies declared so far as an unmodifiable copy, or null if `dependency`/`dependencies` never added anything."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.AttributeLoaderBuilder": {
+   "summary": "Abstract base of all loader builders, holding the settings shared by every loader kind: spec, context dependencies, caching strategy and global trail. Settings left unset make the built loader fall back to the `AttributeLoader` defaults (guessed from the spec's format). Builders are mutable, not thread-safe, and return themselves from every setter for chaining.",
+   "members": {
+    "myAttributeSpec": "The spec set by `spec`, or null; for subclasses.",
+    "myCachingStrategy": "The strategy set by `cachingStrategy`, or null for the default; for subclasses.",
+    "myGlobalTrail": "The global trail accumulated by `globalTrail`, or null; for subclasses.",
+    "<init>()": "Creates a builder with nothing set.",
+    "spec(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Sets the spec of the loader to build (replacing any earlier one). Required before `build()`.",
+    "contextDependencies(com.almworks.jira.structure.api.attribute.loader.AttributeContextDependency[])": "Adds each given context dependency (see `contextDependency`). A null array or null elements are ignored.",
+    "contextDependency(com.almworks.jira.structure.api.attribute.loader.AttributeContextDependency)": "Adds one context dependency; null is ignored. Once any is added, the built loader declares exactly the added set instead of the default. Defect: after `noContextDependencies()` this throws UnsupportedOperationException (the explicit empty set cannot be extended); this also affects the trail setters of subclasses, which add `TRAIL`.",
+    "noContextDependencies()": "Declares explicitly that the loader has no context dependencies (overriding the format-based default, e.g. `USER` for HTML), discarding any added earlier.",
+    "cachingStrategy(com.almworks.jira.structure.api.attribute.loader.AttributeCachingStrategy)": "Sets the caching strategy; null restores the default.",
+    "globalTrail(com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Adds the given items to the loader's global trail (union with what was set before). Null leaves it unchanged.",
+    "globalTrail(com.almworks.jira.structure.api.item.ItemIdentity)": "Adds a single item to the global trail. A null item still sets the global trail to the empty set if none was set before, which marks the loader as having a global trail.",
+    "self()": "Returns this builder typed as the concrete builder class.",
+    "buildContextDependencies()": "For subclasses: null if no context dependencies were set; an empty unmodifiable set after `noContextDependencies()`; otherwise an unmodifiable copy of the added set.",
+    "notNull(Object, String)": "For subclasses: returns the value (argument 1) or throws IllegalArgumentException naming the parameter (argument 2) if it is null.",
+    "nullableCollectionOfNonNulls(java.util.Collection, String)": "For subclasses: returns the collection (argument 1) unchanged, which may be null; throws IllegalArgumentException naming the parameter (argument 2) and the index if any element is null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.BaseAttributeLoader": {
+   "summary": "Abstract loader holding fixed values for the common `AttributeLoader` properties; the base of the loaders produced by the builders. Immutable after construction; thread safety depends on the functions it is given.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, java.util.Set, java.util.Set, com.almworks.jira.structure.api.attribute.loader.AttributeCachingStrategy, com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Arguments 1-5: the spec (expected not null; not checked here), the attribute dependencies, the context dependencies, the caching strategy and the global trail, each of which may be null to fall back to the `AttributeLoader` default.",
+    "getAttributeSpec()": "The spec given at construction.",
+    "getAttributeDependencies()": "The dependencies given at construction, or the interface default (null) if none were given.",
+    "getContextDependencies()": "The context dependencies given at construction, or the format-based default if null was given.",
+    "getCachingStrategy()": "The strategy given at construction, or the format-based default if null was given.",
+    "getGlobalTrail()": "The global trail given at construction, or null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.BaseDerivedAttributeLoader": {
+   "summary": "Derived loader whose value comes from a function of the context. Produced by `DerivedAttributeLoaderBuilder.build()`; may also be constructed directly.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, java.util.Set, java.util.Set, com.almworks.jira.structure.api.attribute.loader.AttributeCachingStrategy, com.almworks.jira.structure.api.attribute.loader.TrailItemSet, java.util.function.Function)": "Arguments 1-5: the spec (expected not null; not checked here), the attribute dependencies, the context dependencies, the caching strategy and the global trail, each of which may be null to fall back to the `AttributeLoader` default. Argument 6: the function computing the value from the derived context (must not be null).",
+    "loadValue(com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Returns the function's result for the context; null is passed through (treated as undefined / not handled)."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.BaseItemAttributeLoader": {
+   "summary": "Item loader assembled from functions. Produced by `ItemAttributeLoaderBuilder.build()`; may also be constructed directly.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, java.util.Set, java.util.Set, com.almworks.jira.structure.api.attribute.loader.AttributeCachingStrategy, com.almworks.jira.structure.api.attribute.loader.TrailItemSet, java.util.function.Predicate, java.util.function.BiFunction, java.util.function.BiConsumer)": "Arguments 1-5: the spec (expected not null; not checked here), the attribute dependencies, the context dependencies, the caching strategy and the global trail, each of which may be null to fall back to the `AttributeLoader` default. Argument 6: test on item type keys, or null to support all types. Argument 7: the function computing a value from the item identity and context (must not be null). Argument 8: optional bulk preload callback, or null.",
+    "isItemTypeSupported(String)": "True if no type test was given, otherwise the test's answer for the type.",
+    "loadValue(com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.attribute.loader.ItemAttributeContext)": "Returns the value function's result; null is passed through.",
+    "preload(java.util.Collection, com.almworks.jira.structure.api.attribute.loader.AttributeContext)": "Invokes the preload callback with the item ids and context, if one was given; otherwise does nothing."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.BaseSingleRowAttributeLoader": {
+   "summary": "Single-row loader assembled from functions. Produced by `SingleRowAttributeLoaderBuilder.build()`; may also be constructed directly.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, java.util.Set, java.util.Set, com.almworks.jira.structure.api.attribute.loader.AttributeCachingStrategy, com.almworks.jira.structure.api.attribute.loader.TrailItemSet, java.util.function.BiFunction, com.almworks.jira.structure.api.attribute.loader.builder.RowPreloadFunction, boolean)": "Arguments 1-5: the spec (expected not null; not checked here), the attribute dependencies, the context dependencies, the caching strategy and the global trail, each of which may be null to fall back to the `AttributeLoader` default. Argument 6: the function computing a value from the row and context (must not be null). Argument 7: optional preload callback, or null. Argument 8: whether values depend on the whole forest.",
+    "loadValue(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.attribute.loader.SingleRowAttributeContext)": "Returns the value function's result; null is passed through.",
+    "preload(com.almworks.integers.LongSet, com.almworks.jira.structure.api.forest.item.ItemForest, com.almworks.jira.structure.api.attribute.loader.AttributeContext)": "Invokes the preload callback if one was given; otherwise does nothing.",
+    "isWholeForestDependent()": "The flag given at construction."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.BiDerivedAttributeLoaderBuilder": {
+   "summary": "Builder for a derived loader computed from two dependencies (x and y) by a two-argument function. By default the loader yields (returns null, letting other loaders of the attribute provide a value) when either input is missing or the function returns null. Obtained from `AttributeLoaders.derivedLoader(spec, x, y)`. Builders are mutable, not thread-safe, and return themselves from every setter for chaining.",
+   "members": {
+    "<init>()": "Creates an empty builder; prefer the factory method.",
+    "build()": "Creates the loader. Throws IllegalArgumentException if the spec, either dependency or the value function is missing, or if the context dependencies contain null. The loader's dependencies are exactly {x, y}.",
+    "xDependency(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Sets the first (x) dependency.",
+    "yDependency(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Sets the second (y) dependency.",
+    "dependencies(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Sets both dependencies (x, then y).",
+    "valueFunction(java.util.function.BiFunction)": "Sets the function computing the value from the non-null x and y values. It may return null.",
+    "xTrail(java.util.function.Function)": "Sets a function giving, for a non-null x value, an item the result depends on; that item (if not null) is added to the value's trail. A non-null function also adds the `TRAIL` context dependency.",
+    "yTrail(java.util.function.Function)": "Same as `xTrail` for the y value.",
+    "yieldOnNull(boolean)": "Whether a missing input or null result yields (null, the default) or produces an undefined value. Unlike the one-dependency builder, an error in an input is not propagated either way."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.BiDerivedAttributeLoaderBuilder.BuiltBiDerivedLoader": {
+   "summary": "The derived loader produced by `BiDerivedAttributeLoaderBuilder`. Immutable; thread safety depends on the given functions.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec, boolean, java.util.function.BiFunction, java.util.function.Function, java.util.function.Function, java.util.Set, com.almworks.jira.structure.api.attribute.loader.AttributeCachingStrategy, com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Arguments in order: spec computed; x dependency; y dependency; yield flag; value function; x trail function (nullable); y trail function (nullable); context dependencies (null for the default); caching strategy (null for the default); global trail (nullable). The spec must not be null (IllegalArgumentException).",
+    "getAttributeDependencies()": "An immutable set of the x and y dependencies.",
+    "loadValue(com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Reads both dependency values. If both are non-null, applies the trail functions and the value function: a null result gives null when yielding, otherwise an undefined value; a non-null result is returned as a defined value. If either input has no value: null when yielding, otherwise an undefined value.",
+    "getValue(Object, Object, com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Hook called with the non-null x and y values: adds the trail items reported by the trail functions to the context, then returns the value function's result (may be null).",
+    "getContextDependencies()": "The context dependencies given, or the default when null was given.",
+    "getCachingStrategy()": "The caching strategy given, or the default when null was given.",
+    "getGlobalTrail()": "The global trail given, or null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.DerivedAttributeLoaderBuilder": {
+   "summary": "Builder for a derived loader with any number of declared dependencies whose value comes from a function of the context (read dependencies with `getDependencyValue`). Obtained from `AttributeLoaders.derivedLoader(spec)` or `constantLoader`. Builders are mutable, not thread-safe, and return themselves from every setter for chaining.",
+   "members": {
+    "<init>()": "Creates an empty builder; prefer the factory method.",
+    "valueFunctionAV(java.util.function.Function)": "Sets a function from the context to an attribute value; its result is returned as is (null means not handled). Replaces any earlier value function.",
+    "valueFunctionAV(java.util.function.Supplier)": "Sets a context-independent supplier of an attribute value, returned as is.",
+    "valueFunction(java.util.function.Function)": "Sets a function from the context to a plain value; null results become undefined values.",
+    "valueFunction(java.util.function.Supplier)": "Sets a context-independent supplier of a plain value; null becomes an undefined value.",
+    "build()": "Creates the loader. Throws IllegalArgumentException if the spec or value function is missing or if a dependency collection contains null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.ItemAttributeLoaderBuilder": {
+   "summary": "Builder for item loaders. Choose one value function form (the last call wins): forms named `...II...` receive the item identity; the others receive the item resolved to the class set with `itemClass` (an item that cannot be resolved to that class gets an undefined value). Forms ending in `AV` return attribute values as they are; the others return plain values, which are wrapped (null becomes undefined, or yields with `yieldOnNull`). Some optional settings only work with some forms; an incompatible combination makes `build()` throw IllegalArgumentException. Obtained from `AttributeLoaders.itemLoader` or `issueLoader`. Builders are mutable, not thread-safe, and return themselves from every setter for chaining.",
+   "members": {
+    "<init>()": "Creates an empty builder; prefer the factory methods.",
+    "valueFunctionIIAV(java.util.function.BiFunction)": "Sets a function from item identity and context to an attribute value, used as is. Incompatible with `itemClass`, `yieldOnNull`, `valueTrail`, `itemTrail` and `trailItemSet`. A null function throws IllegalArgumentException immediately.",
+    "valueFunctionIIAV(java.util.function.Function)": "Same, with a function of the item identity only. A null function is not detected here; it fails with NullPointerException when a value is loaded.",
+    "valueFunctionAV(java.util.function.BiFunction)": "Sets a function from the resolved item and context to an attribute value, used as is. Requires `itemClass`; also accepts `itemTrail`; incompatible with `yieldOnNull`, `valueTrail` and `trailItemSet`. A null function throws IllegalArgumentException immediately.",
+    "valueFunctionAV(java.util.function.Function)": "Same, with a function of the resolved item only. A null function is not detected here; it fails with NullPointerException when a value is loaded.",
+    "valueFunctionII(java.util.function.BiFunction)": "Sets a function from item identity and context to a plain value. Accepts `yieldOnNull` and `valueTrail`; incompatible with `itemClass`, `itemTrail` and `trailItemSet` (so it cannot be used with `issueLoader`). A null function fails at `build()`.",
+    "valueFunctionII(java.util.function.Function)": "Same, with a function of the item identity only.",
+    "valueFunction(java.util.function.BiFunction)": "Sets a function from the resolved item and context to a plain value. Requires `itemClass`; accepts all optional settings. A null function fails at `build()`.",
+    "valueFunction(java.util.function.Function)": "Same, with a function of the resolved item only.",
+    "itemClass(Class)": "Sets the class items are resolved to and returns this builder retyped for that class. Throws IllegalArgumentException if null.",
+    "itemType(String[])": "Restricts the loader to the given item type keys (replacing an earlier restriction). Throws IllegalArgumentException if none are given or any is null.",
+    "anyItemType()": "Removes the item type restriction: all item types are supported (the default).",
+    "itemTrail(java.util.function.Function)": "Sets a function giving, for the resolved item, another item the value depends on; a non-null result is added to the value's trail before the value is computed. A non-null function also adds the `TRAIL` context dependency; null clears it.",
+    "trailItemSet(java.util.function.Function)": "Like `itemTrail`, but the function returns a whole `TrailItemSet` (null ignored). Only for `valueFunction`.",
+    "valueTrail(java.util.function.Function)": "Sets a function giving, for a non-null computed value, an item the value depends on, added to the trail. Adds the `TRAIL` context dependency when not null. Only for the plain-value forms.",
+    "yieldOnNull()": "Makes a null plain value produce a null result (letting another loader of the same attribute provide the value) instead of an undefined value. Only for the plain-value forms.",
+    "preload(java.util.function.BiConsumer)": "Sets a callback receiving the ids of items about to be loaded and the context, for bulk fetching. Null removes it.",
+    "build()": "Creates the item loader. Throws IllegalArgumentException if the spec or value function is missing, if an item-based form has no `itemClass`, if a setting is incompatible with the chosen form, or if a dependency collection contains null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.RowPreloadFunction": {
+   "summary": "Functional interface for the bulk preload callback of a single-row loader built with `SingleRowAttributeLoaderBuilder.preload`.",
+   "members": {
+    "preload(com.almworks.integers.LongSet, com.almworks.jira.structure.api.forest.item.ItemForest, com.almworks.jira.structure.api.attribute.loader.AttributeContext)": "Called before a batch of rows is calculated. Argument 1: ids of the rows to be computed. Argument 2: the forest with its items. Argument 3: the general context."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.SingleRowAttributeLoaderBuilder": {
+   "summary": "Builder for single-row loaders from a function of the row. Obtained from `AttributeLoaders.singleRowLoader`. Builders are mutable, not thread-safe, and return themselves from every setter for chaining.",
+   "members": {
+    "<init>()": "Creates an empty builder; prefer the factory method.",
+    "valueFunctionAV(java.util.function.BiFunction)": "Sets a function from row and context to an attribute value, used as is (null means not handled). Replaces any earlier value function.",
+    "valueFunctionAV(java.util.function.Function)": "Same, with a function of the row only.",
+    "valueFunction(java.util.function.BiFunction)": "Sets a function from row and context to a plain value; null becomes an undefined value.",
+    "valueFunction(java.util.function.Function)": "Same, with a function of the row only.",
+    "preload(com.almworks.jira.structure.api.attribute.loader.builder.RowPreloadFunction)": "Sets the bulk preload callback; null removes it.",
+    "dependsOnWholeForest()": "Marks the loader's values as depending on the whole forest (see `RowAttributeLoader.isWholeForestDependent`). Cannot be undone on this builder.",
+    "build()": "Creates the loader. Throws IllegalArgumentException if the spec or value function is missing or a dependency collection contains null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.UniDerivedAttributeLoaderBuilder": {
+   "summary": "Builder for a derived loader computed from one dependency by a function. Yields by default: when the dependency has no value or the function returns null, the loader returns null so another loader of the attribute may supply the value. Obtained from `AttributeLoaders.derivedLoader(spec, dependency)`. Builders are mutable, not thread-safe, and return themselves from every setter for chaining.",
+   "members": {
+    "<init>()": "Creates an empty builder; prefer the factory method.",
+    "build()": "Creates the loader. Throws IllegalArgumentException if the spec, dependency or value function is missing, or the context dependencies contain null.",
+    "dependency(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Sets the single dependency.",
+    "valueFunction(java.util.function.BiFunction)": "Sets the function computing the value from the dependency's non-null value and the context. It may return null.",
+    "valueFunction(java.util.function.Function)": "Same, with a function of the dependency value only.",
+    "trail(java.util.function.Function)": "Sets a function giving, for the dependency value, an item the result depends on (added to the trail if not null). A non-null function also adds the `TRAIL` context dependency.",
+    "yieldOnNull(boolean)": "Whether to yield (true, the default). When false, a missing dependency value is passed through as the result (including its error or undefined state) and a null function result becomes an undefined value."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.builder.UniDerivedAttributeLoaderBuilder.BuiltDerivedLoader": {
+   "summary": "The derived loader produced by `UniDerivedAttributeLoaderBuilder`; a `SimpleDerivedAttributeLoader` with the builder's function, trail function and settings. Immutable; thread safety depends on the given functions.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec, boolean, java.util.function.BiFunction, java.util.function.Function, java.util.Set, com.almworks.jira.structure.api.attribute.loader.AttributeCachingStrategy, com.almworks.jira.structure.api.attribute.loader.TrailItemSet)": "Arguments in order: spec computed (not null); dependency; yield flag; value function; trail function (nullable); context dependencies (null for the default); caching strategy (null for the default); global trail (nullable).",
+    "getValue(Object, com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Adds the trail item from the trail function (if any and not null) to the context, then returns the value function's result for the dependency value.",
+    "getContextDependencies()": "The context dependencies given, or the default when null was given.",
+    "getCachingStrategy()": "The caching strategy given, or the default when null was given.",
+    "getGlobalTrail()": "The global trail given, or null."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.composition.AttributeLoaderAdapter": {
+   "summary": "Converts a loader of a simpler kind into an equivalent loader of a more general kind so that loaders of different kinds can be combined. Supported conversions: derived to any other kind; item to single-row, aggregate, propagate or scanning; single-row to aggregate, propagate or scanning. The adapted loader reports the same spec, dependencies, context dependencies, caching strategy and global trail as the original; an adapted item loader returns null for rows whose item type it does not support and preloads only items of supported types.",
+   "members": {
+    "adapt(com.almworks.jira.structure.api.attribute.loader.AttributeLoader, Class)": "Returns the loader (argument 1) as an instance of the loader interface given by argument 2 (one of the six kind interfaces), wrapping it if its kind differs. If the loader already has that kind it is returned unchanged. Throws IllegalArgumentException if the conversion is not supported or if either argument is not of a recognised loader kind."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.composition.CompositeAttributeLoader": {
+   "summary": "A loader made of several loaders for the same attribute, as the plugin builds when several providers (or one provider) supply loaders for one spec. The composite has the most general kind among its parts (see `LoaderType` weights); parts of simpler kinds are adapted (see `AttributeLoaderAdapter`) and parts that cannot be adapted are dropped with a warning. A value is taken from the first part, in the given order, that returns a non-null value; if all return null the result is undefined. Immutable; the parts' collection is unmodifiable.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, java.util.Collection)": "For subclasses: creates the composite for the spec (argument 1, not null) from the parts (argument 2, not null, already of the composite's kind) and computes the combined properties described by the getters.",
+    "create(com.almworks.jira.structure.api.attribute.AttributeSpec, java.util.List)": "Builds a composite of the right kind for the spec (argument 1) from the loaders (argument 2, in priority order). Throws IllegalArgumentException if the list is null or empty, or a loader is not of a recognised kind. Item composites ask only the parts that support an item's type; aggregate, propagate, scanning and single-row composites call `preload` on every part and are whole-forest dependent if any part is; a propagate composite uses the first non-null child function and loads the super-root if any part does.",
+    "getCachingStrategy()": "The strictest strategy among the parts: `MUST_NOT` if any part has it, else `SHOULD_NOT`, else `SHOULD`, else `MAY` (parts returning null are ignored).",
+    "getAttributeDependencies()": "The union of all parts' attribute dependencies, unmodifiable, never null.",
+    "getContextDependencies()": "The union of all parts' context dependencies, unmodifiable, never null.",
+    "getGlobalTrail()": "The union of the parts' global trails, or null if no part has one.",
+    "getCompositeCachingStrategy(com.almworks.jira.structure.api.attribute.AttributeSpec, java.util.Collection)": "Computes the combined caching strategy of the given loaders as described for `getCachingStrategy` (argument 1 is only used for a warning logged when both `MUST_NOT` and `SHOULD` occur). Returns `MAY` for an empty collection.",
+    "getCompositeDependencies(java.util.Collection)": "The union of the given loaders' attribute dependencies (nulls ignored), as an unmodifiable set.",
+    "getCompositeContextDependencies(java.util.Collection)": "The union of the given loaders' context dependencies (nulls ignored), as an unmodifiable set.",
+    "getCompositeGlobalTrail(java.util.Collection)": "The union of the given loaders' non-null global trails, or null if none has one.",
+    "getLoaderClasses(com.almworks.jira.structure.api.attribute.loader.AttributeLoader)": "For diagnostics: the classes of the actual loaders behind the given loader, looking through composites and adapters recursively, without duplicates, in encounter order. Empty for null; a plain loader gives its own class."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.composition.LoaderType": {
+   "summary": "The six loader kinds, each with the kind interface it corresponds to and a weight expressing generality (higher is more general; a loader of lower weight can be adapted to a higher one). Every loader must implement exactly one kind interface.",
+   "members": {
+    "PROPAGATE": "`PropagateAttributeLoader`, weight 4.",
+    "AGGREGATE": "`AggregateAttributeLoader`, weight 4.",
+    "SCANNING": "`ScanningAttributeLoader`, weight 4.",
+    "SINGLE_ROW": "`SingleRowAttributeLoader`, weight 3.",
+    "ITEM": "`ItemAttributeLoader`, weight 2.",
+    "DERIVED": "`DerivedAttributeLoader`, weight 1.",
+    "values()": "",
+    "valueOf(String)": "",
+    "getLoaderClass()": "The kind interface of this type.",
+    "getLoaderWeight()": "The generality weight (1 to 4).",
+    "is(com.almworks.jira.structure.api.attribute.loader.AttributeLoader)": "True if the loader implements this kind's interface.",
+    "getType(com.almworks.jira.structure.api.attribute.loader.AttributeLoader)": "The kind of the given loader (by its class). Throws IllegalArgumentException if it implements none of the kind interfaces; NullPointerException for null.",
+    "getType(Class)": "The kind whose interface the given class implements, checking in declaration order (propagate, aggregate, scanning, single-row, item, derived). Throws IllegalArgumentException if none matches. With assertions enabled, a class implementing more than one kind also fails."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.delegate.DelegatingAggregateAttributeLoader": {
+   "summary": "Aggregate loader that forwards everything to another aggregate loader; subclass it to change part of the behaviour.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.loader.AggregateAttributeLoader)": "Wraps the given loader. Throws NullPointerException if it is null.",
+    "loadValue(java.util.List, com.almworks.jira.structure.api.attribute.loader.AggregateAttributeContext)": "Returns the wrapped loader's result for the same arguments."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.delegate.DelegatingAttributeLoader": {
+   "summary": "Abstract base for loaders that wrap another loader and forward all calls to it. The wrapped loader is fixed at construction.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.loader.AttributeLoader)": "Wraps the given loader. Throws NullPointerException if it is null.",
+    "delegate()": "The wrapped loader. Never null.",
+    "getAttributeSpec()": "The wrapped loader's spec.",
+    "getAttributeDependencies()": "The wrapped loader's attribute dependencies.",
+    "getContextDependencies()": "The wrapped loader's context dependencies.",
+    "getCachingStrategy()": "The wrapped loader's caching strategy.",
+    "getGlobalTrail()": "The wrapped loader's global trail.",
+    "toString()": "Debug text made of this class's name and the wrapped loader's text."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.delegate.DelegatingDerivedAttributeLoader": {
+   "summary": "Derived loader that forwards everything to another derived loader.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.loader.DerivedAttributeLoader)": "Wraps the given loader. Throws NullPointerException if it is null.",
+    "loadValue(com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Returns the wrapped loader's result."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.delegate.DelegatingItemAttributeLoader": {
+   "summary": "Item loader that forwards everything to another item loader.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.loader.ItemAttributeLoader)": "Wraps the given loader. Throws NullPointerException if it is null.",
+    "isItemTypeSupported(String)": "The wrapped loader's answer.",
+    "loadValue(com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.attribute.loader.ItemAttributeContext)": "Returns the wrapped loader's result.",
+    "preload(java.util.Collection, com.almworks.jira.structure.api.attribute.loader.AttributeContext)": "Forwards to the wrapped loader."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.delegate.DelegatingPropagateAttributeLoader": {
+   "summary": "Propagate loader that forwards everything to another propagate loader.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.loader.PropagateAttributeLoader)": "Wraps the given loader. Throws NullPointerException if it is null.",
+    "loadChildren(com.almworks.jira.structure.api.attribute.AttributeValue, com.almworks.jira.structure.api.attribute.loader.PropagateAttributeContext.Parent)": "Returns the wrapped loader's child function.",
+    "isLoadingSuperRoot()": "The wrapped loader's answer."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.delegate.DelegatingRowAttributeLoader": {
+   "summary": "Abstract base for delegating row-based loaders: forwards preloading and the whole-forest flag.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.loader.RowAttributeLoader)": "Wraps the given loader. Throws NullPointerException if it is null.",
+    "preload(com.almworks.integers.LongSet, com.almworks.jira.structure.api.forest.item.ItemForest, com.almworks.jira.structure.api.attribute.loader.AttributeContext)": "Forwards to the wrapped loader.",
+    "isWholeForestDependent()": "The wrapped loader's answer."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.delegate.DelegatingScanningAttributeLoader": {
+   "summary": "Scanning loader that forwards everything to another scanning loader.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.loader.ScanningAttributeLoader)": "Wraps the given loader. Throws NullPointerException if it is null.",
+    "loadValue(com.almworks.jira.structure.api.attribute.AttributeValue, com.almworks.jira.structure.api.attribute.loader.ScanningAttributeContext)": "Returns the wrapped loader's result."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.reduce.ReducingAggregateLoader": {
+   "summary": "Base class for aggregates defined by a `ValueReducer` (which this class implements) and a per-row self value. The reduction strategy comes from the spec's `type` parameter (see `ReductionStrategy.forAttributeSpec`); an unknown type makes the constructor throw. Children that are automation rows (generators and effectors, see `CoreIdentities.isAutomation`) are ignored. If any remaining child value is an error, that error is the result.",
+   "members": {
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Creates the loader and selects the reduction strategy from the spec's `type` parameter (default `subtree`). Throws IllegalArgumentException for a null spec or an unknown type.",
+    "loadValue(java.util.List, com.almworks.jira.structure.api.attribute.loader.AggregateAttributeContext)": "Drops values of automation children, returns the first child error if there is one, otherwise applies the reduction strategy to the row's self value (obtained lazily from `getSelfValue`), the remaining child values and this reducer.",
+    "getSelfValue(com.almworks.jira.structure.api.attribute.loader.AggregateAttributeContext)": "Subclass hook: the current row's own value to be combined with its children's. Must not return null (an undefined value means no contribution)."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.reduce.ReductionStrategy": {
+   "summary": "One way of combining a row's own value with its children's values into an aggregate. Strategies are stateless singletons obtained from the static methods. The value of each row may carry extra loader data that later rows of the same attribute read, so a strategy must be used consistently for all rows of an attribute. Four exist, named by the spec parameter `type`: `subtree` (default), `children`, `leaves` and `strict`.",
+   "members": {
+    "apply(java.util.function.Supplier, java.util.List, com.almworks.jira.structure.api.attribute.loader.reduce.ValueReducer)": "Computes the row's aggregate. Argument 1: supplies the row's own value (called lazily, at most as needed). Argument 2: the children's values as computed by the same strategy (not null; may be empty). Argument 3: the reducer. Never returns null. If the self value is an error, the error is returned (for `strict` and `children`, it is carried as loader data instead).",
+    "getStrategyType(com.almworks.jira.structure.api.attribute.AttributeSpec)": "The value of the spec's `type` parameter as a string, or `subtree` if absent.",
+    "forAttributeSpec(com.almworks.jira.structure.api.attribute.AttributeSpec)": "The strategy named by the spec's `type` parameter (see `forStrategyType`).",
+    "forStrategyType(String)": "Returns the strategy for `children`, `leaves`, `strict` or `subtree`. Throws IllegalArgumentException for any other name (case-sensitive)."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.reduce.ReductionStrategy.AbstractReductionStrategy": {
+   "summary": "Package-level base of the four strategies with shared helpers; it is not meant to be extended outside the API (its helpers are not public).",
+   "members": {
+    "<init>()": "Creates a strategy; only used by the built-in strategies."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.reduce.ReductionStrategy.ChildrenReductionStrategy": {
+   "summary": "Strategy `children`: a row's value is the reduction of its direct children's own values (not their subtrees); the row's own value is not included in its result but is attached as loader data for use by its parent.",
+   "members": {
+    "<init>()": "Not for public use; obtain the shared instance with `ReductionStrategy.forStrategyType(\"children\")`.",
+    "apply(java.util.function.Supplier, java.util.List, com.almworks.jira.structure.api.attribute.loader.reduce.ValueReducer)": "Reduces the own values carried by the children (an error carried by a child becomes the result; a reducer ClassCastException is logged and gives an error value) and attaches the row's own value as loader data."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.reduce.ReductionStrategy.LeavesReductionStrategy": {
+   "summary": "Strategy `leaves`: a leaf row's value is its own (converted) value; a parent's value is the reduction of its children's values, ignoring the parent's own value. Thus only leaves contribute.",
+   "members": {
+    "<init>()": "Not for public use; obtain the shared instance with `ReductionStrategy.forStrategyType(\"leaves\")`.",
+    "apply(java.util.function.Supplier, java.util.List, com.almworks.jira.structure.api.attribute.loader.reduce.ValueReducer)": "With no children: the reducer's `convert` of the own value (an own error is returned as is). Otherwise: the reducer's `reduce` of the children's plain values (null entries for children without value)."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.reduce.ReductionStrategy.StrictReductionStrategy": {
+   "summary": "Strategy `strict`: a row's value is the reduction over its descendants only, excluding the row's own value. Each row also carries, as loader data, its full subtree value including itself, which its parent reduces. Leaves have an undefined value.",
+   "members": {
+    "<init>()": "Not for public use; obtain the shared instance with `ReductionStrategy.forStrategyType(\"strict\")`.",
+    "apply(java.util.function.Supplier, java.util.List, com.almworks.jira.structure.api.attribute.loader.reduce.ValueReducer)": "With no children: an undefined value carrying the converted own value. Otherwise: the reduction of the children's carried subtree values (an error carried by a child becomes the result), carrying as loader data the merge of the own value with that reduction."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.reduce.ReductionStrategy.SubtreeReductionStrategy": {
+   "summary": "Strategy `subtree` (the default): a row's value combines its own value with the values of its children, which in turn include their subtrees; i.e. the reduction over the whole subtree including the row.",
+   "members": {
+    "<init>()": "Not for public use; obtain the shared instance with `ReductionStrategy.forStrategyType(\"subtree\")`.",
+    "apply(java.util.function.Supplier, java.util.List, com.almworks.jira.structure.api.attribute.loader.reduce.ValueReducer)": "The reducer's `merge` of the own value with the children's plain values; an error own value is returned instead."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.reduce.SingleDependencyReducingAggregateLoader": {
+   "summary": "Reducing aggregate whose per-row self value is the value of one dependency attribute (for example, summing a numeric field over the subtree).",
+   "members": {
+    "myDependency": "The dependency supplying each row's own value; for subclasses.",
+    "<init>(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Argument 1: the spec computed. Argument 2: the dependency (must not be null). Same exceptions as the `ReducingAggregateLoader` constructor.",
+    "getSelfValue(com.almworks.jira.structure.api.attribute.loader.AggregateAttributeContext)": "The dependency's value for the current row (undefined when missing).",
+    "getAttributeDependencies()": "A singleton set holding the dependency."
+   }
+  },
+  "com.almworks.jira.structure.api.attribute.loader.reduce.ValueReducer": {
+   "summary": "Defines how a list of values is combined into one (sum, min, max, ...); used by the reduction strategies. Implemented by `ReducingAggregateLoader` subclasses or as a lambda; only `reduce` is required. Values passed in may be null (rows without a value).",
+   "members": {
+    "reduce(java.util.List)": "Combines the values (elements may be null) into one; returns null if there is no result.",
+    "convert(java.util.function.Supplier)": "Turns a leaf's own value (from the supplier) into an aggregate value. Default: the own value unchanged.",
+    "merge(java.util.function.Supplier, java.util.function.Supplier)": "Combines the row's own value (argument 1) with the already reduced children value (argument 2). Default: `reduce` of a two-element list of both (either may be null).",
+    "merge(java.util.function.Supplier, java.util.List)": "Combines the row's own value (argument 1) with the children's values (argument 2). Default: `merge(self, () -> reduce(list))`."
+   }
+  }
+ }
+}

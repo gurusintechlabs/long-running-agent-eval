@@ -536,8 +536,8 @@ def _api_fixture(tmp_path: Path):
         z.writestr("com/acme/api/Store.class", _mini_class("com.acme.api.Store"))
         z.writestr("com/acme/api/Ids.class", _mini_class("com.acme.api.Ids"))
         z.writestr("com/acme/api/impl/Cache.class", _mini_class("com.acme.api.impl.Cache", public=False))
-    (spec / "SPEC.md").write_text((spec / "SPEC.md").read_text()
-                                  + "## Public API\n- com.acme.api.Store: a store.\n- com.acme.api.Ids: ids.\n")
+    (spec / "API.md").write_text("# API\n\nIntro.\n\n## Package `com.acme.api`\n\nThe API.\n\n"
+                                 "### `com.acme.api.Store`\n\nA store.\n\n### `com.acme.api.Ids`\n\nIds.\n")
     (analyst / "api-test-claims.json").write_text('{"t.StoreTest#gets": ["C-0001"]}\n')
     return jar, spec, analyst, api
 
@@ -556,8 +556,8 @@ def test_spec_check_accepts_a_fully_specified_public_api(tmp_path):
 
 def test_spec_check_wants_every_api_type_and_a_claim_behind_every_api_test(tmp_path):
     jar, spec, analyst, api = _api_fixture(tmp_path)
-    (spec / "SPEC.md").write_text((spec / "SPEC.md").read_text().replace("- com.acme.api.Ids: ids.\n", "")
-                                  + "It caches in com.acme.api.impl.Cache.\n")
+    (spec / "API.md").write_text((spec / "API.md").read_text().replace("### `com.acme.api.Ids`\n\nIds.\n", ""))
+    (spec / "SPEC.md").write_text((spec / "SPEC.md").read_text() + "It caches in com.acme.api.impl.Cache.\n")
     (analyst / "api-test-claims.json").write_text('{"t.StoreTest#gets": ["C-0009"], "t.Gone#x": ["C-0001"]}\n')
     text = "\n".join(_check_api(jar, spec, analyst, api, tests=("t.StoreTest#gets", "t.IdsTest#parses")).problems)
     assert "com.acme.api.Ids" in text and "not specified" in text            # API coverage

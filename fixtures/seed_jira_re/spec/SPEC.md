@@ -7,8 +7,8 @@ never how its code does it. Read `INVENTORY.md` first for what the plugin is and
 - **Part 1, the external contract**, lists everything the replacement must keep exactly, because Jira, other
   plugins, browsers, stored data or users' bookmarks depend on it. "Exactly" means byte for byte: keys, paths,
   parameter names, JSON keys, table and column names, persisted strings.
-- **Part 2, the public Java API**, lists the types and signatures other plugins compile against. It is
-  contract too.
+- **Part 2, the public Java API**, is in its own file, `API.md`: the types and signatures other plugins
+  compile against. It is contract too.
 - **Part 3, behaviour**, is in `claims.jsonl`: one testable behaviour per line, by module.
 - Everything not named here is your own design: class names, packages, internal structure, algorithms.
 - Where this file and `inventory.json` differ on a contract fact, this file wins; `CHANGES-*.md` files win
@@ -6722,4 +6722,6 @@ state.
 
 # Part 2. The public Java API
 
-(to be written in later analyst sessions)
+Part 2 is in `API.md`, because of its size. It lists every package and type of the public Java API, and the
+two contract types outside it (`com.almworks.jira.structure.generic.GenericItemHistoryManager` and its record
+type), with every public and protected member as a Java declaration and its meaning.

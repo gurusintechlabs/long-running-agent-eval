@@ -12,7 +12,9 @@ the analyst's files before a run:
 * every claim has evidence in ``analyst/claims-evidence.jsonl`` (harness-side), and every reference
   exists in the jar; the implementer's ``claims.jsonl`` carries no evidence;
 * no file in ``spec/`` names a class of the jar by its fully qualified name, unless
-  ``analyst/contract-classes.txt`` lists it as part of the external contract (clean-room hygiene);
+  ``analyst/contract-classes.txt`` lists it as part of the external contract (clean-room hygiene), nor
+  by a CamelCase simple name (a word the contract needs, such as a URL alias, may be listed alone there);
+  the vendor's internal libraries bundled in the jar (``internal_libs`` in target.yaml) count as its classes;
 * ``analyst/spec-changes-1.md`` (the stage-5 change request) is written;
 * the public Java API (phase JA1, design §7.4): ``spec/SPEC.md`` names every public top-level type of the
   real API (``vendor/api/``), whose names are contract and may appear anywhere in ``spec/``; no non-public
@@ -25,9 +27,12 @@ Exit 1 when anything is wrong; the report lists every problem.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import re
+import io
 import sys
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -44,6 +49,7 @@ CLAIM_ID = re.compile(r"^C-\d{4}$")
 CONFIDENCE = {"high", "medium", "low"}
 STATUS = {"active", "retracted"}
 JVM_NAME = re.compile(r"(?<![\w$/])L?((?:[a-z_][a-z0-9_]*/)+[A-Z][A-Za-z0-9_$]*)")   # com/acme/Foo, as in Lcom/acme/Foo;
+CAMEL = re.compile(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)+\b")                        # RuleEngine, not Folder
 FQCN = re.compile(r"\b(?:[a-z_][a-z0-9_]*\.)+[A-Z][A-Za-z0-9_$]*(?:\.[A-Z][A-Za-z0-9_$]*)*")
 
 
@@ -94,8 +100,35 @@ def contract_classes(path: Path) -> set[str]:
     return {ln.split("#", 1)[0].strip() for ln in path.read_text().splitlines() if ln.split("#", 1)[0].strip()}
 
 
+def bundled_internal_classes(jar: Path, libs: list[str] = ()) -> set[str]:
+    """Classes of the jars inside ``jar`` that match the ``libs`` globs: the vendor's own internal libraries
+    (``internal_libs`` in target.yaml), whose names leak like the plugin's own."""
+    out: set[str] = set()
+    with zipfile.ZipFile(jar) as z:
+        for lib in (n for n in z.namelist() if any(fnmatch.fnmatch(n, g) for g in libs)):
+            with zipfile.ZipFile(io.BytesIO(z.read(lib))) as inner:
+                out |= {n[:-6].replace("/", ".") for n in inner.namelist()
+                        if n.endswith(".class") and not n.endswith("module-info.class")}
+    return out
+
+
+def internal_libs() -> list[str]:
+    """``internal_libs`` globs from fixtures/tasks/jira_re/target.yaml."""
+    import yaml
+    return list(yaml.safe_load((TASK / "target.yaml").read_text()).get("internal_libs") or [])
+
+
+def _internal_simple_names(classes, allowed: set[str]) -> set[str]:
+    """CamelCase simple names (two humps or more, so plain words like ``Folder`` pass) of the jar's classes,
+    minus those of contract classes and public API types, and words listed alone in contract-classes.txt."""
+    def simple(n: str) -> str:
+        return n.rsplit(".", 1)[-1].rsplit("$", 1)[-1]
+    ok = {simple(n) for n in allowed}
+    return {s for s in map(simple, classes) if CAMEL.fullmatch(s)} - ok
+
+
 def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, api_jars: list[Path] = (),
-          api_tests: list[str] = ()) -> Report:
+          api_tests: list[str] = (), libs: list[str] = ()) -> Report:
     ref = reference(jar)
     rep = Report(modules=len(ref.modules))
     p = rep.problems
@@ -165,11 +198,15 @@ def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, ap
     public_api = {n.replace("$", ".") for n in surface} | set(surface)
     api_internal = {n.replace("$", ".") for n in api_classes if n not in surface}
     allowed = contract_classes(analyst_dir / "contract-classes.txt") | public_api
+    bundled = bundled_internal_classes(jar, libs)
+    internal_simple = _internal_simple_names(set(ref.all_classes) | bundled, allowed)
     for f in sorted(x for x in spec_dir.rglob("*") if x.is_file()):
         text = f.read_text(errors="replace")
         named = (set(FQCN.findall(text)) | {n.replace("/", ".") for n in JVM_NAME.findall(text)}) - allowed
-        for n in sorted(x for x in named if ref.resolve(x)):
+        for n in sorted(x for x in named if ref.resolve(x) or x in bundled):
             p.append(f"{f.relative_to(spec_dir)}: names internal class {n} (not in contract-classes.txt)")
+        for n in sorted(set(CAMEL.findall(text)) & internal_simple):
+            p.append(f"{f.relative_to(spec_dir)}: names internal class {n} by its simple name")
         for n in sorted(x for x in named if x.replace("$", ".") in api_internal):
             p.append(f"{f.relative_to(spec_dir)}: names internal (non-public) API class {n}")
 
@@ -221,7 +258,7 @@ def main() -> int:
             raise SystemExit(f"{TASK / 'vendor'} must hold exactly one jar; found {len(jars)}")
         jar = jars[0]
     tests = [t.id for t in _api.java_tests(_api.HIDDEN_TESTS) + _api.java_tests(_api.VISIBLE_TESTS)]
-    rep = check(jar=jar, api_jars=_api.api_jars(), api_tests=tests)
+    rep = check(jar=jar, api_jars=_api.api_jars(), api_tests=tests, libs=internal_libs())
     print(f"modules {rep.modules}: inventoried {rep.inventoried}, with an active claim {rep.claimed}; "
           f"claims {rep.claims}; public API types {rep.api_types}: specified {rep.api_specified}; "
           f"API tests {rep.api_tests}: backed by claims {rep.api_tests_claimed}; problems {len(rep.problems)}")

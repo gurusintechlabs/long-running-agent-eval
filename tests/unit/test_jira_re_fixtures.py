@@ -1,4 +1,5 @@
 """jira-re task fixtures (docs/jira-re-design.md): spec, stages, seed, constraints, target tools, hidden suite."""
+import json
 import shutil
 import subprocess
 import sys
@@ -364,6 +365,97 @@ def test_spec_check_finds_gaps_leaks_and_bad_evidence(tmp_path):
     assert "com.acme.Nope" in text                                          # grounding
     assert "com.acme.internal.RuleEngine" in text and "SPEC.md" in text      # leaked internal name
     assert "placeholder" in text.lower()
+
+
+def test_spec_check_finds_internal_simple_class_names(tmp_path):
+    """A bare CamelCase name of an internal class leaks as much as its dotted name; a word the contract
+    needs (a URL alias equal to a class name) is allowed by listing it alone in contract-classes.txt."""
+    jar, spec, analyst = _analyst_fixture(tmp_path)
+    (spec / "INVENTORY.md").write_text("The RuleEngine evaluates rules; a Gate checks; RulesEngineering is fine.\n")
+    text = "\n".join(_check(jar, spec, analyst).problems)
+    assert "INVENTORY.md" in text and "RuleEngine" in text and "Gate" not in text, text
+    with (analyst / "contract-classes.txt").open("a") as f:
+        f.write("RuleEngine   # the word is also a contract URL alias\n")
+    assert _check(jar, spec, analyst).problems == []
+
+
+def test_spec_check_sees_internal_classes_in_bundled_jars(tmp_path):
+    """Internal code also ships in jars under META-INF/lib (the vendor's commons and compat libraries, named
+    by ``internal_libs`` globs); their classes leak like the plugin's own. Other bundled libraries do not."""
+    import io
+    jar, spec, analyst = _analyst_fixture(tmp_path)
+    lib = io.BytesIO()
+    with zipfile.ZipFile(lib, "w") as z:
+        z.writestr("com/acme/commons/SharedHelper.class", b"not parsed")
+    third = io.BytesIO()
+    with zipfile.ZipFile(third, "w") as z:
+        z.writestr("org/other/ThirdPartyThing.class", b"not parsed")
+    with zipfile.ZipFile(jar, "a") as z:
+        z.writestr("META-INF/lib/acme-commons-1.0.jar", lib.getvalue())
+        z.writestr("META-INF/lib/other-2.0.jar", third.getvalue())
+    (spec / "INVENTORY.md").write_text("Uses com.acme.commons.SharedHelper, a SharedHelper and a ThirdPartyThing.\n")
+    sys.path.insert(0, str(TASK / "analyst"))
+    import check_spec
+    text = "\n".join(check_spec.check(jar=jar, spec_dir=spec, analyst_dir=analyst,
+                                      libs=["META-INF/lib/acme-commons-*.jar"]).problems)
+    assert "com.acme.commons.SharedHelper" in text and "names internal class SharedHelper by" in text, text
+    assert "ThirdPartyThing" not in text
+
+
+def test_inventory_is_built_from_the_descriptor_and_the_analysts_notes(tmp_path):
+    """build_inventory.py: contract fields come from the declaration for the pinned Jira; internal class
+    names never reach spec/, contract classes and exported API interfaces do."""
+    sys.path.insert(0, str(TASK / "analyst"))
+    import build_inventory
+    jar = tmp_path / "p.jar"
+    with zipfile.ZipFile(jar, "w") as z:
+        for c in ("com/acme/Gate", "com/acme/internal/RuleEngine", "com/acme/internal/Board", "com/acme/F9",
+                  "com/acme/F10"):
+            z.writestr(c + ".class", b"not parsed")
+        z.writestr("atlassian-plugin.xml",
+                   '<atlassian-plugin key="com.acme.p" name="P"><plugin-info><version>1.2</version></plugin-info>'
+                   '<workflow-validator key="gate" class="com.acme.internal.RuleEngine">'
+                   '<validator-class>com.acme.Gate</validator-class></workflow-validator>'
+                   '<component key="engine" public="true" class="com.acme.internal.RuleEngine">'
+                   '<interface>com.acme.api.Engine</interface></component>'
+                   '<servlet-filter key="f" class="com.acme.F10" location="before-dispatch">'
+                   '<restrict application="jira" version="[10.0.0,)"/><url-pattern>/ten/*</url-pattern></servlet-filter>'
+                   '<servlet-filter key="f" class="com.acme.F9" location="before-dispatch">'
+                   '<restrict application="jira" version="[9.0.0,10.0.0)"/><url-pattern>/nine/*</url-pattern></servlet-filter>'
+                   '<webwork1 key="ww" class="java.lang.Object"><actions>'
+                   '<action name="com.acme.internal.Board" alias="Board"><command name="edit" alias="Board"/>'
+                   '</action></actions></webwork1>'
+                   '<web-item key="wi" section="top" weight="10"><label key="wi.label"/>'
+                   '<link>/secure/Board.jspa</link></web-item></atlassian-plugin>')
+    notes = {"groups": {"ui": "pages"}, "modules": {"gate": {"purpose": "checks", "group": "ui",
+                                                            "contract_notes": ["CLASS: com.acme.Gate"]}}}
+    inv = build_inventory.build(jar, notes, {"com.acme.Gate"}, "9.12.0", {"wi.label": "Board"})
+    mods = {m["key"]: m for m in inv["modules"]}
+    assert inv["plugin"] == {"key": "com.acme.p", "name": "P", "plugins_version": None, "version": "1.2",
+                             "jira_version": "9.12.0", "modules": 5}
+    assert mods["gate"]["class"] == "com.acme.Gate" and mods["gate"]["purpose"] == "checks"
+    assert "contract_notes" not in mods["gate"]
+    assert mods["engine"]["class"] is None and mods["engine"]["contract"]["exports"] == ["com.acme.api.Engine"]
+    assert mods["f"]["contract"]["url_patterns"] == ["/nine/*"] and mods["f"]["contract"]["declared_per_jira_range"]
+    assert mods["ww"]["contract"]["actions"] == [{"alias": "Board", "commands": ["edit"]}]
+    assert mods["wi"]["contract"]["label"] == "Board"
+    assert "com.acme.internal" not in json.dumps(inv) and "com.acme.F9" not in json.dumps(inv)
+
+
+def test_inventory_md_index_is_spliced_between_markers():
+    sys.path.insert(0, str(TASK / "analyst"))
+    import build_inventory
+    inv = {"groups": {"ui": "Pages", "core": "Model"},                         # legend order is kept
+           "modules": [{"key": "b", "type": "web-item", "group": "ui"}, {"key": "a", "type": "component",
+                                                                      "group": "core"},
+                       {"key": "c", "type": "web-resource", "group": "ui"}]}
+    md = "# T\n\nprose\n<!-- index:start -->\nstale\n<!-- index:end -->\ntail\n"
+    out = build_inventory.splice_index(md, inv)
+    assert out.startswith("# T\n\nprose\n<!-- index:start -->\n") and out.endswith("<!-- index:end -->\ntail\n")
+    assert "stale" not in out and out.index("Pages") < out.index("Model")
+    assert "`b` (web-item), `c` (web-resource)" in out and "Pages" in out
+    with pytest.raises(ValueError):
+        build_inventory.splice_index("no markers", inv)
 
 
 def test_a_module_restricted_per_jira_version_counts_once(tmp_path):

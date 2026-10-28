@@ -335,6 +335,16 @@ Resolved 2026-10-27:
   agent re-implements them; the real jar is used **harness-side only**, by hidden tests;
 - **visible tests:** a small visible subset of the API tests goes into the seed; the full set is hidden.
 
+Resolved 2026-10-28:
+- **evidence and the copy-similarity reference cover the internal libraries** (JS1);
+- **phoning home is out of scope:** the replacement never contacts the vendor or the Marketplace (JS1);
+- **no Marketplace licensing:** the replacement does not declare `atlassian-licensing-enabled`, and every
+  licence check behaves as licensed and valid (JS2);
+- **OSGi exports:** only the public API packages (17.26.13) and the integers library (1.1.3). The original's
+  internal packages and bundled third-party libraries are not contract (JS2);
+- **identity:** the plugin key and bundle symbolic name are kept. The display name, vendor, version and icons
+  are the implementer's own; the replacement never presents itself as the vendor's product (JS2).
+
 ### 7.4 The public API tier (decided 2026-10-27; built in phase JA1, `docs/phase-JA1-summary.md`)
 
 - **Spec.** `spec/SPEC.md` lists the API's packages and public types, with every public signature, as

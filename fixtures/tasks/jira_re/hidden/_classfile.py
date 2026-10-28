@@ -125,6 +125,85 @@ def parse_class(data: bytes) -> RawClass:
                     interfaces=[i for i in interfaces if i], fields=fields, methods=methods, attrs=attrs, pool=pool)
 
 
+# ---------------------------------------------------------------- annotations (phase JS2: the REST and AO contract)
+
+@dataclass
+class Annotation:
+    type: str                       # dotted binary name
+    values: dict[str, object]       # str, int, float, bool, enum "Type.CONST", class name, Annotation, list
+
+
+def _annotation(raw: RawClass, data: bytes, p: int) -> tuple[Annotation, int]:
+    type_idx, n = struct.unpack_from(">HH", data, p)
+    p += 4
+    values = {}
+    for _ in range(n):
+        (name_idx,) = struct.unpack_from(">H", data, p)
+        values[raw.utf8(name_idx)], p = _element_value(raw, data, p + 2)
+    return Annotation(_descriptor_class(raw.utf8(type_idx)), values), p
+
+
+def _element_value(raw: RawClass, data: bytes, p: int) -> tuple[object, int]:
+    tag = chr(data[p])
+    p += 1
+    if tag in "BCDFIJSZs":
+        (idx,) = struct.unpack_from(">H", data, p)
+        v = raw.pool[idx][1]
+        return (bool(v) if tag == "Z" else chr(v) if tag == "C" else v), p + 2
+    if tag == "e":
+        t, c = struct.unpack_from(">HH", data, p)
+        return f"{_descriptor_class(raw.utf8(t))}.{raw.utf8(c)}", p + 4
+    if tag == "c":
+        (idx,) = struct.unpack_from(">H", data, p)
+        return _descriptor_class(raw.utf8(idx)), p + 2
+    if tag == "@":
+        return _annotation(raw, data, p)
+    if tag == "[":
+        (n,) = struct.unpack_from(">H", data, p)
+        p += 2
+        out = []
+        for _ in range(n):
+            v, p = _element_value(raw, data, p)
+            out.append(v)
+        return out, p
+    raise ValueError(f"unknown element value tag {tag!r}")
+
+
+def _descriptor_class(desc: str) -> str:
+    return desc[1:-1].replace("/", ".") if desc.startswith("L") and desc.endswith(";") else desc
+
+
+def annotations(raw: RawClass, attrs: dict[str, bytes]) -> list[Annotation]:
+    """Runtime-visible annotations of a class, field or method (``attrs`` of ``raw`` or of one of its members)."""
+    data = attrs.get("RuntimeVisibleAnnotations")
+    if not data:
+        return []
+    (n,) = struct.unpack_from(">H", data, 0)
+    out, p = [], 2
+    for _ in range(n):
+        a, p = _annotation(raw, data, p)
+        out.append(a)
+    return out
+
+
+def parameter_annotations(raw: RawClass, attrs: dict[str, bytes]) -> list[list[Annotation]]:
+    """Runtime-visible annotations of each parameter of a method, in order (may be shorter than the descriptor's
+    parameter list: javac omits synthetic leading parameters)."""
+    data = attrs.get("RuntimeVisibleParameterAnnotations")
+    if not data:
+        return []
+    out, p = [], 1
+    for _ in range(data[0]):
+        (n,) = struct.unpack_from(">H", data, p)
+        p += 2
+        one = []
+        for _ in range(n):
+            a, p = _annotation(raw, data, p)
+            one.append(a)
+        out.append(one)
+    return out
+
+
 # ---------------------------------------------------------------- generic signatures
 
 def normalise_signature(sig: str | None) -> str | None:

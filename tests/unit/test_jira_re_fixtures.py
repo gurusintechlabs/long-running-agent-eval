@@ -322,7 +322,9 @@ def _analyst_fixture(tmp_path: Path):
                                            '<component-import key="imp" interface="x.Y"/></atlassian-plugin>')
     spec = tmp_path / "spec"
     spec.mkdir()
-    (spec / "SPEC.md").write_text("# Contract\nThe validator class is com.acme.Gate (persisted in workflows).\n")
+    (spec / "SPEC.md").write_text("# Contract\nThe validator class is com.acme.Gate (persisted in workflows).\n"
+                                  "| key | type |\n|---|---|\n| `gate` | `workflow-validator` |\n"
+                                  "| `engine` | `component` |\n")
     (spec / "INVENTORY.md").write_text("A gate.\n")
     (spec / "inventory.json").write_text(
         '{"plugin": {"key": "com.acme.p"}, "modules": ['

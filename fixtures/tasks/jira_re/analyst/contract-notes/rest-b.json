@@ -1,0 +1,1494 @@
+{
+ "endpoints": {
+  "GET /rest/structure/2.0/attribute-sensitivity": {
+   "summary": "Returns the instance-wide attribute sensitivity settings: the mode and the attributes explicitly declared non-sensitive (sorted by attribute id). Sensitive attributes do not reveal, in totals and other values computed over several items, data from items the viewer cannot see. Jira administrators only.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestAttributeSensitivity}}.",
+   "errors": "401 for anonymous callers; 403 text/plain `permission violation` when the caller is not a Jira administrator."
+  },
+  "PUT /rest/structure/2.0/attribute-sensitivity": {
+   "summary": "Replaces the attribute sensitivity settings (mode and the list of non-sensitive attributes). Takes effect for subsequent value calculations. Jira administrators only.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestAttributeSensitivity}}: `sensitivityMode` code is required; an empty or missing list clears the non-sensitive attributes."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`).",
+   "errors": "400 with no body when the body is missing; 400 text/plain when the mode code is not 0, 1 or 2 or an attribute spec has an unknown format (message names the problem); 401 anonymous; 403 `permission violation` for non-administrators."
+  },
+  "POST /rest/structure/2.0/attribute-sensitivity/validate": {
+   "summary": "Checks whether a single attribute spec is acceptable for the sensitivity settings, without storing anything. Jira administrators only.",
+   "params": {
+    "body": "The JSON text of one {{com.almworks.jira.structure.api.rest.RestAttributeSpec}} (`id`, `format`, optional `params`)."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`) when the spec parses and its `format` is a known value format.",
+   "errors": "400 text/plain when the body is empty (`attribute spec is empty`-style message) or the spec cannot be parsed / has an unknown format (message gives the reason); 401 anonymous; 403 `permission violation` for non-administrators."
+  },
+  "POST /rest/structure/2.0/attribute/subscription": {
+   "summary": "Creates an attribute-value subscription owned by the caller for a window (a forest, a set of its rows and a set of attributes) and optionally loads values right away. Subscriptions live in server memory on the node that created them, are private to their creator, expire after a period without use and are capped in number (10000 by default; oldest unused are dropped). Anonymous callers may subscribe. When clustered, the response sets a cookie `X-Structure-DC-Meta` = percent-encoded `<node id>|<retry count>` so the client can stick to the node.",
+   "params": {
+    "valuesUpdate": "When `true`, the reply includes `valuesUpdate` with attribute values; otherwise only the subscription id and window are returned.",
+    "valuesTimeout": "Milliseconds to wait for value loading before answering (only with `valuesUpdate=true`). Default 1000 (configurable), clamped to 0..60000. Values not loaded in time are reported later with `stillLoading`.",
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestSubscriptionWindow}}: `forestSpec`, `rows` and `attributes` are all required for a new subscription."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestSubscriptionData}}: the new subscription id, the window as stored, and, with `valuesUpdate=true`, a full values update.",
+   "errors": "400 when the forest spec is missing or invalid; attribute specs with unknown formats are silently dropped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/attribute/subscription/{id}": {
+   "summary": "Returns the subscription's current window and, with `valuesUpdate=true`, the values that changed since the client's version. Also reports rows the caller cannot see and attribute loading errors collected since the last call.",
+   "params": {
+    "id": "Subscription id returned at creation.",
+    "skipLoading": "When `true`, does not start or wait for value loading; reports only what is already loaded.",
+    "valuesUpdate": "When `true`, the reply includes `valuesUpdate` with attribute values; otherwise only the subscription id and window are returned.",
+    "valuesTimeout": "Milliseconds to wait for value loading before answering (only with `valuesUpdate=true`). Default 1000 (configurable), clamped to 0..60000. Values not loaded in time are reported later with `stillLoading`.",
+    "signature": "Signature of the last values version the client holds (from `valuesUpdate.version`). Used with `version`; if either is missing the update is full (from version zero).",
+    "version": "Version number the client holds, paired with `signature`; the update then only carries values that changed since that version."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestSubscriptionData}}.",
+   "errors": "404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "PUT /rest/structure/2.0/attribute/subscription/{id}": {
+   "summary": "Replaces the whole window of an existing subscription (forest, rows and attributes) and optionally returns values for the new window.",
+   "params": {
+    "id": "Subscription id.",
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestSubscriptionWindow}} with all three parts.",
+    "valuesUpdate": "When `true`, the reply includes `valuesUpdate` with attribute values; otherwise only the subscription id and window are returned.",
+    "valuesTimeout": "Milliseconds to wait for value loading before answering (only with `valuesUpdate=true`). Default 1000 (configurable), clamped to 0..60000. Values not loaded in time are reported later with `stillLoading`.",
+    "signature": "Signature of the last values version the client holds (from `valuesUpdate.version`). Used with `version`; if either is missing the update is full (from version zero).",
+    "version": "Version number the client holds, paired with `signature`; the update then only carries values that changed since that version."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestSubscriptionData}}.",
+   "errors": "404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "DELETE /rest/structure/2.0/attribute/subscription/{id}": {
+   "summary": "Drops a subscription of the caller and stops its value loading.",
+   "params": {
+    "id": "Subscription id."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`).",
+   "errors": "404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/attribute/subscription/{id}/patch": {
+   "summary": "Changes only the parts of a subscription's window that are present in the body (a missing `forestSpec`, `rows` or `attributes` keeps the current one) and optionally returns values.",
+   "params": {
+    "id": "Subscription id.",
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestSubscriptionWindow}}; any of its keys may be omitted.",
+    "valuesUpdate": "When `true`, the reply includes `valuesUpdate` with attribute values; otherwise only the subscription id and window are returned.",
+    "valuesTimeout": "Milliseconds to wait for value loading before answering (only with `valuesUpdate=true`). Default 1000 (configurable), clamped to 0..60000. Values not loaded in time are reported later with `stillLoading`.",
+    "signature": "Signature of the last values version the client holds (from `valuesUpdate.version`). Used with `version`; if either is missing the update is full (from version zero).",
+    "version": "Version number the client holds, paired with `signature`; the update then only carries values that changed since that version."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestSubscriptionData}}.",
+   "errors": "404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/automation": {
+   "summary": "Lists the automation modules the grid can offer: every available generator (inserters, groupers, extenders, sorters, filters) with its presets, every available effector, and whether the caller holds the Structure app permissions to configure generators and effectors.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestAutomationResponse}}. Modules whose plugin is unavailable are left out.",
+   "errors": "403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/create-structure/share-with": {
+   "summary": "Suggests permission subjects for sharing a new structure: a `private` choice (item value `private.nobody`) when its label matches, Jira project roles (value = role id, title = role description) and Jira groups the caller may use (value = group name). Logged-in users only.",
+   "params": {
+    "query": "Text typed by the user; items whose name matches (case-insensitive word/prefix match; empty matches everything) are returned best match first, with the matching part wrapped in `<b>` in the item's html label.",
+    "maxResults": "Maximum number of items; only values between 1 and the server limit (20 by default) lower the limit. When results are cut, the group carries a footer text with shown/total counts."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestSearchResult}} holding at most one group per category (no group when nothing matches). Groups appear in the order private, roles, groups.",
+   "errors": "403 with no body for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/create-structure/projects": {
+   "summary": "Suggests Jira projects that are enabled for Structure and browseable by the caller (item value = project id, title = project description).",
+   "params": {
+    "query": "Text typed by the user; items whose name matches (case-insensitive word/prefix match; empty matches everything) are returned best match first, with the matching part wrapped in `<b>` in the item's html label.",
+    "maxResults": "Maximum number of items; only values between 1 and the server limit (20 by default) lower the limit. When results are cut, the group carries a footer text with shown/total counts."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestSearchResult}} holding at most one group per category (no group when nothing matches).",
+   "errors": "403 with no body for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/create-structure/agile-boards": {
+   "summary": "Suggests agile boards visible to the caller (item value = board id, label and title = board name). Empty when Jira Software is absent.",
+   "params": {
+    "query": "Text typed by the user; items whose name matches (case-insensitive word/prefix match; empty matches everything) are returned best match first, with the matching part wrapped in `<b>` in the item's html label.",
+    "maxResults": "Maximum number of items; only values between 1 and the server limit (20 by default) lower the limit. When results are cut, the group carries a footer text with shown/total counts."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestSearchResult}} holding at most one group per category (no group when nothing matches).",
+   "errors": "403 with no body for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/create-structure/versions": {
+   "summary": "Suggests unarchived versions of the given projects (item value = version id, label = version name, extra item params `versionFullName` = `<version> (<project name>)` and `projectId`). With more than one project, matching and sorting use the full name. The projects are not checked for browse permission.",
+   "params": {
+    "query": "Text typed by the user; items whose name matches (case-insensitive word/prefix match; empty matches everything) are returned best match first, with the matching part wrapped in `<b>` in the item's html label.",
+    "maxResults": "Maximum number of items; only values between 1 and the server limit (20 by default) lower the limit. When results are cut, the group carries a footer text with shown/total counts.",
+    "projectIds": "Comma-separated decimal Jira project ids; blank entries are ignored; omitted means no projects (no group)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestSearchResult}} holding at most one group per category (no group when nothing matches).",
+   "errors": "400 when a project id is not a number. 403 with no body for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effect/undo": {
+   "summary": "Reverts the given batches of effects that earlier grid actions caused in Jira (for example, field or link changes made by generators when rows were moved), then reports the resulting forest and item changes. Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only {{com.almworks.jira.structure.api.rest.RestJobId}} (`{\"jobId\": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4603); a `jobId` of another kind of job gives 400.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestUndoRedoRequest}}."
+   },
+   "request": "`forest.spec` is required and must denote a generated (transformable) forest; `effectIds` lists effect batch ids previously reported in `undoEffects` or `effects[].batchId`. `forest.version` (optional) asks for a forest update from that version; `items.version` (optional) asks for an items update.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestUndoRedoResponse}}. A failed undo is reported inside the body (`updateError`), not by status; `successfulActions` is always 1.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the forest spec or effect ids are missing or the forest does not support undo. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effect/redo": {
+   "summary": "Re-applies effect batches that were undone with the undo call; same contract as undo. Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only {{com.almworks.jira.structure.api.rest.RestJobId}} (`{\"jobId\": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4603); a `jobId` of another kind of job gives 400.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestUndoRedoRequest}}."
+   },
+   "request": "`forest.spec` is required and must denote a generated (transformable) forest; `effectIds` lists effect batch ids previously reported in `undoEffects` or `effects[].batchId`. `forest.version` (optional) asks for a forest update from that version; `items.version` (optional) asks for an items update.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestUndoRedoResponse}}; `successfulActions` is always 1, failures go into `updateError`.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the forest spec or effect ids are missing or the forest does not support redo. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effectorProcess/acknowledge": {
+   "summary": "Marks finished effector processes as acknowledged by the user, so they stop being reported as background processes in polls. Ids that cannot be acknowledged (unknown, not the caller's, unfinished) are skipped silently.",
+   "params": {
+    "body": "JSON array of effector process ids; null entries are ignored."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`).",
+   "errors": "403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effectorProcess/list": {
+   "summary": "Lists effector processes (runs of effectors that write to Jira) for the audit view. Administrators see all processes and may filter; other users only ever see their own.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestPaginationRequest}}: `startAt` (0-based) and `maxResults` (`-1` = all; an omitted value counts as 0 and yields an empty page). `params` may hold `user` (user key; forced to the caller for non-administrators), `status` (a process status name; unknown values mean no filter) and `structure` (structure id)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestPaginationResponse}} whose `items` are {{com.almworks.jira.structure.rest.v2.data.RestEffectorProcess}}; `pagination.total` = number of matching processes, `errors` = 0.",
+   "errors": "404 with no body for anonymous callers. 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 when `startAt` is beyond the end of the list. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effectorProcess/{processId}/cancel": {
+   "summary": "Requests cancellation of an effector process (its calculation or application stops at the next opportunity). Does not wait.",
+   "params": {
+    "processId": "Effector process id.",
+    "body": "Any JSON object (e.g. `{}`); ignored. Required only so that the call is a JSON POST."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`).",
+   "errors": "A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 6017). 500 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the process's progress handle is gone. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effectorProcess/{processId}/cancelAndWait": {
+   "summary": "If the process is pending, calculating, calculated, queued or in progress, requests cancellation, waits about half a second and returns the process; in any other status returns it unchanged.",
+   "params": {
+    "processId": "Effector process id.",
+    "body": "Any JSON object (e.g. `{}`); ignored. Required only so that the call is a JSON POST."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestEffectorProcess}} (state after the wait).",
+   "errors": "A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 6017). 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effectorProcess/{processId}/preview": {
+   "summary": "Returns a page of the effects a calculated process would apply (its preview), with the affected items, and counts how many previewed effects are only warnings or cannot be applied.",
+   "params": {
+    "processId": "Effector process id.",
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestPaginationRequest}}: `startAt` (0-based) and `maxResults` (`-1` = all; an omitted value counts as 0 and yields an empty page). `params` is ignored."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestPaginationResponse}} whose `items` are {{com.almworks.jira.structure.rest.v2.data.RestEffectRecord}} (with `index` = position in the preview); `pagination.total` = number of previewed effects, `pagination.errors` = number of warning or unresolvable effects.",
+   "errors": "404 text/plain `No preview found` when the process has no preview. A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 when `startAt` is beyond the end of the list. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effectorProcess/{processId}/records": {
+   "summary": "Returns a page of the effects a process actually applied (its audit records), each with its undo description, time and affected items; optionally only records touching one item.",
+   "params": {
+    "processId": "Effector process id.",
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestPaginationRequest}}: `startAt` (0-based) and `maxResults` (`-1` = all; an omitted value counts as 0 and yields an empty page). `params.itemKey` filters records by affected item: an issue key (contains `-`, case-insensitive), `MEMO:<id>` or `PT:<id>` (planning task); an unrecognised key gives an empty list."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestPaginationResponse}} whose `items` are {{com.almworks.jira.structure.rest.v2.data.RestEffectRecord}}; `pagination.total` = number of (filtered) records, `errors` = 0.",
+   "errors": "A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 when `startAt` is beyond the end of the list. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effectorProcess/{processId}/resume": {
+   "summary": "Resumes applying a process whose application was interrupted (status `APPLY_INTERRUPTED`), waits about half a second and returns it; in any other status returns it unchanged.",
+   "params": {
+    "processId": "Effector process id.",
+    "body": "Any JSON object (e.g. `{}`); ignored. Required only so that the call is a JSON POST."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestEffectorProcess}}.",
+   "errors": "A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 6017). 500 with a {{com.almworks.structure.commons.rest.RestStructureError}} when resuming fails. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/effectorProcess/{processId}/status": {
+   "summary": "Returns a process's status, completion percentage and whether cancellation was requested; polled by the progress dialog.",
+   "params": {
+    "processId": "Effector process id."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestEffectorProcessStatus}}.",
+   "errors": "A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 6017). 500 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the progress handle is gone. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/effectorProcess/{processId}/undo": {
+   "summary": "Starts a new effector process that reverts the successfully applied effects of a finished process (completed, completed with errors, interrupted or stopped). The new process is queued for application immediately and remembers which process it reverts.",
+   "params": {
+    "processId": "Id of the process to revert.",
+    "body": "Any JSON object (e.g. `{}`); ignored. Required only so that the call is a JSON POST."
+   },
+   "response": "200 with a bare JSON number: the id of the new undo process.",
+   "errors": "Body is a {{com.almworks.structure.commons.rest.RestStructureError}}: 403 (code 4501) when the caller lacks the app permission to run effectors; 400 when the process is not finished or has nothing to undo; 404 (code 6017) when the process is unknown or not the caller's. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/forest/latest": {
+   "summary": "Returns the current content of a forest (a structure, a past version of one, a query result, the clipboard, optionally with transformations applied) as an encoded forest with its version.",
+   "params": {
+    "s": "The forest spec as JSON text ({{com.almworks.jira.structure.api.rest.RestForestSpec}}), URL-encoded into the query string. Required."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestForestResponse}} echoing the spec.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/forest/latest": {
+   "summary": "Same as the GET form, with the forest spec as the request body.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.api.rest.RestForestSpec}}."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestForestResponse}} echoing the spec.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/forest/update": {
+   "summary": "Applies a list of editing actions (add, copy, move, remove rows) to a forest in order, as the grid does on drag-and-drop, paste and delete. Each action may be accepted, refused with an error, or answered with a question (e.g. which generator should handle the change) that the client resolves by resending the remaining actions with the chosen value in the action's `parameters`. Processing stops at the first action that fails or asks a question. Effects in Jira caused by generators (field changes, links...) are reported for undo. A cut-and-paste between forests is an `add` with `cutFrom`: the removal from the source is first tried without changes, then the add is applied, then the removal; if the removal then fails, the add is undone where possible. When the cut went through the clipboard, the caller's clipboard is cleared after success. Usage counters are recorded. Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only {{com.almworks.jira.structure.api.rest.RestJobId}} (`{\"jobId\": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4603); a `jobId` of another kind of job gives 400.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestUpdateRequest}}."
+   },
+   "request": "`spec` (the forest to edit) and `version` (the version the client's coordinates refer to) are required, `actions` is the ordered list. If the forest's version signature changed since `version` and an action refers to transient rows (odd positive row ids, which only exist in generated content), that action fails with a signature-mismatch error (code 5006) instead of being applied.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestUpdateResponse}}. Refusals and questions are reported in `updateError` with status 200.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when `version` is missing, an action name is unknown (`add`, `copy`, `move`, `remove` are valid), a forest/row list required by the action is missing or unparsable, `cutFrom` lacks `version` or `rowIds`, or `copy` has `originalRowIds` of the wrong length. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/generation/generatorDescriptions": {
+   "summary": "Describes generators by id for the health/stop banner: an HTML snippet with the generator's icon and summary. Unknown or inaccessible ids are left out.",
+   "params": {
+    "body": "JSON array of generator ids (the numeric id of the generator item)."
+   },
+   "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.data.RestGeneratorDescription}}.",
+   "errors": "403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/generation/resume": {
+   "summary": "Resumes automatic generation for the given forests and every forest they are built from (for a transformed view: the underlying structure and intermediate transformation steps). Each resume is logged on the server.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestGenerationRequest}}: `forestSpecs` lists the forests. Specs with a `version` or of the clipboard are ignored."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestGenerationRequest}} whose `forestSpecs` lists every forest that was considered for resuming (the requested ones and their dependencies).",
+   "errors": "404 with a {{com.almworks.structure.commons.rest.RestStructureError}} when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/generation/stop": {
+   "summary": "Stops generation of the given forests: running generations are cancelled and the forest is kept as is (marked stopped in its health status) until resumed. Logged on the server.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestGenerationRequest}}: `forestSpecs` lists the forests. Specs with a `version` or of the clipboard are ignored."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`).",
+   "errors": "404 with a {{com.almworks.structure.commons.rest.RestStructureError}} when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/generation/stopIfRunning": {
+   "summary": "Like stop, but only takes effect for a forest whose generation is currently running (used when a generation takes too long).",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestGenerationRequest}}: `forestSpecs` lists the forests. Specs with a `version` or of the clipboard are ignored."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`).",
+   "errors": "404 with a {{com.almworks.structure.commons.rest.RestStructureError}} when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/genericItem/creationFields/{itemType}/{projectId}": {
+   "summary": "Returns the field descriptors needed to create a planning task: `project` and `issuetype`, both required, visible and editable, with their option sources (issue types limited to the given project). For any other item type returns an empty object.",
+   "params": {
+    "itemType": "Full item type key; only `com.almworks.jira.structure:type-planning-task` yields fields.",
+    "projectId": "Jira project id whose issue types are offered; 0 = no project restriction."
+   },
+   "response": "200 with a JSON object mapping field id (`project`, `issuetype`) to a {{com.almworks.jira.structure.rest.v2.data.RestStructureField}}; `{}` for other item types.",
+   "errors": "403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/genericItem/details/{itemType}/{id}": {
+   "summary": "Returns the details panel content of a generic item (memo, planning task): its summary, description (raw wiki text and rendered HTML), visible field values, colour and icon, plus the descriptors of all generic-item fields as configured for this item.",
+   "params": {
+    "itemType": "Full item type key of a generic item type (e.g. `com.almworks.jira.structure:type-memo`).",
+    "id": "Numeric item id."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestGenericItemDetails}}.",
+   "errors": "400 text/plain when the item type is not a generic item type; 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the item does not exist or is not visible to the caller. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/genericItem/{itemType}/validate": {
+   "summary": "Validates the values of a planning task that is about to be created and returns a preview of the item with defaults filled in: when the project is missing or not browseable the first browseable project is used; when the issue type is missing or unknown the project's first non-sub-task issue type (by name) is used. Nothing is stored.",
+   "params": {
+    "itemType": "Must be `com.almworks.jira.structure:type-planning-task`.",
+    "body": "JSON object of new-item values: `summary` (text; `*` is assumed when absent) and `params` (object with `project` and `issuetype` ids as numbers or numeric strings, plus other field values)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestValidateNewItemResponse}}; when `params` is absent, only an empty `fieldErrors` is returned.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} for other item types or when the caller can browse no project; 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/history/{id}/versions": {
+   "summary": "Lists the change history of a structure, newest first, one entry per stored version with who/what changed it and a short description of each change (no forest content).",
+   "params": {
+    "id": "Structure id.",
+    "minVersion": "Accepted but ignored.",
+    "maxVersion": "Start the listing at this version (going back); omitted = from the latest.",
+    "maxCount": "Maximum number of versions; omitted = no limit. Combined with `withVersion`, the listing continues past `maxCount` until `withVersion` is reached.",
+    "withVersion": "Keep listing until a version less than or equal to this one has been included."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestForestHistory}}.",
+   "errors": "403 text/plain when the structure does not exist or the caller cannot view it. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/history/{id}/version/{v}": {
+   "summary": "Returns one version of a structure's history in full: the change entries with the moved/added/removed sub-forests and their positions before and after, plus the whole forest as it was right after that version.",
+   "params": {
+    "id": "Structure id.",
+    "v": "Version number."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestForestVersion}} including `fullForest` and the per-change position fields.",
+   "errors": "403 text/plain when the structure does not exist or is not viewable; 400 text/plain when the version is missing; other failures (e.g. unknown version) as text/plain with the status of the error category (404/403/400/500). 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/issue/{issueId}/actions-and-operations": {
+   "summary": "Returns what the caller can do with an issue from the grid's issue menu: available workflow transitions, Jira's issue operation links (operations, restore and admin sections of the issue operations bar), the label for 'view issue', and a fresh XSRF token for the caller's session.",
+   "params": {
+    "issueId": "Numeric Jira issue id."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource$AvailableActionsAndOperationsWrapper}}.",
+   "errors": "404 with no body when the issue does not exist or the caller cannot see it. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/item/create": {
+   "summary": "Creates a new item (issue, folder, memo, planning task... of the given type) or takes an existing item, and inserts it as one row into a forest at the given position. Before creating a new item the insertion is tried without changes; if it would be refused, the response asks whether to create the item anyway (question parameter `0:CreateAnyway`, value `true`), and nothing is created until the request is resent with `parameters` `{\"0:CreateAnyway\": true}` (a boolean or the string `true`). If a generator in the forest already shows the new item somewhere (e.g. because it matches a query), that generated row is reused and moved to the requested position when possible instead of inserting a second row. Special keys `itemproperty.notes` and `itemproperty.dc_note_<note id>` in the item values (at any nesting level) set per-structure notes of the new item instead of item fields. Usage counters are recorded. Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only {{com.almworks.jira.structure.api.rest.RestJobId}} (`{\"jobId\": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4603); a `jobId` of another kind of job gives 400.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestCreateItemRequest}}."
+   },
+   "request": "`forest.spec`, `forest.version`, `items.version` and `item` are required. `item.itemId` (existing item) or `item.type` plus `item.values` (new item) must be given. `rowId` is the temporary (negative) id the client gave the new row; `under`/`after`/`before` position it (0 = none).",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestCreateItemResponse}}. Item validation errors go into `formErrors`/`fieldErrors`, insertion refusals and questions into `updateError`, all with status 200.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when `item.type` is missing or `item.itemId` cannot be parsed; 404/400/500 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the type is unknown, cannot create items, or its module fails; an error when the forest does not accept actions. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/item/update": {
+   "summary": "Updates fields of an existing item (through its item type, e.g. summary of a folder or fields of an issue) and/or its per-structure notes (`itemproperty.notes`, `itemproperty.dc_note_<note id>` keys with string values), then reports forest and item changes since the client's versions. Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only {{com.almworks.jira.structure.api.rest.RestJobId}} (`{\"jobId\": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4603); a `jobId` of another kind of job gives 400.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestUpdateItemRequest}}."
+   },
+   "request": "`item.itemId` (full item id, e.g. `10001` for an issue or `com.almworks.jira.structure:type-folder/5`) and `item.values` are required, as are `forest.spec`, `forest.version` and `items.version`.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestUpdateItemResponse}}; validation failures give `success` = false with `formErrors`/`fieldErrors`.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the item id is missing or unparsable, the item type is unknown, or the type does not support updates while non-note values are given; 500 when the item type module fails. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/manage-structures/all": {
+   "summary": "Returns the table of the structure management page for all structures the caller can view, archived ones included, with favourite flags, popularity, last-opened dates, synchronizers, copy processes, integrating add-ons and problems. Rate-limited per user (anonymous callers share one bucket): a call while the same user's previous call is still running, or within 500 ms of it (configurable), is refused.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.RestManagedStructures}}.",
+   "errors": "429 text/plain with a `Retry-After` header (seconds) when rate-limited. 403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/manage-structures/favorites": {
+   "summary": "Returns the management table restricted to the caller's favourite structures (archived ones included).",
+   "response": "200 with a {{com.almworks.jira.structure.rest.RestManagedStructures}}.",
+   "errors": "403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/manage-structures/one": {
+   "summary": "Returns the management table row for a single structure (to refresh one row).",
+   "params": {
+    "id": "Structure id. Required."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.RestManagedStructures}}.",
+   "errors": "404 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the structure does not exist or is not viewable. 403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/manage-structures/page-details": {
+   "summary": "Returns, for the structures on the currently displayed page of the management table, the rendered description and the number of effector rows. Structures the caller cannot view are left out.",
+   "params": {
+    "body": "JSON array of structure ids; at most 20 (configurable)."
+   },
+   "response": "200 with a JSON object mapping each structure id (as a string key) to a {{com.almworks.jira.structure.rest.RestManagedStructureDetails}}.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} (`Invalid request data`) when more ids than the limit are sent. 403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/manage-structures/recent-ids": {
+   "summary": "Returns the ids of the structures the caller opened recently, most recent first.",
+   "response": "200 with a JSON array of structure ids.",
+   "errors": "403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/manage-structures/recents": {
+   "summary": "Returns the management table restricted to the caller's recently opened structures.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.RestManagedStructures}}.",
+   "errors": "403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/mapping": {
+   "summary": "Translates row ids into the corresponding rows of other forests: for each forest, each requested row is traced back through the rows it was copied or generated from until a row present in that forest is found. Used to keep the selection when switching views or transformations.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestMappingRequest}}: `forestSpecs` and `rows`, both required."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestMappingResponse}}: one mapping per forest spec, in request order, each with one mapped row per requested row (0 when none).",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/poll": {
+   "summary": "The grid's periodic poll. In one call it returns: for each watched forest, the changes since the client's version (or the whole forest); the list of items changed since the client's items version; extension data; the caller's running or unacknowledged effector processes; and, for attribute subscriptions, value updates. Subscription value loading is started first; after the forest part is computed the server waits up to about 1 s in total (configurable) for values before answering. When clustered, sets the cookie `X-Structure-DC-Meta` (see attribute subscriptions). Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only {{com.almworks.jira.structure.api.rest.RestJobId}} (`{\"jobId\": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4603); a `jobId` of another kind of job gives 400.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestPollRequest}}."
+   },
+   "request": "All parts are optional. Each forest entry needs `spec` and `version`; version `{signature: 0, version: -1}` asks for an initial load, which may first return a cached snapshot flagged `needsUpdate`. At most 20 subscription entries (configurable), each with `id` and `version`.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestPollResponse}}. Forest entries whose spec is invalid are silently left out of `forestUpdates`; a forest that cannot be read is reported with `error` in its update; an unknown subscription is reported with `error` in its subscription update.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when more subscriptions than the limit are sent or a subscription entry lacks `id` or `version`. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/process/{id}/cancel": {
+   "summary": "Requests cancellation of a background process (any long-running Structure operation tracked with a progress handle, such as an effector run, export or copy) and returns its state.",
+   "params": {
+    "id": "Process handle id.",
+    "body": "Any JSON object (e.g. `{}`); ignored. Required only so that the call is a JSON POST."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestProcessInfo}}.",
+   "errors": "403 text/plain `permission violation` when the caller may not use Structure; 404 text/plain when the process does not exist or is not visible to the caller (a process is visible to the user who started it, and every process to Jira administrators)."
+  },
+  "GET /rest/structure/2.0/process/{id}/info": {
+   "summary": "Returns the display state of a background process: localized name, status, current activity, progress and optional buttons.",
+   "params": {
+    "id": "Process handle id."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestProcessInfo}}.",
+   "errors": "403 text/plain `permission violation` when the caller may not use Structure; 404 text/plain when the process does not exist or is not visible to the caller (a process is visible to the user who started it, and every process to Jira administrators)."
+  },
+  "GET /rest/structure/2.0/structure": {
+   "summary": "Searches the structures the caller can access with at least the requested permission, by name, returning one page. Rate-limited per user (anonymous callers share one bucket): a search while the same user's previous search is still running is refused with a retry hint of 1 s (a minimum interval between searches can be configured).",
+   "params": {
+    "name": "Case-insensitive substring of the structure name; blank = all.",
+    "limit": "Page size, default 10, capped at 100 (configurable).",
+    "page": "1-based page number; omitted = first page.",
+    "permission": "Minimum permission level name (`NONE`, `VIEW`, `EDIT`, `AUTOMATE`, `ADMIN`, case-insensitive); levels below `VIEW` mean `VIEW`; default `VIEW`.",
+    "withPermissions": "Include each structure's permission rules in the result.",
+    "withOwner": "Include each structure's owner (only when the caller may browse users or is the owner).",
+    "archived": "When `true`, archived structures are included.",
+    "filterById": "When `true`, `name` also matches structures whose id contains the text, and a structure whose id equals the text is listed first.",
+    "skip": "Structure ids to exclude, separated by `.`; non-numbers ignored."
+   },
+   "response": "200 with a {{com.almworks.structure.commons.rest.data.RestStructureSeq}}; it signals when more pages exist.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when `permission` is not a known level name; 429 text/plain with `Retry-After` (seconds) when rate-limited. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/structure": {
+   "summary": "Creates a new structure from the given properties, owned by the caller. Requires the Structure app permission to create structures.",
+   "params": {
+    "body": "{{com.almworks.structure.commons.rest.data.RestStructure}} with the properties of the new structure (name, description, permissions, etc.; `id` is ignored)."
+   },
+   "response": "201 Created with a `Location` header (the relative URI `/<new id>` resolved by the REST framework) and the created {{com.almworks.structure.commons.rest.data.RestStructure}} including permissions and owner.",
+   "errors": "403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4006) when the caller may not create structures; 400 when the body is missing or invalid. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/structure/list": {
+   "summary": "Returns the data for the structure selector shown next to an issue or in a project: recent, favourite and default structures (the project's default and the global default), and, for an anchor issue, the structures containing it with recently used ones first. Lists are truncated to slightly more than the display size.",
+   "params": {
+    "anchorIssue": "Issue id; when visible to the caller, structures containing it are listed and its project's default structure is used.",
+    "forProject": "Jira project key whose default structure is included (takes precedence over the anchor issue's project)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestStructureList}}.",
+   "errors": "403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "PUT /rest/structure/2.0/structure/recents": {
+   "summary": "Records that the caller opened a structure, moving it to the front of the caller's recent structures. No permission check on the structure; a missing id does nothing.",
+   "params": {
+    "id": "Structure id."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`).",
+   "errors": "403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/structure/{id}": {
+   "summary": "Returns one structure's properties (name, description and its rendered HTML, flags, the caller's permissions on generators/effectors, favourite flag) if the caller can view it.",
+   "params": {
+    "id": "Structure id (positive).",
+    "withPermissions": "Include the permission rules.",
+    "withOwner": "Include the owner (only when the caller may browse users or is the owner)."
+   },
+   "response": "200 with a {{com.almworks.structure.commons.rest.data.RestStructure}}.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the id is missing or not positive; 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "DELETE /rest/structure/2.0/structure/{id}": {
+   "summary": "Deletes a structure together with its forest, change history and index entries. Requires administer permission on the structure and a writable licence.",
+   "params": {
+    "id": "Structure id."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`).",
+   "errors": "400 when the id is missing or not positive; 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the structure is not viewable; 403 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the caller can view but not administer it. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/structure/{id}/description-shown": {
+   "summary": "Tells whether the structure is configured to show its description above the grid.",
+   "params": {
+    "id": "Structure id."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestDescriptionShown}} (false when never set).",
+   "errors": "403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/structure/{id}/favorite": {
+   "summary": "Tells whether the structure is one of the caller's favourites (always false for anonymous callers).",
+   "params": {
+    "id": "Structure id."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestFavorite}}.",
+   "errors": "403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "PUT /rest/structure/2.0/structure/{id}/favorite": {
+   "summary": "Adds the structure to, or removes it from, the caller's favourites. For anonymous callers nothing is stored and the answer is `false`.",
+   "params": {
+    "id": "Structure id.",
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestFavorite}} with the wanted state."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestFavorite}}: the request echoed back (or `false` for anonymous).",
+   "errors": "403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "GET /rest/structure/2.0/structure/{id}/quick-transforms": {
+   "summary": "Returns the structure's configured quick transformations (the preset transformation buttons and groups shown above the grid).",
+   "params": {
+    "id": "Structure id."
+   },
+   "response": "200 with the stored JSON array of {{com.almworks.jira.structure.rest.v2.data.RestTransformItem}} returned verbatim (`[]` when none).",
+   "errors": "403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "PUT /rest/structure/2.0/structure/{id}/quick-transforms": {
+   "summary": "Replaces the structure's quick transformations. Requires administer permission on the structure.",
+   "params": {
+    "id": "Structure id.",
+    "body": "JSON array of {{com.almworks.jira.structure.rest.v2.data.RestTransformItem}}; every item id, including ids of transformations inside groups, must be unique."
+   },
+   "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} (`{}`).",
+   "errors": "403 text/plain when the structure does not exist or the caller cannot administer it; 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the body is missing, unparsable or has duplicate ids. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/structure/{id}/update": {
+   "summary": "Changes a structure's properties; properties absent from the body are kept. Requires administer permission. Setting `isArchived` to true on an active structure also disables its synchronizers. The owner can be changed (value `user:<key>` or a bare user key) only by Jira administrators, or by users with the user-picker permission who administer the structure or own it; an unknown user is ignored (logged).",
+   "params": {
+    "id": "Structure id.",
+    "body": "{{com.almworks.structure.commons.rest.data.RestStructure}} with the properties to change."
+   },
+   "response": "200 with the updated {{com.almworks.structure.commons.rest.data.RestStructure}} including permissions and owner.",
+   "errors": "400 when the body is missing or invalid; 404 or 403 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the structure is not visible or not administrable. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/synchronizers/undo": {
+   "summary": "Undoes groups of actions previously performed by synchronizers (as recorded in the synchronizer audit log), processing the groups last to first. Only synchronizers that support undo do anything (the links synchronizer recreates or removes issue links; the agile synchronizer reverts epic and rank changes); for others a failure description is returned. The undo is performed as the caller and recorded in the synchronizer audit log. Logged-in users only; there is no structure or synchronizer permission check, and the undo operations use Jira's managers directly, so Jira permissions such as 'link issues' are not checked. Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only {{com.almworks.jira.structure.api.rest.RestJobId}} (`{\"jobId\": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4603); a `jobId` of another kind of job gives 400.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.rest.v2.data.RestSyncActions}}: `actionGroups[i]` is a JSON-array text of audit-log action objects and `syncModuleKeys[i]` the complete module key of the synchronizer that performed them (paired by index)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestSyncActions}}: `syncModuleKeys` echoed, `actionGroups` holding, for each input group in reverse order, the JSON-array text of the resulting undo actions or failure descriptions (`result`: `failure`, optional `reason`, optional `exception`).",
+   "errors": "401 for anonymous callers. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  },
+  "POST /rest/structure/2.0/value": {
+   "summary": "Computes attribute values (column data) for given rows of one or more forests in one shot, without a subscription. Rows whose item no longer exists or is not visible to the caller get no values and are listed as inaccessible. Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only {{com.almworks.jira.structure.api.rest.RestJobId}} (`{\"jobId\": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} (code 4603); a `jobId` of another kind of job gives 400.",
+   "params": {
+    "body": "{{com.almworks.jira.structure.api.rest.RestValueRequest}}."
+   },
+   "request": "`requests` is required; each entry needs a valid `forestSpec`; entries without rows or attributes produce an entry with only the spec. Attribute specs with unknown formats are dropped.",
+   "response": "200 with a {{com.almworks.jira.structure.api.rest.RestValueResponse}} with one entry per request entry, in order.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when a forest spec is invalid. Failures raised by Structure are answered with a {{com.almworks.structure.commons.rest.RestStructureError}} body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+  }
+ },
+ "shapes": {
+  "com.almworks.jira.structure.api.effector.process.EffectorProcess$Status": {
+   "name": "effector-process-status",
+   "summary": "Life-cycle status of an effector process (a run of effectors that computes a preview of changes to Jira and then applies them).",
+   "values": {
+    "PENDING": "Created, not yet started.",
+    "CALCULATING": "The preview of effects is being computed.",
+    "CALCULATED": "Preview ready; waiting for the user to confirm.",
+    "CALCULATION_FAILED": "Computing the preview failed.",
+    "CALCULATION_STOPPED": "Computing the preview was cancelled.",
+    "QUEUED": "Confirmed and waiting to be applied.",
+    "IN_PROGRESS": "Effects are being applied.",
+    "COMPLETED": "All effects were applied.",
+    "COMPLETED_WITH_ERRORS": "Applied, but some effects failed.",
+    "APPLY_INTERRUPTED": "Application was interrupted (e.g. node shutdown); can be resumed.",
+    "APPLY_STOPPED": "Application was cancelled by a user."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestAttributeSpec": {
+   "name": "attribute-spec",
+   "summary": "Identifies one attribute (a column value kind) together with the format in which its values are wanted. Two specs are equal when id, format and params are equal.",
+   "fields": {
+    "id": "Attribute id, e.g. `summary`, `key`, `status`, `duedate`, `created`, `item`, or an id understood by an installed attribute provider (formulas, aggregates, ...).",
+    "params": "Optional JSON object of attribute parameters (may nest other attribute specs, e.g. for totals); null/absent when none.",
+    "format": "Value format, one of `text`, `html`, `id`, `number`, `boolean`, `time` (milliseconds since the epoch), `duration` (milliseconds), `json` (object), `jsonArray`, `any`. Any other value is rejected (or the spec dropped where noted)."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestForestSpec": {
+   "name": "forest-spec",
+   "summary": "Names a forest the grid can display. Exactly one source must be given: a structure (`structureId`), a search query (`sQuery`), or the caller's clipboard (`type` = `clipboard`, private to the HTTP session); `transforms` then apply transformations on top.",
+   "fields": {
+    "structureId": "Structure id for a structure's forest.",
+    "version": "History version of the structure to show (read-only past state); only with `structureId`.",
+    "sQuery": "Search query whose results form the forest; see the query shape.",
+    "type": "`clipboard` for the caller's per-session clipboard forest; any other value is ignored.",
+    "transforms": "Ordered list of transformations (generators applied to the source as a view); null/absent = none.",
+    "title": "When `true`, the forest gets a title row for the structure on top; only with `structureId`."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestSQuery": {
+   "name": "forest-search-query",
+   "summary": "A search whose results form a forest of up to 1000 items.",
+   "fields": {
+    "query": "Query text. Empty = show recently viewed issues (or recently viewed pages for `cql`).",
+    "type": "`jql` (Jira query), `text` (quick text search), `cql` (Confluence pages, requires the pages add-on), or a type contributed by an installed extension; otherwise the spec is rejected."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestTransformSpec": {
+   "name": "forest-transformation",
+   "summary": "One transformation step applied to a forest view.",
+   "fields": {
+    "module": "Complete module key of the generator used as transformation (e.g. a sorter, filter or grouper).",
+    "key": "Client-side label of the step; ignored by the server and not part of equality.",
+    "params": "Generator parameters as a JSON object; null = defaults."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueRequest": {
+   "name": "row-values-request",
+   "summary": "One-shot request for attribute values of rows in one or more forests.",
+   "fields": {
+    "jobId": "Absent on the first call. Set to the `jobId` returned by an earlier call that timed out, to keep waiting for that job (see the endpoint).",
+    "requests": "List of per-forest requests."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueRequest$ForestRowValueRequest": {
+   "name": "row-values-request-entry",
+   "summary": "Rows and attributes wanted from one forest.",
+   "fields": {
+    "forestSpec": "The forest the rows belong to.",
+    "signature": "Accepted and ignored.",
+    "rows": "Row ids whose values are wanted; empty/absent = no values.",
+    "attributes": "Attributes wanted for every row; empty/absent = no values."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueResponse": {
+   "name": "row-values-response",
+   "summary": "Answer to a one-shot values request.",
+   "fields": {
+    "responses": "One entry per request entry, same order.",
+    "itemTypes": "Always an empty object in this answer.",
+    "itemsVersion": "The oldest items version on which the returned values are based (signature 0, version 0 when nothing was computed); a client can poll item changes from it."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueResponse$AttributeResponseData": {
+   "name": "row-values-attribute-column",
+   "summary": "Values of one attribute for the answered rows.",
+   "fields": {
+    "attribute": "The attribute spec as normalized by the server (params null when empty).",
+    "values": "One value per row of the entry's `rows`, same order, encoded per the attribute's format; null when the row has no value.",
+    "trailMode": "Not filled in (null).",
+    "trails": "Always an empty list."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestValueResponse$ForestRowValueResponse": {
+   "name": "row-values-response-entry",
+   "summary": "Values computed for one forest.",
+   "fields": {
+    "forestSpec": "The spec from the request, echoed.",
+    "rows": "The rows actually answered, in request order, without inaccessible rows; absent when no rows or attributes were requested.",
+    "data": "One column per requested attribute (unknown-format attributes omitted).",
+    "forestVersion": "Version of the forest the values were computed against.",
+    "inaccessibleRows": "Requested rows whose item is missing or invisible to the caller; absent when none."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.RestVersion": {
+   "name": "data-version",
+   "summary": "A position in a server-side change stream (of a forest, of items, of a subscription's values). A client remembers the last version it received and asks for changes since it.",
+   "fields": {
+    "signature": "32-bit number identifying the change stream instance; when the server's signature differs from the client's (e.g. after a restart or cache reset), versions are not comparable and the server sends a full update. 0 = no data yet.",
+    "version": "Counter within the stream, increasing with each change. With signature 0, version 0 means 'from scratch'."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.effect.RestEffect": {
+   "name": "applied-effect",
+   "summary": "One change made outside the forest as a consequence of a grid action (e.g. a field updated or a link created by a generator).",
+   "fields": {
+    "generatorRowId": "Row id of the generator that caused it.",
+    "external": "True when the change was made in Jira data (outside Structure).",
+    "description": "Human-readable description.",
+    "reversible": "True when it can be undone."
+   }
+  },
+  "com.almworks.jira.structure.api.rest.effect.RestEffectBatch": {
+   "name": "applied-effect-batch",
+   "summary": "A group of effects applied together; the unit of undo/redo.",
+   "fields": {
+    "batchId": "Batch id, to be passed in `effectIds` of an undo/redo request.",
+    "effects": "The effects in the batch."
+   }
+  },
+  "com.almworks.jira.structure.rest.RestCopyProcessState": {
+   "name": "structure-copy-progress",
+   "summary": "A running or recent structure-copy operation started from this structure.",
+   "fields": {
+    "id": "Background process id of the copy.",
+    "status": "`running` (queued or running), `waiting` (finished successfully, waiting to be acknowledged), or `failed`.",
+    "progressPercent": "Completion percentage 0..100."
+   }
+  },
+  "com.almworks.jira.structure.rest.RestManagedStructure": {
+   "name": "managed-structure-row",
+   "summary": "One row of the structure management table.",
+   "fields": {
+    "id": "Structure id.",
+    "name": "Structure name.",
+    "archived": "True for archived structures.",
+    "ownerKey": "User key of the owner; null when none.",
+    "myAccess": "The caller's effective permission level on the structure.",
+    "addons": "Names of installed add-ons that integrate with this structure (only add-ons with a product icon), in a stable order.",
+    "synchronizers": "Installed synchronizers of the structure; empty when synchronization is not enabled.",
+    "copyProcesses": "Copy operations from this structure visible to the caller (only for logged-in callers).",
+    "favorite": "True when it is one of the caller's favourites.",
+    "stars": "Number of users who marked it favourite.",
+    "lastOpened": "Date the structure was last opened by anyone, formatted for the caller (date only); null when unknown.",
+    "lastOpenedForSort": "Same date as ISO-8601 `yyyy-MM-dd` for sorting; `0` when unknown.",
+    "adjustable": "True when manual adjustments are enabled for the structure.",
+    "adjusted": "True when manual adjustments exist (only computed when adjustable).",
+    "problems": "Set of problems to flag, see the problem shape; empty when none."
+   }
+  },
+  "com.almworks.jira.structure.rest.RestManagedStructureDetails": {
+   "name": "managed-structure-page-details",
+   "summary": "Extra per-structure data loaded only for the visible page of the management table.",
+   "fields": {
+    "effectors": "Number of effector rows in the structure (0 if it cannot be determined).",
+    "descriptionHtml": "Description rendered from Jira wiki markup to HTML (HTML-escaped text when no renderer)."
+   }
+  },
+  "com.almworks.jira.structure.rest.RestManagedStructures": {
+   "name": "managed-structures-table",
+   "summary": "Rows of the structure management table plus the users they refer to.",
+   "fields": {
+    "structures": "The rows.",
+    "users": "User details for the owners and the caller; callers who are neither Jira administrators nor allowed to pick users only receive their own entry (or none when anonymous)."
+   }
+  },
+  "com.almworks.jira.structure.rest.RestSynchronizerDescription": {
+   "name": "managed-structure-synchronizer",
+   "summary": "An installed synchronizer of a structure as shown in the management table.",
+   "fields": {
+    "id": "Synchronizer instance id.",
+    "desc": "Localized one-line description of the synchronizer and its configuration.",
+    "extra": "Further configuration details, comma-separated."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestAction": {
+   "name": "forest-action",
+   "summary": "One editing action in a forest update request.",
+   "fields": {
+    "action": "`add` (insert the sub-forest `forest`), `copy` (insert `forest` as copies of existing rows), `move` (move rows), `remove` (remove rows).",
+    "rowId": "Single row to move/remove (takes precedence over `rowIds`).",
+    "rowIds": "Rows to move/remove.",
+    "forest": "For `add`/`copy`: the rows to insert. Same row syntax as the forest encoding, but the `<item>` field is percent-decoded and then read as: a bare decimal = issue id; `<item type key>/<n>` or `<item type key>//<s>` with the full item type key (e.g. `com.almworks.jira.structure:type-folder/12`; the colon inside the key must be sent as `%3A`). New rows use negative temporary row ids; the server reports the ids it assigned.",
+    "under": "Parent row of the insert/move target; 0 or absent = top level.",
+    "after": "Sibling after which to place; 0 or absent = no such constraint (start of the parent).",
+    "before": "Sibling before which to place; 0 or absent = none.",
+    "originalRowIds": "For `copy`: for each row of `forest`, in order, the existing row it copies; length must equal the number of rows.",
+    "cutFrom": "For `add` (and `move` via clipboard): where the rows were cut from, so they are removed there.",
+    "parameters": "Answers to questions from a previous attempt (question parameter id → chosen value) and other action options; null = none."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestAction$CutFrom": {
+   "name": "forest-action-cut-source",
+   "summary": "The origin of rows being pasted after a cut.",
+   "fields": {
+    "viaClipboard": "True when the rows went through the caller's clipboard; the clipboard is cleared after success.",
+    "spec": "Forest the rows were cut from; when present, `version` and `rowIds` are required and the rows are removed there.",
+    "version": "Version of the source forest the row ids refer to.",
+    "rowIds": "Rows to remove from the source."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestAttributeSensitivity": {
+   "name": "attribute-sensitivity-settings",
+   "summary": "Instance-wide policy for whether attribute values may reveal data from items the viewer cannot see.",
+   "fields": {
+    "sensitivityMode": "0 = standard (attributes are sensitive except numbers, booleans, times, durations and the listed ones), 1 = strict (all attributes sensitive except the listed ones), 2 = permissive (no attribute is sensitive; the list is ignored).",
+    "nonSensitiveAttributeSpecs": "Attributes explicitly declared non-sensitive; sorted by id on output."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestAutomationResponse": {
+   "name": "automation-catalog",
+   "summary": "Available automation modules and the caller's rights to configure them.",
+   "fields": {
+    "generators": "Available generator modules.",
+    "effectors": "Available effector modules.",
+    "generatorConfigurationAllowed": "True when the caller holds the app permission to configure generators.",
+    "effectorConfigurationAllowed": "True when the caller holds the app permission to configure effectors."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestBackgroundProcess": {
+   "name": "background-effector-process",
+   "summary": "An effector process of the caller that is running or finished but not yet acknowledged, shown in the grid's background-process panel.",
+   "fields": {
+    "id": "Effector process id.",
+    "titleHtml": "Process name as HTML.",
+    "statusHtml": "Status as an HTML badge.",
+    "percentComplete": "0..100; absent when unknown.",
+    "linkText": "Localized label of the 'open' link.",
+    "linkUrl": "Absolute URL `<base>/secure/StructureBoard.jspa[?s=<structure id>]#effectorProcessDialog=<process id>` opening the process dialog.",
+    "finished": "True when the status is completed, completed with errors, interrupted or stopped."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestCreateItemRequest": {
+   "name": "create-item-request",
+   "summary": "Request to create (or pick) an item and insert it as a row.",
+   "fields": {
+    "jobId": "Absent on the first call. Set to the `jobId` returned by an earlier call that timed out, to keep waiting for that job (see the endpoint).",
+    "extensionRequests": "Optional map from core-extension key to an extension-specific request; each installed extension may answer under the same key in `extensionData`.",
+    "forest": "Forest to insert into and the client's version of it (required).",
+    "items": "The client's items version (required); the response reports item changes since it.",
+    "rowId": "Temporary row id the client assigned to the new row (negative); reported back in `oldRowIds`.",
+    "item": "The item: an existing `itemId`, or `type` and `values` for a new item.",
+    "semantics": "Row semantics number for the new row; 0/absent = none.",
+    "under": "Parent row; 0 = top level.",
+    "after": "Preceding sibling; 0 = none.",
+    "before": "Following sibling; 0 = none.",
+    "parameters": "Answers to earlier questions, e.g. `{\"0:CreateAnyway\": true}`; null = none."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestCreateItemResponse": {
+   "name": "create-item-response",
+   "summary": "Result of creating and inserting an item.",
+   "fields": {
+    "successfulActions": "1 when the row was inserted (or an existing generated row was used), otherwise 0.",
+    "updateError": "Present when an action was refused or a question must be answered; absent on success.",
+    "forestUpdates": "Forest changes since the client's version(s), so the client can resynchronize.",
+    "itemTypes": "Map from the decimal item-type numbers used in this response's forest or item encodings to full item type keys (e.g. `\"3\": \"com.almworks.jira.structure:type-folder\"`). Only types that occur in this response are listed.",
+    "oldRowIds": "The client's temporary row id (and other replaced ids), parallel to `newRowIds`.",
+    "newRowIds": "The real row id of the inserted row (and other replacements).",
+    "effects": "Effect batches applied in Jira by this request.",
+    "undoEffects": "Not filled in.",
+    "problems": "Effects that could not be applied.",
+    "extensionData": "Map from core-extension key to extension-specific data returned for the request's `extensionRequests`; absent or null when no extension answered.",
+    "formErrors": "Item validation messages not tied to a field; absent when none.",
+    "fieldErrors": "Item validation messages by field id; absent when none.",
+    "itemId": "Full id of the created or inserted item (`<item type key>/<n>`, `<item type key>//<s>`, or bare issue id); absent when nothing was created.",
+    "itemsUpdate": "Item changes since the client's items version."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestDescriptionShown": {
+   "name": "structure-description-shown-flag",
+   "summary": "Whether the structure's description is shown above the grid.",
+   "fields": {
+    "descriptionShown": "True when shown."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestEffectProblem": {
+   "name": "effect-problem",
+   "summary": "An effect that a generator wanted to apply but could not.",
+   "fields": {
+    "generatorRowId": "Row id of the generator.",
+    "description": "Human-readable reason."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestEffectRecord": {
+   "name": "effect-record",
+   "summary": "One effect of an effector process: in a preview, a change that would be made; in the audit records, a change that was made.",
+   "fields": {
+    "processId": "Effector process id.",
+    "affectedItems": "Items the effect touches, with display text and URL.",
+    "undo": "HTML-escaped description of the reverting change (applied records only; absent for errors).",
+    "effect": "Description of the change as HTML (escaped text, or provider-supplied HTML).",
+    "isError": "True when the effect failed or cannot be applied (e.g. its provider is not installed); absent otherwise.",
+    "timestamp": "When it was applied, milliseconds since the epoch (0 in previews).",
+    "index": "Position of the effect in the process's preview."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestEffector": {
+   "name": "effector-module-info",
+   "summary": "An available effector module.",
+   "fields": {
+    "module": "Complete module key.",
+    "label": "Display label.",
+    "icon": "CSS class of its icon.",
+    "title": "Title of its configuration dialog."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestEffectorProcess": {
+   "name": "effector-process",
+   "summary": "An effector process as listed in the audit view.",
+   "fields": {
+    "processId": "Process id.",
+    "userKey": "Key of the user who started it.",
+    "user": "Details of that user; null when the user no longer exists.",
+    "started": "Start time formatted for the caller (complete date-time style); empty string when unknown.",
+    "status": "Status and progress.",
+    "finished": "Finish time formatted the same way; empty when not finished.",
+    "structure": "Structure the process ran on; null for one-off runs without a structure.",
+    "effectors": "Effectors that ran (or, for a one-off run, a single entry with only a name).",
+    "revertedProcessId": "For an undo process, the process it reverts; null otherwise."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestEffectorProcess$RestEffectorInfo": {
+   "name": "effector-process-effector",
+   "summary": "An effector that took part in a process.",
+   "fields": {
+    "id": "Effector instance id; null for one-off runs.",
+    "name": "Display name with configuration summary."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestEffectorProcess$RestStructureInfo": {
+   "name": "effector-process-structure",
+   "summary": "The structure of an effector process.",
+   "fields": {
+    "id": "Structure id.",
+    "name": "Structure name; null when the caller can no longer view it."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestEffectorProcessStatus": {
+   "name": "effector-process-progress",
+   "summary": "Status and progress of an effector process.",
+   "fields": {
+    "status": "Life-cycle status.",
+    "percentComplete": "0..100 (0 when unknown).",
+    "canceled": "True when cancellation was requested."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestError": {
+   "name": "forest-action-error",
+   "summary": "Why an action was refused.",
+   "fields": {
+    "row": "Row the error is about; 0 when none.",
+    "itemDescription": "Display text of that row's item (or `row <id>` when unknown).",
+    "itemUrl": "URL of that item; null when none.",
+    "itemCount": "Number of rows the failed action involved.",
+    "message": "Localized error message."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestFavorite": {
+   "name": "structure-favorite-flag",
+   "summary": "Favourite state of a structure for the caller.",
+   "fields": {
+    "favorite": "True when favourite."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestForestHistory": {
+   "name": "structure-history-page",
+   "summary": "A list of structure history versions.",
+   "fields": {
+    "versions": "Versions, newest first; absent when there are none.",
+    "itemTypes": "Item-type number map for this list; in practice empty because each version carries its own map."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestForestPollRequest": {
+   "name": "forest-poll-entry",
+   "summary": "A forest the client watches and the version it has.",
+   "fields": {
+    "spec": "The forest.",
+    "version": "The version the client holds; `{0,0}` = send everything; in a poll, `{0,-1}` = initial load."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestForestResponse": {
+   "name": "forest-snapshot",
+   "summary": "The current content of a forest.",
+   "fields": {
+    "spec": "The requested spec, echoed.",
+    "formula": "Forest encoding: rows in depth-first order separated by `,`; each row is `<rowId>:<depth>:<item>`, followed by `:<semantics>` only when the row's semantics number is positive. Depth 0 is a top-level row; a row's parent is the nearest earlier row whose depth is one less. `<item>` is the decimal issue id for an issue; for any other item it is `<t>/<n>` (numeric item id) or `<t>//<s>` (string item id percent-encoded like the browser function encodeURIComponent), where `<t>` is a decimal item-type number to be looked up in the response's `itemTypes` map. Empty string = empty forest.",
+    "itemTypes": "Map from the decimal item-type numbers used in this response's forest or item encodings to full item type keys (e.g. `\"3\": \"com.almworks.jira.structure:type-folder\"`). Only types that occur in this response are listed.",
+    "version": "Version of this content."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestForestVersion": {
+   "name": "structure-history-version",
+   "summary": "One version in a structure's history.",
+   "fields": {
+    "structure": "Structure id.",
+    "version": "Version number.",
+    "timestamp": "Time of the change, milliseconds since the epoch.",
+    "dateTimeFormatted": "Same time formatted for the caller in relative style (e.g. 'yesterday 5:10 PM').",
+    "user": "Who made the change (an anonymous placeholder when no user).",
+    "synchronizer": "Synchronizer that made the change; absent for manual changes.",
+    "changes": "The changes in this version.",
+    "fullForest": "Only in the single-version call: the whole forest right after this version, in the forest encoding.",
+    "itemTypes": "Map from the decimal item-type numbers used in this response's forest or item encodings to full item type keys (e.g. `\"3\": \"com.almworks.jira.structure:type-folder\"`). Only types that occur in this response are listed."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestForestVersion$Change": {
+   "name": "structure-history-change",
+   "summary": "One change within a history version.",
+   "fields": {
+    "operation": "`add`, `copy`, `move` or `remove`.",
+    "moveDirection": "For moves: -1 moved up, 1 moved down, 0 otherwise.",
+    "forestSize": "Number of rows affected.",
+    "itemId": "When exactly one row is affected: its item in the forest encoding's item form; absent otherwise or when the row is gone.",
+    "issueKey": "When that item is an issue visible to the caller: its key.",
+    "issueSummary": "...and its summary.",
+    "forest": "Single-version call only: the affected sub-forest in the forest encoding.",
+    "parentPathFrom": "Single-version call only: comma-separated row ids from the top to the parent before the change; null when empty.",
+    "precedingSiblingsFrom": "Single-version call only: comma-separated row ids of the siblings preceding it before the change; null when empty.",
+    "parentPathTo": "Same as `parentPathFrom`, after the change.",
+    "precedingSiblingsTo": "Same as `precedingSiblingsFrom`, after the change."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestGenerationRequest": {
+   "name": "generation-control-request",
+   "summary": "A list of forests for stopping/resuming generation.",
+   "fields": {
+    "forestSpecs": "The forests."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestGeneratorDescription": {
+   "name": "generator-description",
+   "summary": "Display description of a generator.",
+   "fields": {
+    "description": "HTML snippet: a span with the generator's icon followed by its summary text.",
+    "id": "Generator id."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestGenericItem": {
+   "name": "generic-item-content",
+   "summary": "Content of a generic item (memo, planning task) for display or as a validated preview.",
+   "fields": {
+    "summary": "Summary text.",
+    "description": "Description in wiki markup; absent when the field is hidden or empty.",
+    "descriptionHtml": "Description rendered to HTML.",
+    "params": "Values of the item's other visible fields by field id (wiki-rendered fields also get `<field id>Html`), plus `color` and `iconClass` when set."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestGenericItemDetails": {
+   "name": "generic-item-details",
+   "summary": "Details panel data of a generic item.",
+   "fields": {
+    "item": "The item content.",
+    "fields": "Descriptors of all generic-item fields as configured for this item.",
+    "editable": "Not filled in (null)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestInteraction": {
+   "name": "forest-action-question",
+   "summary": "A question the server needs answered before it can apply an action. The client resends the action with `parameters[parameter]` set to one of the possible values.",
+   "fields": {
+    "row": "Row the question is about; 0 when none.",
+    "itemDescription": "Display text of the row's item.",
+    "itemUrl": "URL of the item.",
+    "itemCount": "Number of rows the action involves.",
+    "parameter": "Parameter id to answer, e.g. `0:PrimaryGenerator` (which generator should handle the change; value = generator row id) or `0:CreateAnyway` (value `true`).",
+    "message": "Localized question.",
+    "values": "Possible answers."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestInteraction$RestInteractionValue": {
+   "name": "forest-action-question-option",
+   "summary": "One possible answer to a question.",
+   "fields": {
+    "value": "Value to send back (number, string or boolean).",
+    "iconHtml": "Icon HTML; null when none.",
+    "message": "Explanation of this choice.",
+    "possible": "False when the choice is shown but not available."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestItemDescription": {
+   "name": "effect-affected-item",
+   "summary": "An item touched by an effect.",
+   "fields": {
+    "itemId": "Full item id (`<item type key>/<n>`, `<item type key>//<s>`).",
+    "description": "Issue or generic item key, or display text for other items.",
+    "url": "Link to the item; null when none."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestItemSpec": {
+   "name": "item-content-spec",
+   "summary": "An item to create or update.",
+   "fields": {
+    "itemId": "Full item id of an existing item: bare issue id, `<item type key>/<n>` or `<item type key>//<s>`.",
+    "type": "For creation: complete item type key of the new item.",
+    "values": "Item field values as defined by the item type (e.g. `summary`); keys `itemproperty.notes` and `itemproperty.dc_note_<id>` (string values) set per-structure notes instead."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestItemsPollRequest": {
+   "name": "items-poll-entry",
+   "summary": "The items version the client holds.",
+   "fields": {
+    "version": "Items version; `{0,0}` = all items considered changed."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestMappingRequest": {
+   "name": "row-mapping-request",
+   "summary": "Rows to translate into other forests.",
+   "fields": {
+    "forestSpecs": "Target forests.",
+    "rows": "Row ids to translate."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestMappingResponse": {
+   "name": "row-mapping-response",
+   "summary": "Row translations per forest.",
+   "fields": {
+    "rows": "The requested rows, echoed.",
+    "mappings": "One entry per requested forest.",
+    "itemsVersion": "Current items version at the time of the call."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestMappingResponse$MappingResponse": {
+   "name": "row-mapping-entry",
+   "summary": "Translation of the requested rows into one forest.",
+   "fields": {
+    "forestSpec": "The forest, echoed.",
+    "mappedRows": "One row id per requested row, same order; 0 when no corresponding row exists (-1 maps to -1)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestPaginationRequest": {
+   "name": "effector-page-request",
+   "summary": "Paging and filter parameters for effector process lists.",
+   "fields": {
+    "params": "Filters as string pairs (see the endpoint); null = none.",
+    "maxResults": "Page size; -1 = everything; 0 (the default when omitted) = empty page.",
+    "startAt": "0-based offset."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestPaginationResponse": {
+   "name": "effector-page-response",
+   "summary": "A page of a list.",
+   "fields": {
+    "items": "The page's elements (type depends on the endpoint).",
+    "pagination": "Paging information."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestPaginationResponse$Pagination": {
+   "name": "effector-page-info",
+   "summary": "Paging information of a page.",
+   "fields": {
+    "startAt": "Offset, echoed.",
+    "maxResults": "Page size, echoed (may be -1).",
+    "total": "Total number of elements.",
+    "errors": "Number of erroneous elements (preview only; otherwise 0)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestPollRequest": {
+   "name": "poll-request",
+   "summary": "What the client watches.",
+   "fields": {
+    "jobId": "Absent on the first call. Set to the `jobId` returned by an earlier call that timed out, to keep waiting for that job (see the endpoint).",
+    "extensionRequests": "Optional map from core-extension key to an extension-specific request; each installed extension may answer under the same key in `extensionData`.",
+    "forests": "Watched forests with their versions; null = none.",
+    "items": "Items version for item-change tracking; null = none.",
+    "subscriptions": "Attribute subscriptions to update, each with `id` and `version`; null = none."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestPollResponse": {
+   "name": "poll-response",
+   "summary": "Everything that changed for the client.",
+   "fields": {
+    "forestUpdates": "One update per watched forest with a valid spec; null when no forests were asked.",
+    "itemsUpdate": "Item changes; null when not asked.",
+    "itemTypes": "Map from the decimal item-type numbers used in this response's forest or item encodings to full item type keys (e.g. `\"3\": \"com.almworks.jira.structure:type-folder\"`). Only types that occur in this response are listed.",
+    "extensionData": "Map from core-extension key to extension-specific data returned for the request's `extensionRequests`; absent or null when no extension answered.",
+    "subscriptionUpdates": "One update per requested subscription, in order; null when none asked.",
+    "backgroundProcesses": "The caller's running or unacknowledged effector processes; null for anonymous callers or when none."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestProcessInfo": {
+   "name": "background-process-info",
+   "summary": "Display state of a background process.",
+   "fields": {
+    "name": "Localized process name; null when not set.",
+    "buttons": "Extra action buttons; absent when none.",
+    "status": "0 = pending, 1 = running, 2 = finished.",
+    "statusText": "Localized status.",
+    "activity": "Localized description of the current activity; null when none.",
+    "percentComplete": "0..100; absent when unknown.",
+    "percentText": "Localized percentage text; absent when unknown."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestProcessInfo$RestProcessButton": {
+   "name": "background-process-button",
+   "summary": "A button offered by a background process.",
+   "fields": {
+    "url": "Link target.",
+    "caption": "Localized label."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestStructureField": {
+   "name": "generic-item-field",
+   "summary": "Descriptor of a field of generic items (memos, planning tasks) for the editor.",
+   "fields": {
+    "id": "Field id (e.g. `summary`, `description`, `project`, `issuetype`).",
+    "name": "Localized field name.",
+    "type": "Field type key; multi-line text fields using the wiki renderer report `rich-text`.",
+    "required": "Required in this item's configuration.",
+    "visible": "Shown in this item's configuration.",
+    "editable": "Editable in this item's configuration.",
+    "multiple": "Holds several values.",
+    "searchable": "Its option list supports searching.",
+    "selectable": "Its value is chosen from options.",
+    "hasIcons": "Options have icons.",
+    "placeholder": "Placeholder text for the editor.",
+    "spec": "JSON text identifying the option source, to be used when requesting options; absent when the field has no options."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator": {
+   "name": "generator-module-info",
+   "summary": "An available generator module.",
+   "fields": {
+    "module": "Complete module key.",
+    "label": "Display label.",
+    "type": "`inserter`, `grouper`, `extender`, `sorter` or `filter`.",
+    "presets": "Predefined configurations; absent when the generator has none.",
+    "notConfigurable": "True when the generator has no configuration form.",
+    "group": "Display group number for ordering in menus; null when none."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator$RestPreset": {
+   "name": "generator-preset",
+   "summary": "A predefined generator configuration.",
+   "fields": {
+    "label": "Display label.",
+    "params": "Generator parameters as JSON text (with `disableActions` true added when an instance-wide switch disables updates for defaults).",
+    "description": "Description; null when none."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestStructureList": {
+   "name": "structure-picker-list",
+   "summary": "Data for the structure selector. The id lists refer to entries of `structures`.",
+   "fields": {
+    "recent": "The caller's recent structure ids.",
+    "favorites": "The caller's favourite structure ids.",
+    "defaults": "Default structures: the project's default (if any) and the global default when different; archived or invisible ones omitted.",
+    "containingAnchor": "With an anchor issue: viewable structures containing it, recently used first; absent otherwise.",
+    "structures": "The structures referenced by the lists.",
+    "maxItems": "How many entries per list the selector should show: max(4, Jira's dropdown item limit / 2 - 1); lists carry up to 2 more.",
+    "totalFavorites": "Total number of favourites before truncation.",
+    "totalContainingAnchor": "Total number of structures containing the anchor before truncation; absent without anchor.",
+    "anchorIssue": "The anchor issue id, when it was accepted."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSubscriptionData": {
+   "name": "attribute-subscription",
+   "summary": "An attribute subscription and optionally its value update.",
+   "fields": {
+    "id": "Subscription id.",
+    "window": "The window as currently stored.",
+    "valuesUpdate": "Present only when `valuesUpdate=true` was requested."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSubscriptionUpdate": {
+   "name": "attribute-subscription-update",
+   "summary": "Changed attribute values of a subscription since a version.",
+   "fields": {
+    "id": "Subscription id.",
+    "full": "True when the update contains all values (the client must discard what it had), false when only changes since `fromVersion`.",
+    "fromVersion": "The version the update starts from (as requested).",
+    "version": "The values version after applying this update; send it next time.",
+    "data": "Values per attribute.",
+    "inaccessibleRows": "Rows of the window whose items the caller cannot see; absent when none.",
+    "error": "Present when the subscription could not be read (e.g. code 4800 unknown subscription).",
+    "attributeErrors": "Attribute loading problems collected since the last call (each reported once); absent when none.",
+    "stillLoading": "True when value loading had not finished when the answer was produced; absent otherwise."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSubscriptionUpdate$AttributeData": {
+   "name": "attribute-subscription-values",
+   "summary": "Values of one attribute.",
+   "fields": {
+    "attribute": "The attribute spec.",
+    "values": "JSON object from row id (decimal string) to the value encoded per the attribute format; null for no value. Only rows whose value changed (or all, in a full update).",
+    "emptyValueRows": "Not used on Jira 9 (absent).",
+    "outdated": "Rows whose value is a stale one being recalculated; absent when none."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSubscriptionUpdate$AttributeError": {
+   "name": "attribute-subscription-error",
+   "summary": "A problem loading an attribute.",
+   "fields": {
+    "attribute": "The attribute.",
+    "error": "Error details: code 6016, `error` and `message` = the cause's message (or a generic text), plus `rowId` and `itemId` of the item being computed when known."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSubscriptionUpdateRequest": {
+   "name": "attribute-subscription-poll-entry",
+   "summary": "A subscription to update in a poll.",
+   "fields": {
+    "id": "Subscription id (required).",
+    "version": "Values version the client holds (required); `{0,0}` = full update."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSubscriptionWindow": {
+   "name": "attribute-subscription-window",
+   "summary": "What a subscription watches: some rows of a forest and some attributes.",
+   "fields": {
+    "forestSpec": "The forest.",
+    "rows": "Row ids (typically the rows visible in the grid).",
+    "attributes": "Attributes to compute; specs with unknown formats are dropped."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSyncActions": {
+   "name": "synchronizer-undo-batch",
+   "summary": "Groups of synchronizer audit-log actions, paired with the synchronizer that made them.",
+   "fields": {
+    "jobId": "Absent on the first call. Set to the `jobId` returned by an earlier call that timed out, to keep waiting for that job (see the endpoint).",
+    "actionGroups": "Each entry is the text of a JSON array of action objects as recorded in the synchronizer audit log (e.g. link actions with `type` `createLink`/`removeLink`, `linkTypeId`, `source.id`, `destination.id`).",
+    "syncModuleKeys": "Complete module key of the synchronizer for the group at the same index (e.g. `com.almworks.jira.structure:sync-links`)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSynchronizer": {
+   "name": "history-synchronizer",
+   "summary": "The synchronizer that made a history change.",
+   "fields": {
+    "id": "Synchronizer instance id.",
+    "description": "Localized description of the synchronizer and its configuration (generic text when it no longer exists)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestUndoRedoRequest": {
+   "name": "effect-undo-redo-request",
+   "summary": "Effect batches to undo or redo.",
+   "fields": {
+    "jobId": "Absent on the first call. Set to the `jobId` returned by an earlier call that timed out, to keep waiting for that job (see the endpoint).",
+    "extensionRequests": "Optional map from core-extension key to an extension-specific request; each installed extension may answer under the same key in `extensionData`.",
+    "forest": "The forest the effects belong to (spec required; version optional, for a forest update).",
+    "items": "Items version for an items update; optional.",
+    "effectIds": "Effect batch ids (required, non-empty)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestUndoRedoResponse": {
+   "name": "effect-undo-redo-response",
+   "summary": "Result of undoing or redoing effects.",
+   "fields": {
+    "successfulActions": "Always 1.",
+    "updateError": "Present with an error when the undo/redo failed.",
+    "forestUpdates": "One forest update from the request's forest version; absent when no version was given.",
+    "itemTypes": "Map from the decimal item-type numbers used in this response's forest or item encodings to full item type keys (e.g. `\"3\": \"com.almworks.jira.structure:type-folder\"`). Only types that occur in this response are listed.",
+    "oldRowIds": "Row ids that were replaced (e.g. temporary ids of new rows), parallel to `newRowIds`; absent when none.",
+    "newRowIds": "The ids that replaced the corresponding `oldRowIds`.",
+    "effects": "Effect batches applied in Jira by this request.",
+    "undoEffects": "Not filled in.",
+    "problems": "Effects that could not be applied.",
+    "extensionData": "Map from core-extension key to extension-specific data returned for the request's `extensionRequests`; absent or null when no extension answered.",
+    "itemsUpdate": "Item changes since the request's items version; absent when not asked."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestUpdateError": {
+   "name": "forest-action-failure",
+   "summary": "Why the last attempted action did not go through: either an error or a list of questions (one of the two is present).",
+   "fields": {
+    "error": "The error; absent for questions.",
+    "interactions": "Questions to answer; absent for errors."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestUpdateItemRequest": {
+   "name": "update-item-request",
+   "summary": "Request to update an existing item.",
+   "fields": {
+    "jobId": "Absent on the first call. Set to the `jobId` returned by an earlier call that timed out, to keep waiting for that job (see the endpoint).",
+    "extensionRequests": "Optional map from core-extension key to an extension-specific request; each installed extension may answer under the same key in `extensionData`.",
+    "items": "Items version the client holds (required).",
+    "item": "The item id and new values.",
+    "forest": "Forest the item is shown in and the client's version of it (required); also scopes note updates."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestUpdateItemResponse": {
+   "name": "update-item-response",
+   "summary": "Result of updating an item.",
+   "fields": {
+    "success": "True when no validation errors occurred.",
+    "successfulActions": "Always 1.",
+    "formErrors": "Messages not tied to a field (on failure).",
+    "fieldErrors": "Messages by field id (on failure).",
+    "itemsUpdate": "Item changes since the client's items version.",
+    "itemTypes": "Map from the decimal item-type numbers used in this response's forest or item encodings to full item type keys (e.g. `\"3\": \"com.almworks.jira.structure:type-folder\"`). Only types that occur in this response are listed.",
+    "extensionData": "Map from core-extension key to extension-specific data returned for the request's `extensionRequests`; absent or null when no extension answered.",
+    "forestUpdates": "One forest update from the client's forest version."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestUpdateRequest": {
+   "name": "forest-update-request",
+   "summary": "Editing actions for a forest.",
+   "fields": {
+    "jobId": "Absent on the first call. Set to the `jobId` returned by an earlier call that timed out, to keep waiting for that job (see the endpoint).",
+    "extensionRequests": "Optional map from core-extension key to an extension-specific request; each installed extension may answer under the same key in `extensionData`.",
+    "spec": "Forest to edit (required).",
+    "version": "Version of the forest the row ids in the actions refer to (required).",
+    "actions": "Ordered actions."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestUpdateResponse": {
+   "name": "forest-update-response",
+   "summary": "Result of a forest update.",
+   "fields": {
+    "successfulActions": "Number of actions fully applied.",
+    "updateError": "Present when an action was refused or a question must be answered; absent on success.",
+    "forestUpdates": "Forest changes since the client's version(s), so the client can resynchronize.",
+    "itemTypes": "Map from the decimal item-type numbers used in this response's forest or item encodings to full item type keys (e.g. `\"3\": \"com.almworks.jira.structure:type-folder\"`). Only types that occur in this response are listed.",
+    "oldRowIds": "Row ids that were replaced (e.g. temporary ids of new rows), parallel to `newRowIds`; absent when none.",
+    "newRowIds": "The ids that replaced the corresponding `oldRowIds`.",
+    "effects": "Effect batches applied in Jira by this request.",
+    "undoEffects": "Batch ids of the last successful action's effects, to pass to effect undo.",
+    "problems": "Effects that could not be applied.",
+    "extensionData": "Map from core-extension key to extension-specific data returned for the request's `extensionRequests`; absent or null when no extension answered."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestValidateNewItemResponse": {
+   "name": "generic-item-validation",
+   "summary": "Validation result and preview for a new planning task.",
+   "fields": {
+    "fieldErrors": "Messages by field id (e.g. `issuetype` when the project has no issue types); empty object when valid.",
+    "item": "Preview of the item with defaults; its summary is the one sent (null when none).",
+    "fields": "Field descriptors as configured for the previewed item."
+   }
+  },
+  "com.almworks.jira.structure.util.velocity.StructureProblemType": {
+   "name": "managed-structure-problem",
+   "summary": "A problem flagged for a structure in the management table.",
+   "values": {
+    "USER_INACTIVE": "The owner's account is inactive.",
+    "USER_DELETED": "The owner no longer exists.",
+    "STOPPED": "Generation of the structure is stopped."
+   }
+  },
+  "com.almworks.structure.commons.rest.RestForestUpdate": {
+   "name": "forest-update",
+   "summary": "Changes of one forest from a client version to the current version; either a full forest or an incremental change list.",
+   "fields": {
+    "spec": "The forest spec, echoed.",
+    "fromVersion": "The version the client had (echoed).",
+    "version": "The new version; the client stores it. Absent when the forest could not be read.",
+    "formula": "Present for a full update (client must replace its forest). Forest encoding: rows in depth-first order separated by `,`; each row is `<rowId>:<depth>:<item>`, followed by `:<semantics>` only when the row's semantics number is positive. Depth 0 is a top-level row; a row's parent is the nearest earlier row whose depth is one less. `<item>` is the decimal issue id for an issue; for any other item it is `<t>/<n>` (numeric item id) or `<t>//<s>` (string item id percent-encoded like the browser function encodeURIComponent), where `<t>` is a decimal item-type number to be looked up in the response's `itemTypes` map. Empty string = empty forest.",
+    "updates": "Present for an incremental update: changes separated by `|`, applied in order. `a.<under>.<after>.<forest>` inserts the encoded sub-forest under row `under` (0 = top level) after sibling `after` (0 = first position), depths relative to the insertion point; `m.<under>.<after>.<rows>` moves the comma-separated rows (with their sub-trees) there; `r.<rows>` removes the comma-separated rows; `o.<under>.<rows>` reorders the children of `under` into the given order. Neither present = no change.",
+    "healthStatus": "Generation health of the forest; absent when the forest could not be read.",
+    "error": "Present when the forest could not be read (e.g. no access).",
+    "needsUpdate": "True when this is an initial-load snapshot that may be stale; the client should poll again from `version`. Absent otherwise."
+   }
+  },
+  "com.almworks.structure.commons.rest.RestGeneratorInfo": {
+   "name": "generator-health-entry",
+   "summary": "A per-generator figure in the health status.",
+   "fields": {
+    "generatorId": "Generator id (describable with the generator descriptions call).",
+    "data": "The figure: time spent generating (milliseconds) in `generatorTimes`, the limit reached in `hitLimits`, empty string in `infiniteUpdateGenerators`."
+   }
+  },
+  "com.almworks.structure.commons.rest.RestHealthStatus": {
+   "name": "forest-health",
+   "summary": "How generation of a forest is doing.",
+   "fields": {
+    "stopped": "True when generation is stopped (by a user or automatically) and the content may be outdated.",
+    "generatorTimes": "Time spent per generator.",
+    "hitLimits": "Generators that hit a size limit.",
+    "infiniteUpdateGenerators": "Generators detected as causing endless re-generation."
+   }
+  },
+  "com.almworks.structure.commons.rest.RestItemsUpdate": {
+   "name": "items-update",
+   "summary": "Which items changed since the client's items version (the client then refreshes their values).",
+   "fields": {
+    "fromVersion": "The client's version.",
+    "version": "The new items version.",
+    "updated": "Empty string = nothing changed; `*` = everything must be considered changed; otherwise comma-separated item ids in the forest encoding's item form (types in `itemTypes`)."
+   }
+  },
+  "com.almworks.structure.commons.rest.RestStructureError": {
+   "name": "structure-error",
+   "summary": "Error details returned by Structure as a JSON body.",
+   "fields": {
+    "code": "Numeric error code (e.g. 2400 invalid parameter, 4005 structure missing or not accessible, 4800 unknown subscription).",
+    "error": "Error name with code, e.g. `INVALID_PARAMETER[2400]`, or a short text for generic errors (`Invalid request data`, `Permission violation`).",
+    "structureId": "Structure the error is about; absent when none.",
+    "viewId": "View the error is about; absent when none.",
+    "rowId": "Row the error is about.",
+    "itemId": "Full item id the error is about; absent when none.",
+    "itemDescription": "Display text of that item.",
+    "message": "Technical message.",
+    "localizedMessage": "Message in the caller's language."
+   }
+  },
+  "com.almworks.structure.commons.rest.data.RestUser": {
+   "name": "user-display-info",
+   "summary": "Display data of a Jira user.",
+   "fields": {
+    "name": "Username (or a localized 'anonymous' text when unknown).",
+    "userKey": "User key (empty string for anonymous).",
+    "displayName": "Display name; marked as inactive for deactivated users.",
+    "profileUrl": "Absolute URL `<base>/secure/ViewProfile.jspa?name=<username>`; absent for unknown users.",
+    "avatarUrl": "Avatar image URL."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource$AvailableActionsAndOperationsWrapper": {
+   "name": "issue-actions-and-operations",
+   "summary": "What the caller can do with an issue.",
+   "fields": {
+    "id": "Issue id (string).",
+    "key": "Issue key.",
+    "actions": "Available workflow transitions, in workflow order.",
+    "operations": "Issue operation links.",
+    "viewIssue": "Localized label for viewing the issue.",
+    "atlToken": "A fresh XSRF token for the caller's session, for use in the operation links."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource$AvailableAction": {
+   "name": "issue-menu-workflow-transition",
+   "summary": "An available workflow transition.",
+   "fields": {
+    "action": "Transition (action) id as a string.",
+    "name": "Display name.",
+    "desc": "Description; null when empty."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource$AvailableOperation": {
+   "name": "issue-menu-operation-link",
+   "summary": "An issue operation link from Jira's issue operations bar.",
+   "fields": {
+    "name": "Label.",
+    "url": "Link URL.",
+    "desc": "Tooltip.",
+    "styleClass": "CSS class of the link."
+   }
+  }
+ }
+}

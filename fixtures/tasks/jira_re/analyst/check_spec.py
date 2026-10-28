@@ -39,6 +39,7 @@ sys.path.insert(0, str(TASK / "hidden"))
 
 import _api  # noqa: E402  (the hidden API tier: its reference jars and Java tests)
 import _classfile as cf  # noqa: E402
+import _contract as ct  # noqa: E402  (REST endpoints and the AO schema, from the class files)
 from _support import NON_MODULES, reference  # noqa: E402  (the hidden suite's reference, from the jar alone)
 
 SEED_SPEC = TASK.parents[1] / "seed_jira_re" / "spec"
@@ -60,6 +61,10 @@ class Report:
     api_specified: int = 0
     api_tests: int = 0
     api_tests_claimed: int = 0
+    endpoints: int = 0
+    endpoints_described: int = 0
+    ao_columns: int = 0
+    ao_columns_specified: int = 0
     problems: list[str] = field(default_factory=list)
 
 
@@ -112,8 +117,70 @@ def _internal_simple_names(classes, allowed: set[str]) -> set[str]:
     return {s for s in map(simple, classes) if CAMEL.fullmatch(s)} - ok
 
 
+def jira_version() -> str:
+    """The pinned Jira version, from the seed's pom.xml."""
+    pom = (SEED_SPEC.parent / "pom.xml").read_text()
+    return re.search(r"<jira\.version>([^<]+)</jira\.version>", pom).group(1)
+
+
+def _section(md: str, token: str) -> str | None:
+    """The text under the first heading that names ``token`` in backticks, up to the next heading."""
+    lines = md.splitlines()
+    for i, ln in enumerate(lines):
+        if ln.startswith("#") and f"`{token}`" in ln:
+            body = []
+            for nxt in lines[i + 1:]:
+                if nxt.startswith("#"):
+                    break
+                body.append(nxt)
+            return "\n".join(body)
+    return None
+
+
+def check_contract(rep: Report, *, jar: Path, libs: list[str], spec_md: str, jira: str, modules) -> None:
+    """SPEC.md's contract section (phase JS2): every module in the module table with its type, every REST
+    endpoint of the pinned Jira under a heading of its own with a description, every AO table and column."""
+    p = rep.problems
+    for m in modules:
+        if not re.search(rf"^\|\s*`{re.escape(m.key)}`\s*\|\s*`{re.escape(m.element)}`\s*\|", spec_md, re.M):
+            p.append(f"SPEC.md: module {m.key!r} ({m.element}) is not in the module table")
+    classes = ct.jar_classes(jar, libs)
+    root = ct.descriptor(jar)
+    if root is None:
+        return
+    for _key, base, packages in ct.rest_modules(root, jira):
+        for e in ct.rest_endpoints(classes, packages, base):
+            rep.endpoints += 1
+            body = _section(spec_md, ct.endpoint_id(e))
+            if body is None:
+                p.append(f"SPEC.md: REST endpoint {ct.endpoint_id(e)} is not specified")
+            elif not body.strip() or ct.PENDING in body:
+                p.append(f"SPEC.md: REST endpoint {ct.endpoint_id(e)} is not described yet")
+            else:
+                rep.endpoints_described += 1
+    heading = ""
+    for ln in spec_md.splitlines():
+        if ln.startswith("#"):
+            heading = ln.strip()
+        elif ct.PENDING in ln and not re.fullmatch(r"#+ `[A-Z]+ /\S*`", heading):    # endpoints: reported above
+            p.append(f"SPEC.md: a description is pending under {heading!r}")
+    for el in root.iter("ao"):
+        entities = [x.text.strip() for x in el.findall("entity") if x.text]
+        for t in ct.ao_tables(classes, entities, el.get("namespace", "")):
+            body = _section(spec_md, t.name)
+            rep.ao_columns += len(t.columns)
+            if body is None:
+                p.append(f"SPEC.md: AO table {t.name} is not specified")
+                continue
+            for c in t.columns:
+                if f"`{c.name}`" in body:
+                    rep.ao_columns_specified += 1
+                else:
+                    p.append(f"SPEC.md: AO column {t.name}.{c.name} is not specified")
+
+
 def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, api_jars: list[Path] = (),
-          api_tests: list[str] = (), libs: list[str] = ()) -> Report:
+          api_tests: list[str] = (), libs: list[str] = (), jira: str | None = None) -> Report:
     ref = reference(jar, libs)
     rep = Report(modules=len(ref.modules))
     p = rep.problems
@@ -195,6 +262,7 @@ def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, ap
             p.append(f"{f.relative_to(spec_dir)}: names internal (non-public) API class {n}")
 
     spec_md = (spec_dir / "SPEC.md").read_text(errors="replace") if (spec_dir / "SPEC.md").is_file() else ""
+    check_contract(rep, jar=jar, libs=libs, spec_md=spec_md, jira=jira or jira_version(), modules=ref.modules)
     named_in_spec = set(FQCN.findall(spec_md))
     tops = sorted(n for n, t in surface.items() if t.outer is None)
     rep.api_types = len(tops)
@@ -245,7 +313,9 @@ def main() -> int:
     rep = check(jar=jar, api_jars=_api.api_jars(), api_tests=tests, libs=internal_libs())
     print(f"modules {rep.modules}: inventoried {rep.inventoried}, with an active claim {rep.claimed}; "
           f"claims {rep.claims}; public API types {rep.api_types}: specified {rep.api_specified}; "
-          f"API tests {rep.api_tests}: backed by claims {rep.api_tests_claimed}; problems {len(rep.problems)}")
+          f"API tests {rep.api_tests}: backed by claims {rep.api_tests_claimed}; "
+          f"REST endpoints {rep.endpoints}: described {rep.endpoints_described}; "
+          f"AO columns {rep.ao_columns}: specified {rep.ao_columns_specified}; problems {len(rep.problems)}")
     for line in rep.problems[:args.max]:
         print(f"  {line}")
     if len(rep.problems) > args.max:

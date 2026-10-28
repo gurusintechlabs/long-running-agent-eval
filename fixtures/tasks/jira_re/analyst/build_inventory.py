@@ -32,6 +32,7 @@ TASK = HERE.parent
 sys.path.insert(0, str(TASK / "hidden"))
 sys.path.insert(0, str(HERE))
 
+from _contract import applies  # noqa: E402,F401  (shared with build_contract and check_spec)
 from _support import NON_MODULES, reference  # noqa: E402
 from check_spec import CAMEL, SEED_SPEC, _internal_simple_names, contract_classes, internal_libs  # noqa: E402
 
@@ -40,30 +41,6 @@ SKIP_ATTRS = {"key", "class", "name", "i18n-name-key"}
 # child elements whose text is externally visible (URLs, contexts, other modules' keys, exported services)
 TEXT_CHILDREN = {"url-pattern": "url_patterns", "context": "contexts", "dependency": "dependencies",
                  "interface": "exports", "fname": "fname", "valid-customfield-type": "valid_customfield_types"}
-
-
-def _version(v: str) -> tuple[int, ...]:
-    return tuple(int(x) for x in re.findall(r"\d+", v)[:3])
-
-
-def applies(el: ET.Element, jira: str) -> bool:
-    """True when ``el`` has no ``<restrict>``, or one whose version range contains ``jira``."""
-    rs = el.findall("restrict")
-    if not rs:
-        return True
-    want = _version(jira)
-    for r in rs:
-        m = re.fullmatch(r"\s*([\[(])\s*([\d.]*)\s*(?:,\s*([\d.]*))?\s*([\])])\s*", r.get("version", ""))
-        if not m:
-            continue
-        lo_inc, lo, hi, hi_inc = m.groups()
-        if hi is None and lo_inc == "[" and hi_inc == ")":      # "[11.0.0)": from 11.0.0 on
-            hi = ""
-        ok_lo = not lo or (want >= _version(lo) if lo_inc == "[" else want > _version(lo))
-        ok_hi = not hi or (want <= _version(hi) if hi_inc == "]" else want < _version(hi))
-        if ok_lo and ok_hi:
-            return True
-    return False
 
 
 def contract_of(el: ET.Element, labels: dict[str, str], hidden) -> dict:

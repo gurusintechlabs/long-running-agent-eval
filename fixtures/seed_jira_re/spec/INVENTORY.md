@@ -170,8 +170,8 @@ hooks for companion apps. The export menu is open to other plugins through the w
 
 **Platform.** Many back-end services exist twice, once per Jira line (9–10 versus 11+), behind one interface.
 For Jira 9.12 only the 9–10 declarations apply; `contract` shows those. Around them are lifecycle and
-initialisation, licensing and end-of-life banners, an optional daily usage report that is sent only after an
-admin opts in, a support zip and performance logs.
+initialisation, licensing and end-of-life banners, an optional daily usage report (its upload is out of scope,
+section 5), a support zip and performance logs.
 
 ## 4. External contract fixed by the inventory
 
@@ -191,7 +191,21 @@ The full contract is in `SPEC.md`. These facts are visible here already:
 - **Web fragments other apps use:** web-resource keys, the contexts above, sections and locations,
   and the gadget locations (`contract.location`). Dashboards store gadgets by module key and location.
 
-## 5. Module index by group
+## 5. Out of scope: contacting the vendor
+
+The original contacts its vendor and the Atlassian Marketplace over the network. The replacement does not
+(product owner decision): it is not the vendor's product, and it must not send anything anywhere.
+- **Licence reports.** `app-support-client` reports licence and installation facts to the vendor every
+  day, through `app-support-connector`. The replacement keeps both module keys and sends nothing.
+  `app-support-store` and the blocked-serial queries of the public API stay: with no reports, no serial is
+  ever blocked.
+- **Usage statistics upload.** `statistics-manager` uploads the daily report once an admin opts in. The
+  replacement collects, stores and purges statistics, and keeps the opt-in offer (`stats-offer`,
+  `stats-offer-decorator`, the setup guide) and its stored setting, but uploads nothing.
+- **Marketplace update check.** `plugin-update-checker` never contacts the Marketplace; it always reports
+  that no update is known.
+
+## 6. Module index by group
 
 `inventory.json` has each module's purpose. Groups:
 

@@ -61,7 +61,7 @@ cleared the one "inventory.json is missing" problem.
   names count as leaks too. The rule is configured, not guessed: a "vendor package" heuristic wrongly
   flagged the public `com.almworks.integers` library, which is part of the API's contract.
 
-**Seed re-pinned:** `6af4ef76…`, since `spec/` changed.
+**Seed re-pinned:** `e31369d2…`, since `spec/` changed (after the follow-up below).
 
 **Decompiled for later sessions:** `analyst-work/libvf/` holds the four internal libraries (git-ignored,
 Vineflower).
@@ -102,19 +102,15 @@ I then:
    jar's top-level classes. Real behaviour lives in `structure-commons`: the `sum` and `count` attributes,
    the database lock, the licence manager, base classes of many components. So a claim whose evidence is
    there fails "not in the jar".
-   - **Proposal:** let `reference()` also index the `internal_libs` classes, for evidence grounding and
-     for the copy-similarity reference (the scorer's decompilation should include them too). This touches
-     the hidden suite and the clean-room metric, so it needs your OK. Without it, the claims sessions
-     have to cite the plugin-side callers instead.
+   - **Decided (owner, 2026-10-28): yes.** Done in the follow-up below.
 2. **The plugin phones home.**
    - The app-support client posts licence facts daily to the vendor's server. Its HTTPS client trusts any
      certificate.
    - Usage statistics are sent daily, but only after an admin opts in.
    - It checks the Marketplace for updates.
 
-   **Question for you:** should the spec describe these as behaviour the replacement must reproduce, or
-   mark them out of scope? A replacement is not the vendor. I propose out of scope, keeping only the
-   local, visible parts: the opt-in banner, stored settings and the blocked-serial list in the public API.
+   **Decided (owner, 2026-10-28): out of scope; the replacement never contacts the vendor.** Done in the
+   follow-up below.
 3. **One exported non-API interface,** `GenericItemHistoryManager`. Other plugins look it up as an OSGi
    service, so SPEC.md must give its signatures as contract, like the public API.
 4. **The public API names an undeclared effect provider key,** `resolution-date-effect-provider`. To check
@@ -131,6 +127,34 @@ I then:
 
 No spec decision (D-n) was changed.
 
+## Follow-up: the owner's two decisions (same day)
+
+1. **Evidence and the copy-similarity reference cover the internal libraries.**
+   - `hidden/_support.reference(jar, libs)` adds the classes of the bundled jars that match `libs`
+     (globs). `check_spec.py` passes `internal_libs`, so evidence such as a class in `structure-commons`
+     now resolves (3,603 classes before, 4,231 with the libraries). Its separate bundled-class helper is
+     gone; the leak rules read the same reference. The hidden tests themselves are unchanged (they use
+     only the modules).
+   - `jira_target.load` resolves `internal_libs` like `public_api` (a glob matching nothing is an error);
+     `prepare_seed.py` extracts them to `vendor/lib/` (git-ignored) and reports staleness.
+   - `scoring.clean_room.extra_jars` now also takes a list of jars or dirs (schema, loader resolution and
+     per-path content hash, scorer, UI field as JSON). `spec/examples/jira-re.yaml` lists `vendor/api`
+     and `vendor/lib`. A single string is hashed as before, so other specs keep their hash. This is a
+     schema extension, not a D-n change.
+   - Not exercised against the real jars yet: the Vineflower decompile of `vendor/lib/` first happens at
+     the first scored checkpoint. Unit-tested with a stub decompiler.
+2. **Phone-home is out of scope.** INVENTORY.md has a new section 5, "Out of scope: contacting the
+   vendor" (the module index is now section 6), and the purposes of `app-support-client`,
+   `app-support-connector`, `plugin-update-checker` and `statistics-manager` say what stays. Module keys
+   stay (they are contract); no network sending; with no reports no serial is ever blocked; the update
+   check always reports none; statistics are collected, stored and purged locally and the opt-in is
+   recorded, but nothing is uploaded. SPEC.md must repeat this in its contract section.
+
+Tests added: list-valued `extra_jars` (schema and scorer), `internal_libs` extraction, evidence grounding
+in a bundled library, and the out-of-scope wording in `spec/`. `pytest`: 1,682 passed; jira-re `-m local`:
+green; `prepare_seed --check` and `build_inventory --check`: up to date; `check_spec`: 1,079 problems, as
+before (none about the inventory or leaks).
+
 ## Next session
 
 The contract and API sections of SPEC.md, starting with:
@@ -138,4 +162,4 @@ The contract and API sections of SPEC.md, starting with:
 - REST paths and payloads, servlets, stored data and persisted names;
 - then the 417 public API types and their signatures (3–5 sessions).
 
-Item 1 above changes how claims are grounded. If possible, decide it before the claims sessions start.
+Evidence may now cite classes of the internal libraries directly.

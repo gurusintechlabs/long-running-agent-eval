@@ -108,6 +108,8 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
         for key in ("jar", "extra_jars"):
             if crd.get(key) is None:
                 crd.pop(key, None)
+            elif isinstance(crd[key], list):
+                crd[key] = [{"sha256": hash_path(Path(p))} for p in crd[key]]
             else:
                 crd[key] = {"sha256": hash_path(Path(crd[key]))}
     if data["scoring"]["behavior"].get("agent_suite_runner") == "pytest":
@@ -183,9 +185,11 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
         if not Path(cr.jar).exists():
             raise SpecError(f"scoring.clean_room.jar: does not exist: {cr.jar}")
     if cr.extra_jars:
-        cr.extra_jars = _resolve(spec_dir, cr.extra_jars)
-        if not Path(cr.extra_jars).exists():
-            raise SpecError(f"scoring.clean_room.extra_jars: does not exist: {cr.extra_jars}")
+        paths = [_resolve(spec_dir, p) for p in ([cr.extra_jars] if isinstance(cr.extra_jars, str) else cr.extra_jars)]
+        for p in paths:
+            if not Path(p).exists():
+                raise SpecError(f"scoring.clean_room.extra_jars: does not exist: {p}")
+        cr.extra_jars = paths[0] if isinstance(cr.extra_jars, str) else paths
     if sec.context_file:
         sec.context_file = _resolve(spec_dir, sec.context_file)
         if not Path(sec.context_file).is_file():

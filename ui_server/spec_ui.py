@@ -202,9 +202,9 @@ FIELD_UI: dict[str, dict] = {
                                       advanced=True),
     "scoring.clean_room.jar": _f("Original jar (path)", "Outside the seed, relative to the spec file; replaces the "
                                  "seed glob when set.", widget="text", advanced=True),
-    "scoring.clean_room.extra_jars": _f("More reference jars", "A jar or a dir of jars (e.g. a bundled public API) "
-                                        "decompiled into the reference too; relative to the spec file.", widget="text",
-                                        advanced=True),
+    "scoring.clean_room.extra_jars": _f("More reference jars", "A jar or a dir of jars (e.g. a bundled public API), "
+                                        "or a JSON list of them, decompiled into the reference too; relative to the "
+                                        "spec file.", widget="json", advanced=True),
     "scoring.clean_room.src": _f("Rewrite sources", "Workspace dirs holding the rewrite's Java.", widget="string_list",
                                  advanced=True),
     "scoring.clean_room.k": _f("k-gram length", "Tokens per fingerprinted k-gram.", unit="tokens", advanced=True),

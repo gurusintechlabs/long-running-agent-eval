@@ -10,7 +10,7 @@ the analyst's files before a run:
 * ``spec/inventory.json`` lists every module of the original ``atlassian-plugin.xml`` with its type;
 * ``spec/claims.jsonl`` is well formed and gives every module at least one active claim;
 * every claim has evidence in ``analyst/claims-evidence.jsonl`` (harness-side), and every reference
-  exists in the jar; the implementer's ``claims.jsonl`` carries no evidence;
+  exists in the jar or in its internal libraries; the implementer's ``claims.jsonl`` carries no evidence;
 * no file in ``spec/`` names a class of the jar by its fully qualified name, unless
   ``analyst/contract-classes.txt`` lists it as part of the external contract (clean-room hygiene), nor
   by a CamelCase simple name (a word the contract needs, such as a URL alias, may be listed alone there);
@@ -27,12 +27,9 @@ Exit 1 when anything is wrong; the report lists every problem.
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import json
 import re
-import io
 import sys
-import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -100,18 +97,6 @@ def contract_classes(path: Path) -> set[str]:
     return {ln.split("#", 1)[0].strip() for ln in path.read_text().splitlines() if ln.split("#", 1)[0].strip()}
 
 
-def bundled_internal_classes(jar: Path, libs: list[str] = ()) -> set[str]:
-    """Classes of the jars inside ``jar`` that match the ``libs`` globs: the vendor's own internal libraries
-    (``internal_libs`` in target.yaml), whose names leak like the plugin's own."""
-    out: set[str] = set()
-    with zipfile.ZipFile(jar) as z:
-        for lib in (n for n in z.namelist() if any(fnmatch.fnmatch(n, g) for g in libs)):
-            with zipfile.ZipFile(io.BytesIO(z.read(lib))) as inner:
-                out |= {n[:-6].replace("/", ".") for n in inner.namelist()
-                        if n.endswith(".class") and not n.endswith("module-info.class")}
-    return out
-
-
 def internal_libs() -> list[str]:
     """``internal_libs`` globs from fixtures/tasks/jira_re/target.yaml."""
     import yaml
@@ -129,7 +114,7 @@ def _internal_simple_names(classes, allowed: set[str]) -> set[str]:
 
 def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, api_jars: list[Path] = (),
           api_tests: list[str] = (), libs: list[str] = ()) -> Report:
-    ref = reference(jar)
+    ref = reference(jar, libs)
     rep = Report(modules=len(ref.modules))
     p = rep.problems
     want = {m.key: m.element for m in ref.modules}
@@ -198,12 +183,11 @@ def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, ap
     public_api = {n.replace("$", ".") for n in surface} | set(surface)
     api_internal = {n.replace("$", ".") for n in api_classes if n not in surface}
     allowed = contract_classes(analyst_dir / "contract-classes.txt") | public_api
-    bundled = bundled_internal_classes(jar, libs)
-    internal_simple = _internal_simple_names(set(ref.all_classes) | bundled, allowed)
+    internal_simple = _internal_simple_names(ref.all_classes, allowed)
     for f in sorted(x for x in spec_dir.rglob("*") if x.is_file()):
         text = f.read_text(errors="replace")
         named = (set(FQCN.findall(text)) | {n.replace("/", ".") for n in JVM_NAME.findall(text)}) - allowed
-        for n in sorted(x for x in named if ref.resolve(x) or x in bundled):
+        for n in sorted(x for x in named if ref.resolve(x)):
             p.append(f"{f.relative_to(spec_dir)}: names internal class {n} (not in contract-classes.txt)")
         for n in sorted(set(CAMEL.findall(text)) & internal_simple):
             p.append(f"{f.relative_to(spec_dir)}: names internal class {n} by its simple name")

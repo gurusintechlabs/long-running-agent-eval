@@ -5,7 +5,7 @@ agent's work dir, once per jar. At every checkpoint it compares the rewrite's Ja
 reference the way plagiarism detectors do: token k-grams, winnowed into fingerprints (Schleimer et al.,
 2003), and reports the share of the rewrite's fingerprints that also occur in the reference
 (containment). ``extra_jars`` (JA1) adds more jars to the reference, decompiled the same way: the public
-API the plugin bundles, which the rewrite re-implements. Two views:
+API the plugin bundles, which the rewrite re-implements, and (JS1) the vendor's internal libraries. Two views:
 
 * ``lrae.cr.structural``: identifiers and literals replaced by placeholders, so renaming, reformatting
   and rewording comments do not hide a copy;
@@ -197,10 +197,11 @@ def score_clean_room(cfg, *, tools_dir: Path, seed_ws: Path, ws: Path, cache_dir
             return unavailable(f"no_jar: expected exactly one {cfg.jar_glob} in the seed, found {len(jars)}")
     extra: list[Path] = []
     if cfg.extra_jars:
-        p = Path(cfg.extra_jars)
-        extra = sorted(p.glob("*.jar")) if p.is_dir() else [p] if p.is_file() else []
-        if not extra:
-            return unavailable(f"no_extra_jars: no jar at {cfg.extra_jars}")
+        for p in map(Path, [cfg.extra_jars] if isinstance(cfg.extra_jars, str) else cfg.extra_jars):
+            jars_here = sorted(p.glob("*.jar")) if p.is_dir() else [p] if p.is_file() else []
+            if not jars_here:
+                return unavailable(f"no_extra_jars: no jar at {p}")
+            extra += jars_here
     try:
         ref_dir = decompile_reference(jars[0], Path(tools_dir), cfg.decompiler, Path(cache_dir))
         extra_dirs = [(j.name, decompile_reference(j, Path(tools_dir), cfg.decompiler, Path(cache_dir))) for j in extra]

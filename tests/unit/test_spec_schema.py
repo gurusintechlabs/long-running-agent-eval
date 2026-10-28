@@ -424,3 +424,21 @@ def test_clean_room_jar_path_is_resolved_and_hashed_by_content(tmp_path):
     (tmp_path / "orig.jar").unlink()
     with pytest.raises(SpecError, match="clean_room.jar"):
         load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+
+
+def test_clean_room_extra_jars_may_be_a_list(tmp_path):
+    """JS1: the reference can take jars from several dirs (the public API and the vendor's internal libraries);
+    each path resolves against the spec file and is hashed by content; a missing one is an error."""
+    for d in ("api", "lib"):
+        (tmp_path / d).mkdir()
+        (tmp_path / d / f"{d}.jar").write_bytes(b"PK " + d.encode())
+    sc = {"judge_model": "claude-opus-5-5", "clean_room": {"enabled": True, "extra_jars": ["api", "lib"]}}
+    loaded = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert loaded.spec.scoring.clean_room.extra_jars == [str((tmp_path / d).resolve()) for d in ("api", "lib")]
+    assert len(json_of(loaded)["scoring"]["clean_room"]["extra_jars"]) == 2
+    (tmp_path / "lib" / "lib.jar").write_bytes(b"PK changed")
+    changed = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert changed.spec_hash != loaded.spec_hash
+    sc["clean_room"]["extra_jars"] = ["api", "gone"]
+    with pytest.raises(SpecError, match="extra_jars"):
+        load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))

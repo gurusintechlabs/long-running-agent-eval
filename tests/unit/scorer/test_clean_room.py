@@ -247,3 +247,33 @@ def test_extra_jars_join_the_reference(tmp_path):
     m = cr.score_clean_room(CleanRoomScoring(**base, extra_jars=str(api.parent)), tools_dir=tools, seed_ws=seed, ws=ws,
                             cache_dir=tmp_path / "c")
     assert m[mn.CR_STRUCTURAL]["value"] is None and m[mn.CR_STRUCTURAL]["detail"]["reason"].startswith("no_extra_jars")
+
+
+def test_extra_jars_may_name_several_places(tmp_path):
+    """JS1: the vendor's internal libraries join the reference beside the public API (a list of jars or dirs)."""
+    tools = tmp_path / "tools"
+    (tools / "bin").mkdir(parents=True)
+    script = tools / "bin" / "vineflower"
+    script.write_text('#!/bin/sh\nmkdir -p "$2/x"\ncp "$1" "$2/x/$(basename "$1" .jar).java"\n')
+    script.chmod(script.stat().st_mode | stat.S_IXUSR)
+    seed, ws = workspaces(tmp_path, RENAMED)
+    plugin = tmp_path / "task" / "vendor" / "plugin.jar"
+    api = tmp_path / "task" / "vendor" / "api" / "acme-api-2.1.jar"
+    lib = tmp_path / "task" / "vendor" / "lib" / "acme-commons-1.0.jar"
+    for f in (api, lib):
+        f.parent.mkdir(parents=True)
+    plugin.write_text(INDEPENDENT)
+    api.write_text(INDEPENDENT)
+    lib.write_text(ORIGINAL)                    # the copied code lives in an internal library
+    base = dict(enabled=True, k=12, window=3, jar=str(plugin.parent))
+    only_api = cr.score_clean_room(CleanRoomScoring(**base, extra_jars=str(api.parent)), tools_dir=tools,
+                                   seed_ws=seed, ws=ws, cache_dir=tmp_path / "c")
+    both = cr.score_clean_room(CleanRoomScoring(**base, extra_jars=[str(api.parent), str(lib.parent)]),
+                               tools_dir=tools, seed_ws=seed, ws=ws, cache_dir=tmp_path / "c")
+    d = both[mn.CR_STRUCTURAL]["detail"]
+    assert both[mn.CR_STRUCTURAL]["value"] >= 0.8 > only_api[mn.CR_STRUCTURAL]["value"]
+    assert d["extra_jars"] == ["acme-api-2.1.jar", "acme-commons-1.0.jar"] and d["reference_files"] == 3
+    lib.unlink()
+    m = cr.score_clean_room(CleanRoomScoring(**base, extra_jars=[str(api.parent), str(lib.parent)]), tools_dir=tools,
+                            seed_ws=seed, ws=ws, cache_dir=tmp_path / "c")
+    assert m[mn.CR_STRUCTURAL]["value"] is None and m[mn.CR_STRUCTURAL]["detail"]["reason"].startswith("no_extra_jars")

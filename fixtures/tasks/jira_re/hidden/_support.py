@@ -20,7 +20,9 @@ Environment (from ``scorer.yaml``):
 """
 from __future__ import annotations
 
+import fnmatch
 import functools
+import io
 import json
 import os
 import re
@@ -145,18 +147,27 @@ class Reference:
         return False
 
 
-def reference(jar: Path) -> Reference:
+def _add_classes(ref: Reference, z: zipfile.ZipFile) -> None:
+    for info in z.infolist():
+        n = info.filename
+        if not n.endswith(".class") or n.startswith("META-INF/") or n.endswith("module-info.class"):
+            continue
+        name = n[:-6].replace("/", ".")
+        try:
+            ref.all_classes[name] = class_methods(z.read(info))
+        except (ValueError, struct.error, IndexError):
+            ref.all_classes[name] = set()
+
+
+def reference(jar: Path, libs: list[str] = ()) -> Reference:
+    """The jar's classes and modules. ``libs``: globs over the jar's entries naming bundled jars whose classes
+    count as the plugin's own (the vendor's internal libraries, ``internal_libs`` in target.yaml)."""
     ref = Reference()
     with zipfile.ZipFile(jar) as z:
-        for info in z.infolist():
-            n = info.filename
-            if not n.endswith(".class") or n.startswith("META-INF/") or n.endswith("module-info.class"):
-                continue
-            name = n[:-6].replace("/", ".")
-            try:
-                ref.all_classes[name] = class_methods(z.read(info))
-            except (ValueError, struct.error, IndexError):
-                ref.all_classes[name] = set()
+        _add_classes(ref, z)
+        for lib in (n for n in z.namelist() if any(fnmatch.fnmatchcase(n, g) for g in libs)):
+            with zipfile.ZipFile(io.BytesIO(z.read(lib))) as inner:
+                _add_classes(ref, inner)
         if "atlassian-plugin.xml" in z.namelist():
             ref.descriptor_found = True
             root = ET.fromstring(z.read("atlassian-plugin.xml"))

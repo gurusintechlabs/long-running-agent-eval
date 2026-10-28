@@ -349,3 +349,26 @@ def test_hidden_java_tests_use_plain_test_methods_only():
                 assert bad not in text, f"{p.name}: {bad}"
             assert f"package {pkg};" in text, p.name
         assert _api.java_tests(root)
+
+
+def test_internal_libs_are_extracted_for_the_scorer(tmp_path):
+    """JS1: the vendor's internal libraries (``internal_libs``) go to vendor/lib/, for the copy-similarity
+    reference; a glob that matches nothing is an error, like ``public_api``."""
+    import io
+    target, vendor = _plugin_with_api(tmp_path)
+    commons = io.BytesIO()
+    with zipfile.ZipFile(commons, "w") as z:
+        z.writestr("com/acme/commons/Sum.class", b"\xca\xfe\xba\xbe")
+    with zipfile.ZipFile(vendor / "p.jar", "a") as z:
+        z.writestr("META-INF/lib/acme-commons-3.1.jar", commons.getvalue())
+    target.write_text(target.read_text() + 'internal_libs: ["META-INF/lib/acme-commons-*.jar"]\n')
+    t = jira_target.load(target, vendor)
+    assert t.internal_libs == ["META-INF/lib/acme-commons-3.1.jar"]
+    dest = vendor / "lib"
+    assert jira_target.extract_internal_libs(t, dest, check=True) is False
+    jira_target.extract_internal_libs(t, dest)
+    assert [p.name for p in dest.glob("*.jar")] == ["acme-commons-3.1.jar"]
+    assert jira_target.extract_internal_libs(t, dest, check=True) is True
+    target.write_text(target.read_text().replace("acme-commons-*", "nothing-*"))
+    with pytest.raises(SystemExit, match="internal_libs"):
+        jira_target.load(target, vendor)

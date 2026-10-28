@@ -7,7 +7,8 @@ Reads ``fixtures/tasks/jira_re/target.yaml``, checks that the named jar is the o
 ``fixtures/tasks/jira_re/vendor/``, records its SHA-256 in ``target.yaml``, pins the seed's ``pom.xml``
 to the resolved Jira, AMPS and Java versions (``jira_target.py``), checks that the seed's ``CLAUDE.md``
 equals the task's (D-15a), extracts the bundled public API libraries named in ``target.yaml``
-(``public_api``) to ``vendor/api/`` for the hidden API tier (phase JA1), copies the visible API tests
+(``public_api``) to ``vendor/api/`` for the hidden API tier (phase JA1) and the vendor's internal libraries
+(``internal_libs``) to ``vendor/lib/`` for the copy-similarity reference (JS1), copies the visible API tests
 (``hidden/api/visible/``) into the seed's ``spec/api-tests/``, builds the seed repo in a temp dir (``runner.seed``, the same procedure the
 harness uses) and writes the resulting commit SHA into ``spec/examples/jira-re.yaml``.
 Prints a short summary of the jar (classes, ``atlassian-plugin.xml`` modules). ``--check`` changes
@@ -119,6 +120,8 @@ def main() -> int:
     api_current = jira_target.extract_public_api(t, vendor / "api", check=True)
     print(f"public API: {', '.join(t.public_api) or '(none)'}"
           + ("" if api_current else "  (vendor/api/ out of date)"))
+    libs_current = jira_target.extract_internal_libs(t, vendor / "lib", check=True)
+    print(f"internal libraries: {len(t.internal_libs)}" + ("" if libs_current else "  (vendor/lib/ out of date)"))
     print(f"visible API tests: {len(_tree(VISIBLE_API_TESTS))} file(s)"
           + ("" if tests_current else "  (spec/api-tests/ out of date)"))
     print(f"seed SHA: {seed_sha}")
@@ -126,7 +129,7 @@ def main() -> int:
     new_target = _sub_line(TARGET.read_text(), "sha256", f'"{sha}"')
     new_spec = _sub_line(SPEC.read_text(), "seed_commit", f'"{seed_sha}"')
     stale = (new_target != TARGET.read_text() or new_spec != SPEC.read_text() or new_pom != old_pom
-             or not api_current or not tests_current)
+             or not api_current or not libs_current or not tests_current)
     if args.check:
         print("out of date: run without --check" if stale else "up to date")
         return 1 if stale else 0
@@ -134,8 +137,9 @@ def main() -> int:
     SPEC.write_text(new_spec)
     pom_path.write_text(new_pom)
     jira_target.extract_public_api(t, vendor / "api")
+    jira_target.extract_internal_libs(t, vendor / "lib")
     sync_visible_api_tests()
-    print("updated target.yaml, the seed's pom.xml, vendor/api/ and the spec's seed_commit" if stale else "already up to date")
+    print("updated target.yaml, the seed's pom.xml, vendor/api/, vendor/lib/ and the spec's seed_commit" if stale else "already up to date")
     return 0
 
 

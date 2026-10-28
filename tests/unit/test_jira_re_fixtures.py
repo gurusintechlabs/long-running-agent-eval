@@ -402,6 +402,40 @@ def test_spec_check_sees_internal_classes_in_bundled_jars(tmp_path):
     assert "ThirdPartyThing" not in text
 
 
+def test_evidence_may_point_into_bundled_internal_libraries(tmp_path):
+    """JS1 (owner, 2026-10-28): much of the original's logic lives in the vendor's internal libraries, so
+    evidence grounds against their classes too, once ``internal_libs`` names them."""
+    import io
+    jar, spec, analyst = _analyst_fixture(tmp_path)
+    lib = io.BytesIO()
+    with zipfile.ZipFile(lib, "w") as z:
+        z.writestr("com/acme/commons/Summer.class", b"not parsed")
+    with zipfile.ZipFile(jar, "a") as z:
+        z.writestr("META-INF/lib/acme-commons-1.0.jar", lib.getvalue())
+    (analyst / "claims-evidence.jsonl").write_text('{"id": "C-0001", "evidence": ["com.acme.Gate"]}\n'
+                                                    '{"id": "C-0002", "evidence": ["com.acme.commons.Summer"]}\n')
+    sys.path.insert(0, str(TASK / "analyst"))
+    sys.path.insert(0, str(TASK / "hidden"))
+    import check_spec
+    from _support import reference
+    libs = ["META-INF/lib/acme-commons-*.jar"]
+    assert reference(jar, libs).resolve("com.acme.commons.Summer") and not reference(jar).resolve("com.acme.commons.Summer")
+    assert set(reference(jar, libs).classes) - set(reference(jar).classes) == {"com.acme.commons.Summer"}
+    without = check_spec.check(jar=jar, spec_dir=spec, analyst_dir=analyst).problems
+    assert "claims-evidence.jsonl: C-0002: com.acme.commons.Summer is not in the jar" in without
+    assert check_spec.check(jar=jar, spec_dir=spec, analyst_dir=analyst, libs=libs).problems == []
+
+
+def test_the_spec_rules_out_contacting_the_vendor():
+    """Owner, 2026-10-28: the replacement keeps the module keys of the phone-home parts but never contacts the
+    vendor (licence reports, usage statistics upload, Marketplace update check)."""
+    inv = json.loads((SEED / "spec" / "inventory.json").read_text())
+    purpose = {m["key"]: m["purpose"] for m in inv["modules"]}
+    for key in ("app-support-client", "app-support-connector", "plugin-update-checker", "statistics-manager"):
+        assert "Out of scope" in purpose[key], key
+    assert "Out of scope: contacting the vendor" in (SEED / "spec" / "INVENTORY.md").read_text()
+
+
 def test_inventory_is_built_from_the_descriptor_and_the_analysts_notes(tmp_path):
     """build_inventory.py: contract fields come from the declaration for the pinned Jira; internal class
     names never reach spec/, contract classes and exported API interfaces do."""

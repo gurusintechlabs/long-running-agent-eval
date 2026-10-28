@@ -237,6 +237,8 @@ def _absolutize(raw: dict, base: Path) -> dict:
     def fix(obj: Any, key: str) -> None:
         if isinstance(obj, dict) and isinstance(obj.get(key), str):
             obj[key] = _resolve(base, obj[key])
+        elif isinstance(obj, dict) and isinstance(obj.get(key), list) and key == "extra_jars":
+            obj[key] = [_resolve(base, p) if isinstance(p, str) else p for p in obj[key]]
 
     for section, fld in _PATH_FIELDS + [("task", "seed_repo")]:
         fix(d.get(section), fld)

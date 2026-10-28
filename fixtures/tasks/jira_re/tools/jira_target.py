@@ -68,6 +68,7 @@ class Target:
     vendor_deps: list[str] = field(default_factory=list)    # the vendor's own modules, not primed
     exclusions: list[str] = field(default_factory=list)     # group:artifact no repository serves
     public_api: list[str] = field(default_factory=list)     # bundled public API libs (entries in the jar)
+    internal_libs: list[str] = field(default_factory=list)  # the vendor's internal libs (entries in the jar)
 
 
 def _local(tag: str) -> str:
@@ -205,16 +206,19 @@ def load(target_file: Path = TARGET, vendor: Path = VENDOR) -> Target:
     own = [d for d in deps if vendor and (d.group == vendor or d.group.startswith(vendor + "."))]
     with zipfile.ZipFile(jar) as z:
         entries = z.namelist()
-    public_api = []
-    for pat in cfg.get("public_api") or []:
-        hits = sorted(n for n in entries if fnmatch.fnmatchcase(n, str(pat)) and n.endswith(".jar"))
-        if not hits:
-            raise SystemExit(f"public_api: {pat!r} in {target_file.name} matches no jar inside {jar.name}")
-        public_api += [h for h in hits if h not in public_api]
+    def bundled(field_: str) -> list[str]:
+        out: list[str] = []
+        for pat in cfg.get(field_) or []:
+            hits = sorted(n for n in entries if fnmatch.fnmatchcase(n, str(pat)) and n.endswith(".jar"))
+            if not hits:
+                raise SystemExit(f"{field_}: {pat!r} in {target_file.name} matches no jar inside {jar.name}")
+            out += [h for h in hits if h not in out]
+        return out
     return Target(jar=jar, jira_version=jira, amps_version=amps, java_release=java, sources=sources,
                   original_deps=[d for d in deps if d not in own], skipped_deps=skipped, plugin_key=key,
                   pom_name=pom_name, vendor_deps=[d.coords for d in own],
-                  exclusions=sorted({str(x) for x in cfg.get("maven_exclusions") or []}), public_api=public_api)
+                  exclusions=sorted({str(x) for x in cfg.get("maven_exclusions") or []}),
+                  public_api=bundled("public_api"), internal_libs=bundled("internal_libs"))
 
 
 # ---------------------------------------------------------------- the bundled public API (phase JA1, design §7.4)
@@ -253,9 +257,18 @@ def embedded_pom_of(z: zipfile.ZipFile) -> tuple[str | None, ET.Element | None]:
 def extract_public_api(t: Target, dest: Path, *, check: bool = False) -> bool:
     """Write each public API library to ``dest/<file name>``, and remove any other jar there. With
     ``check``, write nothing and return whether ``dest`` is already up to date."""
+    return _extract(t.jar, t.public_api, dest, check=check)
+
+
+def extract_internal_libs(t: Target, dest: Path, *, check: bool = False) -> bool:
+    """The same for the vendor's internal libraries (JS1): the copy-similarity reference decompiles them."""
+    return _extract(t.jar, t.internal_libs, dest, check=check)
+
+
+def _extract(jar: Path, entries: list[str], dest: Path, *, check: bool) -> bool:
     dest = Path(dest)
-    with zipfile.ZipFile(t.jar) as z:
-        want = {entry.rsplit("/", 1)[-1]: z.read(entry) for entry in t.public_api}
+    with zipfile.ZipFile(jar) as z:
+        want = {entry.rsplit("/", 1)[-1]: z.read(entry) for entry in entries}
     have = {p.name: p for p in dest.glob("*.jar")} if dest.is_dir() else {}
     current = set(have) == set(want) and all(have[n].read_bytes() == b for n, b in want.items())
     if check or current:

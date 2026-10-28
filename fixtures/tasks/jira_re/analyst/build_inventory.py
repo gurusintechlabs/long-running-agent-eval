@@ -33,7 +33,7 @@ sys.path.insert(0, str(TASK / "hidden"))
 sys.path.insert(0, str(HERE))
 
 from _support import NON_MODULES, reference  # noqa: E402
-from check_spec import CAMEL, SEED_SPEC, _internal_simple_names, bundled_internal_classes, contract_classes, internal_libs  # noqa: E402
+from check_spec import CAMEL, SEED_SPEC, _internal_simple_names, contract_classes, internal_libs  # noqa: E402
 
 # module attributes that are internal or carried elsewhere
 SKIP_ATTRS = {"key", "class", "name", "i18n-name-key"}
@@ -97,13 +97,11 @@ def contract_of(el: ET.Element, labels: dict[str, str], hidden) -> dict:
 
 def build(jar: Path, notes: dict, contract: set[str], jira: str, labels: dict[str, str],
           libs: list[str] = ()) -> dict:
-    ref = reference(jar)
-
-    bundled = bundled_internal_classes(jar, libs)
-    internal = _internal_simple_names(set(ref.all_classes) | bundled, contract)
+    ref = reference(jar, libs)
+    internal = _internal_simple_names(ref.all_classes, contract)
 
     def hidden(v: str) -> bool:
-        return (any(ref.resolve(n) or n in bundled for n in re.findall(r"[\w$.]+", v) if "." in n and n not in contract)
+        return (any(ref.resolve(n) for n in re.findall(r"[\w$.]+", v) if "." in n and n not in contract)
                 or bool(set(CAMEL.findall(v)) & internal))
 
     with zipfile.ZipFile(jar) as z:

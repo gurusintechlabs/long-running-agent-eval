@@ -51,7 +51,8 @@ CLAIM_ID = re.compile(r"^C-\d{4}$")
 CONFIDENCE = {"high", "medium", "low"}
 STATUS = {"active", "retracted"}
 JVM_NAME = re.compile(r"(?<![\w$/])L?((?:[a-z_][a-z0-9_]*/)+[A-Z][A-Za-z0-9_$]*)")   # com/acme/Foo, as in Lcom/acme/Foo;
-CAMEL = re.compile(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)+\b")                        # RuleEngine, not Folder
+# two capitals or more and a lower-case letter: RuleEngine and AOBasedStore (JC2), not Folder or JSON
+CAMEL = re.compile(r"\b(?=(?:[a-z0-9]*[A-Z]){2})(?=[A-Za-z0-9]*[a-z])[A-Z][A-Za-z0-9]*\b")
 FQCN = re.compile(r"\b(?:[a-z_][a-z0-9_]*\.)+[A-Z][A-Za-z0-9_$]*(?:\.[A-Z][A-Za-z0-9_$]*)*")
 
 

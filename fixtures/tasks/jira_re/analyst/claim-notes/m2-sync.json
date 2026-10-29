@@ -1,0 +1,755 @@
+{
+ "claims": [
+  {
+   "key": "m2-sync/sync-manager/get-installed-null-or-unknown",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`getInstalledSynchronizer(null)` returns null without any other work (also while the plugin is stopped). For 0, a negative ID or an ID with no `AO_8BAD1B_SYNC_INSTANCE` row it returns null (logged at info level), never throws.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#getInstalledSynchronizer",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#getSyncInstance",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#get"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/get-installed-instance-fields",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "An instance returned by `getInstalledSynchronizer` reflects its `AO_8BAD1B_SYNC_INSTANCE` row: `getId` is `ID`, `getStructureId` is `C_STRUCTURE_ID`, `getSynchronizerModuleKey` is `C_MODULE_KEY`, `getUserKey` is `C_OWNER`; `getSynchronizer` is the registered `structure-synchronizer` module with that complete key (null when no such module is currently registered), and `getParameters` is that synchronizer's `restoreParameters(C_PARAMETERS)` (null when the synchronizer is null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SyncInstanceLoader#load",
+    "com.almworks.jira.structure.sync.DataBasedSyncInstance",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#get"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/get-installed-restore-failure",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "When the registered synchronizer's `restoreParameters` throws (any exception or `LinkageError`) for a stored instance, `getInstalledSynchronizer` returns null for that ID and `getInstalledSynchronizersForStructure` leaves the instance out of its list; the failure is logged, not thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SyncInstanceLoader#load",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#restoreParams",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#getSyncInstance"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/get-installed-cached",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Instances are cached per ID (and the ID list per structure) and the caches are invalidated by this module's own install, uninstall, update and autosync changes, so those changes are visible to the next call on the same node. A row written to `AO_8BAD1B_SYNC_INSTANCE` behind the module's back may not be seen until the cache expires (cache timeout setting `structure.sync.cache.timeout`, slowly expiring) or caches are cleared.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#<init>",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#clearCaches",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#installSynchronizer0",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#uninstallSynchronizer"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/clear-caches",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`clearCaches()` (the `CachingComponent` contract) drops the cached instances, per-structure ID lists and the set of autosync-enabled IDs, so the next calls re-read `AO_8BAD1B_SYNC_INSTANCE`. `clearUserCaches(user)` does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#clearCaches",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#clearUserCaches"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/for-structure-list",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`getInstalledSynchronizersForStructure(null)` returns an empty list without other work; 0 gives an empty list. Otherwise it returns one instance per `AO_8BAD1B_SYNC_INSTANCE` row whose `C_STRUCTURE_ID` equals the ID, in the order the database returns them (no sorting), skipping instances that cannot be loaded. When the ID query itself fails it logs and returns an empty list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#getInstalledSynchronizersForStructure",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SyncInstanceByStructureLoader#load"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/install-validation-order",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`installSynchronizer(sync, structureId, params, user)` throws `StructureSynchronizerException`, checked in this order: synchronizer null (`null synchronizer`), user null (`null user`), `sync.isAvailable()` false (`synchronizer <sync> is not currently available`), structure ID null or not positive (`invalid structure ID <id>`), the synchronizer's complete module key not a currently registered `structure-synchronizer` module (`<descriptor label> (<class name>) is not registered`). The structure's existence and the user's permissions are not checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#installSynchronizer",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#installSynchronizer0",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#checkSynchronizerModuleAvailable"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/install-store-params-errors",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "When installing (and in `resyncOnce` and `updateSynchronizer`), the parameters are serialized with the synchronizer's `storeParameters`. A `ClassCastException` becomes a `StructureSynchronizerException` with message `<sync> invalid parameters class`; any other exception or `LinkageError` becomes one with message `<sync> cannot store parameters`; the original is the cause. Nothing is stored in that case.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#storeParams"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/install-row",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "A successful `installSynchronizer` creates one `AO_8BAD1B_SYNC_INSTANCE` row: `C_STRUCTURE_ID` the structure, `C_MODULE_KEY` the synchronizer's complete module key, `C_OWNER` the user's key, `C_PARAMETERS` the stored parameter text (a blank text, including empty, is stored as null), `C_ENABLED` false. Afterwards `isAutosyncEnabled` of the new ID is false and `getInstalledSynchronizersForStructure` includes it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#installSynchronizer0",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#create",
+    "com.almworks.jira.structure.sync.SyncInstanceData#<init>"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/install-returned-instance",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "The instance returned by `installSynchronizer` has the new auto-generated ID, the structure ID, module key and owner key as stored, `getSynchronizer()` the very synchronizer passed in, and `getParameters()` the same parameter object passed in (not a restored copy).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#installSynchronizer0",
+    "com.almworks.jira.structure.sync.DataBasedSyncInstance"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/install-audit",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "After installing, the module calls `SyncAuditLog.recordActions(instance, description, null)` with description keys in order `action`=`install`, `loggedInUserKey` (key of the current Structure user, empty string when anonymous), `parameters` (the parameter object passed in, an empty map when null). Since the group has no actions it is only written to the database when empty groups are stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#installSynchronizer0",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#describeAction"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/restore-with-id",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "The module also offers a restore variant of install (used by backup restore) that takes an explicit instance ID: with a non-zero ID the `AO_8BAD1B_SYNC_INSTANCE` row is created with exactly that `ID`; validation, stored columns, returned instance and the `install` audit record are as for `installSynchronizer`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#restoreSynchronizer",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#create"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/install-offline-validation",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`installSynchronizerOffline(moduleKey, parameters, structureId, ownerKey, enabled)` throws `StructureSynchronizerException` `invalid structure ID <id>` when the structure ID is null or not positive, then `null or nonexistent user '<ownerKey>'` when the owner key is blank or Jira's user manager finds no user by that key. The module key is not checked against registered modules (an unknown key is stored as given), but a blank module key makes it throw `IllegalArgumentException` (message `moduleKey = <key>`) before anything is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#installSynchronizerOffline",
+    "com.almworks.jira.structure.sync.SyncInstanceData#<init>"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/install-offline-row",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "A successful `installSynchronizerOffline` stores the module key, owner key and parameter text verbatim (blank text as null) with `C_ENABLED` set to the given flag, and returns the new `ID`. When enabled is true, `isAutosyncEnabled` of the new ID is immediately true; no 'autosync enabled' event is recorded for it. It then records an audit group with instance ID, module key and structure ID and description `action`=`installOffline`, `autosyncEnabled` (the flag), `loggedInUserKey`, `parameters` (the parameter string itself, an empty map when null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#installSynchronizerOffline",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#describeAction",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#create"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/uninstall-one",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`uninstallSynchronizer(id)` deletes that instance's `AO_8BAD1B_SYNC_INSTANCE` row; afterwards `getInstalledSynchronizer(id)` is null, `isAutosyncEnabled(id)` false, and the structure's list no longer contains it. It then records an audit group with the deleted row's instance ID, module key and structure ID and description `action`=`uninstall`, `loggedInUserKey`, `parameters` (the stored parameter string, an empty map when null). Rows in other tables that refer to the instance are not touched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#uninstallSynchronizer",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#delete"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/uninstall-null-unknown",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`uninstallSynchronizer(null)` does nothing (also while stopped). An ID with no row, 0, or one outside the 32-bit range deletes nothing and records no audit group, and does not throw (it only drops the module's caches).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#uninstallSynchronizer",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#delete",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#find"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/uninstall-queued-resync-still-runs",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Uninstalling an instance does not cancel a resync of it that was already requested and not yet run: the queued request keeps the owner, structure, module key and parameters captured at request time and still runs on the next sync job pass (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#uninstallSynchronizer",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob#runSyncs",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$ResyncRunner#prepareAndValidate"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/uninstall-all",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`uninstallAllSynchronizers()` deletes every `AO_8BAD1B_SYNC_INSTANCE` row and records one audit group with instance ID 0, module key empty, structure ID 0 and description `action`=`uninstallAll`, `loggedInUserKey` (no `parameters` key).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#uninstallAllSynchronizers",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#deleteAll",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#describeAction"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/uninstall-for-structure",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`uninstallSynchronizersForStructure(null)` does nothing. Otherwise it deletes all rows with that `C_STRUCTURE_ID` (for 0 or an ID outside the 32-bit range it deletes nothing and only logs a warning) and records one audit group with instance ID 0, empty module key, the given structure ID and description `action`=`uninstallAllForStructure`, `loggedInUserKey`; the audit group is recorded even when no rows existed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#uninstallSynchronizersForStructure",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#deleteForStructure"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/is-autosync-enabled",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`isAutosyncEnabled(id)` is true exactly when an `AO_8BAD1B_SYNC_INSTANCE` row with that `ID` has `C_ENABLED` true (read through a cached set of enabled IDs). Null gives false without other work; an unknown ID gives false; when the set cannot be loaded it logs a warning and returns false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#isAutosyncEnabled",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$EnabledSyncInstancesLoader#load"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/set-autosync-errors",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`setAutosyncEnabled(null, x)` does nothing. Otherwise it throws `StructureSynchronizerException`: `sync instance #<id> not found` when the instance cannot be loaded (no row, or its parameters cannot be restored); `synchronizer module <moduleKey> is not enabled` when no module with its key is registered; `synchronizer <sync> is not currently available` when `isAvailable()` is false; `synchronizer <sync> does not support autosync` when `isAutosyncSupported()` is false. These checks apply to disabling too, so an instance whose module is missing cannot be disabled; nothing is changed when it throws.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#setAutosyncEnabled",
+    "com.almworks.jira.structure.sync.SyncInstanceNotFoundException"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/set-autosync-effect",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "A successful `setAutosyncEnabled(id, enabled)` writes `C_ENABLED`=enabled, so `isAutosyncEnabled(id)` returns enabled at once. When enabling, an 'autosync enabled' marker is handed to the sync-events-manager (on Data Center it records the structure's latest history version, so the instance reacts only to changes from then on). Calling it with the current value is not an error and repeats the write, the marker and the audit record.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#setAutosyncEnabled",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#updateEnabled"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/set-autosync-audit",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "After `setAutosyncEnabled` the module records an audit group for the instance with description keys `action`=`setAutosyncEnabled`, `enabled` (the boolean), `loggedInUserKey`, `parameters` (the instance's restored parameter object, an empty map when null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#setAutosyncEnabled",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#describeAction"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/disable-for-structure",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "The module can disable all synchronizers of one structure (used when a structure is archived): it calls `setAutosyncEnabled(id, false)` for every instance in `getInstalledSynchronizersForStructure(structureId)`; an instance that fails (for example its module is missing or does not support autosync) is logged and skipped, the rest are still disabled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#disableSynchronizers"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/resync-errors",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`resync(id, andEnable, processId)` throws `StructureSynchronizerException`: `instanceId == null` for a null ID; for 0 `invalid sync instance id 0`; `sync instance #<id> not found` when no row exists; the restore error when the parameters cannot be restored; `synchronizer <sync or null> is not available` when the module is not registered or `isAvailable()` is false; `... does not support autosync` when andEnable is true and the synchronizer does not support it; `user [userKey=<key>] could not be found, cannot resync instance #<id>` when Jira's user manager has no user with the owner key. Nothing is queued or changed when it throws.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#resync",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#requireSyncInstance",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#get"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/resync-queues",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "A successful `resync` does not run the synchronizer in the calling thread: it queues a resync request (on Data Center an `AO_8BAD1B_SYNC_EVENT` row of type 127) carrying the instance ID, structure ID, module key, owner key, stored parameter text and process ID, and returns. Without andEnable it changes nothing else and records no audit group.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#resync",
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#recordResyncRequest"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/resync-and-enable",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`resync(id, true, p)` also sets `C_ENABLED` true at once (so `isAutosyncEnabled` is immediately true) after queuing the request, without recording an 'autosync enabled' marker, and records an audit group for the instance with description `action`=`enableAfterResync`, `loggedInUserKey`, `parameters`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#resync"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/resync-requests-coalesce",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Several resync requests for the same installed instance queued before the next sync job pass are merged: only the last one runs. One-time requests (`resyncOnce`) are never merged; each one runs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#drainEvents",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob#runSyncs"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/resync-once-validation",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`resyncOnce(sync, params, structureId, user, processId)` throws `StructureSynchronizerException` `invalid structure ID <id>` for a null or non-positive structure ID, `null user` for a null user, `synchronizer <sync> is not currently available` when unavailable, `... is not registered` when its module key is not registered, and the store errors when parameters cannot be stored. A null synchronizer throws `NullPointerException` (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#resyncOnce",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#checkSynchronizerModuleAvailable",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#storeParams"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/resync-once-no-instance",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "A successful `resyncOnce` queues a one-time resync run as the given user with instance ID 0; it creates no `AO_8BAD1B_SYNC_INSTANCE` row and records no audit group at request time. During the run the `SyncInstance` given to the synchronizer has ID 0, and Jira and structure changes it makes are not attributed to any synchronizer instance.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#resyncOnce",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner$RunningSyncInstanceSetter#set",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner#runSync"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/update-errors",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`updateSynchronizer(id, params, user)` throws `StructureSynchronizerException`: `instanceId == null` for null; the not-found / invalid-ID / restore errors as `resync` does; `sync instance #<id> must be disabled to edit` when the instance's autosync is enabled; `cannot update sync instance #<id>: <moduleKey> is not available` when no module with its key is registered (the synchronizer's `isAvailable()` is not checked); store errors from `storeParameters`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#updateSynchronizer",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#requireSyncInstance"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/update-effect",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "`updateSynchronizer` stores the new owner key when user is non-null and the newly stored parameter text when params is non-null; a value that is blank after storing leaves that column unchanged. With both null nothing is written. It returns a new instance read back from the row, whose `getParameters()` is the synchronizer's `restoreParameters` of the stored text (a fresh object, not the one passed in).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#updateSynchronizer",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#updateOwnerAndParams"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/update-audit",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Every successful `updateSynchronizer`, even with both arguments null, records an audit group for the returned instance with description keys in order `action`=`edit`, `changedOwner` (user non-null), `changedParameters` (params non-null), `ownerKey` (the owner key after the update), `loggedInUserKey`, `parameters` (the restored parameters).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#updateSynchronizer",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#describeAction"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/transfer-entities",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "For Jira's user anonymisation the module lists one entity per instance whose `C_OWNER` is the user's key, with description i18n key `s.anonymize.sync-instance.description` (argument: the instance ID), link `secure/StructureSync.jspa?id=<structure ID>` and link text key `s.anonymize.sync-instance.link`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#getEntitiesToTransfer",
+    "com.almworks.jira.structure.sync.SyncInstanceIO#find"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/transfer-ownership",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Transferring ownership from one user to another processes each instance owned by the first user: it disables autosync, sets the owner to the second user, and enables autosync again if it was enabled before (audit groups for each step). Any `StructureSynchronizerException` (for example a synchronizer that does not support autosync or whose module is missing, since disabling is attempted for every instance) adds the error message of i18n key `s.anonymize.sync-instance.failed` (argument: the instance ID) to the returned result and leaves that instance's owner unchanged (as the original does); the other instances are still processed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#transferOwnership"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/lifecycle-stopped",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "After the plugin stops, the methods throw `StructureStoppedException`, except calls given a null ID (`getInstalledSynchronizer`, `getInstalledSynchronizersForStructure`, `uninstallSynchronizer`, `uninstallSynchronizersForStructure`, `isAutosyncEnabled`, `setAutosyncEnabled`) which return their null result first, and the argument checks that `installSynchronizer`, `installSynchronizerOffline` and `resyncOnce` make before touching storage.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#check",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#getInstalledSynchronizer",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#installSynchronizer0"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/lifecycle-lazy-start",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "The first method call that reaches storage before the plugin start has run performs the start itself (once; concurrent callers wait up to 180 seconds for it). Starting schedules the sync job (first pass immediately, then every `structure.sync.autosync.interval` ms, default 2000; a value of 0 or less schedules no job, so nothing ever runs automatically) and, on Data Center, tries to become the single node that runs synchronizers.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#start0",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#check",
+    "com.almworks.structure.commons.lifecycle.Starter#start"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/lifecycle-listeners",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "At start the module subscribes to Jira issue changes and structure changes only when the dark feature `structure.feature.synchronizers.enabled` is on or at least one `AO_8BAD1B_SYNC_INSTANCE` row exists; this is decided once, so a synchronizer installed later in the same plugin lifetime gets no change events until restart (as the original does). Each Jira change is recorded with the current time and the ID of the instance whose run is making it (none outside a run); each structure history entry is recorded as a structure event.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#start0",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SyncEventReportingListener#onIssueChanged",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SyncEventReportingListener#onStructuresChanged",
+    "com.almworks.jira.structure.sync.SyncHideHelper"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/lifecycle-stop",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "On stop the module unsubscribes from issue and structure changes, cancels the sync job, waits up to `structure.sync.stopSynchronizationJobTimeout` ms (default 10000) for a running pass to finish (logging a warning on timeout) and on Data Center releases the synchronizer-node role.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#stopComponent",
+    "com.almworks.jira.structure.cluster.ExclusiveClusterJob#shutdown"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/job-skips",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "A sync job pass does nothing when another pass is still running, when Active Objects is locked (for example during restore), when a full Jira reindex makes index use impossible, or on Data Center when this node is not the synchronizer node.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cluster.ExclusiveClusterJob#doJob"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/job-which-instances",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Each pass runs incremental sync for the instances with `C_ENABLED` true whose module is registered, `isAvailable()` and `isAutosyncSupported()`; instances whose module is missing or unavailable are skipped (logged) and picked up again in a later pass once the module is back. Without the system setting `structure.sync.order` the order is that of the enabled IDs, ascending.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob#manageEnabledSyncInstances",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#startInstances",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob#getEnabledSyncInstances",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob#reresolve"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/job-order-setting",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "When `structure.sync.order` is set, enabled instances run in that order: a comma-separated list of instance IDs, short names `links`, `agile`, `subtasks`, `filter`, `rollup` (the five built-in synchronizer module keys) or complete module keys (containing `:`); the value `true` means `links,agile,subtasks,filter,rollup`. Instances matching an earlier element run first; unmatched ones run last; the sort is stable. Unknown elements are logged and ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.SynchronizersOrdering#parseOrder",
+    "com.almworks.jira.structure.sync.SynchronizersOrdering$SynchronizerDataComparator#compare"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/job-resync-before-incremental",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "In a pass, an enabled instance with a pending resync request runs that resync instead of its incremental sync. After all enabled instances, the remaining instance resync requests (for disabled instances) and then the one-time requests run, in request order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob#runSyncs"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/run-as-owner",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Every run (incremental or resync) executes as the owner: the module looks the owner key up with Jira's user manager and runs with that user as the current Structure user; when the user is not found the run is skipped with a warning (no audit group, the process status is not changed). The forest given to the synchronizer is the structure's skeleton forest secured for the owner; when the structure is missing or not accessible to the owner the run is skipped with a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner#runSync",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner#getForestSource"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/run-thread-context",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "While a synchronizer runs, `SyncLogger.get()` on that thread returns a logger for the run (cleared afterwards) and the thread name has the run's log prefix appended (restored afterwards). Jira changes the run makes are attributed to the instance (positive IDs only), and structure history entries it writes carry the instance ID as `C_SYNCHRONIZER`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner#runSync0",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner$SyncLoggerSetter#set",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner$ThreadNameAppender#append",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner$RunningSyncInstanceSetter#set"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/run-process-status",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "When a resync request carries a process ID, the background process is set to `ProcessStatus.RUNNING` when the synchronizer starts and to `ProcessStatus.FINISHED` when it ends, also when it fails. When the run is skipped before starting (module unavailable, owner missing, structure inaccessible, parameters not restorable) the status is not changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner#runSync0",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$ResyncRunner#prepareAndValidate"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/resync-run-module-lookup",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "A queued resync looks the synchronizer module up by key when it runs and restores the parameters captured at request time; when the module is not registered or not available, or the parameters cannot be restored, the run is skipped with a warning. It calls the synchronizer's `resync(instance, forestSource)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$ResyncRunner#prepareAndValidate",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$ResyncRunner#runSync1"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/run-failure-audit",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "When the synchronizer throws, the error is logged and, only if `SyncAuditLog.isActionGroupRecorded(null)` is true, a failure group is recorded for the instance with the description from `SyncAuditLogHelper.createAuditLogEntryDescription` plus `SyncAuditLogHelper.getFailureDescription` (sync data only for incremental runs). For a `StructureException` that `SyncLogger.warnStructureException` explains, the description has that text as `reason` and no `exception`; otherwise the exception is included. A failure never stops the pass: the next instance still runs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner#runSync0",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$SyncRunner#recordFailure"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/incremental-events",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "An incremental run calls the synchronizer's `sync(instance, data, forestSource)` with the Jira change events and the structure change events (only those for the instance's structure) that arrived since its previous run, excluding events caused by this same instance. When there are no such events the synchronizer is not called.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#getSyncData",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#getEvents",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#getStructureEvents",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#runSync1"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/incremental-delay",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Events are passed on at once by default. With `structure.sync.mindelay` (ms, default 0) positive, a run is postponed while the newest pending event is younger than that delay, unless the oldest pending event is at least `structure.sync.maxdelay` ms old (default 15000; 0 or less disables this override); postponed events are kept for the next pass.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#isGoodTimeToSync"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/incremental-resync-fallback",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Instead of an incremental run the module runs a full resync of the instance in the same pass when more than `structure.sync.autosync.maxJiraChanges` (default 10000) Jira events are pending for it, or when the structure events exceed both `structure.sync.autosync.maxStructureChangesFixed` (default 10000) and `structure.sync.autosync.maxStructureChangesCoeff` (default 2) times the current forest size.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#getJiraEvents",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#getStructureEvents",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob#runSyncs"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/cycle-guard",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "Cycle guard: when an instance has run incrementally `structure.sync.guard.maxAutosyncsWithoutUserChanges` times in a row (default 10) only because of changes made by another synchronizer instance, with no change by a user in between, and its previous runs did make changes, the run is skipped and the pair is reported as a cycle. Unless `structure.sync.guard.stop.disable` is set, both instances get autosync disabled at the end of the pass. `structure.sync.guard.disable` turns the guard off.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.SyncCycleGuard#detectCycle",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#handleDetectedCycles",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#stopCycledSyncs"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/cycle-mails",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "When outgoing mail is configured, a detected cycle sends mail template `sync-cycle` to the active owners of both instances (at most once per `structure.sync.guard.email.admin.interval` ns per instance, default one day; off with `structure.sync.guard.email.owner.disable`) and to Jira's active system administrators after `structure.sync.guard.email.admin.cycles` cycles (default 1) and the same interval (off with `structure.sync.guard.email.admin.disable`). The mail says whether the instances were stopped and gives the limit; no mail is sent when either synchronizer module is unavailable.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.SyncCycleMails#sendMails",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager$SynchronizationJob$IncrementalSyncRunner#sendCycleMails"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/verification-mail",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "When an enabled instance first starts in the sync job and its synchronizer is one of the plugin's own that can verify instances, the configuration is verified as the owner; verification errors send mail template `sync-error` to the owner when active (none to an inactive owner). When verification itself throws, the instance is uninstalled.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#startInstances",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#verifyInstance",
+    "com.almworks.jira.structure.sync.AOBasedSyncManager#sendVerificationErrorEmail"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-manager/no-permission-checks",
+   "module": "sync-manager",
+   "api": null,
+   "behaviour": "None of the `StructureSyncManager` methods checks the caller's permissions on the structure or Synchronization app permission; the only user checks are that an owner exists (install offline, resync, at run time).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncManager"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/record-by-instance",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "`recordActions(instance, description, actions)` records the group with `instance.getId()`, `instance.getSynchronizerModuleKey()` and `instance.getStructureId()`, exactly as the explicit-ID form.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#recordActions"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/record-queued",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "`recordActions` does not write to the database: it timestamps the group with the current time and queues it; a null actions list becomes empty. The queue is written by a background job every `structure.sync.audit.pendingRecordsWriteInterval` ms (default 30000), so `getActions` sees a group only after the next write.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#recordActions",
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#startComponent",
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#writePendingActionGroups"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/record-disabled",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "With `structure.sync.audit.pendingRecordsWriteInterval` set to 0, `recordActions` ignores every group (logged at info) and no write job is started. A negative value queues groups but never writes them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#recordActions",
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#startComponent"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/record-overflow",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "When more than 1,000,000 groups are pending, `recordActions` first drops the oldest pending groups down to 1,000,000 (logging an error with the number dropped), then queues the new one.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#ensurePendingActionGroupsBufferSize"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/write-skip",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "A write pass does nothing while Active Objects is locked (pending groups stay queued). It drops groups with no actions unless the dark feature `structure.sync.audit.writingEmptyGroups` is on at write time.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#writePendingActionGroups"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/write-rows",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "Each written group becomes one `AO_8BAD1B_SYNC_AUDIT_RECORD` header row (`C_GROUP_ID` 0, `C_SYNC_INSTANCE`, `C_SYNC_MODULE_KEY` with empty stored as null, `C_STRUCTURE_ID`, `C_TIMESTAMP`, `C_DATA` the description's JSON text or null) followed by one row per non-null action, in order, with the same `C_SYNC_INSTANCE` and `C_TIMESTAMP`, `C_GROUP_ID` the header's `ID`, `C_DATA` the action's JSON text, and no module key or structure ID.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#writeActionGroup"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/is-recorded",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "`isActionGroupRecorded` reads the dark feature `structure.sync.audit.writingEmptyGroups` on each call: true for a non-empty list, otherwise (null or empty) the feature's value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#isActionGroupRecorded"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/get-filters",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "`getActions(instanceId, structureId, from, to)` reads `AO_8BAD1B_SYNC_AUDIT_RECORD` rows filtered by `C_SYNC_INSTANCE`=instanceId only when it is positive, `C_STRUCTURE_ID`=structureId only when positive, `C_TIMESTAMP` >= from only when from > `Long.MIN_VALUE`, and `C_TIMESTAMP` <= to only when to < `Long.MAX_VALUE`; and returns the groups sorted by timestamp, newest first (groups with equal timestamps keep their read order).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#getActions"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/get-group-shape",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "Each returned group has the header row's instance ID, module key (empty string when the column is null), structure ID, timestamp and description (null when `C_DATA` is null or not valid JSON), and as actions the read rows whose `C_GROUP_ID` is that header's `ID`, in read order; an action row with null or unparsable `C_DATA` is left out. Action rows whose header is not among the read rows are not returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog$ActionCollector#onRowRead",
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog$ActionCollector#mapObject"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/get-structure-filter-drops-actions",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "Because action rows have no `C_STRUCTURE_ID`, `getActions` with a positive structure ID returns the matching groups with empty action lists (as the original does); filtering by instance ID keeps the actions.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#getActions",
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#writeActionGroup"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/get-limit",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "`getActions` reads at most `structure.sync.audit.queryLimit` rows (default 10000), headers and actions counted together, with no ORDER BY, so the rows kept are the first ones the database returns, not necessarily the newest; a group may come back with only part of its actions.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#getActions",
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#getEntriesQueryLimit"
+   ]
+  },
+  {
+   "key": "m2-sync/sync-audit-log/remove-old",
+   "module": "sync-audit-log",
+   "api": null,
+   "behaviour": "The module's purge (used by maintenance task `removeOldSyncAuditLogRecords`) deletes every `AO_8BAD1B_SYNC_AUDIT_RECORD` row with `C_TIMESTAMP` strictly less than the given epoch milliseconds, header and action rows alike, and logs the count.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#removeOldRecords"
+   ]
+  }
+ ]
+}

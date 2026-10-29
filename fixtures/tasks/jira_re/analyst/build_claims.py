@@ -19,7 +19,8 @@ id, to ``analyst/api-test-claims.json`` (which ``check_spec.py`` reads).
 Claim ids are permanent (design §4: wrong claims are retracted, never deleted). ``analyst/claim-ids.json`` maps
 every key ever built to its id; a new key gets the next free id, and a key that disappears from the notes fails
 the build (mark the claim ``retracted`` instead). The implementer's ``claims.jsonl`` carries neither keys nor
-evidence; the evidence file carries both. Unknown modules or API types, evidence that does not resolve, and
+evidence; the evidence file carries both. A behaviour that says "(as the original does)" states a suspected bug of
+the original: its row gets ``"suspected_bug": true``, so the implementer checks it (phase JC2). Unknown modules or API types, evidence that does not resolve, and
 internal class names in a behaviour (dotted, or a CamelCase simple name) fail the build. ``--check`` exits 1
 when either output or the id registry is stale.
 """
@@ -38,14 +39,16 @@ TASK = HERE.parent
 sys.path.insert(0, str(TASK / "hidden"))
 sys.path.insert(0, str(HERE))
 
+from check_spec import CAMEL  # noqa: E402  (the leak scan's CamelCase names, shared)
+
 NOTES_DIR = HERE / "claim-notes"
 IDS = HERE / "claim-ids.json"
 EVIDENCE = HERE / "claims-evidence.jsonl"
 FIELDS = {"key", "module", "api", "behaviour", "confidence", "status", "evidence"}
 CONFIDENCE = ("high", "low", "medium")
 STATUS = ("active", "retracted")
+SUSPECT = re.compile(r"as the original does", re.I)   # the analyst's marker for a suspected bug of the original
 FQCN = re.compile(r"\b(?:[a-z_][a-z0-9_]*\.)+[A-Z][A-Za-z0-9_$]*(?:\.[A-Z][A-Za-z0-9_$]*)*")
-CAMEL = re.compile(r"\b[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)+\b")
 
 
 @dataclass
@@ -141,6 +144,8 @@ def build(claims: list[dict], ids: dict[str, str], *, modules: set[str], api_typ
         if c.get("api") is not None:
             row["api"] = c["api"]
         row.update(behaviour=c["behaviour"].strip(), confidence=c["confidence"], status=c.get("status", "active"))
+        if SUSPECT.search(c["behaviour"]):
+            row["suspected_bug"] = True
         rows.append(json.dumps(row, ensure_ascii=False))
         evidence.append(json.dumps({"id": row["id"], "key": c["key"], "evidence": c["evidence"]}, ensure_ascii=False))
     mapping = {t: sorted(ids[k] for k in keys) for t, keys in sorted((tests or {}).items())}

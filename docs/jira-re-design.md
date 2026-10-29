@@ -345,6 +345,16 @@ Resolved 2026-10-28:
 - **identity:** the plugin key and bundle symbolic name are kept. The display name, vendor, version and icons
   are the implementer's own; the replacement never presents itself as the vendor's product (JS2).
 
+Resolved 2026-10-28 (after JC2):
+- **no licence checking at all:** beyond no Marketplace licensing, the replacement reads, validates and stores no
+  licence data and never refuses, restricts or warns on licence grounds; a reported licence state is the fixed
+  "licensed, valid, not expiring". The licence modules keep their keys and types (SPEC.md §1.1). Claims that
+  described the original's licence logic were reworded or retracted;
+- **the plugin's own error codes (6001–6017) are contract**, with their wire names and categories (SPEC.md, REST
+  error responses);
+- **suspected bugs are flagged for checking during implementation:** claims marked "(as the original does)"
+  carry `"suspected_bug": true`; the implementer implements them as stated and lists each in
+  `analysis/SUSPECTED-BUGS.md` (stage 2). A fix would come only through a change request.
 
 ### 7.4 The public API tier (decided 2026-10-27; built in phase JA1, `docs/phase-JA1-summary.md`)
 
@@ -418,3 +428,16 @@ Resolved 2026-10-28:
   (268: classes, enums, interfaces with default or static methods). Pure interfaces are covered by the claims of
   the modules that implement them. Evidence may cite the API jar too.
 - Stage 4 asks for a test named after each active API claim, as stage 2 does for module claims.
+- Rules for claims (owner, 2026-10-28, accepting the JC1 proposals):
+  - **Assertions.** Where the original checks an input only with `assert`, the claim states both outcomes.
+    Surefire runs with assertions on, so the hidden tests see `AssertionError`; `spec/README.md` says so.
+  - **Constants.** A claim about a static field cites its class as evidence (`resolve` knows only methods).
+  - **Helpers** keep `analyst-work/central-src/` out of every search, not only out of file reads.
+
+**Module claims (phase JC2 onwards, `docs/phase-JC2-summary.md`):**
+- `analyst/scan_throws.py` compares the exceptions each class constructs and throws in its bytecode (`javap`)
+  with the `throw` statements in its Vineflower source. Its output for the API, the plugin and the internal
+  libraries is `analyst/dropped-throws.txt`; helpers read those error paths with `javap`.
+- Helper brief: `analyst/claims-brief.md`. JC2 claims the 45 public components, which implement the API's
+  service interfaces. The behaviour of the pure API interfaces is claimed there, by module.
+- The plugin's own error codes (6001–6017, wire name and category) are contract: SPEC.md, REST error responses.

@@ -1,0 +1,735 @@
+{
+ "claims": [
+  {
+   "key": "m3-attributes-effects/attribute-service/load-null-arguments-no-callbacks",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "Every `loadAttributeValues` variant returns at once without calling the receiver at all (no values, no `receiveMeta`, no `receiveInaccessibleRows`) when the forest spec / `ItemForest` / `Forest`, the row list or the attribute collection is null. No exception is thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#loadAttributeValues"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/non-strict-spec-drops-trailing-item-filter",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "With strict false, a forest spec whose last transformation uses the module `com.almworks.jira.structure:filter-item` is loaded as the spec without that last transformation; then, if the resulting spec has no transformations at all, its unsecured form is used. A spec with other transformations is kept as it is (secured or not). With strict true the given spec is used unchanged. The same adjustment applies to `getAttributeValues(ForestSpec, boolean, ...)` and `getConsistentAttributeValues`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#getAdjustedSpec",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#removePinIfPossible"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/hidden-rows-reported-inaccessible",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "Unless security is overridden (`StructureAuth.isSecurityOverridden()`), requested rows that the current `StructureAuth` user may not see are excluded before loading and reported once through `receiveInaccessibleRows` with the set of those rows, before any values; the receiver gets no values for them (a delivered column returns null for those rows). A row counts as not visible when its item is hidden from the user by Jira permissions, when its item is not an issue and resolves to nothing (deleted item), or when the row id does not exist. `receiveInaccessibleRows` is not called when every requested row is visible.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AbstractAttributeRowFilter#filterRequestedRows",
+    "com.almworks.jira.structure.attribute.AbstractAttributeRowFilter$ForestBackedARF#checkNewAndRegisterInvisibleRows",
+    "com.almworks.jira.structure.attribute.BulkLoaderContext#filteredColumn"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/security-override-no-row-filtering",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "When security is overridden for the calling thread, no row is filtered: values are delivered for every requested row that exists in the forest and `receiveInaccessibleRows` is never called.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AbstractAttributeRowFilter#getAttributeRowFilter",
+    "com.almworks.jira.structure.attribute.AbstractAttributeRowFilter$SecurityOverriddenARF"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/unsecured-spec-hides-inaccessible-substructure-rows",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "When the forest spec actually loaded is unsecured (after the non-strict adjustment), rows that a sub-structure inserter produced from a structure the current user cannot VIEW (per `StructureManager` permission of that structure) are treated as inaccessible too, as are rows derived from such rows; with a secured spec this extra check is not done (the secured forest already excludes them). The `ItemForest` and `Forest` variants never do this extra check.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AbstractAttributeRowFilter#isRowFromUnavailableStructure",
+    "com.almworks.jira.structure.attribute.AbstractAttributeRowFilter#isUnavailableStructure",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#loadAttributeValues"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/unloadable-attribute-gets-error-values",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "An attribute that cannot be loaded (no loader provider accepts its spec, or building its loader fails) does not abort the call: the receiver gets, for that attribute, a value column in which every row has an up-to-date `AttributeValue.error()` value, followed by `valuesReady` for it; the other attributes load normally. The failure may also appear once in `ValuesMeta.getLoadingErrors()` (one entry per failing attribute, without row or item).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#returnErrorsForFailedSpecs",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#doLoading",
+    "com.almworks.jira.structure.attribute.BulkLoaderContext#reportBrokenAttributeSpec"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/meta-once-at-end-not-on-cancel",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "`receiveMeta` is called exactly once, after all values, at the end of a loading that ran to completion. When the receiver's `isCancelled()` returns true the loading stops silently: no exception, and `receiveMeta` is not called.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#doLoading",
+    "com.almworks.jira.structure.attribute.AttributeLoadingProtector#safeRun"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/forest-unavailable-item-values-still-delivered",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "If the forest of the spec cannot be obtained (the forest service throws `StructureException`, e.g. the structure does not exist or is not accessible), the call does not throw: attributes that depend only on the item are still delivered for the requested rows, forest-dependent attributes get no values, and `receiveMeta` is still called.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#initializeCachedForestContext",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#doLoading"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/restart-limit-runtime-exception",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "When loading has to be restarted because of concurrent cache changes, it is retried; after the configured number of restarts (dark feature `structure.attribute.cleanup.maxLoadingRestartAttempts`, default 10) the call throws `StructureRuntimeException` wrapping the last restart cause. Applies to every loading method, including `getConsistentAttributeValues` and `hasUpdate`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AttributeLoadingProtector#safeRun"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/forest-variant-null-forest",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "`loadAttributeValues(Forest, ...)` with a null forest returns without callbacks; `getAttributeValues(Forest, ...)` returns `RowValues.EMPTY` when the forest, rows or attributes are null. For a non-null forest the items of its rows are resolved through the row manager without an item access check at lookup time; visibility of the requested rows is still filtered for the current user (see hidden rows).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#loadAttributeValues",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#getAttributeValues",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#createItemForest"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/item-forest-values-not-shared-across-calls",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "For the `ItemForest` and `Forest` variants, forest-dependent values (aggregates, propagations and similar) are computed from the given forest on every call and not reused by a later call, so a second call with a modified forest gives values that reflect the modification; item-only values may come from the shared per-item cache. Rows of the given forest that are temporary (negative or transient ids) are accepted.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#initializeUncachedForestContext",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#loadAttributeValues"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/get-values-only-up-to-date",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "The `getAttributeValues` variants never return outdated values: the returned `RowValues` holds, for each requested attribute and requested row, the up-to-date `LoadedValue` (so `isOutdated()` is false), and only requested rows are present. Rows reported inaccessible, and rows not in the forest, have no value (lookup returns null). For an unloadable attribute every requested row maps to an error value, inaccessible rows included.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#getAttributeValues",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#buildValuesReceiver",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#collectValuesInconsistentSafe"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/get-values-meta-consumer",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "`getAttributeValues(ForestSpec, boolean, rows, attributes, metaConsumer)` passes the loading's `ValuesMeta` to the consumer once, on the calling thread, before returning; a null consumer is allowed and the meta is then dropped. The consumer is not called when any argument except the consumer is null (`RowValues.EMPTY` is returned).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#getAttributeValues",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#buildValuesReceiver"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/consistent-rows-function-input",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "`getConsistentAttributeValues` obtains the latest forest of the (adjusted) spec from the forest service and calls the rows function with an `ItemForest` for it whose items are looked up without access checks; a null function means all rows of that forest. The rows returned by the function are used as given (they are not filtered to the forest or to visible rows) and are the result's rows; the result's forest is that latest forest. The function may be called again on each retry.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#getConsistentAttributeValues",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#collectValuesConsistent"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/consistent-accept-rule",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "`getConsistentAttributeValues` accepts a loading when, after it, the forest source still reports the same latest forest version and the item-data version is unchanged since the loading; when either changed, it reloads, and it also accepts a reload whose values for every cacheable requested attribute and row equal those of the previous loading. The result carries the forest version and items version reported by the accepted loading's `ValuesMeta`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#collectValuesConsistent",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#precheckLoadConsistency",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#areLoadedValuesTheSame"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/consistent-failure-error-code",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "When `getConsistentAttributeValues` gives up after the configured number of attempts (dark feature `structure.attribute.maxConsistentLoadAttempts`, read once at construction, default 5), the `StructureException` it throws has error `CONSISTENT_OPERATION_FAILED`. When the forest cannot be obtained (a `StructureException` from the forest service) it returns `ConsistentRowValues.EMPTY` instead of throwing; a cancelled loading also gives `ConsistentRowValues.EMPTY`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#collectValuesConsistent",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#getConsistentAttributeValues"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/item-values-lookup",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "The `ItemValues` returned by `getItemValues` answers `getLoadedValue(item, attribute)` with null for an item that was not in the input collection (or a null item); for an input item it returns what loading gave for that item's row, which is null when the current user may not see the item.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#getItemValues"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/is-item-attribute",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "`isItemAttribute` returns true only when the attribute's loader keeps its values in the per-item cache, i.e. the value depends only on the item and the user context; it returns false for null, for an attribute no provider can load (no exception escapes), and for forest-dependent attributes such as aggregates over sub-rows. It loads nothing and calls no receiver.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#isItemAttribute",
+    "com.almworks.jira.structure.attribute.AttributeLoaderAssembly#isAttributeStoredInItemCache"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/update-checker-null-arguments",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "Both `getAttributeValuesWithUpdateChecker` variants return `RowValues.EMPTY` values and a checker that always answers false when the forest (or spec), the rows or the attributes are null. Otherwise the values are those `getAttributeValues` would return (up to date only), and the checker, given a row list, answers `hasUpdate` for those rows, the same attributes and the meta of this loading (with the spec for the `ForestSpec` variant; with no spec, i.e. item-level checks only, for the `ItemForest` variant).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#getAttributeValuesWithUpdateChecker",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#loadWithUpdateChecker"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/has-update-rules",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "`hasUpdate` returns false when rows or attributes are null. Otherwise it returns true if the value caches were reset since the loading (cache sequence not comparable, e.g. after the plugin's caches were cleared), if any requested value for the rows' items (or, with a spec, the rows' forest values) is no longer cached, is outdated or was recalculated after the loading, or if the spec's forest cannot be obtained; when the check is cancelled or cannot run it also answers true. It returns false when every relevant cached value is unchanged. With a null spec, forest-dependent attributes are checked only through the item-level values they depend on.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#hasUpdate",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#hasItemCacheUpdate",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#hasForestCacheUpdate"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-service/values-per-user",
+   "module": "attribute-service",
+   "api": null,
+   "behaviour": "Loading runs for the current `StructureAuth` user: the same request made by two users can give different values and different inaccessible rows; values are cached per user where they depend on the user, and the plugin's per-user cache clear for a user forces that user's values to be recomputed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#getProcessDimension",
+    "com.almworks.jira.structure.attribute.BulkStructureAttributeService#clearUserCaches"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-subscription-service/create-sequential-ids-owner",
+   "module": "attribute-subscription-service",
+   "api": null,
+   "behaviour": "`createSubscription` returns a new `AttributeSubscription` whose `getSubscriptionId()` is the next number of a node-local counter starting at 1 when the plugin's component is created (1, 2, 3, ... with no gaps for successful calls), owned by the current `StructureAuth` user (null when anonymous). The new subscription has no attributes and no rows. Calls are serialized, so concurrent callers get distinct ids.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.subscription.CachingAttributeSubscriptionService#createSubscription",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription#UserAttributeSubscription"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-subscription-service/create-failure-runtime-exception",
+   "module": "attribute-subscription-service",
+   "api": null,
+   "behaviour": "If the subscription cannot be put into the in-memory store, `createSubscription` throws `StructureRuntimeException` (message 'subscription system could not create a subscription'); the id it would have used is not reused.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.subscription.CachingAttributeSubscriptionService#createSubscription"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-subscription-service/get-returns-same-instance",
+   "module": "attribute-subscription-service",
+   "api": null,
+   "behaviour": "`getSubscription(id)` for a live subscription of the current user returns the same object that `createSubscription` returned (identity), on every call; ids are never created on lookup, so asking for an id that was not created yet (e.g. the next one) fails and does not reserve it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.subscription.CachingAttributeSubscriptionService#getSubscription",
+    "com.almworks.jira.structure.attribute.subscription.CachingAttributeSubscriptionService#createSubscriptionObject"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-subscription-service/get-errors",
+   "module": "attribute-subscription-service",
+   "api": null,
+   "behaviour": "`getSubscription` throws `StructureException` with error `SUBSCRIPTION_NOT_EXISTS_OR_NOT_ACCESSIBLE` (message 'subscription <id> does not exist') when the id is null, unknown, dropped, expired or evicted, and also when the subscription's owner differs from the current user (the comparison is of the Jira user objects, so an anonymous caller cannot get a logged-in user's subscription and a logged-in user cannot get one created anonymously). The error is the same in all cases, so another user's subscription looks like a missing one.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.subscription.CachingAttributeSubscriptionService#getSubscription",
+    "com.almworks.jira.structure.attribute.subscription.CachingAttributeSubscriptionService#getSubscription0",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription#checkAccess"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-subscription-service/expiry-and-capacity",
+   "module": "attribute-subscription-service",
+   "api": null,
+   "behaviour": "Subscriptions are kept in a node-local in-memory cache that expires an entry one hour after its last access (dark feature `attribute.subscriptions`, in seconds, default 3600; a JVM system property `structure.cache.expiration-override` replaces it) and holds at most `structure.attribute.maxSubscriptionCount` entries (dark feature read once at start, default 10000), evicting older ones beyond that. `getSubscription` and `dropSubscription` count as access. An expired or evicted subscription is deactivated and its id then fails as unknown. Subscriptions are lost on restart and are not visible from other cluster nodes.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.subscription.CachingAttributeSubscriptionService#CachingAttributeSubscriptionService",
+    "com.almworks.jira.structure.attribute.subscription.CachingAttributeSubscriptionService#processCacheRemoval",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#slowlyExpiring",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#expireInSeconds"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-subscription-service/drop-semantics",
+   "module": "attribute-subscription-service",
+   "api": null,
+   "behaviour": "`dropSubscription(id)` throws the same `SUBSCRIPTION_NOT_EXISTS_OR_NOT_ACCESSIBLE` error as `getSubscription` (null, unknown, or another user's subscription, which is then left untouched); otherwise it removes the subscription so that later `getSubscription`/`dropSubscription` with that id throw that error, and deactivates it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.subscription.CachingAttributeSubscriptionService#dropSubscription"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-subscription-service/deactivated-subscription-behaviour",
+   "module": "attribute-subscription-service",
+   "api": null,
+   "behaviour": "A deactivated subscription (dropped, expired or evicted) cancels its running loads and forgets its window and values: `getAttributes()` and `getRows()` become empty, `getUpdate(any version)` returns an update with version `DataVersion.ZERO`, not full, whose values are `RowValues.EMPTY` (so `isEmpty()` is true), `loadValues()` returns an already completed future with `DataVersion.ZERO`, `isLoadingValues()` is false, and `changeSubscription` is ignored (logged as a warning, nothing changes). Deactivating twice has no further effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription#deactivate",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription#getUpdate",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription#loadValues",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription#isLoadingValues",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription#changeSubscription"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/attribute-subscription-service/loads-run-as-owner",
+   "module": "attribute-subscription-service",
+   "api": null,
+   "behaviour": "A subscription loads its values in a background job (job pool 'attribute') that runs as the subscription's owner, by calling the attribute service's `loadAttributeValues(forestSpec, rows, attributes, receiver)` (non-strict) with the subscription's window, so values and inaccessible rows are those of the owner.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription$SubscriptionLoadTask#getUser",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription$SubscriptionLoadTask#doLoad",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription$SubscriptionLoadTask#schedule"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effect-service/record-id-layout",
+   "module": "effect-service",
+   "api": null,
+   "behaviour": "`recordBatch` stores the batch and returns an id whose high 32 bits are a signature chosen at random when the component is created (a value from 0 to 65535, fixed for the life of that runtime instance) and whose low 32 bits are a counter that starts at 1 and grows by one per call, so two consecutive calls on the same instance return ids that differ by 1. It neither copies nor checks the batch (the batch's own `userKey`, set when the `EffectBatch` was constructed, decides who may load it).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.InMemoryEffectService#recordBatch",
+    "com.almworks.jira.structure.forest.gfs.InMemoryEffectService#longId"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effect-service/load-same-instance-own-user",
+   "module": "effect-service",
+   "api": null,
+   "behaviour": "`loadBatch(id)` returns the very object passed to `recordBatch` (identity) when the id's high 32 bits equal this instance's signature, the batch is still stored and either the current `StructureAuth` user key equals the batch's `userKey` (anonymous: both null) or security is overridden. It returns null for an id from another runtime signature (for example from before a restart), for an unknown or removed id, and for a batch of another user. It never throws.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.InMemoryEffectService#loadBatch",
+    "com.almworks.jira.structure.forest.gfs.InMemoryEffectService#signature"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effect-service/expiry-by-periodic-cleanup",
+   "module": "effect-service",
+   "api": null,
+   "behaviour": "Batches are removed only by a periodic job scheduled at plugin start with initial delay and period from dark feature `structure.effect.lifetime.checkInterval` (milliseconds, default 35000). Each run removes the batches whose `timestamp` (the `EffectBatch` field, `System.nanoTime()` at construction unless the caller changed it) is more than dark feature `structure.effect.lifetime` milliseconds old (default 71000). `loadBatch` does not refresh the timestamp and does not check age itself, so a batch stays loadable until the next cleanup run after its lifetime has passed (up to about 106 s by default).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.InMemoryEffectService#startCleanUpJob",
+    "com.almworks.jira.structure.forest.gfs.InMemoryEffectService#cleanUp"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effect-service/memory-only-lifecycle",
+   "module": "effect-service",
+   "api": null,
+   "behaviour": "Batches live only in this node's memory and are never persisted; `recordBatch` and `loadBatch` work even before the component is started or after it is stopped (there is no lifecycle check), but nothing expires before start, and stopping cancels the cleanup job. If scheduling the cleanup job fails, the failure is logged and batches never expire.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.InMemoryEffectService#startComponent",
+    "com.almworks.jira.structure.forest.gfs.InMemoryEffectService#stopComponent",
+    "com.almworks.jira.structure.forest.gfs.InMemoryEffectService#startCleanUpJob"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/instance-run-check-order",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`startProcess(instances, structureId, requiresConfirmation)` and `validateStartProcess(instances, structureId)` check in this order and throw at the first failure: (1) unless security is overridden, the current user must hold the app permission `executeEffectors` (`CoreAppPermissions.EXECUTE_EFFECTORS` via `StructurePluginHelper.isAllowed`), else `EFFECTOR_EXECUTION_DENIED`; (2) the list must not be empty, else `INVALID_PARAMETER`; then for each instance in list order: (3) an effector with its module key must be installed, else `INVALID_PARAMETER`; (4) its owning structure must not be null, else `INVALID_PARAMETER`; (5) `StructureManager.isAccessible(owningStructure, VIEW)` must be true, else `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` for that structure; (6) if the owning structure differs from the given structure id, unless security is overridden the user must hold `executeEffectorsOnQueries`, else `EFFECTOR_EXECUTION_DENIED`. `validateStartProcess` creates nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#checkInstanceRunPermissions",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#checkExecutionPermissions",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#checkEffectorModuleKey",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#validateStartProcess"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/one-off-check-order",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`startProcess(moduleKey, parameters, forestSpec, requiresConfirmation)` and its `validateStartProcess` check in order: (1) `executeEffectors` permission, else `EFFECTOR_EXECUTION_DENIED`; (2) `executeEffectorsOnQueries` permission, else `EFFECTOR_EXECUTION_DENIED` (both skipped when security is overridden); (3) an effector with that complete module key is installed, else `INVALID_PARAMETER`; (4) if the forest spec names a structure, `StructureManager.isAccessible(structureId, VIEW)` must be true, else `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`. The effector parameters are not validated at this point.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#checkOneOffRunPermissions",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#validateStartProcess"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/start-persists-pending-process",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "A successful `startProcess` creates a process handle (an `AO_8BAD1B_PROCESS_STATE` row managed by the current user, progress 0) and an `AO_8BAD1B_EFFECTOR_PROCESS` row with `C_STATUS` `PENDING`, `C_USER_KEY` the current user's key, `C_PROCESS_HANDLE_ID` the handle id, `C_CREATED` now, `C_NODE_ID` this node's cluster id (null when not clustered), `C_ACKNOWLEDGED` false and `C_PARAMETERS` holding `structureId` and `effectorInstances` (snapshots of the given instances) for an instance run, or `oneOffEffectorModuleKey`, `oneOffParams` and `oneOffForestSpec` for a one-off run; it returns the new row's ID and schedules the calculation in the background (job pool 'effector'). If the calculation job cannot be scheduled it throws `StructureException` with `GENERIC_ERROR`, leaving the `PENDING` row in place.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#startProcess",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#createNewHandle",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#enqueue0",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#createNew"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/calculation-lifecycle",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "The calculation job runs as the process owner. It first moves the process from `PENDING` to `CALCULATING` (setting `C_START_TIME`; if the row is no longer `PENDING` it does nothing). Then: if the effector produced errors, or an exception was thrown, the status becomes `CALCULATION_FAILED` with the errors stored in the preview's `errors`; if cancellation was requested, `CALCULATION_STOPPED` (preview cleared); if the optimised preview has no effects, `COMPLETED`; if confirmation is required, `CALCULATED` with the preview and `C_FINISH_TIME`; otherwise, if every effect is only a warning, `COMPLETED`; else `QUEUED` with the preview, and `C_QUEUED` and `C_FINISH_TIME` set to the same current time.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.CalculateJob#doJob",
+    "com.almworks.jira.structure.effector.CalculateJob#failIfErrors",
+    "com.almworks.jira.structure.effector.CalculateJob#finishProcess",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#startCalculation",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#finishCalculation",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#failCalculation"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/invalid-effector-config-gives-warnings",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "When an effector rejects its parameters (its function answers with errors instead of a valid function), the calculation does not fail: each error becomes a warning effect in the preview. A preview made only of such warnings then completes the process (`COMPLETED`) without applying anything, unless confirmation is required, in which case it is stored as `CALCULATED`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effector.CalculateJob#advanceEffectCalculation",
+    "com.almworks.jira.structure.effector.CalculateJob#doJob"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/instance-run-row-lookup",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "In an instance run the forest is the structure given at start (`ForestSpec.structure(structureId)`), loaded consistently with the attributes the effectors need. Each instance's row is found as the row(s) of item `com.almworks.jira.structure:type-effector`/<instance id> in that forest: no such row fails the calculation (`CALCULATION_FAILED`), and more than one row fails it as well. An effector whose module is no longer installed at calculation time also fails it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.InstanceCalculateJob#sortEffectorInstances",
+    "com.almworks.jira.structure.effector.InstanceCalculateJob#prepareFunctions",
+    "com.almworks.jira.structure.effector.CalculateJob#getAttributeValues"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/instance-run-order-and-subforest",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "Instances of one run are evaluated in order of their row's depth in the forest (shallower first), and for equal depth in forest order; each instance's effects are computed over the sub-forest made of its row's parent and everything under that parent (the whole forest when the instance row is at the top level). Effects of all instances are appended to one preview in that order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.InstanceCalculateJob#makePreview",
+    "com.almworks.jira.structure.effector.InstanceCalculateJob#sortEffectorInstances"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/one-off-run-forest",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "A one-off run evaluates the effector once over the whole latest forest of the given forest spec, with the given parameters (an absent parameter map counts as empty). If the effector's module is not installed when the calculation runs, the process becomes `CALCULATION_FAILED`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.OneOffCalculateJob#makePreview",
+    "com.almworks.jira.structure.effector.OneOffCalculateJob#getEffectorFunction"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/get-process-access",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`getProcess(id)` returns the stored snapshot when the process exists and either security is overridden, the current user is a Jira administrator (`StructurePluginHelper.isAdmin`), or the process's user key equals the current user's key. Otherwise, including for an unknown id, it throws `StructureException` with error code 6017 (category `NOT_FOUND`). Every other id-taking method (`getEffectRecords`, `confirm`, `cancel`, `acknowledgeFinished`, `deleteCalculated`, `resumeInterrupted`, `startUndoProcess`) performs this check first and throws the same error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#getProcess",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#checkProcessPermissions"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/get-effect-records",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`getEffectRecords(id)` returns all `AO_8BAD1B_EFFECTOR_RECORD` rows of the process as `EffectRecord`s (error and success records alike), an empty list when none were written; an undo effect stored as empty or null reads as null, and affected items read as an empty list when none are stored. Results are cached and refreshed when a record is added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#getEffectRecords",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#getEffectRecords",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#saveEffectRecord"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/confirm-checks",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`confirm(id)` throws `StructureException` with `INVALID_PARAMETER` when the status is not `CALCULATED`, when the process has no preview, or when the preview has no effects. If every preview effect is a warning, it sets the process to `COMPLETED` (preview cleared, finish time set) and returns normally without queuing. Otherwise it resets the process handle to pending with 0% progress and moves the process from `CALCULATED` to `QUEUED` (setting `C_QUEUED`); if that conditional update finds the process no longer `CALCULATED`, it throws `GENERIC_ERROR`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#confirm",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#checkConfirmedProcess",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#checkAllEffectsWarnings",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#confirm0"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/confirm-subset",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "Deprecated `confirm(id, indexes)`: first makes the same checks as `confirm(id)` on the full preview (including completing a warnings-only preview). With non-null indexes it keeps the preview effects at those indexes in the order the collection yields them (duplicate indexes keep duplicate effects, as the original does; indexes below 0 or at or beyond the preview size are dropped); if none remain it throws `INVALID_PARAMETER`; otherwise it replaces the stored preview with that subset (its error list dropped), and if the subset consists only of warnings it completes the process instead of queuing. With null indexes it behaves exactly like `confirm(id)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#confirm",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#getEffectsByIndexes"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/cancel-request",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`cancel(id)` looks up the process handle; if it no longer exists it throws `StructureException` with `GENERIC_ERROR`. Otherwise it marks the handle cancelled (`C_CANCELLED` of the `AO_8BAD1B_PROCESS_STATE` row) and returns at once, for a process in any status (no status check). A running calculation then ends `CALCULATION_STOPPED`, a running application `APPLY_STOPPED` after the effect in progress (applied effects are kept), and a queued process whose handle is cancelled stops as `APPLY_STOPPED` as soon as applying begins, before any effect.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#cancel",
+    "com.almworks.jira.structure.effector.ApplyJob#applyEffects",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager$ProgressTracker#startTracking",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager$ProgressTracker#ping"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/acknowledge",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`acknowledgeFinished(id)` sets `C_ACKNOWLEDGED` true when the status is `COMPLETED`, `COMPLETED_WITH_ERRORS`, `APPLY_INTERRUPTED` or `APPLY_STOPPED` (acknowledging an already acknowledged finished process succeeds again) and the process then no longer appears in `getRunningProcessesForUser`; in any other status it throws `StructureException` with `GENERIC_ERROR` and changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#acknowledgeFinished",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#acknowledge"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/delete-calculated",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`deleteCalculated(id)` deletes the process row and its process handle row when the status is `CALCULATED`, `CALCULATION_STOPPED` or `CALCULATION_FAILED`; afterwards `getProcess(id)` throws the not-found error. In any other status (or if the row changed status concurrently) it throws `StructureException` with `GENERIC_ERROR`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#deleteCalculated",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#deleteCalculated",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#deleteProcess"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/resume-interrupted",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`resumeInterrupted(id)` moves an `APPLY_INTERRUPTED` process to `QUEUED`, sets `C_QUEUED` to now and `C_ACKNOWLEDGED` to false; when it is applied again, preview effects whose preview index already has a record (success or error) are skipped, and an error record from before the resume still makes the final status `COMPLETED_WITH_ERRORS`. In any other status it throws `StructureException` with `GENERIC_ERROR`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#resumeInterrupted",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#resumeInterrupted",
+    "com.almworks.jira.structure.effector.ApplyJob#startApplying"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/undo-checks",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`startUndoProcess(id, indexes)` checks in order: the `executeEffectors` permission (unless security is overridden; else `EFFECTOR_EXECUTION_DENIED`), access to the process (error 6017), status in `COMPLETED`, `COMPLETED_WITH_ERRORS`, `APPLY_INTERRUPTED` or `APPLY_STOPPED` (else `INVALID_PARAMETER`), and at least one selected record (else `INVALID_PARAMETER`). Selected records are the non-error records of the process, restricted, when indexes is not null, to those whose preview index is in the collection.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#startUndoProcess",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#getEffectRecords"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/undo-process-content",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "The undo process is a new `AO_8BAD1B_EFFECTOR_PROCESS` row owned by the current user whose `C_PARAMETERS` hold `revertedProcessId` and, when the reverted process had them, `structureId` and `oneOffForestSpec`; its preview is the undo effects of the selected records in record order, records without an undo effect being skipped, and it goes from `PENDING` straight to `QUEUED` without calculation or confirmation. If all selected records lack an undo effect the empty preview is still queued and the undo process completes without records (as the original does). `getProcess` of it reports `getRevertedProcessId()` equal to the reverted id.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#startUndoProcess",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#updatePreview",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#toApplyingQueue",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#readParams"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/apply-job-schedule-and-order",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "Applying is done by a job scheduled at component start with delay and period from the JVM system property `structure.effector.apply.interval` (milliseconds, default 2000). Each run takes at most one `QUEUED` process, the one with the smallest `C_QUEUED` (rows with null first), sets it `IN_PROGRESS` with `C_START_TIME` now and `C_FINISH_TIME` null, and applies its whole preview before the run ends. In Jira Data Center only the node holding the cluster-wide 'effector' exclusive work flag applies; a run is skipped while Jira's full reindex blocks index use or Active Objects is locked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager$1#doStart",
+    "com.almworks.jira.structure.effector.ApplyJob#doJobLocked",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#pollForApplying",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#findFirstForApplying",
+    "com.almworks.jira.structure.cluster.ExclusiveClusterJob#doJob"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/apply-effects-records",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "While applying, the job runs as the process owner (without security override) and handles preview effects in index order: warning effects are skipped without a record; an effect whose effect provider is not installed gets an error record; an effect the provider resolves to nothing gets no record; an effect that resolves to an error gets an error record with its affected items; otherwise the effect is applied and a success record stores the provider's success message, the returned undo effect and the affected items. Every record carries `C_PROCESS_ID`, `C_PREVIEW_INDEX` and `C_TIMESTAMP` (now). A failure while applying one effect makes an error record and applying continues with the next effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.ApplyJob#applyEffects",
+    "com.almworks.jira.structure.effector.ApplyJob#applyEffect",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#saveEffectRecord"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/apply-final-status",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "At the end of applying, the process becomes `APPLY_STOPPED` if cancellation was noticed (checked before each effect), else `COMPLETED_WITH_ERRORS` if any record of the process (including ones written before a resume) is an error, else `COMPLETED`; completion clears `C_EFFECTOR_PREVIEW` and sets `C_FINISH_TIME`. If the owner's user key no longer resolves to a Jira user, or applying throws unexpectedly, the process is set to `COMPLETED_WITH_ERRORS`. If the plugin stops during applying, the process stays `IN_PROGRESS` until restart recovery.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.ApplyJob#startApplying",
+    "com.almworks.jira.structure.effector.ApplyJob#doJobLocked",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#complete",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#completeWithErrors",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#cancelApplying"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/restart-recovery",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "On component start, this node's processes in `PENDING` or `CALCULATING` (matched by `C_NODE_ID`, or with null `C_NODE_ID` on a single-node install) become `CALCULATION_STOPPED`. On the first apply run after start (on the applying node), every `IN_PROGRESS` and every `QUEUED` process becomes `APPLY_INTERRUPTED`, so even a process queued just after start but before that run is interrupted (as the original does); on every later run, any process still `IN_PROGRESS` (left by another node) is put back to `QUEUED`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager$1#doStart",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#cancelAllCalculatingProcesses",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#rollbackUnfinishedProcesses",
+    "com.almworks.jira.structure.effector.ApplyJob#doJobLocked"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/find-processes",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`findProcesses(user, status, structureId)` performs no permission check and returns, newest first by `C_CREATED`, the processes matching every non-null filter: `C_USER_KEY` equal to the user's key, `C_STATUS` equal to the status name, and a structure id equal to the run's `structureId` parameter or, when absent, the structure of its `oneOffForestSpec` (undo runs carry the copied value). All nulls return all processes; never null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#findProcesses",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#findProcesses",
+    "com.almworks.jira.structure.effector.EffectorProcessParameters#getStructureId"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/running-processes-for-user",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "`getRunningProcessesForUser(user)` performs no permission check and returns the user's processes with `C_ACKNOWLEDGED` false, newest first by `C_CREATED`, in any status; it is cached per user key and refreshed when the user's processes are created, acknowledged, deleted or re-keyed. A null user throws `NullPointerException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#getRunningProcessesForUser",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#getRunningProcessesForUser"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-process-manager/stop-lifecycle",
+   "module": "effector-process-manager",
+   "api": null,
+   "behaviour": "Stopping the component cancels the apply job, waits up to the JVM system property `structure.effector.stopApplyJobTimeout` milliseconds (default 10000) for a running apply run to finish, cancels every process handle still being tracked and releases the Data Center 'effector' work flag. Progress of running processes is pushed to their process handles about every 3 seconds (system property `structure.effector.update.interval`, default 3000).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#stopComponent",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager$ProgressTracker#shutdown",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager$ProgressTracker#ping"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-instance-manager/create-row",
+   "module": "effector-instance-manager",
+   "api": null,
+   "behaviour": "`createEffectorInstance(moduleKey, parameters, owningStructure)` inserts an `AO_8BAD1B_EFFECTOR_INSTANCE` row with `C_MODULE_KEY` the given key (not checked against installed effectors), `C_PARAMETERS` the parameters as compact JSON or null when the map is null or empty, and `C_OWNING_STRUCTURE` the given id (null allowed), and returns the row's auto-increment ID. It checks no permission and records a change of item `com.almworks.jira.structure:type-effector`/<new id> with the item tracker.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorInstanceManager#createEffectorInstance",
+    "com.almworks.jira.structure.effector.AOBasedEffectorInstanceManager#serializeParameters"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-instance-manager/get-instance",
+   "module": "effector-instance-manager",
+   "api": null,
+   "behaviour": "`getEffectorInstance(id)` returns an `EffectorInstance` with that id, the stored module key, owning structure (null if none) and parameters as an unmodifiable map (an empty map when none are stored). For an id with no row (including ids outside the 32-bit range, which are looked up as 0) it returns null instead of throwing. If reading storage fails it throws an unchecked `StructureRuntimeException`, not a `StructureException`. Results are cached (one hour after last access by default, dark feature `structure.effectorInstance.cache.timeout` in seconds) and the cache entry is dropped on every create, update and delete of that id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorInstanceManager#getEffectorInstance",
+    "com.almworks.jira.structure.effector.AOBasedEffectorInstanceManager$EffectorInstanceLoader#load",
+    "com.almworks.jira.structure.effector.EffectorInstanceImpl"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-instance-manager/update-instance",
+   "module": "effector-instance-manager",
+   "api": null,
+   "behaviour": "`updateEffectorInstance(id, moduleKey, parameters, owningStructure)` throws `StructureException` with `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE` (for item `com.almworks.jira.structure:type-effector`/<id>) when no row has that id; otherwise it overwrites all three columns (null or empty parameters store null, null structure detaches), so a following `getEffectorInstance` returns the new values, and records a change of the instance's item with the item tracker.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorInstanceManager#updateEffectorInstance"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-instance-manager/delete-instance",
+   "module": "effector-instance-manager",
+   "api": null,
+   "behaviour": "`deleteEffectorInstance(id)` deletes the row with that id; only when a row was actually deleted does it drop the cache entry and record a change of the instance's item. Deleting a missing id does nothing and does not throw; forest rows that show the instance are not removed, and `getEffectorInstance` of the deleted id returns null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorInstanceManager#deleteEffectorInstance"
+   ]
+  },
+  {
+   "key": "m3-attributes-effects/effector-instance-manager/stopped-plugin",
+   "module": "effector-instance-manager",
+   "api": null,
+   "behaviour": "After the plugin has stopped, `createEffectorInstance`, `getEffectorInstance`, `updateEffectorInstance` and `deleteEffectorInstance` throw the unchecked `StructureStoppedException` without touching storage; before the plugin has started they work normally.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorInstanceManager#createEffectorInstance",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check"
+   ]
+  }
+ ]
+}

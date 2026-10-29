@@ -7,4 +7,5 @@ plugin jar that could be installed in place of the original. If one cannot be, s
 The public Java API must behave as the spec says: the tests in `spec/api-tests/`, copied into
 `src/test/java/`, pass unchanged, and every active claim in `spec/claims.jsonl` that names an API type
 (`api`) is implemented and covered by a JUnit test whose method name starts with the claim id, as for
-modules.
+modules. Suspected bugs among the API claims are checked and listed in `analysis/SUSPECTED-BUGS.md`
+as in stage 2.

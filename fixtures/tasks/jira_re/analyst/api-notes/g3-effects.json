@@ -167,7 +167,7 @@
    }
   },
   "com.almworks.jira.structure.api.effectbatch.EffectService": {
-   "summary": "Internal store of recent `EffectBatch` objects for undo/redo of forest actions. The plugin's implementation keeps them in memory only (lost on restart), and expires batches older than about 71 seconds since their last use (configurable). Not intended for third-party use.",
+   "summary": "Internal store of recent `EffectBatch` objects for undo/redo of forest actions. The plugin's implementation keeps them in memory only (lost on restart), and expires batches about 71 seconds after they were stored (configurable); loading a batch does not extend this. Expired batches are removed by a cleanup that runs about every 35 seconds, so a batch can stay loadable for up to about 106 seconds. Not intended for third-party use.",
    "members": {
     "recordBatch(com.almworks.jira.structure.api.effectbatch.EffectBatch)": "Stores the batch and returns a new id for it. Ids are unique within the running node; the high 32 bits identify the node's runtime instance.",
     "loadBatch(long)": "Returns the batch with the given id, or null if it does not exist, has expired, was recorded by another runtime instance, or belongs to a different user than the current one (unless security checks are overridden)."
@@ -279,7 +279,7 @@
    "summary": "Service for persisting effector instances. Implemented by the plugin and obtained as an OSGi component (injection). Data is stored in the plugin's database tables and cached. Changes are recorded as item changes so that forests showing the instances refresh. Note: the implementation performs no permission checks; callers must check that the current user may configure effectors in the owning structure.",
    "members": {
     "createEffectorInstance(String, java.util.Map, Long)": "Creates and saves a new instance and returns its id. Arguments: the effector's complete module key (not checked against installed effectors), the parameters (null or empty stores none; must be serializable to JSON) and the owning structure id (nullable). The plugin's implementation never throws `StructureException` here; it fails with an unchecked exception if the plugin is stopped or storage fails.",
-    "getEffectorInstance(long)": "Returns the instance with the given id. Throws `StructureException` (a storage error) if loading fails. Although declared not-null, the plugin's implementation returns null when no instance has that id; callers should handle null.",
+    "getEffectorInstance(long)": "Returns the instance with the given id. If loading fails it throws an unchecked `StructureRuntimeException`, not the declared `StructureException`. Although declared not-null, the plugin's implementation returns null when no instance has that id; callers should handle null.",
     "updateEffectorInstance(long, String, java.util.Map, Long)": "Replaces the module key, parameters and owning structure of an existing instance. Arguments in order: instance id, new module key, new parameters (null or empty clears them), new owning structure id (null detaches). Throws `StructureException` with `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE` if the id does not exist.",
     "deleteEffectorInstance(long)": "Deletes the instance with the given id. Deleting a missing id silently does nothing. Does not remove rows referring to it from forests."
    }
@@ -336,7 +336,7 @@
    }
   },
   "com.almworks.jira.structure.api.effector.process.EffectorProcessManager": {
-   "summary": "Service to start, observe and control effector processes. Implemented by the plugin and obtained as an OSGi component (injection). All methods act as the current user. Processes are stored in the database and run on background jobs: calculation runs right after start; applying is done by a periodic job (about every 2 seconds) that takes one queued process at a time, cluster-wide on a single node. Methods that take a process id throw `StructureException` (not found or not accessible) unless the current user started the process, is a Jira administrator, or security checks are overridden.",
+   "summary": "Service to start, observe and control effector processes. Implemented by the plugin and obtained as an OSGi component (injection). All methods act as the current user. Processes are stored in the database and run on background jobs: calculation runs right after start; applying is done by a periodic job (about every 2 seconds) that takes one queued process at a time, cluster-wide on a single node. Methods that take a process id throw `StructureException` with the plugin's own error 6017 `ENTITY_NOT_EXISTS_OR_INACCESSIBLE` (category `NOT_FOUND`; see SPEC.md, the plugin's own error codes) unless the current user started the process, is a Jira administrator, or security checks are overridden.",
    "members": {
     "validateStartProcess(java.util.List, long)": "Checks, without starting anything, that the current user may run the given effector instances from the given structure. Same checks and exceptions as `startProcess(List, long, boolean)`.",
     "validateStartProcess(String, java.util.Map, com.almworks.jira.structure.api.forest.ForestSpec)": "Checks, without starting anything, that the current user may run a one-off effector. Same checks and exceptions as `startProcess(String, Map, ForestSpec, boolean)`; the parameters are not validated.",
@@ -529,7 +529,7 @@
   "com.almworks.jira.structure.api.event.IssueListener": {
    "summary": "Callback for issue and link change notifications, registered with `IssueEventBridge.addListener`. Implemented by clients.",
    "members": {
-    "onIssueChanged(com.almworks.jira.structure.api.event.JiraChangeEvent)": "Called for every reported change, synchronously on the reporting thread (often a Jira request or event thread), so it should return quickly. The argument is never null; check its type for `IssueChangeEvent` or `LinkChangeEvent` details. Exceptions thrown here are logged and do not affect other listeners."
+    "onIssueChanged(com.almworks.jira.structure.api.event.JiraChangeEvent)": "Called for every reported change, synchronously on the reporting thread (often a Jira request or event thread), so it should return quickly. The argument is never null; check its type for `IssueChangeEvent` or `LinkChangeEvent` details. Exceptions thrown here are logged and do not affect other listeners; an `Error` is not caught, stops delivery to the later listeners and reaches the reporting code."
    }
   },
   "com.almworks.jira.structure.api.event.JiraChangeEvent": {

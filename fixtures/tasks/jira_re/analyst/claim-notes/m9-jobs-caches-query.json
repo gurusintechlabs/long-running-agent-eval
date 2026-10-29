@@ -1,0 +1,888 @@
+{
+ "claims": [
+  {
+   "key": "m9-jobs-caches-query/job-manager/executor-pools-and-sizes",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "The manager has exactly these executor IDs: `user` (3 threads), `indexing` (2), `system` (1), and `generator`, `attribute` and `effector`, each sized by the Jira application property or JVM system property `structure.jobManager.generatorThreads`, `structure.jobManager.attributeThreads` and `structure.jobManager.effectorThreads` respectively (default: the larger of 4 and the number of processors + 1; a configured value below 1 counts as 1). Each pool queues extra work without limit (it never rejects because it is busy); its threads are daemon threads that end after being idle for `structure.jobManager.thread.timeout` seconds (default 600).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.SingleThreadJobManager",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#getMaxThreads",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#createExecutorService"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/unknown-executor-id-checked-exception",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "`execute(job, id)` and `execute(callable, id)` with an executor ID that is not one of the seven pools (including null) throw `StructureJobException` whose message contains `illegal executor id` followed by the ID; no job is registered and no ID is used up. (The decompiled source hides this throw: the pool lookup fails with this checked exception, not with `NullPointerException`.) For `execute(job, id)` the null-job and not-PENDING checks and the started check come first.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#getExecutor",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#execute"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/enqueue-checks",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "`enqueue(job)`: a null job throws `NullPointerException`; a job whose `getState()` is not PENDING throws `StructureJobException`; after the plugin stopped it throws `StructureJobException` (message ends with `is stopped`). When the queue already holds `structure.jobManager.queueCapacity` jobs (default 1,000) it throws `StructureJobException` (message contains `job queue is full`); in that case the job has nevertheless been registered under a new ID, so `getJob` of the next ID returns it although it never runs (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#enqueue",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#jobCheck",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#createWrapper"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/enqueue-and-schedule-allowed-before-start",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "Before the plugin has started the manager, `enqueue` and `schedule` already accept jobs (they are refused only once the manager is stopped); the jobs wait and run after start, when the queue thread is created. `execute` in all three forms instead requires the manager to be started: before start and after stop it throws `StructureJobException` (message contains `is not started yet or already stopped`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#checkEnabled",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#checkStarted",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#startComponent"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/queue-runs-fifo-one-at-a-time",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "Enqueued jobs run one at a time on a single background thread, in the order they were enqueued. During each run Jira's logged-in user (`JiraAuthenticationContext.setLoggedInUser`) is set to the job's `getUser()` and reset to null afterwards. An exception thrown by the job is logged and the queue moves on to the next job; nothing is rethrown to the submitter.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager$JobThread#run",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#runJob"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/pool-run-user-and-exceptions",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "A job passed to `execute(job[, id])` runs on a thread of that pool with Jira's logged-in user set to the job's `getUser()` for the duration of `job()` and reset to null afterwards. Any `Exception` (including `InterruptedException`) or `LinkageError` thrown by the job is logged and swallowed, so the job's `Future.get()` returns null normally even when the job failed; other `Error`s are rethrown, so `Future.get()` then throws `ExecutionException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#separateRunner"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/job-ids-sequence",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "Every accepted job (whatever the method) gets the next value of one counter that starts at 1, so IDs are positive and strictly increasing for the plugin's lifetime. On start the manager schedules one recurring maintenance job of its own (no user, every 5 minutes), which takes the next ID at that moment: when nothing was submitted before start it gets ID 1, a client's first job gets ID 2, and `getJob(1)` returns that internal job.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#createWrapper",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#scheduleFinishedJobsCleanup"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/schedule-timing",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "`schedule(initial, interval, job)` checks the job like `enqueue`. The job is due `initial` milliseconds after the call; later runs are due `interval` milliseconds after the previous run finished, and `interval <= 0` means a single run. Before each repeat the manager calls the job's `reset()` (an exception from it is logged and the job is still rescheduled). Due jobs are moved to the single queue and run there like enqueued jobs, but only when the queue thread finds the queue empty for one poll period (3 seconds, property `almworks.singleThreadJobManager.dev.queuePollTimeout`), so a busy queue delays them; a due job that does not fit into a full queue stays scheduled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#schedule",
+    "com.almworks.structure.commons.job.PooledStructureJobManager$JobWrapper#checkAndScheduleNextRun",
+    "com.almworks.structure.commons.job.PooledStructureJobManager$JobThread#checkSchedule",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#runJob"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/getjob-lookup",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "`getJob(id)` returns the job object registered under the ID (queued, scheduled, running or finished but not yet cleaned up), and null for a null or unknown ID, a cancelled job, or one removed by cleanup. There is no permission check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#getJob"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/cancel-effects",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "`cancel(id)` unregisters the job (later `getJob` returns null), removes it from the queue and the schedule so it does not run (again), and for a job started with `execute` cancels its future with interruption. A job currently running on the queue thread is not interrupted; it completes but is not rescheduled. A null or unknown ID is ignored, and any caller may cancel any job.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#cancel"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/getfuture-rules",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "`getFuture(id)` returns the job's `Future` only for jobs started with one of the `execute` methods and only when the job's user key equals `StructureAuth.getUserKey()` of the caller (a job with a null user is visible only to a caller with no user). It returns null for a null or unknown ID, for enqueued or scheduled jobs, and for any other caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#getFuture"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/execute-callable",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "`execute(callable, id)` records the calling thread's `StructureAuth` context (user and security override) at submission and runs the callable on the pool under that context (`AuthContext.sudo`); Jira's logged-in user is not changed for it. `getJob` returns a job whose `getUser()` is the recorded user. `getFuture(id).get()` returns the callable's result, or throws `ExecutionException` carrying the callable's exception (which is not logged). There is no PENDING check; the manager must be started.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#execute0",
+    "com.almworks.structure.commons.job.PooledStructureJobManager$CallableJob#doJob",
+    "com.almworks.structure.commons.job.PooledStructureJobManager$CallableJob#getUser"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/finished-jobs-cleanup",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "Every 5 minutes the manager unregisters jobs whose state is FINISHED and that finished more than `structure.jobManager.cleanJobsTimeout` minutes ago (default 720), or `structure.jobManager.shortJobsTimeout` minutes (default 3) for callables. A job whose state never becomes FINISHED (a custom `StructureJob`, or a repeating scheduled job, which is reset to PENDING) stays registered.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#scheduleFinishedJobsCleanup",
+    "com.almworks.structure.commons.job.PooledStructureJobManager$JobWrapper#getFinishedTimeoutNano"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/stop-behaviour",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "When the plugin stops, the queue thread is told to stop, the queue, the schedule and the job registry are emptied (every `getJob` returns null afterwards) and all pools are shut down with interruption of running jobs. Afterwards `enqueue`/`schedule` throw `StructureJobException` (`is stopped`) and `execute` throws `StructureJobException` (`not started yet or already stopped`). A stopped manager is never started again, even if start is requested later.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#stopComponent",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#onPluginStart"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/queue-thread-recovery",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "If a queued job throws `InterruptedException` or Jira's `DataAccessException`, the queue thread ends and a replacement is started about 3 seconds later (property `almworks.singleThreadJobManager.dev.reincarnationTimeout`); jobs still in the queue are kept and run on the new thread. The queue thread is also replaced after running for 10 minutes (property `structure.jobManager.jobsThreadTTL`, milliseconds). No replacement is started once the manager is stopped.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager$JobThread#run",
+    "com.almworks.structure.commons.job.PooledStructureJobManager$ReincarnatingThread#run",
+    "com.almworks.structure.commons.job.PooledStructureJobManager$JobThread#restartOnExpiration"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/job-manager/execute-rejected",
+   "module": "job-manager",
+   "api": null,
+   "behaviour": "When a pool refuses a job submitted with `execute` (it was shut down), the call throws `StructureJobException` whose cause is the `RejectedExecutionException`; for `execute(job, id)` the job stays registered under the ID it was given.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.job.PooledStructureJobManager#execute",
+    "com.almworks.structure.commons.job.PooledStructureJobManager#execute0"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/periodic-check",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "On plugin start (or, if not yet started, on the first `addJob` or `getLastRunTime` call) the manager schedules one recurring check through the `StructureJobManager` (`schedule`, with no user), first after one interval and then every interval; the interval is 60,000 ms, configurable through `almworks.scheduledJobs.dev.checkInterval`. If the job manager refuses, an error is logged and no checks happen.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#startComponent",
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#check"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/check-skipped-while-locked",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "A periodic check does nothing while `StructurePluginHelper.isStructureLocked()` returns true. During a check the registered jobs are visited one by one, and the visit stops as soon as the manager is stopped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#doScheduledJob"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/due-run-protocol",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "For each registered job that is not still running, a check reads the last run time stored through `PropertyService` under `sjm.<key>` (a long; missing or unparsable counts as 0) and calls `shouldRun(lastRunTime)`. If it returns true, the manager tries Jira's cluster lock named `com.almworks.structure..sjm.<key>` without waiting; if the lock is held elsewhere the job is skipped this round. Holding the lock it invalidates the property cache for that key, reads the value again and asks `shouldRun` again; if still true it submits the job to the `system` executor of the job manager and, when the submission succeeded, stores the current time in milliseconds (taken just before submitting) under `sjm.<key>`. The lock is released right after submission, not held while the job runs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl$JobWrapper#maybeExecute",
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl$JobWrapper#execute",
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#readLastRunTime",
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#writeLastRunTime",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianLockAdapter#withLock"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/no-overlapping-runs",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "A job that has been submitted is not checked or submitted again until its `run()` returns (normally or with an exception, which the job manager logs); after that it is eligible on the next check. Because the `system` pool has one thread, all scheduled jobs (and other system work) run one after another, and a job waiting in that pool already counts as running.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl$JobWrapper#doJob",
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl$JobWrapper#maybeExecute"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/shouldrun-failure-is-false",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "An `Exception` or `LinkageError` thrown by `ScheduledJob.shouldRun` is treated as \"do not run\" (logged as a warning the first time for that registration, at debug level afterwards); it never stops the check of other jobs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl$JobWrapper#shouldRunSafe"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/addjob",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "`addJob(key, job)` registers the job under the key in this node's memory, replacing any job registered under that key (a warning is logged; a running instance of the replaced job is not cancelled). Nothing runs at once: the first run is decided by a later periodic check. After the plugin stopped it throws `StructureStoppedException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#addJob",
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#check"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/forcerun",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "`forceRun(key)` for a registered key first deletes the stored last run time (`sjm.<key>` is set to null) and then, in the calling thread, does the same due check as the periodic one: if the job is not running, `shouldRun(0)` returns true and the cluster lock can be taken, the job is submitted at once and the new time stored. If the job is running, the stored time is still cleared but nothing is submitted. For an unknown key nothing happens (the property is untouched). It does not check whether the plugin stopped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#forceRun",
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl$JobWrapper#forceExecute"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/removejob",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "`removeJob(key)` unregisters the job and, if a run of it was submitted and has not finished, cancels it through `StructureJobManager.cancel` (interrupting it). The stored `sjm.<key>` value is kept. It does nothing for an unknown key and nothing at all after the plugin stopped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#removeJob",
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl$JobWrapper#cancelIfRunning"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/getlastruntime",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "`getLastRunTime(key)` returns the value stored under `sjm.<key>` parsed as a long, or 0 when there is none or it is not a number; it works for keys that are not registered. It reads through the property service's cache without invalidating it. After the plugin stopped it throws `StructureStoppedException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#getLastRunTime",
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#readLastRunTime"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/scheduled-job-manager/stop",
+   "module": "scheduled-job-manager",
+   "api": null,
+   "behaviour": "When the plugin stops, every registered job with a run in progress is cancelled through the job manager, all registrations are dropped and the periodic check job is cancelled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.job.ScheduledJobManagerImpl#stopComponent"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/createnew-row",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "`createNew(user, params)` inserts one row into `AO_8BAD1B_PROCESS_STATE` with `C_STATUS` 0, `C_TIMESTAMP` the current time in milliseconds, `C_PARAMETERS` the parameters as JSON (null when params is null), `C_MANAGING_USER` the user's key (null for a null user or an empty key), `C_ACTIVITY` null, `C_PERCENT_COMPLETE` -1 and `C_CANCELLED` false, and returns a handle whose `getId()` is the new row's `ID`. The handle reports status `PENDING`, percent -1, null activity and not cancelled. A serialization failure of the parameters throws `StructureRuntimeException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO#createNew",
+    "com.almworks.jira.structure.process.ProcessHandleManagerImpl#createNew"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/lookup-null-cases",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "`getInfo`, `getFeedback` and `getUIController` return null for a null ID and for an ID with no row. If the row exists but cannot be read (for example `C_PARAMETERS` or `C_ACTIVITY` holds invalid JSON) they also return null and log an error. Otherwise each returns a full process handle for that ID (the same kind of object as `createNew` returns), with no permission check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.ProcessHandleManagerImpl#checkAndCreateHandle",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#getSnapshot"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/handle-read-failure",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "On a handle whose row exists but can no longer be read (invalid JSON written later), every reading method (`getStatus`, `getParameters`, `getActivity`, `getPercentComplete`, `isCancelled`, `isVisibleTo`) throws `StructureRuntimeException`. For a row that no longer exists they return null, null, null, -1, false and false.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.process.ProcessHandleImpl#getProcess",
+    "com.almworks.jira.structure.process.ProcessHandleImpl#getStatus"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/reading-stored-values",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "Stored values are read as follows: `C_STATUS` through `ProcessStatus.valueOf(int)` (any value other than 0 or 1 is FINISHED), `C_PERCENT_COMPLETE` null as -1, `C_CANCELLED` null as false, and JSON keys unknown to `ProcessDisplayParameters` or `I18nText` are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO#getSnapshot"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/cache-and-invalidation",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "Process state is read through a cache per process ID (Jira cache `process-state`, entries expire 600 seconds after last access, property `structure.process.cache.timeout`). Every write made through this module (create, status, parameters, progress, cancel, delete) invalidates that ID, so the next read through any handle sees it; a change made to the table by other means is seen only after expiry or a cache clear. `clearCaches()` and both `clearUserCaches` variants drop the whole cache.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.process.ProcessHandleManagerImpl#clearCaches",
+    "com.almworks.jira.structure.process.ProcessHandleImpl#setStatus",
+    "com.almworks.jira.structure.process.ProcessHandleManagerImpl#delete"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/setstatus",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "`setStatus(status)` on a handle stores `C_STATUS` and sets `C_TIMESTAMP` to the current time, even when the status is unchanged. A null status is ignored. If the row no longer exists, nothing is written and an error is logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.ProcessHandleImpl#setStatus",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setStatus",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#updateRecord"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/setparameters",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "`setParameters(params)` stores the parameters as JSON in `C_PARAMETERS` unless they are null or equal to the stored ones; it does not change `C_TIMESTAMP`. If the row no longer exists nothing is written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.ProcessHandleImpl#setParameters",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setDisplayParameters"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/setprogress",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "`setProgress(activity, percent)` throws `IllegalArgumentException` for a percent below -1 or above 100, before anything is written. A null argument leaves that value unchanged (an activity, once set, cannot be cleared to null); a value equal to the stored one is not rewritten; if nothing is left to change, nothing is written. `C_TIMESTAMP` is not changed. -1 is accepted as \"unknown\".",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.ProcessHandleImpl#setProgress",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setProgress"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/cancel",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "`cancel()` sets `C_CANCELLED` to true if it is not yet true; the status is not changed and nothing is interrupted. Afterwards `isCancelled()` is true through every handle for that ID.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.ProcessHandleImpl#cancel",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setCancelled"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/isvisibleto-missing-user",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "`isVisibleTo(user)` resolves the stored managing user key to a Jira user at call time. When the row has no managing user, and also when the stored key no longer belongs to any existing Jira user, the process is visible to everyone, including null (as the original does). Otherwise it is visible only to a user equal to the managing user.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.process.ProcessHandleImpl#isVisibleTo",
+    "com.almworks.jira.structure.process.ProcessSnapshot#getManagingUser"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/process-handle-manager/delete",
+   "module": "process-handle-manager",
+   "api": null,
+   "behaviour": "`delete(id)` deletes the `AO_8BAD1B_PROCESS_STATE` row with that ID and invalidates its cache entry; afterwards the lookups return null and existing handles behave as for a missing row (writes are ignored with an error logged). Not determined: the effect of deleting an ID that has no row (passed to the Active Objects layer as is).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.process.ProcessHandleManagerImpl#delete",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#delete"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/forest-permissions-cache/user-key-variants",
+   "module": "forest-permissions-cache",
+   "api": null,
+   "behaviour": "The user-key forms of `getInvisibleRows` and `collectInvisibleRows` treat a null key as the anonymous user; a non-null key is resolved with Jira's `UserManager.getUserByKey`, and when that returns null they throw `ForestAccessCache.UserLookupException` before checking anything.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache#getUser"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/forest-permissions-cache/invisible-rows-basics",
+   "module": "forest-permissions-cache",
+   "api": null,
+   "behaviour": "`getInvisibleRows(rows, user)` returns an empty set for null or empty input. Otherwise it looks the rows up through `RowManager` and returns those (each once) whose item the user cannot see, judged through the item's type with the user's real permissions (no security override); rows that do not exist are included (and logged). A row whose item is a loop marker is judged by the item of the row the marker refers to.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache#getInvisibleRows",
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache#filterRows",
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache$RowItemCollection#test"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/forest-permissions-cache/negative-rows-assertion",
+   "module": "forest-permissions-cache",
+   "api": null,
+   "behaviour": "Negative (temporary) row IDs passed to `getInvisibleRows`: with Java assertions enabled (as the tests run) the call throws `AssertionError`; with them disabled the negative IDs are dropped and only the others are checked (all negative gives an empty set).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache#getInvisibleRows"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/forest-permissions-cache/row-results-cached",
+   "module": "forest-permissions-cache",
+   "api": null,
+   "behaviour": "Results of `getInvisibleRows` are cached per user: a row already checked for that user is answered from the cache without asking the item types again. When `ItemTracker` reports changed items, the cached results for the rows that show those items (found with `RowManager.findRows`) are dropped on that user's next call; a full update from the tracker drops the user's whole cache. All cached data is also dropped on the first call made more than 5 minutes after the last full clear.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.cache.access.VisibilityCache$UserVisibilityCache#update",
+    "com.almworks.jira.structure.cache.access.CachedMatcher#matchSorted",
+    "com.almworks.jira.structure.cache.AbstractShortTermCache#maybeClear"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/forest-permissions-cache/invisible-issues",
+   "module": "forest-permissions-cache",
+   "api": null,
+   "behaviour": "`collectInvisibleIssues(issues, user, override, collector)` adds each given issue ID at most once, in ascending order, when a Jira index search for `id in (...)` run as the user (with the security-override flag as given) does not return it; deleted or unknown issues are therefore reported. The search runs in chunks of Jira's maximum clause count (or `structure.matchIssuesSorted.chunkSize` when positive). If the search fails, all issues being checked are reported, and if the index is unusable (reindex in progress or inconsistent) all are reported too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache$JqlQueryExecutor#executeFilter0",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssuesSorted",
+    "com.almworks.jira.structure.cache.IssuePredicateCache#collectInvisibleIssues0"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/forest-permissions-cache/issue-results-cached",
+   "module": "forest-permissions-cache",
+   "api": null,
+   "behaviour": "Results of `collectInvisibleIssues` are cached per user key (anonymous under an empty key); all calls with the security override share one cache regardless of user. An issue's cached result is dropped when `ItemTracker` reports a change to that issue. Results that came from a failed search (all reported as invisible) are cached like any other until the issue changes or the cache is cleared (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.cache.access.VisibilityCache#getFilterCache",
+    "com.almworks.jira.structure.permissions.PermissionsCache#getFilterCacheKey",
+    "com.almworks.jira.structure.cache.access.CachedMatcher#matchSorted",
+    "com.almworks.jira.structure.cache.IssuePredicateCache$IssueFilterExecutor#executeFilter"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/forest-permissions-cache/invisible-items-by-type",
+   "module": "forest-permissions-cache",
+   "api": null,
+   "behaviour": "`getInvisibleItems(items, user)` groups the items by item type. All items of a type that is not available are invisible. For a type implementing `BulkAccessCheckingItemType` its `filterInaccessible` is called once with the group (override false); for other types each item is invisible when `accessItem` returns null or `isVisible(item, user)` is false. If the check of a type throws an `Exception` or `LinkageError`, all items of that type are invisible. This method keeps no cache: every call asks the item types.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache#getInvisibleItems",
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache$Wrapper#filterInaccessible"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/forest-permissions-cache/collect-rows-from-forest",
+   "module": "forest-permissions-cache",
+   "api": null,
+   "behaviour": "`collectInvisibleRows(forest, user, collector)` takes each row's item from the `ItemForest` itself (so temporary rows work), resolving a loop-marker item through `RowManager.getRow` of the referenced row (a missing referenced row makes the call fail with `MissingRowException`), judges the items as `getInvisibleItems` does without security override, and adds the invisible rows in forest order. Its results are not cached.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache#collectInvisibleRows",
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache$RowItemCollection#test"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/forest-permissions-cache/clearing",
+   "module": "forest-permissions-cache",
+   "api": null,
+   "behaviour": "`clear()` drops all cached data and restarts the 5-minute expiry period. `clear(key)` drops only that user's row and issue results computed without security override; null does nothing, and the anonymous user's data is kept under the empty key, so only `clear(\"\")` or a full clear removes it; the shared security-override issue cache is removed only by a full clear or expiry. As a caching component, `clearCaches()` drops everything without restarting the expiry period and `clearUserCaches(user)` equals `clear(user.getKey())`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache#clear",
+    "com.almworks.jira.structure.cache.access.ProductionForestAccessCache#doClear",
+    "com.almworks.jira.structure.cache.access.VisibilityCache#clear",
+    "com.almworks.jira.structure.cache.AbstractShortTermCache#clear",
+    "com.almworks.jira.structure.cache.AbstractShortTermCache#clearCaches"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/project-scope-cache/all-projects-no-op",
+   "module": "project-scope-cache",
+   "api": null,
+   "behaviour": "When `StructureConfiguration.isEnabledForAllProjects()` is true, `collectOutOfScopeIssues` adds nothing and does no index search.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.scope.ProductionProjectScopeCache#collectOutOfScopeIssues",
+    "com.almworks.jira.structure.cache.scope.ProductionProjectScopeCache#getProjectScope"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/project-scope-cache/out-of-scope-by-indexed-project",
+   "module": "project-scope-cache",
+   "api": null,
+   "behaviour": "Otherwise the allowed projects are `StructureConfiguration.getPickedProjectIds()`. The project ID of each given issue is read from the Jira index field `projid` with security overridden (no permission check), and an issue is added when that project is not among the picked ones (a value that is not a number counts as 0). Issues not found in the index are not added. Each issue ID is added at most once, in ascending order; an empty picked list makes every indexed issue out of scope.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.scope.ProductionProjectScopeCache$ProjectScopeExecutor#executeFilter0",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readIssueField"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/project-scope-cache/config-and-results-cached",
+   "module": "project-scope-cache",
+   "api": null,
+   "behaviour": "The project configuration is read on first use and kept until the cache is cleared (`clearCaches()`, or automatically on the first call more than 5 minutes after the last full clear), so a configuration change is not seen before that. Per-issue results are cached as well and dropped for an issue when `ItemTracker` reports it changed (for example moved to another project).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.cache.scope.ProductionProjectScopeCache#getProjectScope",
+    "com.almworks.jira.structure.cache.scope.ProductionProjectScopeCache#doClear",
+    "com.almworks.jira.structure.cache.AbstractShortTermCache#maybeClear",
+    "com.almworks.jira.structure.cache.access.VisibilityCache$UserVisibilityCache#update"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/project-scope-cache/search-problems",
+   "module": "project-scope-cache",
+   "api": null,
+   "behaviour": "If the index search fails with a `SearchException`, all issues being checked are reported as out of scope. If the index is unusable (full reindex running or inconsistent), nothing is reported for them. Either outcome is cached until the issue changes or the cache is cleared (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.cache.IssuePredicateCache$IssueFilterExecutor#executeFilter",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readIssuesByChunks"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/project-scope-cache/user-clear-no-op",
+   "module": "project-scope-cache",
+   "api": null,
+   "behaviour": "`clearUserCaches(user)` does nothing; `clearCaches()` drops the cached configuration and all results.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.scope.ProductionProjectScopeCache#clearUserCaches",
+    "com.almworks.jira.structure.cache.scope.ProductionProjectScopeCache#doClear"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/sub-task-issue-cache/disabled-or-no-types",
+   "module": "sub-task-issue-cache",
+   "api": null,
+   "behaviour": "`collectSubTaskIssues` adds nothing and does no search when Jira's `SubTaskManager.isSubTasksEnabled()` is false or `ConstantsManager.getSubTaskIssueTypeObjects()` is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.subtask.ProductionSubTaskIssueCache#collectSubTaskIssues",
+    "com.almworks.jira.structure.cache.subtask.ProductionSubTaskIssueCache#getSubTaskTypes"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/sub-task-issue-cache/subtasks-by-indexed-type",
+   "module": "sub-task-issue-cache",
+   "api": null,
+   "behaviour": "Otherwise the issue type of each given issue is read from the Jira index field `type` with security overridden, and the issue is added when that type is one of the sub-task issue types (type IDs that are not numbers never match). Issues not found in the index are not added; each issue ID is added at most once, in ascending order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.subtask.ProductionSubTaskIssueCache$NonSubTaskExecutor#executeFilter0",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readIssueField"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/sub-task-issue-cache/types-and-results-cached",
+   "module": "sub-task-issue-cache",
+   "api": null,
+   "behaviour": "The set of sub-task types (and whether sub-tasks are enabled) is read on first use and kept until the cache is cleared (`clearCaches()`, or on the first call more than 5 minutes after the last full clear). Per-issue answers are cached too and dropped for an issue when `ItemTracker` reports it changed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.cache.subtask.ProductionSubTaskIssueCache#getSubTaskTypes",
+    "com.almworks.jira.structure.cache.subtask.ProductionSubTaskIssueCache#doClear",
+    "com.almworks.jira.structure.cache.AbstractShortTermCache#maybeClear"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/sub-task-issue-cache/search-problems",
+   "module": "sub-task-issue-cache",
+   "api": null,
+   "behaviour": "If the index search fails with a `SearchException`, all issues being checked are reported as sub-tasks; if the index is unusable, none are. Either outcome is cached until the issue changes or the cache is cleared (as the original does). `clearUserCaches(user)` does nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.cache.IssuePredicateCache$IssueFilterExecutor#executeFilter",
+    "com.almworks.jira.structure.cache.subtask.ProductionSubTaskIssueCache#clearUserCaches"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/null-and-result",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "`parse(null)` throws `NullPointerException`. A successful `parse(text)` returns a new query each call whose `getQueryString()` and `toString()` both return `text` unchanged. Parsing only checks syntax and the names of registered constraints: no issue, JQL field or permission is checked (that happens in `validate` and before execution).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureQueryParserImpl#parse",
+    "com.almworks.jira.structure.query.StructureQueryImpl#toString"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/syntax-error-exception",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "Every syntax error throws `StructureException` with error code 6005 (category INVALID_INPUT; a plugin code that is not in `StructureErrors`). Its localized message quotes the text up to and including the error position, at most the last 40 characters, between single quotes, with `...` where text was cut off before or after, followed by the line and column. Examples that fail: the empty string or only whitespace, `root xyz`, `root)`, `(root`, `child root`, `child in`, `PROJ-1 PROJ-2`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.SjqlParser#query",
+    "com.almworks.jira.structure.query.SjqlParser#getProblemContext",
+    "com.almworks.jira.structure.query.SjqlParser$Problem#toStructureException",
+    "com.almworks.jira.structure.error.InternalErrors"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/keywords-case-and-spelling",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "Keywords are matched without regard to case, and each spelling with underscores also has a camelCase form: `prev_sibling`, `prevSibling`, `PREVSIBLING` and `Prev_Sibling` are the same keyword. A keyword must end at whitespace, the end, or a character that cannot continue a word (`orx` is not `or`). Synonyms: `empty`/`null`; `leaf`/`leaves`; `root`/`roots`; `issue`/`issues`; `child`/`children`/`sub_issue`/`sub_issues`; singular and plural of parent, descendant, ancestor and sibling; `preceding_sibling`/`prev_sibling`/`previous_sibling` (and plurals); `following_sibling`/ `next_sibling` (and plurals).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.SjqlBasicToken",
+    "com.almworks.jira.structure.util.lang.FixedToken#canonicalize",
+    "com.almworks.jira.structure.util.lang.AbstractLexer#nextBasicToken"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/boolean-operators-precedence",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "`or`/`||`/`|`, `and`/`&&`/`&` and `not`/`!` combine clauses; `not` binds tightest, then `and`, then `or`, and repeated `not` is allowed (`not not leaf` equals `leaf`). Parentheses group. `A or B and C` selects rows matching A, or matching both B and C.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.SjqlParser#orClause",
+    "com.almworks.jira.structure.query.SjqlParser#andClause",
+    "com.almworks.jira.structure.query.SjqlParser#notClause",
+    "com.almworks.jira.structure.query.SjqlParser#subClause"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/basic-constraints",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "On a forest, `empty`/`null` match no rows; `leaf` matches rows without children; `root` matches top-level rows; `[]` (JQL with no condition) matches every row whose item is an issue the current user can see.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.RelationBuilder$BasicConstraintStepImpl#leaf",
+    "com.almworks.jira.structure.query.model.RelationBuilder$BasicConstraintStepImpl#root",
+    "com.almworks.jira.structure.query.SjqlParser#sjqlClause"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/issue-list",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "A comma-separated list of issue keys and numeric IDs (e.g. `PROJ-1, proj-2, 10001`) matches the rows whose item is one of those issues. A numeric ID matches its issue's rows directly. A key is looked up with Jira's `IssueManager.getIssueByKeyIgnoreCase` and matches only if the current user has `BROWSE_PROJECTS` on the issue (unless security is overridden); keys or IDs of issues not present in the forest simply match nothing. A key or ID followed directly by a letter or digit (e.g. `10001abc`, `PROJ-1x`) is a syntax error; a JQL clause inside the list is a syntax error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.IssueList#eval",
+    "com.almworks.jira.structure.query.model.QueryContextImpl#resolveIssueKeyToRows",
+    "com.almworks.jira.structure.query.SjqlLexer#nextIssueKey",
+    "com.almworks.jira.structure.query.SjqlLexer#nextIssueId",
+    "com.almworks.jira.structure.query.SjqlParser#keyOrIdList"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/embedded-jql",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "`[ ... ]` embeds Jira JQL, parsed with Jira's `JqlQueryParser`; the closing bracket is found while skipping quoted strings (backslash escapes inside them) and custom-field references like `cf[10010]`. An ORDER BY part is dropped. The clause matches rows whose item is an issue matched by that JQL as the current user (security override respected); rows of other item types never match. A JQL parse error is reported as a syntax error (code 6005) carrying Jira's localized JQL message; a missing `]` is a syntax error of its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.SjqlLexer#nextJqlToken",
+    "com.almworks.jira.structure.query.SjqlLexer#getQuery",
+    "com.almworks.jira.structure.query.model.JqlQuery#eval",
+    "com.almworks.jira.structure.query.model.QueryContextImpl#filterIssues"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/relation-operators",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "For a relation R and clause C: `R in C`, `R = C` and `R is C` match rows that have at least one R-relative matching C (`child in C`: rows with a child matching C; `ancestor in C`: rows below a row matching C); `R of C` matches the R-relatives of rows matching C (`child of C`: children of matching rows); `R not in C`, `R != C` and `R is not C` match the rows that `R in C` does not. `self` relates a row to itself; `issue` relates an issue row to itself only. C after an operator is a single clause (possibly negated or itself relational); `and`/`or` need parentheses.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.SjqlParser#opClause",
+    "com.almworks.jira.structure.query.model.RelationBuilder$RelationStepHelperImpl#composition"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/relation-with-empty",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "With `empty` as the clause: `R in empty` and `R is empty` match rows that have no R-relative (`child is empty` equals `leaf`); `R not in empty` matches rows that have at least one; `R of empty` matches rows that are not an R-relative of any row (`child of empty` equals `root`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.RelationBuilder$RelationStepHelperImpl#composition"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/sibling-relations",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "`prev_sibling` relates a row to every earlier row with the same parent (not only the adjacent one; top-level rows are siblings of each other), `next_sibling` to every later one, and `sibling` to both. So `prev_sibling of C` matches all earlier siblings of each row matching C.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.PrevSibling",
+    "com.almworks.jira.structure.query.model.RelationBuilder$StartStepHelperImpl"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/combined-relations",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "Combined relation names `issue_or_R`, `issues_or_R`, `R_or_issue`, `R_or_issues`, `self_or_R` and `R_or_self` exist for R = child, parent, descendant, ancestor and the three sibling relations (all spellings), and mean the union of the two relations (`self_or_child in C` = rows matching C or having a child matching C). Relations can also be joined explicitly before one operator: `self or child in C` means the same; the relation after `or` must be a relation, else it is a syntax error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.SjqlParser#binaryRel",
+    "com.almworks.jira.structure.query.SjqlParser#binaryRelOrTail",
+    "com.almworks.jira.structure.query.SjqlBasicToken#issueOr"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/named-constraint-syntax",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "A registered constraint name (case-insensitive; an unregistered name is a syntax error) is used as `name(a, b)`, `name()` (no arguments), `name arg` (one argument running to the next whitespace) or bare `name` when the next token is `and`, `or`, `)` (inside parentheses) or the end. An unquoted argument in parentheses runs to the next `,` or `)` and is trimmed. Quoted arguments use `\"...\"` or `'...'`; inside, a backslash before `\"`, `'` or `\\` stands for that character and any other backslash is kept. Syntax errors: an empty argument (`name(a,)`, `name(,a)`), a missing `)`, an unclosed quote.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.SjqlParser#constraint",
+    "com.almworks.jira.structure.query.SjqlParser#addConstraintArguments",
+    "com.almworks.jira.structure.query.SjqlParser#nextText"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/constraint-word-argument-swallows-paren",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "In the `name arg` form the argument runs up to whitespace only, so `(folder Foo)` passes `Foo)` as the argument and then fails with a syntax error for the missing `)`, while `(folder Foo )` works (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.SjqlParser#constraint",
+    "com.almworks.jira.structure.query.SjqlParser#nextText"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/execution-reuses-first-context",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "A query object remembers the evaluation context of its last execution, including the user and the security override it was created for, and reuses it whenever it is executed again on the same `Forest` instance. So executing the same query object on the same forest instance as a different user evaluates JQL and issue keys for the first user, once the new user passes validation (as the original does). A different forest instance gets a fresh context.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureQueryImpl#getOrCreateContext",
+    "com.almworks.jira.structure.query.model.QueryContextImpl#canReuse"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-parser/constraint-errors-give-no-rows",
+   "module": "structure-query-parser",
+   "api": null,
+   "behaviour": "When a named constraint throws during execution (from `filter` or from its sequence), the error is logged and that constraint matches no further rows; the query does not fail.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.Constraint#eval",
+    "com.almworks.jira.structure.query.model.Constraint$SequenceAdaptor#advance"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-builder-factory/builder-independent",
+   "module": "structure-query-builder-factory",
+   "api": null,
+   "behaviour": "Each `builder()` call returns the first step of a new, independent builder; finishing it with `end()` gives a query whose `getQueryString()` is null. Built queries are validated and executed exactly like parsed ones (same semantics for every constraint and relation).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureQueryBuilderFactoryImpl#builder",
+    "com.almworks.jira.structure.query.model.RelationBuilder$QueryHead#end"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-builder-factory/precedence-and-negation",
+   "module": "structure-query-builder-factory",
+   "api": null,
+   "behaviour": "In a builder, constraints joined through `and` form one group and `or` starts a new group; the result is the union of the groups, so `a.and.b.or.c` means (a and b) or c. `sub()` ... `endsub()` makes one parenthesized constraint. `not()` negates only the next constraint, and `not().not()` cancels out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.RelationBuilder#build0",
+    "com.almworks.jira.structure.query.model.RelationBuilder$BasicConstraintStepImpl#addRelation",
+    "com.almworks.jira.structure.query.model.RelationBuilder$StartStepImpl#combine"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-builder-factory/issue-lists-copied",
+   "module": "structure-query-builder-factory",
+   "api": null,
+   "behaviour": "`issueKey(s)`, `issueId(s)` and `issues(keys, ids)` copy their arguments when called (changing the list later has no effect); null key or ID collections count as empty, and a list with no keys and no IDs matches nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.RelationBuilder$BasicConstraintStepImpl#issues"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-builder-factory/embedded-query",
+   "module": "structure-query-builder-factory",
+   "api": null,
+   "behaviour": "`query(q)` inserts the logic of a query made by this plugin (parsed or built) as one constraint; a query of any other `StructureQuery` implementation, or null, is ignored with a warning and the builder is returned unchanged (so `query(foreign).end()` alone matches nothing).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.RelationBuilder$BasicConstraintStepImpl#query"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-builder-factory/constraint-names",
+   "module": "structure-query-builder-factory",
+   "api": null,
+   "behaviour": "`constraint(name, args...)` with a null argument throws `NullPointerException`. At validation the name is looked up as a prefix among the registered constraint names (case-insensitive) and the first match validates the arguments, so an abbreviation such as `fol` passes validation through `folder`; at execution only an exact (case-insensitive) name matches, and an unknown or abbreviated name matches no rows (as the original does). A name that matches nothing at all gives a validation error.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.Constraint",
+    "com.almworks.jira.structure.query.StructureQueryValidator#validateConstraint",
+    "com.almworks.jira.structure.query.model.Constraint#eval"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-builder-factory/relation-or-step",
+   "module": "structure-query-builder-factory",
+   "api": null,
+   "behaviour": "`.or()` on a relation step joins relations before the operator: `self.or().child.in.C` matches rows that match C or have a child matching C, like the text `self or child in C`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.RelationBuilder$RelationStepHelperImpl#or",
+    "com.almworks.jira.structure.query.model.RelationBuilder$RelationStepHelperImpl#getBinaryRelation"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-builder-factory/built-tostring",
+   "module": "structure-query-builder-factory",
+   "api": null,
+   "behaviour": "`toString()` of a built query is generated text: `empty()` gives `EMPTY`; negation is a leading `!` (with parentheses around a compound clause), so `all()` gives `!EMPTY`; an issue list gives the IDs then the keys in parentheses separated by commas, e.g. `(10001,PROJ-1)`; JQL gives `[` + Jira's `JqlStringSupport.generateJqlString` + `]` (`[]` for none); a constraint gives `name(\"a\",\"b\")` with every argument in double quotes and nothing escaped; or-groups are joined by ` || ` and and-groups by ` && `; relational clauses are written in `of` form with lower-case relation names (`child in C` is written `parent of C`) and joined relations with `|`, which the parser does not read back as one relation.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.model.UnaryRelations#toSjqlString",
+    "com.almworks.jira.structure.query.model.BinaryRelations#toSjqlString"
+   ]
+  },
+  {
+   "key": "m9-jobs-caches-query/structure-query-builder-factory/equality-with-parsed",
+   "module": "structure-query-builder-factory",
+   "api": null,
+   "behaviour": "A built query equals (and has the same hash code as) a parsed or built query with the same logic after simplification, whatever the text: for example `child.in.issueKey(\"A-1\")` equals `parse(\"child in A-1\")` and `parse(\"parent of A-1\")`, and a doubly negated constraint equals the constraint itself.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureQueryImpl#equals",
+    "com.almworks.jira.structure.query.StructureQueryImpl#hashCode",
+    "com.almworks.jira.structure.query.model.RelationStructureOptimizer"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,798 @@
+{
+ "claims": [
+  {
+   "key": "m6-forest-items/forest-service/null-spec",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "`getForestSource(null)` throws `StructureException` with error `INVALID_PARAMETER` (message `forest spec is null`); nothing else happens.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#getForestSource"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/secured-spec-checks",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "For a secured spec, `getForestSource` checks on every call (also when the source is already cached): if the spec has a user key, `UserManager.getUserByKey` must return a user, otherwise it throws a `StructureException` with error code 6008 (an internal error of category NO_PERMISSION, not one of the public `StructureErrors`) for the user identity of that key; a null user key means anonymous. If the spec names a structure, the structure permission of that user (not of the current user) must include VIEW, otherwise `StructureException` `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` for that structure (also for a structure that does not exist). A secured query or clipboard spec without a structure needs only the user check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#getForestSource",
+    "com.almworks.jira.structure.forest.InMemoryForestService#validateSpec",
+    "com.almworks.jira.structure.forest.InMemoryForestService#validateUser",
+    "com.almworks.jira.structure.forest.InMemoryForestService#validateStructureAccess"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/unsecured-spec-user-key",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "An unsecured spec is not permission-checked, but when it is first resolved (cache miss) a non-null user key it carries (for example a transformed or query spec) must still name an existing Jira user, otherwise the same user-not-found `StructureException` (code 6008) is thrown. An unsecured structure spec of a structure the user cannot see is resolved without error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#createSource",
+    "com.almworks.jira.structure.forest.InMemoryForestService#validateUser"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/source-caching",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "Equal specs give the same `ForestSource` instance while it is cached: a second `getForestSource` with an equal spec returns the identical object without building a new one. Sources are held per node in memory with soft references and expire 30 minutes after last access (specs whose transformations include the module `com.almworks.jira.structure:filter-item` go to a separate cache that expires after 5 minutes). Dark features `structure.forestService.cache.<general|pinned>.timeout` (ms; negative disables expiry), `.maxSize`, `.concurrency` and `.softValues` (default true) tune the two caches. Clipboard specs are never cached by this module: each call asks the clipboard for its source again.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#getForestSource",
+    "com.almworks.jira.structure.forest.InMemoryForestService#getCacheForSpec",
+    "com.almworks.jira.structure.forest.InMemoryForestService#cacheSettings",
+    "com.almworks.structure.commons.platform.ReadThroughCache#get"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/show-recent-text",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "A spec whose query has type `text` and an empty query string is resolved as the same spec with a `jql` query and an empty query string (so both resolve to the same cached source).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#fixShowRecent"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/query-spec-generators",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "A spec with a query of type `jql`, `text` or `cql` resolves to a forest whose only top-level row is a new transient generator (created through `generator-manager`'s `createTransientGenerator`) with parameters {<type>: <query>, \"limit\": 1000}: module `com.almworks.jira.structure:inserter-jql` for jql, `com.almworks.jira.structure:inserter-text` for text, `com.almworks.structure.pages:inserter-confluence-pages` for cql. With an empty query the module is `com.almworks.jira.structure:inserter-recent-issues` (jql and text) or `com.almworks.structure.pages:inserter-recent-pages` (cql) with the same parameter map. The generator is not checked to be installed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.SQuerySkeletonFactoryFacade#parseQuery",
+    "com.almworks.jira.structure.forest.SQuerySkeletonFactoryFacade#getKnownQueryGenerator"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/query-spec-other-types",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "For any other query type, `getForestSource` uses the `SQuerySkeletonFactory` extension registered for that type: its `createSkeleton(query, builder)` fills the forest. When no factory is registered for the type it throws `StructureException` `INVALID_PARAMETER` with message `'<type>' sQuery type is not supported`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.SQuerySkeletonFactoryFacade#parseQuery"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/generated-sources",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "For a non-skeleton spec (query, transformed, titled or structure spec) the returned source is a generating source: when its forest is requested it runs the generators found in the underlying forest (the query, sub-structure and transformation generators described for each kind, or the structure's own generators). The fixed skeleton forests built for query, transformed and titled specs are immutable; an action applied directly to such a skeleton throws `StructureException` `UNSUPPORTED_FOREST_SOURCE_OPERATION`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.SQuerySkeletonFactoryFacade#parseQuery",
+    "com.almworks.jira.structure.forest.InMemoryForestService#generatedOrSkeleton",
+    "com.almworks.jira.structure.forest.InMemoryForestService#createTransformedSkeleton",
+    "com.almworks.jira.structure.forest.ImmutableForestSource#apply"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/structure-spec",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "An unsecured structure spec (no version, not transformed, no title) resolves to the structure's stored forest source from `structure-manager` without a permission check; when the structure does not exist this throws `StructureException` `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`. A skeleton spec returns that stored source itself (so `apply` on it changes the structure); a non-skeleton spec wraps it in a generating source that also runs the structure's generators.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#createBaseSource",
+    "com.almworks.jira.structure.forest.InMemoryForestService#generatedOrSkeleton",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getForestSourceNoAccessCheck"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/historical-spec",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "A structure spec with a version resolves, with security overridden (`StructureAuth.sudo`), to the forest of that version from `HistoryService.getForestVersion(structureId, version)`, as an immutable source whose version number is the history entry's version; errors from the history service propagate as `StructureException`. Such a source cannot be changed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#createHistoricalSource"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/transformed-spec",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "A transformed spec is resolved to a forest of two top-level generator rows, both transient generators created through `generator-manager`: first a sub-structure inserter (module `com.almworks.jira.structure:inserter-substructure`) whose parameters hold the spec without its last transformation in REST form, its user key and whether it is secured, row id 0 and reuse-rows true; then a generator with the last transformation's module key and parameters. Each transformation therefore stacks on the source of the spec before it. This happens before the secured check of the build, so secured transformed specs are built this way too.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#createSource",
+    "com.almworks.jira.structure.forest.InMemoryForestService#createTransformingSource",
+    "com.almworks.jira.structure.forest.InMemoryForestService#createTransformedSkeleton",
+    "com.almworks.jira.structure.forest.InMemoryForestService#createStructureInserterForDecoration"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/titled-spec",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "A spec with the title flag (and no transformations) is resolved to a forest whose single top-level row shows the structure itself (item `com.almworks.jira.structure:type-structure` with the structure id, semantics 1) with one child: a transient sub-structure inserter generator for the same spec without the title flag.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#createTitledSource",
+    "com.almworks.jira.structure.forest.InMemoryForestService#createTitledSkeleton"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/secured-source",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "A secured, untransformed spec resolves to a secured source wrapping the source of the unsecured spec (which is resolved, and cached, at the same time). Each time the secured source fetches the underlying forest it re-runs the user and VIEW checks; if they now fail (user deleted, permission revoked) it shows an empty forest instead of throwing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#createSecuredSource"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/usage-tracking",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "Resolving a non-skeleton spec that names a structure records the use of that structure: the structure property `lastPolledMillis` is set to the current epoch milliseconds, at most once per 2 hours per structure on each node. Skeleton specs do not record use.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#getForestSource",
+    "com.almworks.jira.structure.property.StructureUsageTracker#touch",
+    "com.almworks.jira.structure.property.StructureUsageTracker#persistTouch"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/unexpected-errors",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "When building a source fails with something other than a `StructureException` (for example a spec with neither structure, query nor clipboard, which fails with `IllegalArgumentException` inside), `getForestSource` throws `StructureException` `GENERIC_ERROR` with that failure as cause. A `StructureException` raised while building propagates unchanged.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#getForestSource",
+    "com.almworks.jira.structure.forest.InMemoryForestService#createSource"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/display-name-structure",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "`getDisplayName` of a structure spec (also a secured, versioned or skeleton one) returns the structure's name as `StructureManager.getStructure(id, VIEW)` gives it for the current user. When that fails (no such structure, or the current user may not view it) the error is logged and the result is the text of i18n key `s.common.structure` (English `Structure`) in the current user's language.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#getDisplayName",
+    "com.almworks.jira.structure.forest.InMemoryForestService#getDefaultStructureName"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/display-name-other",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "`getDisplayName` returns, in the current user's language: for null the text of `s.common.structure` (English `Structure`); for a query spec `s.common.query` (`Query`); for a clipboard spec `s.common.clipboard` (`Clipboard`); for a secured spec the name of its unsecured form; for a transformed spec the name of its untransformed form followed by ` (+)` (added once only: a name already ending in ` (+)` is not extended). It never throws.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#getDisplayName"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/clear-user-caches",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "Clearing the caches for a user (the `CachingComponent` call) drops every cached source whose spec carries that user key, and every source of a structure owned by that user, so the next `getForestSource` builds them anew; clearing all caches drops every cached source. Dropped generating sources have their running generation cancelled.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#clearCaches",
+    "com.almworks.jira.structure.forest.InMemoryForestService#clearUserCaches",
+    "com.almworks.jira.structure.forest.InMemoryForestService#clearUserCache",
+    "com.almworks.jira.structure.forest.InMemoryForestService#isGfsWithOwner",
+    "com.almworks.jira.structure.forest.InMemoryForestService#onRemove"
+   ]
+  },
+  {
+   "key": "m6-forest-items/forest-service/stop",
+   "module": "forest-service",
+   "api": null,
+   "behaviour": "When the plugin stops, every generation running for a cached spec is cancelled (with interruption).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.InMemoryForestService#stopComponent"
+   ]
+  },
+  {
+   "key": "m6-forest-items/structure-row-manager/create-row-stored",
+   "module": "structure-row-manager",
+   "api": null,
+   "behaviour": "`createRow(itemId, semantics)` inserts a row into `AO_8BAD1B_ROW`: `C_ITEM_TYPE` is the `item-type-registry` id of the item's type key (registered if new), `C_ITEM_LONG_ID` the long id (0 for string-id items), `C_ITEM_STRING_ID` the string id (NULL for long-id items), `C_SEMANTICS` the semantics. It returns `ID * 2` (positive, even). The row is visible to `getRow`, `scanRows` and `findRows` on this node right after the call. A null item throws `NullPointerException`; a database id that overflowed to a non-positive number gives `StructureRuntimeException` `Row ID overflow detected: <pk>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.RowManagerFacade#createRow",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#createRow"
+   ]
+  },
+  {
+   "key": "m6-forest-items/structure-row-manager/get-row-routing",
+   "module": "structure-row-manager",
+   "api": null,
+   "behaviour": "`getRow(id, access)` returns a row with the stored item identity and semantics for an existing id: odd positive ids are transient rows (in memory), even positive ids persistent rows. For 0, negative ids, and ids that were never created or were lost on restart (transient) it throws `MissingRowException` for that id. The item is resolved lazily through `item-resolver` according to the access mode.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.RowManagerFacade#getRow",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#getRow",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#getRowSpec",
+    "com.almworks.jira.structure.row.FastTransientRowManager#getRow"
+   ]
+  },
+  {
+   "key": "m6-forest-items/structure-row-manager/scan-rows-order",
+   "module": "structure-row-manager",
+   "api": null,
+   "behaviour": "The plugin's `scanRows(rows, sorted, access, missing, predicate)` does nothing for null rows. Otherwise it first checks all ids: a 0 or negative id is added to the missing collector, or with a null collector throws `MissingRowException` before any row is visited. It then visits all transient (odd) rows in the given order, and after them the persistent (even) rows: in the given order when `sorted` is true, or sorted ascending (duplicates kept) when `sorted` is false. Missing rows go to the collector or throw `MissingRowException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.RowManagerFacade#scanRows",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#scanRows",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#createSortedIterator",
+    "com.almworks.jira.structure.row.FastTransientRowManager#scanRows"
+   ]
+  },
+  {
+   "key": "m6-forest-items/structure-row-manager/scan-rows-early-stop-bug",
+   "module": "structure-row-manager",
+   "api": null,
+   "behaviour": "In `scanRows`, a predicate returning false stops the visit only within the current group: when it returns false for a transient row, the remaining transient rows are skipped but the persistent rows are still all passed to the predicate (as the original does). A false for a persistent row ends the scan.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.RowManagerFacade#scanRows",
+    "com.almworks.jira.structure.row.FastTransientRowManager#scanRows",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#scanRows"
+   ]
+  },
+  {
+   "key": "m6-forest-items/structure-row-manager/find-rows",
+   "module": "structure-row-manager",
+   "api": null,
+   "behaviour": "`findRows(itemId, predicate)` reports first the persistent rows of the item (rows of `AO_8BAD1B_ROW` whose long id, or string id, and item type match; order as returned by the database), then the transient rows of the item, newest first, until the predicate returns false. A null item reports nothing. Issues are looked up by issue id, other items by their identity; results are cached and refreshed when a row for that item is created on this node. Looking up an item whose type key is not yet registered registers it in `AO_8BAD1B_ITEM_TYPE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.RowManagerFacade#findRows",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#findRows",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#findRows0",
+    "com.almworks.jira.structure.row.FastTransientRowManager#findRows"
+   ]
+  },
+  {
+   "key": "m6-forest-items/structure-row-manager/find-rows-db-error",
+   "module": "structure-row-manager",
+   "api": null,
+   "behaviour": "When the database lookup for the persistent rows fails, `findRows` logs it and reports no persistent rows, but it still goes on to report the transient rows (the empty answer may be cached for a while). No exception reaches the caller.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#findRows",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#findRows0",
+    "com.almworks.jira.structure.row.RowManagerFacade#findRows"
+   ]
+  },
+  {
+   "key": "m6-forest-items/structure-row-manager/mapper-basic",
+   "module": "structure-row-manager",
+   "api": null,
+   "behaviour": "`createMapper(forest).mapRow(id)` returns -1 for -1; the id itself when it is a row of the forest; 0 when it is not in the forest and is not a transient id (persistent, 0 or negative). For a transient id not in the forest it reads the row: missing row gives 0; a row without a creator (creator 0) gives 0; when the row's creator id is a row of the forest it returns that transient id (even though the row itself is not in the forest); otherwise it continues with the row's original id (0 gives 0).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.IndexingRowMapper#mapRow",
+    "com.almworks.jira.structure.row.RowManagerFacade#createMapper"
+   ]
+  },
+  {
+   "key": "m6-forest-items/structure-row-manager/mapper-limits",
+   "module": "structure-row-manager",
+   "api": null,
+   "behaviour": "`mapRow` follows at most 100 original-id steps (dark feature `structure.rowmapper.maxjumps`) and returns 0 when the limit is reached; after 15 steps (`structure.rowmapper.normaljumps`) it also watches for an id seen before and returns 0 on such a cycle. Both cases are logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.IndexingRowMapper#mapRow",
+    "com.almworks.jira.structure.row.RowManagerFacade#createMapper"
+   ]
+  },
+  {
+   "key": "m6-forest-items/structure-row-manager/mapper-map-list",
+   "module": "structure-row-manager",
+   "api": null,
+   "behaviour": "`map(rows)` maps each id with `mapRow`. When every id maps to itself it returns `Mapping.identical(rows)` with the same list. Otherwise the mapped list keeps unchanged ids, replaces changed ids by their mapped id (and the map holds requested -> mapped for them), and leaves out ids that map to 0, so it can be shorter than the requested list; the result is `Mapping.mapped(rows, mappedList, map)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.IndexingRowMapper#map"
+   ]
+  },
+  {
+   "key": "m6-forest-items/generator-manager/create-stored",
+   "module": "generator-manager",
+   "api": null,
+   "behaviour": "`createGenerator(moduleKey, params, owner)` inserts a row into `AO_8BAD1B_GENERATOR` with `C_MODULE_KEY` the trimmed key, `C_PARAMETERS` the parameters as a JSON object (NULL when the map is null or empty) and `C_OWNING_STRUCTURE` the owner (NULL allowed), and returns `C_ID * 2`. It does not notify the item tracker. A null or blank key throws `IllegalArgumentException` before anything is stored; after the plugin has stopped it throws `IllegalStateException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.GeneratorManagerFacade#createGenerator",
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#createGenerator",
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#serializeParameters"
+   ]
+  },
+  {
+   "key": "m6-forest-items/generator-manager/create-transient",
+   "module": "generator-manager",
+   "api": null,
+   "behaviour": "`createTransientGenerator(moduleKey, params)` keeps the generator in memory only and returns odd ids 1, 3, 5, ... in creation order (starting again at 1 after a restart); nothing is written to the database and the owning structure is null. The key is trimmed and a blank key throws `IllegalArgumentException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.GeneratorManagerFacade#createTransientGenerator",
+    "com.almworks.jira.structure.generator.InMemoryTransientGeneratorManager#createGenerator",
+    "com.almworks.jira.structure.row.IdPartitioning#toIdFromTransient"
+   ]
+  },
+  {
+   "key": "m6-forest-items/generator-manager/get",
+   "module": "generator-manager",
+   "api": null,
+   "behaviour": "`getGenerator(id)` returns a `GeneratorSpec` for an existing id: for a persistent id (positive even) the stored key, parameters read back from the JSON (null column gives an empty map) and owner; for a transient id (positive odd) the spec as created. For an id that does not exist it returns null (no exception). For 0 or a negative id: with assertions enabled (as the tests run) it throws `AssertionError`; with them disabled it returns null. Persistent results are cached and the cache is refreshed after create, update and delete on this node.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.GeneratorManagerFacade#getGenerator",
+    "com.almworks.jira.structure.generator.GeneratorManagerFacade#getSpec",
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#getGenerator",
+    "com.almworks.jira.structure.generator.InMemoryTransientGeneratorManager#getGenerator"
+   ]
+  },
+  {
+   "key": "m6-forest-items/generator-manager/update",
+   "module": "generator-manager",
+   "api": null,
+   "behaviour": "`updateGenerator(id, key, params, owner)` on a persistent id overwrites all three columns (null params store NULL, null owner clears `C_OWNING_STRUCTURE`) and then calls `ItemTracker.recordChange` with the generator's identity (`com.almworks.jira.structure:type-generator`, id). An id that is not positive and even throws `StructureException` `INVALID_PARAMETER` with the localized message `Generator <id> is not editable.` (checked before the key); a persistent id with no row throws `StructureException` `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE` for the generator identity with message `Generator <id> does not exist.` and records no change. A blank key on a persistent id throws `IllegalArgumentException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.GeneratorManagerFacade#updateGenerator",
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#updateGenerator"
+   ]
+  },
+  {
+   "key": "m6-forest-items/generator-manager/delete",
+   "module": "generator-manager",
+   "api": null,
+   "behaviour": "`deleteGenerator(id)` on a persistent id deletes its row and, only if a row was deleted, records a change of the generator identity with `ItemTracker`; on a transient id it removes it from memory without notifying. Deleting a missing id does nothing and throws nothing. For 0 or a negative id: with assertions enabled it throws `AssertionError`; with them disabled it does nothing. `getGenerator` returns null afterwards.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.GeneratorManagerFacade#deleteGenerator",
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#deleteGenerator",
+    "com.almworks.jira.structure.generator.InMemoryTransientGeneratorManager#deleteGenerator"
+   ]
+  },
+  {
+   "key": "m6-forest-items/generator-manager/no-checks",
+   "module": "generator-manager",
+   "api": null,
+   "behaviour": "No method checks permissions or whether the module key belongs to an installed generator; any non-blank key is stored as given (trimmed).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.GeneratorManagerFacade#createGenerator",
+    "com.almworks.jira.structure.generator.GeneratorManagerFacade#updateGenerator"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-resolver/resolve-item",
+   "module": "item-resolver",
+   "api": null,
+   "behaviour": "`resolveItem(id, cls)` finds the item type module registered for the identity's type key and calls its `StructureItemType.accessItem(id)`. It returns the object cast to `cls` when it is non-null, is an instance of `cls`, and either security is overridden (`StructureAuth`) or the type's `isVisible(object, user)` is true for the current `StructureAuth` user; otherwise null. A null identity or an unknown type key gives null. A null `cls` throws `NullPointerException`, even for a null identity.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveItem",
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveOne",
+    "com.almworks.jira.structure.item.ItemResolverImpl#checkValue"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-resolver/resolve-errors",
+   "module": "item-resolver",
+   "api": null,
+   "behaviour": "Exceptions (and linkage errors) thrown by the item type while loading or checking visibility are logged and give null; `resolveItem` and `resolveUnchecked` never throw for them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveOne"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-resolver/resolve-unchecked",
+   "module": "item-resolver",
+   "api": null,
+   "behaviour": "`resolveUnchecked(id)` returns whatever the item type's `accessItem` returns, without class or visibility check and without calling `isVisible`; null for a null identity, an unknown type or a failure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveUnchecked",
+    "com.almworks.jira.structure.item.ItemResolverImpl#checkValue"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-resolver/resolve-items-single",
+   "module": "item-resolver",
+   "api": null,
+   "behaviour": "`resolveItems` and `resolveItemsUnchecked` do nothing for an empty collection, and a null collection gives `NullPointerException`. A collection of exactly one identity is resolved as by `resolveItem` / `resolveUnchecked` and is always reported to the consumer, with null when not resolved (also for a null element or an unknown type). A null class or consumer gives `NullPointerException` before anything else.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveItems",
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveItemsUnchecked",
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveMany"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-resolver/resolve-items-bulk",
+   "module": "item-resolver",
+   "api": null,
+   "behaviour": "With two or more identities, they are grouped by type key. For a type that is a `BulkAccessibleItemType`, `accessItems` is called once with the type's identities (an unmodifiable set), each object it reports is passed on (after the class and visibility check; null if it fails), and afterwards each identity it did not report is passed with null. For other types `accessItem` is called per identity. Identities of an unknown type are not reported at all. Order of reporting is not defined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveMany"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-resolver/resolve-items-type-failure",
+   "module": "item-resolver",
+   "api": null,
+   "behaviour": "In the bulk case, an exception thrown by an item type is logged and ends that type only: identities of that type not reported before the failure are not reported at all (also not with null), while other types are still resolved.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveMany"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-resolver/resolve-items-duplicates-bug",
+   "module": "item-resolver",
+   "api": null,
+   "behaviour": "When a collection of two or more identities contains the same identity twice (for example a `List`), `resolveItems` and `resolveItemsUnchecked` throw `IllegalStateException` (duplicate key) before reporting anything (as the original does); a null element among two or more gives `NullPointerException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveMany"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-resolver/visibility-user",
+   "module": "item-resolver",
+   "api": null,
+   "behaviour": "The visibility check uses the user of the current `StructureAuth` context, read once per call (bulk calls use the same user for all items); with security overridden `isVisible` is not called.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.ItemResolverImpl#resolveMany",
+    "com.almworks.jira.structure.item.ItemResolverImpl#checkValue"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-type-registry/get-or-create",
+   "module": "item-type-registry",
+   "api": null,
+   "behaviour": "`getOrCreateTypeId(key)` trims the key and returns the `ID` of the `AO_8BAD1B_ITEM_TYPE` row whose `C_KEY` equals it, inserting a new row when there is none. Repeated calls with the same key (also with surrounding spaces) return the same id, which never changes. A null, empty or whitespace-only key throws `IllegalArgumentException` (message `argument cannot be null or blank`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#getOrCreateTypeId",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#createTypeId",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#selectOrInsertTypeRegistrationUncached"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-type-registry/caching",
+   "module": "item-type-registry",
+   "api": null,
+   "behaviour": "On the first lookup that misses the in-memory mapping, all rows of `AO_8BAD1B_ITEM_TYPE` are loaded at once; afterwards known keys and ids are answered from memory without database access. Cleared caches are reloaded the same way on the next miss.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#maybePreload",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#clearCaches",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#getOrCreateTypeId",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#getTypeKey"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-type-registry/concurrent-create",
+   "module": "item-type-registry",
+   "api": null,
+   "behaviour": "When inserting a new key fails (a unique-constraint conflict because another thread or node inserted it, or another database error), it tries again: up to 5 attempts, each first reading the key and inserting only if absent, waiting 50, 100, 200 and 400 ms between attempts. If several rows hold the key, the first one found is used. After 5 failed attempts, or when the plugin stops while waiting, it throws a `StructureRuntimeException` (`cannot record a new item type <key> in 5 attempts`); an interrupt also gives a `StructureRuntimeException` and keeps the thread's interrupt flag set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#createTypeId",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#selectOrInsertTypeRegistrationCached",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#selectOrInsertTypeRegistrationUncached"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-type-registry/get-type-key",
+   "module": "item-type-registry",
+   "api": null,
+   "behaviour": "`getTypeKey(id)` returns the `C_KEY` of the row with that `ID`. For an id with no row it throws `ItemTypeNotFoundException` (message `item type <id> was not found`); this is not remembered, so a later registration with that id is found. A row with a null key gives a `StructureRuntimeException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#getTypeKey",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#loadTypeKeyCached",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#loadTypeKeyUncached"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-type-registry/transaction-assert",
+   "module": "item-type-registry",
+   "api": null,
+   "behaviour": "When the answer is not already in memory, both methods require not being inside a database transaction: with assertions enabled (as the tests run) they throw `AssertionError` when called inside one; with assertions disabled they proceed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#getTypeKey",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#getOrCreateTypeId",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#isKnownToBeNotInTransaction"
+   ]
+  },
+  {
+   "key": "m6-forest-items/item-type-registry/stopped",
+   "module": "item-type-registry",
+   "api": null,
+   "behaviour": "After the plugin has stopped, `getTypeKey` and `getOrCreateTypeId` throw `IllegalStateException` (not a `StructureRuntimeException`), even for cached entries.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#getTypeKey",
+    "com.almworks.jira.structure.item.AOBasedItemTypeRegistry#getOrCreateTypeId",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/init-once",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "The first call of any `StructureViewManager` method on a node checks the global property `createdDefaultViews` (in `AO_8BAD1B_PROPERTY`). If it is not true, it takes a cluster-wide lock, checks again, creates the default views and the global default view settings with security overridden, and then sets `createdDefaultViews` to true. Once true, nothing is created again, even if the default views are later deleted. The check is made once per node lifetime.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$Initializer#load",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#run",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#run0"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/init-failure",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "If creating the default views fails with a `StructureException`, the method that triggered it throws a `StructureRuntimeException` (`cannot create default views`) and the property stays unset, so the next call tries again; views created before the failure are kept and reused by name.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$Initializer#load"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/default-views",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "The default views, in creation order, are named with the Jira default locale texts of `s.w.view.default.<details|basic|planning|tracking|triage|entry|gadget>.name` (English: `Issue Details`, `Basic view`, `Planning`, `Tracking`, `Triage`, `Entry`, `Gadget View`) with the matching `.description` texts. When a view with the same name already exists, it is reused (the one with the lowest id among same-named views) and not changed. New ones have no owner and the rules: anyone VIEW, then ADMIN for each Jira group holding the global ADMINISTER permission.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#run0",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#loadExistingViews",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#createView",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#createDefaultPermissions"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/default-view-columns",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "Columns of the new default views (field columns by Jira field id; `icons` is the type-and-priority icons column; `progress` the progress column; `main` the summary column; `sum` an aggregate): Issue Details: issuekey, main. Basic view: issuekey, main, progress, icons. Planning: issuekey, icons, main, duedate, fixVersions, assignee, scrollable column mode (2), and with time tracking on: timeoriginalestimate (unless time tracking is in legacy mode), timeestimate, sum of timeestimate. Tracking: issuekey, icons, main, progress, status, duedate, assignee, mode 2, and with time tracking on: timeestimate, sum of timeestimate, timespent, sum of timespent. Triage: issuekey, main, issuetype, priority, assignee, components, versions, labels. Entry: issuekey, main, description, environment, and with time tracking on: timeoriginalestimate, sum of timeoriginalestimate. Gadget View: issuekey, main, progress, assignee.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#detailsView",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#basicView",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#planningView",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#trackingView",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#triageView",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#entryView",
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#gadgetView"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/default-view-settings",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "Initialization stores global default view settings (row `C_STRUCTURE_ID` 0 of `AO_8BAD1B_STRUCTURE_TO_VIEW`) listing, in this order: Basic view (on all menus, default on structure board, issue page and project tab), Issue Details (menus: structure board and project tab), Planning (menus: board, issue page, project tab), Tracking (all menus), Triage and Entry (menus: board, issue page, project tab), Gadget View (menu: gadget only). The licence write check is skipped for this.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.ViewManagerInitializingDelegate$CreateDefaultViews#run0",
+    "com.almworks.jira.structure.view.AOBasedViewManager#setDefaultViewSettingsNoWritableCheck"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/get-view",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`getView(id, level)` returns the view when it exists and, unless security is overridden, the current user may use the plugin and their view permission includes `level`. A null `level` asks for no minimum, so any plugin user gets the view, even with NONE access to it (as the original does). Otherwise it throws `StructureException` `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` for that id: also for null, 0, negative ids, ids outside the int range, missing rows and rows whose `C_DATA` is empty or not valid JSON.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#getView",
+    "com.almworks.jira.structure.view.AOBasedViewManager#isAccessible",
+    "com.almworks.jira.structure.view.AOBasedViewManager$ViewIO#load",
+    "com.almworks.jira.structure.view.AOBasedViewManager$ViewIO#readData",
+    "com.almworks.structure.commons.util.CommonUtil#toInt"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/view-permission",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`getViewPermission(id, user)` gives NONE when the view does not exist; otherwise ADMIN for a Jira administrator (unless administrators' view access is turned off by configuration), NONE for a user who may not use the plugin, ADMIN for the owner, else the level from the view's rules (NONE when no rule applies). It does not look at the current user or at security override.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#getViewPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getViewPermission"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/is-accessible",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`isAccessible(id, level)` for an existing view is true with security overridden, otherwise true when the current user may use the plugin and their view permission includes `level` (null: always). For a missing view it is true only when the current user may use the plugin and `level` is null or NONE.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#isAccessible"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/get-views",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`getViews(level)` returns every stored view that `getView(id, level)` would return, sorted by name with the current user's collator; with a null level that is every view for any plugin user. Views that cannot be read are skipped. If the list of view ids cannot be loaded it returns an empty list. The id list is cached without expiry and refreshed when views are created or deleted through this manager.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#getViews",
+    "com.almworks.jira.structure.view.AOBasedViewManager$AllViewsLoader#load"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/create-view",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`createView()` returns an unsaved view with id 0, empty name and description, no owner, no rules and an empty specification; nothing is stored until `saveChanges()`. Saving it requires the right to create views (`VIEW_CREATION_DENIED` otherwise), sets the current user as owner unless security is overridden or the user is anonymous, requires a non-blank name and a specification (`INVALID_PARAMETER`), checks sharing when rules are non-empty, inserts a row into `AO_8BAD1B_VIEW` with the JSON in `C_DATA`, and the view then has the new row id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#createView",
+    "com.almworks.jira.structure.view.AOBasedViewManager$AOBasedView#saveChanges",
+    "com.almworks.jira.structure.view.AOBasedViewManager$AOBasedView#createView",
+    "com.almworks.jira.structure.view.AOBasedViewManager$AOBasedView#setCurrentUserAsOwner",
+    "com.almworks.jira.structure.view.AOBasedViewManager#checkCurrentUserCanCreateViews",
+    "com.almworks.jira.structure.view.AOBasedViewManager#checkPermissionRules"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/save-existing-view",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "Saving a loaded view with no pending changes does nothing. Otherwise it applies the changes to the stored JSON (read anew from `C_DATA`), requires EDIT on the view, or ADMIN when name, description, owner or rules differ from the stored ones (`VIEW_EDIT_DENIED` / `VIEW_ADMIN_DENIED`, `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` without access or when the row is gone), validates changed rules, and rewrites `C_DATA`. An invalid result (blank name) gives `INVALID_PARAMETER`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager$AOBasedView#saveChanges",
+    "com.almworks.jira.structure.view.AOBasedViewManager$AOBasedView#updateView",
+    "com.almworks.jira.structure.view.AOBasedViewManager$ViewIO#update",
+    "com.almworks.jira.structure.view.AOBasedViewManager#checkCurrentUserCanUpdateView"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/delete-view",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`deleteView(id)` requires ADMIN on the view: a missing view or one the current user cannot access at all gives `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` (even with security overridden for a missing view), lower access `VIEW_ADMIN_DENIED`. It deletes the `AO_8BAD1B_VIEW` row and all `AO_8BAD1B_VIEW_TO_STRUCTURE` rows of the view; `AO_8BAD1B_STRUCTURE_TO_VIEW` settings that mention the view are left as they are. Unlike `getView`, it does not check that the user may use the plugin. The licence write check passes in the replacement (no licensing).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#deleteView",
+    "com.almworks.jira.structure.view.AOBasedViewManager#checkAccess",
+    "com.almworks.jira.structure.view.AOBasedViewManager$ViewIO#delete",
+    "com.almworks.jira.structure.view.AOBasedViewManager$ViewStructuresIO#delete"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/get-view-settings",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`getViewSettings(structureId)` requires that the current user may view the structure (`StructureException` `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` otherwise, also for null). It returns the settings parsed from the structure's `C_VIEW_SETTINGS`; undefined settings (`isDefined()` false) when there is no row, the column is NULL or it cannot be parsed; `ViewSettings.EMPTY_SETTINGS` on storage errors. Results are cached.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#getViewSettings",
+    "com.almworks.jira.structure.view.AOBasedViewManager$StructureViewsIO#load"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/set-view-settings",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`setViewSettings(structureId, settings)` requires ADMIN on the structure (`STRUCTURE_ADMIN_DENIED` with VIEW, `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` without; with security overridden the structure must still exist). Without a row it inserts one with version 0 (nothing is stored when the settings are null); with a row it writes the new JSON (or NULL for null settings) and version + 1 only if the version is still the one just read. After a successful write it inserts `AO_8BAD1B_VIEW_TO_STRUCTURE` rows (structure, view, new version) for each associated positive view id and deletes that structure's rows with older versions. If another writer changed the row in between (or won the insert), the call returns normally and the change is lost (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#setViewSettings",
+    "com.almworks.jira.structure.view.AOBasedViewManager#checkStructureAdminAccess",
+    "com.almworks.jira.structure.view.AOBasedViewManager$StructureViewsIO#update",
+    "com.almworks.jira.structure.view.AOBasedViewManager$StructureViewsIO#updateOrDelete",
+    "com.almworks.jira.structure.view.AOBasedViewManager$StructureViewsIO#insert",
+    "com.almworks.jira.structure.view.AOBasedViewManager$ViewStructuresIO#update"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/default-settings",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`getDefaultViewSettings()` returns the settings stored for structure id 0 without any access check (undefined settings when none; `EMPTY_SETTINGS` on storage errors). `setDefaultViewSettings(settings)` requires a Jira administrator unless security is overridden (`StructureException` `JIRA_ADMIN_DENIED`) and stores the settings in row 0 the same way as structure settings, without touching `AO_8BAD1B_VIEW_TO_STRUCTURE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#getDefaultViewSettings",
+    "com.almworks.jira.structure.view.AOBasedViewManager#setDefaultViewSettings",
+    "com.almworks.jira.structure.view.AOBasedViewManager#setDefaultViewSettingsNoWritableCheck"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/menu-items",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`getMenuItems(structureId, page)` returns an empty list when the structure is given and the current user may not view it. It uses the structure's settings if defined, else the global default (a null structure id always uses the default). It lists, in settings order, every associated view that is on the menu of `page` and that the current user can VIEW (missing views skipped); the first one that is default for the page is placed first and flagged preferred; later views that are also default for the page keep their place and are also flagged preferred.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#getMenuItems"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/associated-structures",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`getAssociatedStructures(viewId)` requires that the current user has some access to the view (unless security is overridden): a missing view, or NONE access (which includes users who may not use the plugin), gives `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE`; a missing view gives it even with security overridden and returns, without duplicates and sorted by name with the current user's collator, the structures listed for the view in `AO_8BAD1B_VIEW_TO_STRUCTURE` that the current user may view. If the list cannot be loaded it returns an empty list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#getAssociatedStructures",
+    "com.almworks.jira.structure.view.AOBasedViewManager#checkAccess",
+    "com.almworks.jira.structure.view.AOBasedViewManager$ViewStructuresIO#load"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/make-default",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "`makeDefaultForStructure(viewId, structureId, page)` checks ADMIN on the structure, then VIEW on the view (errors as for `setViewSettings` and `getAssociatedStructures`). It starts from the structure's settings, or the global default when the structure has none. If the view is already the default for the page, nothing is written. If the view is not associated, it is added at the front with menu and default pages both just `page`. If it is associated, `page` is removed from every view's default pages and added to this view's default and menu pages. The result is saved with `setViewSettings` (so it becomes the structure's own settings).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#makeDefaultForStructure",
+    "com.almworks.jira.structure.view.AOBasedViewManager#addPageToDefaults"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/make-default-menu-bug",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "When `makeDefaultForStructure` changes a view that is already associated and appears on all menus (menu pages unset), its menu pages become only `page`, so it disappears from the menus of the other pages (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#addPageToDefaults"
+   ]
+  },
+  {
+   "key": "m6-forest-items/view-manager/licence-writes",
+   "module": "view-manager",
+   "api": null,
+   "behaviour": "The replacement does no licence checking (SPEC.md §1.1): `deleteView`, `setViewSettings`, `setDefaultViewSettings`, `makeDefaultForStructure` and saving a view never fail, and are never made read-only, on licence grounds.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#deleteView",
+    "com.almworks.jira.structure.view.AOBasedViewManager#setViewSettings",
+    "com.almworks.jira.structure.view.AOBasedViewManager#setDefaultViewSettings",
+    "com.almworks.jira.structure.view.AOBasedViewManager$AOBasedView#saveChanges"
+   ]
+  }
+ ]
+}

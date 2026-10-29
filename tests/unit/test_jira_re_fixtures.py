@@ -381,6 +381,17 @@ def test_spec_check_finds_internal_simple_class_names(tmp_path):
     assert _check(jar, spec, analyst).problems == []
 
 
+def test_spec_check_finds_acronym_led_internal_names(tmp_path):
+    """JC2: a simple name that starts with an acronym (``AOBasedStore``) is a CamelCase name too, also inside a
+    dotted key whose package is not the class's own; all-capital words and plain words stay allowed."""
+    jar, spec, analyst = _analyst_fixture(tmp_path)
+    with zipfile.ZipFile(jar, "a") as z:
+        z.writestr("com/acme/internal/AOBasedStore.class", b"not parsed")
+    (spec / "INVENTORY.md").write_text("Tune `com.acme.old.AOBasedStore.limit`; JSON and Gate are words.\n")
+    text = "\n".join(_check(jar, spec, analyst).problems)
+    assert "AOBasedStore" in text and "JSON" not in text and "Gate" not in text, text
+
+
 def test_spec_check_sees_internal_classes_in_bundled_jars(tmp_path):
     """Internal code also ships in jars under META-INF/lib (the vendor's commons and compat libraries, named
     by ``internal_libs`` globs); their classes leak like the plugin's own. Other bundled libraries do not."""

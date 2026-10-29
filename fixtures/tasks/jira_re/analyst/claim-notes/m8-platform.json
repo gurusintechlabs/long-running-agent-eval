@@ -1,0 +1,738 @@
+{
+ "claims": [
+  {
+   "key": "m8-platform/lifecycle/start-once-on-background-thread",
+   "module": "lifecycle",
+   "api": null,
+   "behaviour": "The `lifecycle` component's `LifecycleAware.onStart()` starts the plugin's controlled components on a new daemon thread named `starter:com.almworks.jira.structure` and returns at once without waiting for them. A second `onStart()` without an `onStop()` in between does nothing except log a warning about an out-of-order call; likewise `onStop()` when not started does nothing except log the warning. After `onStop()`, a later `onStart()` starts everything again.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController#onStart",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController#onStop",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController$ComponentState#start"
+   ]
+  },
+  {
+   "key": "m8-platform/lifecycle/controlled-components-selection-and-order",
+   "module": "lifecycle",
+   "api": null,
+   "behaviour": "The components started by `lifecycle` are the modules of the enabled plugin `com.almworks.jira.structure` that are enabled by default and take part in the plugin's controlled start/stop (if the plugin is not enabled in Jira's `PluginAccessor`, the list is empty and nothing is started). They are started one by one in a fixed order (sorted by implementation class name) on the starter thread, and stopped in exactly the reverse order of the ones that were actually started. Each component is started at most once per start cycle.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController#getControlledLifecycleComponentModules",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController$ComponentsStartOrder#compare",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController$ComponentState#stopComponents"
+   ]
+  },
+  {
+   "key": "m8-platform/lifecycle/waits-for-module-enablement",
+   "module": "lifecycle",
+   "api": null,
+   "behaviour": "Before starting any component, the starter thread waits until every selected module is enabled in Jira, re-checking at least once per second (dark feature `structure.lifecycle.modulesEnablementMinWaitMs`, default 1000) for at most 60 seconds in total (`structure.lifecycle.modulesEnablementTotalWaitMs`, default 60000). If modules are still disabled after that, the start is treated as fatal: an error naming the disabled modules' complete keys is logged and the plugin `com.almworks.jira.structure` is disabled through Jira's plugin controller (asynchronously, at most once per lifecycle instance). With dark feature `structure.lifecycle.startAnywayWithDisabledModules` true it logs an error instead and starts only the enabled ones. If `onStop()` is called during the wait, no component is started.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController$ComponentState#getEnabledComponents",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController#fatalProblem",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController#shutdown",
+    "com.almworks.structure.commons.lifecycle.PluginRestarter#shutdown"
+   ]
+  },
+  {
+   "key": "m8-platform/lifecycle/component-failure-isolated",
+   "module": "lifecycle",
+   "api": null,
+   "behaviour": "An exception or linkage error thrown by one component's start (or stop) is logged as an error (start) or warning (stop) naming the component, and the remaining components are still started (or stopped); the start sequence is not aborted. An interruption of the starter thread ends the start sequence. The start sequence also stops early, with a warning, when the plugin is no longer enabled in Jira or `onStop()` has been called; components after that point are not started.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController$ComponentState#startComponents",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController$ComponentState#callSafely",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController$ComponentState#reportStartProblem"
+   ]
+  },
+  {
+   "key": "m8-platform/lifecycle/after-start-banner-and-subscription",
+   "module": "lifecycle",
+   "api": null,
+   "behaviour": "After all components have been started, `lifecycle` logs at WARN level a banner framed by lines of `+` characters saying `Structure Plugin <version> is started, instance: <id>`, where `<id>` is two lowercase hex numbers joined by a dot (the epoch second when this component was created, and the epoch second when its class was loaded). It then enables the throttled clearing of all plugin caches, registers itself once with Jira's `EventPublisher` (a repeated start does not register twice), and from then on reports the plugin as running.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#afterComponentsStart",
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#getInstanceId",
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#subscribe",
+    "com.almworks.jira.structure.lifecycle.CacheUtil#enableClearingCaches"
+   ]
+  },
+  {
+   "key": "m8-platform/lifecycle/banner-licence-summary",
+   "module": "lifecycle",
+   "api": null,
+   "behaviour": "Retracted (product owner, 2026-10-28: the replacement has no licence checking, so its start banner carries no licence summary). The original's start banner carried a summary of its licence: serial, type, expiry and licensee.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#getLicenseString",
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#getLicenseManager"
+   ],
+   "status": "retracted"
+  },
+  {
+   "key": "m8-platform/lifecycle/stop-sequence",
+   "module": "lifecycle",
+   "api": null,
+   "behaviour": "`onStop()` first stops a start that is still in progress: it interrupts the starter thread and waits up to 5 seconds for it (dark feature `structure.lifecycle.threadShutdownWaitMs`, default 5000). Then, before stopping components, it marks the plugin as not running, disables cache clearing (later requests to clear plugin caches do nothing), removes leaked thread-local state of the bundled XML and JSON libraries, clears Jira's Velocity template cache, unregisters from `EventPublisher` and logs a WARN banner `Structure Plugin is shutting down, instance: <id>`. It then stops the started components in reverse order and logs a warning listing any component that was not stopped cleanly.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController$ComponentState#stop",
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#beforeComponentsStop",
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#applyShutdownWorkarounds",
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#unsubscribe"
+   ]
+  },
+  {
+   "key": "m8-platform/lifecycle/jira-shutdown-event",
+   "module": "lifecycle",
+   "api": null,
+   "behaviour": "While subscribed, when Jira publishes `ComponentManagerShutdownEvent` the `lifecycle` component immediately marks the plugin as not running and disables cache clearing, without stopping any component itself (that happens later through `onStop()`). The plugin counts as running only while this flag is set and the lifecycle has been started and has not shut the plugin down after a fatal start error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#onSystemShutdown",
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#isPluginRunning",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController#isPluginStarted"
+   ]
+  },
+  {
+   "key": "m8-platform/pinger/ping-validation",
+   "module": "pinger",
+   "api": null,
+   "behaviour": "`Pinger.ping(subject, period)` with a null subject throws `NullPointerException`; with a period below 500 ms throws `IllegalArgumentException` with message `cannot ping faster than once in 500ms`; 500 is accepted. These checks happen only while the service is not stopped: after the `pinger` component has been stopped, `ping` returns silently for any arguments, including null or a too-short period, and registers nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.pinger.PingerImpl#ping",
+    "com.almworks.jira.structure.pinger.PingerImpl$PingableSubject#<init>"
+   ]
+  },
+  {
+   "key": "m8-platform/pinger/first-call-timing-and-argument",
+   "module": "pinger",
+   "api": null,
+   "behaviour": "A registered `Pinger.Pingable` is not called immediately: its first call comes on the first round at least `period` ms after registration, and later calls at least `period` ms after the previous call (rounds are about 166 ms apart, so periods are rounded up to the round grid). The argument is the `System.nanoTime()` value taken at the start of that round, the same for every callback called in the round. Within one round, due callbacks are called one after another in registration order on the same thread.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.pinger.PingerImpl#pingCycle",
+    "com.almworks.jira.structure.pinger.PingerImpl$PingableSubject#pingSafely"
+   ]
+  },
+  {
+   "key": "m8-platform/pinger/unregister-on-false-or-exception",
+   "module": "pinger",
+   "api": null,
+   "behaviour": "A callback whose `ping` returns false is removed and never called again by that registration. A callback that throws any `Exception` or `LinkageError` is also removed, and a warning `error when pinging <callback>` is logged; other callbacks keep running. A callback returning true stays registered.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.pinger.PingerImpl$PingableSubject#pingSafely",
+    "com.almworks.jira.structure.pinger.PingerImpl#pingCycle"
+   ]
+  },
+  {
+   "key": "m8-platform/pinger/duplicate-registration-and-stop-pinging",
+   "module": "pinger",
+   "api": null,
+   "behaviour": "Registering the same callback object twice (even with the same period) creates two independent registrations, each called on its own schedule. `stopPinging(subject)` removes every registration whose callback is the same object (identity, not `equals`); an equal but different object is not removed. It never throws: an unknown or null subject does nothing, a call after the service has stopped does nothing, and any internal error is logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.pinger.PingerImpl#ping",
+    "com.almworks.jira.structure.pinger.PingerImpl#stopPinging"
+   ]
+  },
+  {
+   "key": "m8-platform/pinger/thread-on-demand-and-idle-exit",
+   "module": "pinger",
+   "api": null,
+   "behaviour": "The `pinger` runs callbacks on one daemon thread of priority 4 named `structure-pinger #<n>`, where n counts the threads started (1 for the first). Registrations made before the component has started are kept, and the thread is created when the component starts (or on the first registration after start) provided at least one registration exists; no thread runs while nothing was ever registered. When no registration has existed for 2 minutes the thread exits (logged `structure-pinger exiting by idle timeout`); a later `ping` starts a new thread with the next number. If the thread ends for any other reason while registrations remain, a new thread is started right away.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.pinger.PingerImpl#checkThread",
+    "com.almworks.jira.structure.pinger.PingerImpl#runPinger",
+    "com.almworks.jira.structure.pinger.PingerImpl#startComponent",
+    "com.almworks.jira.structure.pinger.PingerImpl#pingCycle"
+   ]
+  },
+  {
+   "key": "m8-platform/pinger/stop-drops-registrations",
+   "module": "pinger",
+   "api": null,
+   "behaviour": "When the `pinger` component is stopped it wakes the thread, removes all registrations, waits up to 200 ms for the thread to finish and interrupts it if it is still alive; no callback is called after that. The stop is final for this component instance: later `ping` and `stopPinging` calls are ignored. A component stopped before it was ever started also ends up stopped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.pinger.PingerImpl#stopComponent",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#onPluginStop"
+   ]
+  },
+  {
+   "key": "m8-platform/dependency-watcher/watched-plugins",
+   "module": "dependency-watcher",
+   "api": null,
+   "behaviour": "`dependency-watcher` watches exactly two plugins: `com.pyxis.greenhopper.jira` (Jira Software), whose package `com.atlassian.greenhopper.api.rank` must be exported at version 9.4.0 or higher, and `com.atlassian.servicedesk` (Jira Service Management), whose package `com.atlassian.servicedesk.api` must be exported at version 5.1.0 or higher. Events about any other plugin never cause a refresh.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.lifecycle.StructureDependencyWatcher#getWatchedPlugins",
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#isRewireNeeded"
+   ]
+  },
+  {
+   "key": "m8-platform/dependency-watcher/start-stop-registration",
+   "module": "dependency-watcher",
+   "api": null,
+   "behaviour": "`onStart()` registers the watcher with Jira's `PluginEventManager` and then runs a startup check over all currently enabled plugins; `onStop()` unregisters it. While registered, each `PluginEvent` (with a non-null plugin) about a watched plugin is checked the same way; null events are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#onStart",
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#onStop",
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#onPluginEvent",
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#checkDependencies"
+   ]
+  },
+  {
+   "key": "m8-platform/dependency-watcher/refreshed-on-start-flag",
+   "module": "dependency-watcher",
+   "api": null,
+   "behaviour": "If Jira application property `com.almworks.jira.structure.system.refreshedOnStart` is `true` when `onStart()` runs, the startup check is skipped entirely and the property is set to `false` (this is the start that follows a refresh caused by a startup check). Otherwise the check runs; when it triggers a refresh, the property is set to `true` before the refresh is launched. Refreshes caused by plugin events do not touch the property.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#isRestartingAfterRefreshOnStart",
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#recordRefreshOnStart",
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#refresh"
+   ]
+  },
+  {
+   "key": "m8-platform/dependency-watcher/rewire-decision",
+   "module": "dependency-watcher",
+   "api": null,
+   "behaviour": "A refresh is needed for a watched plugin when it is uninstalled (`PluginUninstalledEvent`), or when all of these hold: both it and the Structure plugin are OSGi plugins with bundles (not uninstalled), its bundle is resolved, starting, stopping or active, Structure's bundle is starting or active, the watched package is exported by that plugin's bundle at the required version or higher, and Structure's bundle is not among the package's importers. For a `PluginEnabledEvent` the importer test is treated as failed, so enabling a watched plugin that exports a good enough package always triggers a refresh. A missing export, a lower version, the export coming from another bundle or a null importer list means no refresh. Any error during the check is logged as a warning and means no refresh.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#isRewireNeeded",
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#getBundle"
+   ]
+  },
+  {
+   "key": "m8-platform/dependency-watcher/refresh-once-and-effect",
+   "module": "dependency-watcher",
+   "api": null,
+   "behaviour": "A watcher instance launches at most one refresh: once one has been launched, further checks return no refresh. The refresh runs on its own daemon thread: it logs a WARN line naming the plugin and the cause (the event's simple class name, or `startup check`), disables every enabled plugin that depends (mandatorily or optionally) on `com.almworks.jira.structure`, disables Structure, refreshes Structure's OSGi bundle packages (only if the bundle is resolved), re-enables Structure when that is possible, and then re-enables the dependent plugins. If the refresh thread could not be launched, the watcher allows a later refresh. If the Structure plugin was not an OSGi plugin when the watcher was created, it never refreshes.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#refresh",
+    "com.almworks.structure.commons.lifecycle.DependencyWatcher#<init>",
+    "com.almworks.structure.commons.lifecycle.PluginRestarter#refresh",
+    "com.almworks.structure.commons.lifecycle.PluginRestarter#go",
+    "com.almworks.structure.commons.lifecycle.PluginRestarter#restartPlugin"
+   ]
+  },
+  {
+   "key": "m8-platform/upgrade.001/identity",
+   "module": "upgrade.001",
+   "api": null,
+   "behaviour": "The `upgrade.001` SAL upgrade task reports build number 1 (`getBuildNumber()`), plugin key `com.almworks.jira.structure` (`getPluginKey()`) and short description `upgrade prepare`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.upgrade.Upgrade001Prepare#getShortDescription",
+    "com.almworks.jira.structure.upgrade.StructureUpgradeTask#getBuildNumber",
+    "com.almworks.jira.structure.upgrade.StructureUpgradeTask#getPluginKey"
+   ]
+  },
+  {
+   "key": "m8-platform/upgrade.001/do-upgrade-noop",
+   "module": "upgrade.001",
+   "api": null,
+   "behaviour": "`doUpgrade()` of `upgrade.001` returns null (no messages), changes no data and calls no Jira service.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.upgrade.Upgrade001Prepare#doUpgrade",
+    "com.almworks.jira.structure.upgrade.Upgrade001Prepare#upgrade"
+   ]
+  },
+  {
+   "key": "m8-platform/upgrade.001/reset-build-number",
+   "module": "upgrade.001",
+   "api": null,
+   "behaviour": "When the `upgrade.001` component is created and JVM system property `structure.upgrade.reset` is `true` (as read by `Boolean.getBoolean`, so case-insensitive `true` only), it removes key `com.almworks.jira.structure:build` from the SAL global plugin settings (`PluginSettingsFactory.createGlobalSettings()`), so SAL re-runs all upgrade tasks. With the property absent or any other value, the settings are not touched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.upgrade.Upgrade001Prepare#<init>",
+    "com.almworks.jira.structure.upgrade.Upgrade001Prepare#resetBuildNumber"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/app-identity",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "`cloud-data-migrator` reports `com.almworks.jira.structure` as both its server app key and its cloud app key. Its Forge app id is the UUID in dark feature `structure.forge.migration.appId`, default `94d5de1a-112d-4549-bd03-5f910d5fd27b` (an unparsable value makes `getForgeAppId` throw `IllegalArgumentException`), and its Forge environment name is dark feature `structure.forge.migration.environment`, default `production`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getServerAppKey",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getCloudAppKey",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getForgeAppId",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getForgeEnvironmentName"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/access-scopes",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "`getDataAccessScopes()` returns exactly these eight `AccessScope` values: `APP_DATA_PII`, `APP_DATA_UGC`, `APP_DATA_OTHER`, `PRODUCT_DATA_PII`, `PRODUCT_DATA_UGC`, `PRODUCT_DATA_OTHER`, `MIGRATION_TRACING_IDENTITY`, `MIGRATION_TRACING_PRODUCT`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getDataAccessScopes"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/configuration-lookup",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "On a migration start (Connect `onStartAppMigration(gateway, transferId, details)` or Forge `onStartAppMigration(gateway, details)`), the migrator asks `migration-configuration-manager` for the `AO_8BAD1B_MIGRATION_CONFIG` row whose `C_NAME` equals `details.getName()`. If none exists, all structures and all views are migrated. If one exists with status `DRAFT` or `RUNNING`, the migration is abandoned at once: nothing is uploaded, no status changes, and only a warning is logged. A configuration with an empty structure list also means all structures and views.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#onStartAppMigration",
+    "com.almworks.jira.structure.jcma.MigrationStatus",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getStructureAndViewIds"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/selected-structures-and-views",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "With a configuration listing structures, the migrator, with security overridden, reads each listed structure's view settings from the view manager; a structure whose view settings cannot be read (a `StructureException`, for example it no longer exists) is left out and logged as `structure #<id> does not exist`. The backed-up views are the views associated with the default view settings plus those associated with each remaining structure (plus, on the Forge path, views referenced by exported gadgets). If no listed structure remains, the migration is skipped with a log line: nothing is uploaded and the configuration status is not changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getStructureAndViewIds",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getStructureAndViewIds$addViewsIds",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#onStartAppMigration"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/status-transitions",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "When a matching configuration is used, its row is updated in `AO_8BAD1B_MIGRATION_CONFIG` as follows (only `C_STATUS` and `C_RUN_AT` change): if its status is not already `READY` it is first set to `READY` with `C_RUN_AT` null; then `RUNNING` with `C_RUN_AT` null; at the end `DONE` with `C_RUN_AT` = current epoch ms on success, or `FAILED` with `C_RUN_AT` = current epoch ms if any `Exception` occurred during the export (the exception is logged, not rethrown). A failure to update the row is only logged. Without a matching configuration no row is written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#setStatus",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#onStartAppMigration",
+    "com.almworks.jira.structure.jcma.MigrationConfiguration"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/backup-options",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "The migrated data is a backup made through `StructureBackupManager.backup()` restricted to the chosen structures and views (null for all), without structure history, generic-item history, application configuration and perspectives, but with favourites and saved columns. Extension providers are limited to the configuration's extension keys (with no configuration, all providers; with an empty key set, none). The zip holds the entry `backup.xml` first and then `meta.json`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#onStartAppMigration",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#backupToZip"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/meta-json",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "`meta.json` (UTF-8) is `{\"configs\":[...],\"selectedConfig\":<name or null>}`, where `configs` lists every migration configuration as `{\"name\":...,\"status\":...,\"structures\":[ids]}`. It is computed after the selected configuration has been set to `READY` and before it is set to `RUNNING`, so the selected configuration appears with status `READY`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#onStartAppMigration",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator$ConfigData"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/chunked-upload",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "The zip is streamed into app-data objects created through the gateway's `createAppData(label)` with labels `structure_backup_0`, `structure_backup_1`, … Each object receives exactly the chunk size in bytes and is closed before the next is created, except the last, which holds the remainder; a new object is only created when more bytes follow, so there is never an empty trailing chunk. The chunk size is dark feature `structure.connect.migration.maxFileSize` (default 1073741824) on the Connect path and `structure.forge.migration.maxFileSize` (default 16777216) on the Forge path.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.ChunkedOutputStream#write",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getConnectChunkSize",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#getForgeChunkSize"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/table-of-contents",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "After the zip is complete, the migrator creates one more app-data object labelled `structure_backup_table_of_contents` containing the UTF-8 JSON `{\"count\":N,\"sequence\":[\"structure_backup_0\",...]}` listing the chunk labels in order, and closes it. Only then is the run counted as successful.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#onStartAppMigration"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/connect-vs-forge-gadgets",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "On the Connect path dashboard gadgets are never included: the backup has no `gadgets` section and extension providers receive `includeDashboardGadgets` = false. On the Forge path gadgets are included: `dashboard-gadget-data-exporter` exports all Structure gadgets (no structure restriction) or those of the chosen structures, the backup gets a `gadgets` section, providers receive `includeDashboardGadgets` = true, and the numeric `viewId` and `canvas-viewId` preferences of exported gadgets are added to the backed-up views when the views are restricted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#onStartAppMigration",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeDashboardGadgets",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeExtensions"
+   ]
+  },
+  {
+   "key": "m8-platform/cloud-data-migrator/forge-complete-export",
+   "module": "cloud-data-migrator",
+   "api": null,
+   "behaviour": "On the Forge path the migrator calls the gateway's `completeExport()` once after the export attempt, whether it succeeded or failed. It is not called when the migration is abandoned early (configuration `DRAFT`/`RUNNING`, or no listed structure remains) (as the original does). The Connect path has no completion call.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.CloudDataMigrator#onStartAppMigration",
+    "com.almworks.jira.structure.jcma.CloudDataMigrator$onStartAppMigration$3"
+   ]
+  },
+  {
+   "key": "m8-platform/app-support-store/never-blocked",
+   "module": "app-support-store",
+   "api": null,
+   "behaviour": "`AppSupportStoreReader.isLicenseBlocked(serial)` returns false for every serial, null included. The replacement does no licence checking (SPEC.md §1.1): it keeps no list of blocked serials and reads no stored data to answer, so a property such as `appSupport.blockedSerials` left behind by the original has no effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.appsupport.AppSupportStore#isLicenseBlocked",
+    "com.almworks.jira.structure.appsupport.AppSupportStore$LicensesIO#load"
+   ]
+  },
+  {
+   "key": "m8-platform/app-support-store/query-has-no-side-effects",
+   "module": "app-support-store",
+   "api": null,
+   "behaviour": "`isLicenseBlocked` never writes to the plugin's stores: calling it any number of times creates, changes or removes no `AO_8BAD1B_PROPERTY` row (in particular `appSupport.blockedSerials` is left as it is) and makes no network call.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.appsupport.AppSupportStore#isLicenseBlocked",
+    "com.almworks.jira.structure.appsupport.AppSupportStore#getBlockedSerials"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/fresh-operations-no-permission-check",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "Each call of `StructureBackupManager.backup()` returns a new `BackupOperation` and each call of `restore()` a new `RestoreOperation`; two calls never return the same object. Neither the manager nor the operations check the current user's permissions: an anonymous caller or one without Jira admin rights can back up or restore everything.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.StructureBackupManagerImpl#backup",
+    "com.almworks.jira.structure.backup.StructureBackupManagerImpl#restore"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-set-file-validation",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`BackupOperation.setFile(null)` throws `IllegalArgumentException` (`null file`); a relative path throws `IllegalArgumentException` (`cannot use relative files`); an absolute path is accepted and the same operation is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#setFile"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-final-file-name",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`getFinalFile()` before `backup()` returns the configured file, with `.zip` (if `setUseZip(true)`) or `.xml` appended when the file name contains no dot at all; a name with any dot is kept as is (`a.b` stays `a.b` even with zip). With no file set it throws `IllegalStateException`. After a successful `backup()` it returns the file actually written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#getFinalFile",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#getTargetFile"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-to-file",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`backup()` with no file set throws `IllegalStateException`. Otherwise it creates the missing parent directories; if they cannot be created, or the parent exists but is not a directory, it throws `IOException` and writes nothing. It writes plain XML, or with `setUseZip(true)` a zip with one entry named after the file: a name ending in `.zip` (any case) has that suffix replaced by `.xml`, any other name gets `.xml` appended (`b.dat` gives entry `b.dat.xml`). It returns the same operation.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#backup",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#prepareFile",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#createZipStream"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-failure-cleanup",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "If writing the backup file fails, the partly written file is deleted and the error propagates: XML writer errors as `IOException` wrapping the cause, I/O errors and `StructureException` unchanged, database errors unchanged, and an exception thrown by an extension provider's `StructureBackupProvider.backup` as an unchecked exception whose cause is the provider's exception. `getFinalFile()` then still reports the target file, not a written one.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#backup",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeExtensions"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-to-stream",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`backupToStream(null)` throws `IllegalArgumentException` (`output stream cannot be null`). Otherwise it clears any configured file (so `getFinalFile()` afterwards throws `IllegalStateException`), writes the backup to the stream (plain XML, or with zip a zip whose single entry is `backup.xml`, finished but not closed) and returns the same operation; the stream itself is never closed and is not cleaned up on failure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#backupToStream",
+    "com.almworks.jira.structure.util.Util#requireNonNull"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-defaults",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "A fresh `BackupOperation` backs up all structures and all views, global properties and application configuration, perspectives, favourites, saved columns, generic-item history and every installed extension provider, but not structure history, and writes plain XML (no zip). The document is UTF-8 with root `structure-backup` version `5.0` and a `meta` section whose `by` element holds the user key of `StructureAuth.getUser()` or `system` when that is anonymous.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#beginBackup",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeMeta"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-security-override",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "The backup reads structures (including archived ones) and views with security overridden, so a backup made by a user who cannot see some structures or views still contains them. Structures are written in ascending id order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeStructures",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeViews"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-structure-filter",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`setBackupStructureIds(ids)` (copied; null = all) restricts structures, their forests and manual adjustments, synchronizers, histories, favourites and view associations to those ids. A user's favourites are written only if that user has at least one favourite among the selected structures, and then only the selected ones. The view association of the default (structure id 0) is always kept. The id set is also passed to every extension provider (null when all structures are backed up).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#setBackupStructureIds",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeFavorites",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeViewAssociations",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeSynchronizers",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeExtensions"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-view-filter-and-saved-columns",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`setBackupViewIds(ids)` (copied; null = all) writes only views with those ids; the `views` element is still present (possibly empty). With `setBackupSavedColumns(false)` the saved-column section is omitted and every column of each written view's specification has its saved-column reference removed from its parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#setBackupViewIds",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeViews",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeSavedColumns"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-app-configuration",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "With `setBackupAppConfiguration(false)` the sections `properties`, `configuration`, `attributeSettings` and `darkFeatures` are left out. When included, `properties` holds every row of `AO_8BAD1B_PROPERTY` except `maintenance.scheduled.nextRunTime`, and `darkFeatures` holds every dark-feature key whose application-property value is non-empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeProps",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeConfiguration",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeAttributeSettings",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeDarkFeatures"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-history-and-perspective-options",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`setBackupHistory(true)` adds a `histories` section with the history of each backed-up structure whose forest version is above 0 (structures at version 0 contribute nothing). `setBackupPerspectives(false)` omits the `perspectives` section; when included only valid perspectives are written. `setBackupFavorites(false)` omits `favorites`. `setBackupGenericItemHistory(false)` omits `genericItemHistory`; when included it holds the history records of the generic items written in the backed-up forests.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeHistory",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writePerspectives",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeFavorites",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeGenericItemHistory"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-synchronizer-owner-missing",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "An installed synchronizer whose owner user key no longer resolves to a Jira user is left out of the backup silently; the others are written with owner key, owner user name, module key, autosync flag and parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeSynchronizers"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/backup-extensions",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`setBackupExtensions(null)` (default) includes every installed `StructureBackupProvider`, an empty set includes none (and no `extensions` element), and a set includes only providers whose declaring plugin key is in it. When no provider is installed there is no `extensions` element. Each included provider gets an `extension` element with attributes `key` (plugin key) and `version` (that plugin's version) and its three-argument `backup` is called with parameter `includeDashboardGadgets` = false for backups made through the public API. Elements the provider left open are closed for it, with a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupOperationImpl#writeExtensions",
+    "com.almworks.jira.structure.backup.BackupOperationImpl#shouldBackupExtension"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-requires-set-file",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "On a fresh `RestoreOperation`, `restore()`, `checkBackupFile()`, `setRestoreHistory`, `getStructureNames()`, `getErrorsContainer()` and `getProgressGauge()` all throw `NullPointerException` until `setFile` is called. `setFile` reads nothing and does not check that the file exists; it selects everything, including history, and returns the same operation. Calling it again starts over with a fresh, empty problem list and progress.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#setFile",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#restore",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#checkBackupFile"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-file-type-detection",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "The restore file type is chosen by name, ignoring case. A `.xml` file is read as plain XML. A `.zip` file must be a zip with an entry, otherwise `IOException` `zip file is empty or corrupt`. Any other name is read as a zip if it opens as one with an entry, else as plain XML. A zip with more than one entry gives `IOException` `too many files in the zip file`. A file that does not exist gives `FileNotFoundException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupXMLReader#openInput",
+    "com.almworks.jira.structure.backup.BackupXMLReader#openZip",
+    "com.almworks.jira.structure.backup.BackupXMLReader#openStream"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/check-backup-file",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`checkBackupFile()` changes no data and returns the same operation when the first element is `structure-backup` with `version` `3.0`, `3.3` or `5.0`, without reading further. It throws `IOException` (wrapping the XML error) when there is no root element, when the root is `structure` (format too old), when the root has another name, when `version` is missing, or when the version is any other value such as `2.3` or `4.0`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupXMLReader#checkBackupFile",
+    "com.almworks.jira.structure.backup.BackupXMLReader#validateXml",
+    "com.almworks.jira.structure.backup.BackupXMLReader3x#validateRootTag"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-validates-before-wiping",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`restore()` first checks the root element and then reads the whole document once to confirm it is well-formed XML; any failure in this pass throws `IOException` and leaves all existing plugin data and caches untouched. Only then does it drop and recreate the plugin's user-data tables (all existing structures, views and other plugin data are gone), clear plugin caches on all cluster nodes, and read the file a second time to write the backup's contents. An XML error found in the second pass throws `IOException` with the data left partly restored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupXMLReader#read",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#beforeRead"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-storage-lock",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "For the duration of `restore()` the plugin's storage is locked: the `AO_8BAD1B_BOOTSTRAP` row has `C_IS_LOCKED` true and `StructurePluginHelper.isStructureLocked()` returns true; the lock is released when `restore()` ends, normally or with an exception. If the storage is already locked, `restore()` fails at once with an unchecked exception that is not a `StructureException`, and nothing is read or changed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#restore",
+    "com.almworks.structure.commons.db.AOLockBase#lock",
+    "com.almworks.structure.commons.db.AOLockBase#unlock"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-after-read-cleanup",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "Once the data-writing pass of `restore()` has begun, plugin caches are cleared again on all cluster nodes and the users' structure clipboard is emptied at the end, even when the restore fails or is cancelled. A problem during this clean-up is logged, not thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupXMLReader#read",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#afterRead"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-cancellation",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "If cancellation is requested through `getProgressGauge()`, `restore()` stops at the next check and returns normally without an exception, with the restore incomplete. If cancellation was requested before `restore()` was called, it returns without touching any data. After a successful restore the gauge reports completion.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupXMLReader#progress",
+    "com.almworks.jira.structure.backup.BackupXMLReader#read"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-history-switch",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "After `setFile`, `setRestoreHistory(false)` makes `restore()` skip the backup's `histories` section, so restored structures have no history entries; the default (true) restores them. Other sections are unaffected.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#setRestoreHistory",
+    "com.almworks.jira.structure.backup.BackupXMLReader#readStructureBackup"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-properties-and-dark-features",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "Restore writes every global property found in the backup's `properties` section to `AO_8BAD1B_PROPERTY`. When the backup has a `darkFeatures` section, each listed key is set as a Jira application property, and every dark-feature key currently set in the application properties but absent from that section is cleared; a failure there is only logged. Without the section, application properties are left as they are.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#processProperties",
+    "com.almworks.jira.structure.backup.RestoreOperationImpl3x#processDarkFeatures",
+    "com.almworks.jira.structure.darkfeature.DarkFeaturesHelper#restoreValues"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-missing-users-projects-roles",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "Owners and permission subjects of structures and views that refer to users, projects or project roles missing on this instance are restored unchanged (same user key or id), not dropped. A warning is recorded: for a structure in `ErrorsContainer.getStructureOtherProblems()` under its id, for a view in `getOtherProblems()`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#processStructure",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#processViews",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation$RestoreResolver#resolveUser",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation$RestoreResolver#checkProjectRole"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-structure-failure",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "If one structure cannot be written during restore (a `StructureException`), that structure is deleted again, a message starting `Failed to restore structure: ` is recorded under its id in `getStructureOtherProblems()`, and the restore goes on with the other structures. A view that fails is recorded in `getOtherProblems()` with a message starting `Failed to restore view `, and the rest continue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#processStructure",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#processViews"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-synchronizers",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "Restored synchronizers keep their backed-up ids and are re-enabled for autosync when the backup says autosync was enabled. A synchronizer whose module is not installed is not restored: `getInvalidSynchronizerMessages()` maps its id to `Failed to get plugin module <module key>`, and `getInvalidStructureSynchronizers()` lists its id under its structure id. Install or enable failures are recorded the same way, with their own message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#processSynchronizers",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#processSynchronizer"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-extensions",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "For each `extension` element in the backup whose `key` matches an installed `StructureBackupProvider`'s plugin key, restore calls that provider's `restore` with a reader on the element and a reporter whose messages go to `getOtherProblems()`. Sections without an installed provider are skipped silently. If the provider throws, `Error occurred while restoring '<key>' extension` (with the cause) is recorded in `getOtherProblems()`, the rest of that section is skipped, and the restore continues.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.BackupXMLReader3x#readExtensions",
+    "com.almworks.jira.structure.backup.RestoreOperationImpl3x#processExtensionData"
+   ]
+  },
+  {
+   "key": "m8-platform/backup-manager/restore-structure-names",
+   "module": "backup-manager",
+   "api": null,
+   "behaviour": "`getStructureNames()` is empty before `restore()` and afterwards maps each backed-up structure id read so far to its name (structures with an empty name are left out). `getErrorsContainer()` and `getProgressGauge()` return the same objects for the whole life of the operation after `setFile`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#getStructureNames",
+    "com.almworks.jira.structure.backup.BackupXMLReader#getStructureNames",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation#getErrorsContainer"
+   ]
+  }
+ ]
+}

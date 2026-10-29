@@ -32,7 +32,8 @@ def _claim(key: str, **kw) -> dict:
 
 def _build(claims: list[dict], ids: dict | None = None, **kw):
     args = dict(modules=MODULES, api_types=API, resolve=_resolve,
-                internal={"com.acme.internal.RuleEngine"}, internal_simple={"RuleEngine"}, allowed=set())
+                internal={"com.acme.internal.RuleEngine", "com.acme.internal.AOBasedStore"},
+                internal_simple={"RuleEngine", "AOBasedStore"}, allowed=set())
     args.update(kw)
     return bc.build(claims, dict(ids or {}), **args)
 
@@ -60,6 +61,16 @@ def test_ids_are_permanent_new_claims_get_the_next_free_id():
     assert [r["id"] for r in _rows(again.claims)] == ["C-0001", "C-0002", "C-0003"]   # sorted by id
 
 
+def test_suspected_bugs_are_flagged_for_the_implementer():
+    """JC2 (owner): a claim the analyst marks "(as the original does)" states a suspected bug of the original;
+    the implementer's copy flags it, so it is checked during implementation. Other claims carry no flag."""
+    rows = _rows(_build([_claim("bug", behaviour="It returns null (as the original does)."),
+                         _claim("bug2", behaviour="It keeps 501 rows (one more than the limit, As the original does)."),
+                         _claim("plain")]).claims)
+    assert [r.get("suspected_bug") for r in rows] == [True, True, None]
+    assert list(rows[0]) == ["id", "module", "behaviour", "confidence", "status", "suspected_bug"]
+
+
 def test_a_claim_is_retracted_never_dropped():
     first = _build([_claim("a"), _claim("b")])
     with pytest.raises(ValueError, match=r"C-0001 \(a\) was dropped"):
@@ -81,6 +92,8 @@ def test_a_claim_is_retracted_never_dropped():
     (_claim("x", evidence=["com.acme.Nope#run"]), "x: evidence com.acme.Nope#run is not in the jar"),
     (_claim("x", behaviour="It calls com.acme.internal.RuleEngine."), "x: names internal class com.acme.internal.RuleEngine"),
     (_claim("x", behaviour="The RuleEngine decides."), "x: names internal class RuleEngine"),
+    # a name that starts with an acronym, inside a key whose package is not the class's own (JC2)
+    (_claim("x", behaviour="Key `com.acme.old.AOBasedStore.limit` sets it."), "x: names internal class AOBasedStore"),
     (_claim("x", colour="red"), "x: unknown field colour"),
     ({"module": "gate", "behaviour": "b", "confidence": "high", "evidence": ["com.acme.Gate"]}, "claim without a key"),
 ])

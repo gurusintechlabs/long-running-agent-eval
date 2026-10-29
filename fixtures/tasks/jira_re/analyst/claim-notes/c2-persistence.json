@@ -1,0 +1,1407 @@
+{
+ "claims": [
+  {
+   "key": "c2-persistence/ao-lock/lock-raises-flag",
+   "module": "ao-lock",
+   "api": null,
+   "behaviour": "Taking the plugin-wide database lock writes C_IS_LOCKED = true into every AO_8BAD1B_BOOTSTRAP row (if the table is empty it first inserts one row with C_IS_LOCKED false, then sets it), remembers the calling thread as the locking thread on this node, drops the cached flag on all cluster nodes, logs a warning `Structure AO locked`, and then pauses about 1 second before returning (so other nodes notice the flag before the caller starts rewriting tables).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOLockBase#lock",
+    "com.almworks.structure.commons.db.AOLockBase#lock0",
+    "com.almworks.structure.commons.db.AOLockBase#getBootstraps",
+    "com.almworks.structure.commons.db.AOLockBase#updateLockEntities"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-lock/lock-not-reentrant",
+   "module": "ao-lock",
+   "api": null,
+   "behaviour": "Taking the lock fails with a StructureRuntimeException `AO is already locked`, writing nothing, when the stored flag is already raised (by this or any other node, including a row left at true after a crash) or when this node already has a locking thread, even if it is the calling thread itself: the lock is not reentrant.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOLockBase#lock"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-lock/lock-write-failure",
+   "module": "ao-lock",
+   "api": null,
+   "behaviour": "When the flag cannot be saved to any AO_8BAD1B_BOOTSTRAP row (every row's save fails), taking the lock throws a StructureRuntimeException `Can't update AO lock state`; the module then clears the locking thread and tries to write false back, so the lock is not held afterwards. If at least one row saves, the lock is taken. Unlocking applies the same rule (all saves failing gives the same exception).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOLockBase#lock",
+    "com.almworks.structure.commons.db.AOLockBase#updateLockEntities",
+    "com.almworks.structure.commons.db.AOLockBase#unlock0"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-lock/is-locked-meaning",
+   "module": "ao-lock",
+   "api": null,
+   "behaviour": "isLocked answers true exactly when the stored flag is raised and the caller is not this node's locking thread; isLockedByCurrentThread answers true exactly when the flag is raised and the caller is the locking thread. On every other cluster node (which has no locking thread) all threads see the database as locked, and with no flag raised both answers are false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOLockBase#isLocked",
+    "com.almworks.structure.commons.db.AOLockBase#isLockedByCurrentThread"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-lock/flag-cached",
+   "module": "ao-lock",
+   "api": null,
+   "behaviour": "The stored flag is read from AO_8BAD1B_BOOTSTRAP once and kept in a non-expiring cluster cache (`com.almworks.structure.AOLockStructure`) until a lock, unlock, forced unlock or clearCaches drops it; the flag counts as raised when any bootstrap row has C_IS_LOCKED true (NULL and false mean unlocked). A change written to the table by other means is therefore only seen after the cache is cleared. clearUserCaches does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOLockBase#isLockedFlagRaised",
+    "com.almworks.structure.commons.db.AOLockBase$LockedFlagLoader#load",
+    "com.almworks.structure.commons.db.AOLockBase#clearCaches"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-lock/flag-read-failure-means-locked",
+   "module": "ao-lock",
+   "api": null,
+   "behaviour": "When reading the flag from the database fails, the module logs an error `Can't retrieve Structure AO lock state` and treats the database as locked: isLocked then answers true for every thread except this node's locking thread, and taking the lock fails with `AO is already locked`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOLockBase#isLockedFlagRaised"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-lock/unlock-rules",
+   "module": "ao-lock",
+   "api": null,
+   "behaviour": "Unlocking from any thread other than this node's locking thread (including when nothing is locked) throws a StructureRuntimeException `AO is not locked by this thread` and changes nothing. A forced unlock works from any thread on any node, whether or not the database is locked: it clears this node's locking thread, writes C_IS_LOCKED = false to every AO_8BAD1B_BOOTSTRAP row and drops the cached flag on all nodes (the cache is dropped even when the write fails). Both log a warning `Structure AO unlocked`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOLockBase#unlock",
+    "com.almworks.structure.commons.db.AOLockBase#forceUnlock",
+    "com.almworks.structure.commons.db.AOLockBase#unlock0"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-lock/internal-guard-timeout",
+   "module": "ao-lock",
+   "api": null,
+   "behaviour": "Lock, unlock and both lock-state questions are serialised by a node-local read/write guard. A caller that cannot get the guard within 60,000 ms (dark feature `structure.aolock.timeout`) gets a StructureRuntimeException whose message says the internal lock could not be acquired in 60000ms; an interrupted wait gives a StructureRuntimeException saying it was interrupted while acquiring the internal lock, with the thread's interrupt flag set again. The module never waits for another node's database lock to be released: a held lock makes lock fail immediately.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOLockBase#lockWithTimeout",
+    "com.almworks.structure.commons.db.AOLockBase"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-lock/awaits-initialization",
+   "module": "ao-lock",
+   "api": null,
+   "behaviour": "Every read or write of AO_8BAD1B_BOOTSTRAP first waits until ao-initializer reports that Active Objects is initialised, so the lock state cannot be asked or changed before the plugin's tables exist.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOLockBase#getBootstraps"
+   ]
+  },
+  {
+   "key": "c2-persistence/structure-database-provider/plugin-tables",
+   "module": "structure-database-provider",
+   "api": null,
+   "behaviour": "The provider serves the plugin key `com.almworks.jira.structure`: the set of plugin tables it works with is the entity list declared by that plugin's `ao` module (the tables of SPEC §1.5). If that list cannot be read, or holds a class that is not an Active Objects entity, the operation needing it fails with a StructureRuntimeException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.db.AOBasedStructureDatabaseProvider#getPluginKey",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#extractEntities"
+   ]
+  },
+  {
+   "key": "c2-persistence/structure-database-provider/bootstrap-on-first-use",
+   "module": "structure-database-provider",
+   "api": null,
+   "behaviour": "The first database access through the provider waits for ao-initializer, then reads AO_8BAD1B_BOOTSTRAP and, if the table is empty, inserts a row with no values (C_IS_LOCKED NULL, which reads as unlocked); the Active Objects entity manager obtained from that row is reused afterwards. An Active Objects failure here throws Jira's DataAccessException `FATAL: cannot retrieve bootstrap AO` (with the cause); a missing row or entity manager throws DataAccessException `FATAL: cannot retrieve bootstrap AO (null)` or `FATAL: cannot retrieve EntityManager (null)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#extractEntityManager",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#getEntityManager"
+   ]
+  },
+  {
+   "key": "c2-persistence/structure-database-provider/transaction-detection",
+   "module": "structure-database-provider",
+   "api": null,
+   "behaviour": "The provider reports that it uses thread-local connections. It considers the current thread to be inside an Active Objects transaction when the thread has an Active Objects transaction connection with auto-commit off (if the connection cannot be inspected it answers no). The guard for callers that must not run inside a transaction throws a StructureRuntimeException whose message starts `FATAL: <who> detected that it was called from an Active Objects transaction.` (who = the name the caller passes) when the thread is in one, and does nothing otherwise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#inTransaction",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#assertNotInTransaction",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#getThreadLocalConnection",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#isUsingThreadLocalConnections"
+   ]
+  },
+  {
+   "key": "c2-persistence/structure-database-provider/sql-names-and-binding",
+   "module": "structure-database-provider",
+   "api": null,
+   "behaviour": "For direct SQL the provider gives each plugin table's name as the database knows it (quoted as the database requires; with the schema prefix where one is configured), turns column names such as `ID` or `C_STATUS` into the database's identifiers, and binds parameter values with Active Objects' own type mapping: a null value is written as SQL NULL, and other values are stored exactly as Active Objects would store them in an entity column (for example an enum as its name). A failure that is not an SQLException is thrown as a StructureRuntimeException `failed to access database`; an SQLException passes through.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#getTableNameWithSchema",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#getTableName",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#getDatabaseIdentifier",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#setParameter",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#getResult"
+   ]
+  },
+  {
+   "key": "c2-persistence/structure-database-provider/explicit-id-mode-needs-lock",
+   "module": "structure-database-provider",
+   "api": null,
+   "behaviour": "Switching a table into explicit-ID insert mode (used by restore to insert rows with their original IDs and keep the auto-increment counter consistent afterwards) requires the ao-lock to be held by the calling thread; otherwise it throws IllegalStateException `AO tables must be locked`. What it does depends on the database: identity insert on SQL Server, sequence adjustment on PostgreSQL and Oracle, nothing on MySQL, HSQLDB and H2; any other database gives a StructureRuntimeException `Unsupported database provider: ...`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#enableManualIDsProcessing",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#disableManualIDsProcessing",
+    "com.almworks.structure.commons.db.PrePostProcessors$PrePostProcessorSupplier#load"
+   ]
+  },
+  {
+   "key": "c2-persistence/structure-database-provider/explicit-id-action",
+   "module": "structure-database-provider",
+   "api": null,
+   "behaviour": "Running an action in explicit-ID mode for a table (lock held by the caller, else IllegalStateException `AO tables must be locked`) turns the mode on, runs the action and always turns the mode off again; if switching on, the action or switching off fails, the error is logged and, after the mode is off, a StructureRuntimeException with the first failure as cause is thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#manualIDsProcessing"
+   ]
+  },
+  {
+   "key": "c2-persistence/structure-database-provider/recreate-tables",
+   "module": "structure-database-provider",
+   "api": null,
+   "behaviour": "Recreating the tables with user data (used before a full restore) requires the ao-lock held by the calling thread (else IllegalStateException `AO tables must be locked`, nothing changed). It drops every plugin table except AO_8BAD1B_BOOTSTRAP, AO_8BAD1B_ITEM_TYPE, AO_8BAD1B_ITEM_EVENTS_V2, AO_8BAD1B_NODE_SIGNS_V2, AO_8BAD1B_PROPERTY, AO_8BAD1B_STATISTICS, AO_8BAD1B_PROCESS_STATE and AO_8BAD1B_ATOMIC_FLAG (those keep their rows), then creates all plugin tables again, empty. If dropping fails it tries to create the tables anyway and throws a StructureRuntimeException `failed to drop structure tables`; if creating fails it throws `failed to create structure tables`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#recreateTablesWithUserData",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#extractSystemEntities"
+   ]
+  },
+  {
+   "key": "c2-persistence/structure-database-provider/entity-columns-cached",
+   "module": "structure-database-provider",
+   "api": null,
+   "behaviour": "The list of a table's column names (used to select all columns explicitly) is computed once per table and kept until clearCaches; a table without columns gives an empty list and an error log. clearUserCaches does nothing. The provider's lock questions and forced unlock are answered by ao-lock.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#getEntityFields",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#retrieveFields",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#clearCaches",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#isLocked",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#forceUnlock"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-helper/awaits-initialization",
+   "module": "ao-helper",
+   "api": null,
+   "behaviour": "Every database operation made through ao-helper (find, count, get, create, delete, stream, direct SQL) first waits until ao-initializer reports that Active Objects is initialised.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.LockCheckingAOWrapper#checkLock",
+    "com.almworks.structure.commons.db.AOHelper#find"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-helper/refuses-while-locked",
+   "module": "ao-helper",
+   "api": null,
+   "behaviour": "While the plugin database lock (ao-lock) is held by another thread or another node, every entity operation through ao-helper on a plugin table other than the system tables AO_8BAD1B_BOOTSTRAP, AO_8BAD1B_ITEM_TYPE, AO_8BAD1B_ITEM_EVENTS_V2, AO_8BAD1B_NODE_SIGNS_V2, AO_8BAD1B_PROPERTY, AO_8BAD1B_STATISTICS, AO_8BAD1B_PROCESS_STATE and AO_8BAD1B_ATOMIC_FLAG throws StructureStoppedException (message `ActiveObjects: <entity name>`) without touching the database. The system tables stay readable and writable, and the locking thread itself is never refused.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.LockCheckingAOWrapper#checkLock",
+    "com.almworks.structure.commons.db.LockCheckingAOWrapper#find",
+    "com.almworks.structure.commons.db.LockCheckingAOWrapper#create",
+    "com.almworks.structure.commons.db.LockCheckingAOWrapper#deleteWithSQL",
+    "com.almworks.structure.commons.db.LockCheckingAOWrapper#get",
+    "com.almworks.structure.commons.db.LockCheckingAOWrapper#count",
+    "com.almworks.structure.commons.db.LockCheckingAOWrapper#stream"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-helper/raw-sql-refused-while-locked",
+   "module": "ao-helper",
+   "api": null,
+   "behaviour": "While the database lock is held by another thread or node, direct SQL through ao-helper (getting a connection, running an update statement, resolving an SQL template's table and column names, selecting all columns of a table, inserting with an explicit ID, running a transaction) throws StructureStoppedException `ActiveObjects` for every table, system tables included. So statistics user-key rewrites and other raw-SQL updates fail during a restore even on system tables.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.LockCheckingAOWrapper#checkLock",
+    "com.almworks.structure.commons.db.AOHelper#getConnection",
+    "com.almworks.structure.commons.db.AOHelper#updateWithSQL",
+    "com.almworks.structure.commons.db.AOHelper#sql",
+    "com.almworks.structure.commons.db.AOHelper#selectAllFields",
+    "com.almworks.structure.commons.db.AOHelper#createWithID",
+    "com.almworks.structure.commons.db.AOHelper#executeInTransaction"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-helper/errors-wrapped",
+   "module": "ao-helper",
+   "api": null,
+   "behaviour": "An Active Objects failure (ActiveObjectsException) in any ao-helper operation, and an SQLException from a direct update or explicit-ID insert, reaches the caller as a StructureRuntimeException (the plugin's storage exception) carrying the original as its cause. StructureStoppedException from the lock check passes through unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOHelper#find",
+    "com.almworks.structure.commons.db.AOHelper#create",
+    "com.almworks.structure.commons.db.AOHelper#delete",
+    "com.almworks.structure.commons.db.AOHelper#count",
+    "com.almworks.structure.commons.db.AOHelper#updateWithSQL",
+    "com.almworks.structure.commons.db.AOHelper#createWithID"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-helper/constraint-violation-rule",
+   "module": "ao-helper",
+   "api": null,
+   "behaviour": "A storage failure counts as a unique/primary-key conflict (callers then retry or ignore it) when its cause is an Active Objects failure whose SQLException chain contains an exception with SQLState starting with `23` or with vendor error code 20000; anything else is a real error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOUtil#isConstraintViolationException"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-helper/update-sql-count",
+   "module": "ao-helper",
+   "api": null,
+   "behaviour": "A direct update through ao-helper binds the given values in order (null as SQL NULL), runs the statement on a fresh connection that is closed afterwards, and returns the number of rows the database reports as changed; callers use 0 to detect a lost compare-and-set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOHelper#updateWithSQL"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-helper/explicit-id-insert",
+   "module": "ao-helper",
+   "api": null,
+   "behaviour": "Inserting a row with an explicit integer key (restore paths: rows, generators, notes, saved columns) adds the key column with the given value to the insert and returns the key actually stored; on SQL Server it is done as one statement with identity insert switched on for that table. A key that already exists fails with the storage exception (a constraint violation).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOHelper#createWithID",
+    "com.almworks.structure.commons.db.SQLServerSchemaWorkaround#createWithID"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-helper/delete-without-condition",
+   "module": "ao-helper",
+   "api": null,
+   "behaviour": "A delete or count through ao-helper with no conditions applies to every row of the table; several conditions are combined with AND. A streamed read can be stopped early by the reader without any error reaching the caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOHelper#delete",
+    "com.almworks.structure.commons.db.AOHelper#count",
+    "com.almworks.structure.commons.db.AOHelper#buildWhere",
+    "com.almworks.structure.commons.db.AOHelper#stream"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-helper/no-parameter-batching",
+   "module": "ao-helper",
+   "api": null,
+   "behaviour": "ao-helper declares a limit of 999 query parameters but does not enforce it: an IN / NOT IN condition is built with one parameter per value however many values are given, so splitting long lists is left to the callers.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.AOHelper",
+    "com.almworks.structure.commons.db.AOHelper#whereIn",
+    "com.almworks.structure.commons.db.AOHelper#whereNotIn"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-based-statistics-service/record-rows",
+   "module": "ao-based-statistics-service",
+   "api": null,
+   "behaviour": "Recording a batch of statistics at time t writes AO_8BAD1B_STATISTICS rows, all with C_TIMESTAMP = t: for a total-count statistic one row with C_USERKEY NULL and C_VALUE = its total; for a unique-user statistic one row per collected user key with C_VALUE 0.0 (the total, which such a statistic never has, defaults to 0.0). C_STAT is the statistic name trimmed. A unique-user statistic with an empty user set writes no row. Nothing is aggregated with rows already stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#recordStatistics",
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#create"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-based-statistics-service/record-names",
+   "module": "ao-based-statistics-service",
+   "api": null,
+   "behaviour": "When recording, an entry with a null or empty name is skipped silently, but a name made only of whitespace throws IllegalArgumentException (`argument cannot be null or blank`) at that entry; rows already written for earlier entries of the same batch stay.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#recordStatistics",
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#create"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-based-statistics-service/delete-before",
+   "module": "ao-based-statistics-service",
+   "api": null,
+   "behaviour": "Deleting samples before time t removes every AO_8BAD1B_STATISTICS row whose C_TIMESTAMP is strictly less than t (a row at exactly t stays). The daily purge of statistics-manager uses it with t = now - 40 days.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#deleteBefore"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-based-statistics-service/unique-user-count",
+   "module": "ao-based-statistics-service",
+   "api": null,
+   "behaviour": "The unique-user count of statistic s between from and to is the number of distinct non-null C_USERKEY values among rows with C_STAT = s and from <= C_TIMESTAMP <= to (both ends inclusive). Rows with a null user key are ignored; an empty-string user key counts as one user. No row gives 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#getUniqueUserCount"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-based-statistics-service/report-range",
+   "module": "ao-based-statistics-service",
+   "api": null,
+   "behaviour": "The statistics report for time t starts at the earliest C_TIMESTAMP that is <= t and covers dayCount = floor((t - start) / 86,400,000) + 1 days. When no row has C_TIMESTAMP <= t (including an empty table) the report is empty: start = t, dayCount 0, no values, and a warning is logged. The values are computed from all stored rows, including any with C_TIMESTAMP later than t.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#getStatisticsReport",
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#getEarliestDateBefore",
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#buildReport",
+    "com.almworks.jira.structure.statistics.StatisticsReport#empty"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-based-statistics-service/report-values",
+   "module": "ao-based-statistics-service",
+   "api": null,
+   "behaviour": "In the report each statistic name maps to one number, ordered by name: for names stored with null user keys, the sum of their C_VALUE divided by dayCount (an average per day); for names stored with user keys, the number of distinct user keys. If a name has both kinds of rows the report cannot be built and an IllegalArgumentException (duplicate key) is thrown (as the original does). The report is only used locally: nothing is sent anywhere (SPEC §1.8).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#prepareReport",
+    "com.almworks.jira.structure.util.Util#mergeMaps"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-based-statistics-service/anonymize-count",
+   "module": "ao-based-statistics-service",
+   "api": null,
+   "behaviour": "For user anonymisation, asked about a user the service counts AO_8BAD1B_STATISTICS rows whose C_USERKEY equals the user's key: zero gives no entry; otherwise one entry whose description is the i18n text `s.anonymize.statistics-records.description` and whose count is that number.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#getAnonymizeEntities"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-based-statistics-service/change-user-key",
+   "module": "ao-based-statistics-service",
+   "api": null,
+   "behaviour": "Changing a user key from old to new rewrites C_USERKEY = new in every AO_8BAD1B_STATISTICS row where it equals old, in one SQL update, and returns a Jira ServiceResult without errors. If the database reports an SQLException the error is logged and the result carries the error message i18n `s.anonymize.statistics-records.failed`; nothing is thrown. While the plugin database is locked the update is refused with StructureStoppedException (raw SQL is blocked even though the table is a system table).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#changeUserKey"
+   ]
+  },
+  {
+   "key": "c2-persistence/ao-based-statistics-service/works-during-lock",
+   "module": "ao-based-statistics-service",
+   "api": null,
+   "behaviour": "While the plugin database is locked by a restore or migration (held by another thread or node), recording samples, deleting old samples and the anonymisation count keep working, because AO_8BAD1B_STATISTICS is a table the lock does not block. Building the report, the unique-user count and the user-key rewrite are refused with StructureStoppedException, because they select all columns or use direct SQL, which the lock always blocks (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService",
+    "com.almworks.jira.structure.db.StatisticsAO",
+    "com.almworks.structure.commons.db.AOHelper#selectAllFields",
+    "com.almworks.structure.commons.db.AOHelper#selectWhere"
+   ]
+  },
+  {
+   "key": "c2-persistence/process-io/create-row",
+   "module": "process-io",
+   "api": null,
+   "behaviour": "Creating a process inserts one AO_8BAD1B_PROCESS_STATE row with C_STATUS 0 (pending), C_TIMESTAMP = current time in ms, C_PARAMETERS = the display parameters as JSON (`{\"name\":...,\"buttons\":[...]}`; NULL when none are given), C_MANAGING_USER = the user's key (NULL for no user or an empty key), C_ACTIVITY NULL, C_PERCENT_COMPLETE -1 and C_CANCELLED false, and returns the new ID as a long. A failure to serialise the parameters throws StructureRuntimeException `Cannot serialize process parameters on create`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO#createNew"
+   ]
+  },
+  {
+   "key": "c2-persistence/process-io/read-snapshot",
+   "module": "process-io",
+   "api": null,
+   "behaviour": "Reading a process by ID returns nothing when no row has that ID. Otherwise it returns status (C_STATUS through ProcessStatus.valueOf: 0 pending, 1 running, anything else finished), C_TIMESTAMP, the display parameters and the activity parsed from JSON (NULL stays null; unknown JSON keys are ignored), the managing user key, the percentage (NULL reads as -1) and the cancelled flag (NULL reads as false). Invalid JSON in C_PARAMETERS or C_ACTIVITY makes the read fail with an IOException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO#getSnapshot"
+   ]
+  },
+  {
+   "key": "c2-persistence/process-io/set-status",
+   "module": "process-io",
+   "api": null,
+   "behaviour": "Setting the status of a process stores the status code in C_STATUS and sets C_TIMESTAMP to the current time; setting display parameters stores them as JSON in C_PARAMETERS and leaves C_TIMESTAMP unchanged. Neither compares with the stored value first.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setStatus",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setDisplayParameters"
+   ]
+  },
+  {
+   "key": "c2-persistence/process-io/set-progress",
+   "module": "process-io",
+   "api": null,
+   "behaviour": "Setting progress with both activity and percentage null does nothing (the row is not even read). Otherwise a non-null activity is stored as i18n-text JSON in C_ACTIVITY and a non-null percentage in C_PERCENT_COMPLETE; a null one leaves that column unchanged, and C_TIMESTAMP is not touched. The percentage is stored as given (range checks are process-handle-manager's). Requesting cancellation sets C_CANCELLED true and changes nothing else.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setProgress",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setCancelled"
+   ]
+  },
+  {
+   "key": "c2-persistence/process-io/update-missing-or-unserialisable",
+   "module": "process-io",
+   "api": null,
+   "behaviour": "An update (status, display parameters, progress, cancellation) of an ID with no row logs an error `Cannot find process to update <id>` and writes nothing; no exception reaches the caller. If the display parameters or activity cannot be serialised to JSON, an error is logged and nothing is saved for that update.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO#updateRecord",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setDisplayParameters",
+    "com.almworks.jira.structure.process.AOBasedProcessIO#setProgress"
+   ]
+  },
+  {
+   "key": "c2-persistence/process-io/delete",
+   "module": "process-io",
+   "api": null,
+   "behaviour": "Deleting a process removes the AO_8BAD1B_PROCESS_STATE row with that ID; deleting an ID that has no row does nothing and does not fail.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO#delete"
+   ]
+  },
+  {
+   "key": "c2-persistence/process-io/delete-before-except",
+   "module": "process-io",
+   "api": null,
+   "behaviour": "Bulk deletion of old processes removes every AO_8BAD1B_PROCESS_STATE row with C_TIMESTAMP strictly less than the given time, except rows whose ID is in the given exclusion list (maintenance passes the process handle IDs still referenced by AO_8BAD1B_EFFECTOR_PROCESS). An empty list excludes nothing. The exclusion list is sent as one NOT IN condition, without batching.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO#deleteBefore"
+   ]
+  },
+  {
+   "key": "c2-persistence/process-io/works-during-lock",
+   "module": "process-io",
+   "api": null,
+   "behaviour": "Process rows can be created, read, updated and deleted while the plugin database is locked by a restore or migration (AO_8BAD1B_PROCESS_STATE is not blocked by the lock), so a restore can report its own progress.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.process.AOBasedProcessIO",
+    "com.almworks.jira.structure.db.ProcessStateAO"
+   ]
+  },
+  {
+   "key": "c2-persistence/perspective-io/create-random-id",
+   "module": "perspective-io",
+   "api": null,
+   "behaviour": "Creating a perspective with spec text and a time trims the spec and inserts an AO_8BAD1B_PERSPECTIVE row with C_ID = a random integer in [1, 2147483647], C_LAST_USED = the given time and C_SPEC = the trimmed spec; it returns that id and the trimmed spec. A null, empty or whitespace-only spec throws IllegalArgumentException and stores nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#create",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#tryCreate",
+    "com.almworks.jira.structure.perspective.RandomIdGenerator#nextId"
+   ]
+  },
+  {
+   "key": "c2-persistence/perspective-io/create-retries",
+   "module": "perspective-io",
+   "api": null,
+   "behaviour": "When the insert fails because the random id is already taken (a constraint violation, see ao-helper), a new random id is tried, up to 10 inserts in all. If all 10 collide, or the insert fails for any other storage reason, a StructureRuntimeException `Cannot save structure perspective: insert fails 10 times` is thrown (the other-reason case is not retried but gets the same message). A StructureStoppedException (database locked) passes through unwrapped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#create",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#tryCreate"
+   ]
+  },
+  {
+   "key": "c2-persistence/perspective-io/get-touches-last-used",
+   "module": "perspective-io",
+   "api": null,
+   "behaviour": "Reading a perspective by id with a time returns its id and C_SPEC unchanged, and on every successful read stores the given time in C_LAST_USED (the value is written as given, even if it is older than the stored one). An unknown id returns nothing and writes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#get",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#updateLastUsed"
+   ]
+  },
+  {
+   "key": "c2-persistence/perspective-io/delete-before",
+   "module": "perspective-io",
+   "api": null,
+   "behaviour": "Purging perspectives before time t deletes every AO_8BAD1B_PERSPECTIVE row with C_LAST_USED strictly less than t.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#deleteBefore"
+   ]
+  },
+  {
+   "key": "c2-persistence/perspective-io/count-and-scan",
+   "module": "perspective-io",
+   "api": null,
+   "behaviour": "The module counts all AO_8BAD1B_PERSPECTIVE rows, and can pass every stored perspective (id and spec) to a check in database order, stopping at the first one the check rejects: the scan answers false then, and true when every perspective passed (also for an empty table).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#count",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#forAll"
+   ]
+  },
+  {
+   "key": "c2-persistence/perspective-io/restore-replaces-all",
+   "module": "perspective-io",
+   "api": null,
+   "behaviour": "Restoring a list of perspectives first deletes every AO_8BAD1B_PERSPECTIVE row, then inserts each given perspective with its own id and spec (not trimmed or checked) and C_LAST_USED = the given restore time. A perspective whose insert fails (for example a duplicate id within the list) is skipped with a warning; the rest are still restored and nothing is thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveIO#restore"
+   ]
+  },
+  {
+   "key": "c2-persistence/ordering-io/read-by-key",
+   "module": "ordering-io",
+   "api": null,
+   "behaviour": "Reading the manual order for a key (`<sorterId>.<path>`, built by the manual sorter as SPEC §1.5 describes for AO_8BAD1B_ORDERING.C_KEY) returns the items listed in C_ORDERING of the first row with exactly that C_KEY (database order when there are duplicates), in stored order. No row, or the value `-`, gives an empty list. There is no cache in this module: every read queries the database (the manual sorter caches).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.OrderingIO#load",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.OrderingIO#parseOrdering"
+   ]
+  },
+  {
+   "key": "c2-persistence/ordering-io/parse-tokens",
+   "module": "ordering-io",
+   "api": null,
+   "behaviour": "Each comma-separated token of C_ORDERING is read as an item: a token without `/` is a Jira issue id (`com.almworks.jira.structure:type-issue`); `<typeId>/<n>` is a long-id item and `<typeId>//<s>` a string-id item whose id is <s> URL-decoded (form decoding, so `+` becomes a space), where <typeId> is mapped back to its key through item-type-registry. A token that cannot be read (not a number, empty type or id, unknown type id) is logged as an error and left out; the other items are still returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ItemIdentityParser#parseItemId",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ItemIdentityParser#parseNonIssue"
+   ]
+  },
+  {
+   "key": "c2-persistence/ordering-io/write-tokens",
+   "module": "ordering-io",
+   "api": null,
+   "behaviour": "Writing a manual order stores the items as comma-separated tokens: an issue as its decimal id; any other item as `<typeId>/<longId>`, or `<typeId>//<id>` with the string id percent-encoded like a URI component, where <typeId> is the item-type-registry id of its type key (registered if new). Example: issues 10005 and 10003 and folder 12 (type id 3) give `10005,10003,3/12`. A list that serialises to an empty text is stored as `-`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.OrderingIO#serializeOrdering",
+    "com.almworks.structure.commons.rest.ItemSerializer#appendItemId"
+   ]
+  },
+  {
+   "key": "c2-persistence/ordering-io/update-map",
+   "module": "ordering-io",
+   "api": null,
+   "behaviour": "Updating the orders of sorter g takes a map from path to item list and, for each entry, works on key `<g>.<path>`: an empty list deletes every row with that key; otherwise, if rows exist, the first one gets the new C_ORDERING (its C_SORTER_ID is left as is) and any further rows with the same key are deleted with a warning about broken uniqueness; if none exists a row is inserted with C_SORTER_ID = g, C_KEY and C_ORDERING. Paths not in the map are not touched, and rows are never deleted when the sorter itself is removed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.OrderingIO#update",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.OrderingIO#create",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.OrderingIO#deleteRecords",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.OrderingIO#buildKey"
+   ]
+  },
+  {
+   "key": "c2-persistence/notes-manager/composite-key",
+   "module": "notes-manager",
+   "api": null,
+   "behaviour": "A property is addressed by (structure id, item, property name) and stored in AO_8BAD1B_S_ITEM_PROPERTY under C_COMPOSITE_KEY `<structureId>|<typeId>|<longId>|<name>` for a long-id item or `<structureId>|<typeId>||<stringId>|<name>` for a string-id item (string id raw), where <typeId> is the item-type-registry id of the item's type key (registered on first use). Example: issue 10234 in structure 12 with property `notes`, issue type id 1, is `12|1|10234|notes`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager#serializeKey"
+   ]
+  },
+  {
+   "key": "c2-persistence/notes-manager/key-validation",
+   "module": "notes-manager",
+   "api": null,
+   "behaviour": "An address with structure id <= 0, a blank property name, a property name longer than 160 characters, or an item identity whose text contains `|` is rejected with IllegalArgumentException before anything is read or written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.StructureItemPropertyManager$PropertyKey#create",
+    "com.almworks.jira.structure.itemproperty.StructureItemPropertyManager$PropertyKey#checkPropertyName"
+   ]
+  },
+  {
+   "key": "c2-persistence/notes-manager/get-cached",
+   "module": "notes-manager",
+   "api": null,
+   "behaviour": "Reading a property returns the stored C_VALUE, or null when there is no row. Answers, including 'no value', are cached per composite key in cluster cache `com.almworks.structure.structure-item-properties`, expiring 600 s after last access (dark feature `structure.itemproperties.cache.timeout`, overridden by system property `structure.cache.expiration-override`). If loading fails, a warning is logged and null is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager#getProperty",
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager$StructureItemPropertyIO#load",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#moderatelyExpiring"
+   ]
+  },
+  {
+   "key": "c2-persistence/notes-manager/update-value",
+   "module": "notes-manager",
+   "api": null,
+   "behaviour": "Setting a non-blank value stores it verbatim (not trimmed): the existing row's C_VALUE is overwritten, or a row is inserted. If the insert hits a key conflict because another writer inserted the same key concurrently, the conflict is only logged (info) and the other writer's value stays. Setting a null, empty or whitespace-only value deletes the row (nothing happens if there is none).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager$StructureItemPropertyIO#update"
+   ]
+  },
+  {
+   "key": "c2-persistence/notes-manager/change-notification",
+   "module": "notes-manager",
+   "api": null,
+   "behaviour": "After every set or delete of a single property, even one that failed, the cached value for that key is dropped on all nodes and ItemTracker is told that the property's item changed (recordChange with the item identity), so the Notes columns refresh.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager#updateProperty",
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager#deleteProperty"
+   ]
+  },
+  {
+   "key": "c2-persistence/notes-manager/delete-all-of-structure",
+   "module": "notes-manager",
+   "api": null,
+   "behaviour": "Deleting all properties of structure s reads every AO_8BAD1B_S_ITEM_PROPERTY row, keeps those whose key parses with structure id s, and deletes them by key in chunks of 128 keys (dark feature `structure.itemProperties.delete.chunkSize`). Rows whose key cannot be parsed are never deleted. Afterwards the whole property cache is cleared (even on failure); ItemTracker is not notified.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager#deleteAllProperties",
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager$StructureItemPropertyIO#deleteAllProperties"
+   ]
+  },
+  {
+   "key": "c2-persistence/notes-manager/list-all",
+   "module": "notes-manager",
+   "api": null,
+   "behaviour": "Listing all properties, or those of one structure, reads the whole table straight from the database (no cache) and returns a map from (structure id, item, name) to value. A row whose key cannot be parsed (wrong number of `|` fields, non-numeric parts, a type id unknown to item-type-registry) is skipped with a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager#getAllProperties",
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager$StructureItemPropertyIO#getAllProperties",
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager#deserializeKey"
+   ]
+  },
+  {
+   "key": "c2-persistence/notes-manager/stream-all",
+   "module": "notes-manager",
+   "api": null,
+   "behaviour": "Streaming all properties passes every AO_8BAD1B_S_ITEM_PROPERTY row to the consumer in database order, including rows whose key cannot be parsed: for those the consumer receives a null address with the stored value (and a warning is logged).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager#streamProperties",
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager$StructureItemPropertyIO#streamProperties"
+   ]
+  },
+  {
+   "key": "c2-persistence/notes-manager/no-permission-check",
+   "module": "notes-manager",
+   "api": null,
+   "behaviour": "The module checks no permissions and does not check that the structure or item exists: callers (note-manager, item-property-editors) decide who may read or write.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.AOBasedStructureItemPropertyManager"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/note-id-format",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "Notes are addressed by `dc_note_<n>`, where <n> is AO_8BAD1B_NOTE.ID; a bare `<n>` is accepted too. An id whose remainder after an optional `dc_note_` prefix is not an integer (for example `notes`, the synthetic default note, which has no row here, or `dc_note_x`) makes every operation taking an id throw StructureException with error INVALID_PARAMETER and message `invalid note id format: <id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#omitIdPrefix",
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#addIdPrefix"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/get-note",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "Getting a note returns its id `dc_note_<ID>`, C_NAME, C_PERMISSION_SCHEME text, C_CREATED and C_ARCHIVED, or null when no row has that number. Answers, including 'not found', are cached per number in cluster cache `com.almworks.structure.note`, expiring 3600 s after last access (dark feature `structure.note.cache.timeout`); create, rename, archive and restore drop the entry on all nodes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#getNote",
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager$NoteLoader#load",
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#toNote"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/name-rules",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "A note name must not be blank (else StructureException INVALID_PARAMETER with i18n `s.w.notes.note.error.blank-name`) and must be at most 190 characters before trimming (else INVALID_PARAMETER with i18n `s.w.notes.note.error.long-name` and argument 190); the trimmed name is stored. So a name of 189 letters plus two spaces is rejected although its trimmed form would fit.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#checkName"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/create-for-structure",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "Creating a note for structure s builds the permission scheme `{\"structure\":<s>}` and requires permission-scheme-manager to grant the current user edit permission on it; otherwise it throws StructureException STRUCTURE_EDIT_DENIED with i18n `s.w.notes.note.create-denied.no-structure-permissions` and argument s, and stores nothing. On success the note is created unarchived with that scheme.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#createNote",
+    "com.almworks.jira.structure.permissionscheme.StructureBasedPermissionScheme#encodeScheme"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/create-with-scheme",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "Creating a note with an explicit permission scheme text and archived flag checks only the name: no permission check is made and the scheme text is stored unvalidated. It inserts an AO_8BAD1B_NOTE row with the trimmed C_NAME, C_PERMISSION_SCHEME, C_ARCHIVED and C_CREATED = current time in ms, and returns the note with id `dc_note_<new ID>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#createNote"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/rename",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "Renaming a note checks in this order: id format (INVALID_PARAMETER); the row exists (else NOTE_NOT_EXISTS_OR_NOT_ACCESSIBLE, i18n `s.w.notes.note.not-found` with the id as given); not archived (else INVALID_PARAMETER, i18n `s.w.notes.note.edit-denied.archived`); edit permission on the note's own permission scheme through permission-scheme-manager (else NOTE_EDIT_DENIED, i18n `s.w.notes.note.edit-denied`); the name rules. Then only C_NAME is updated (trimmed); if the update changes no row it throws the not-found error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#renameNote",
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#notFound",
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#editDenied"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/archive",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "Archiving a note checks the id format, that the row exists (else NOTE_NOT_EXISTS_OR_NOT_ACCESSIBLE) and edit permission on its permission scheme (else NOTE_EDIT_DENIED with i18n `s.w.notes.note.archive-denied`), then sets C_ARCHIVED true. Archiving an already archived note succeeds again without error. There is no un-archive and no delete.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#archiveNote",
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#archiveDenied"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/stream",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "Streaming notes passes every AO_8BAD1B_NOTE row to the consumer in database order; streaming unarchived notes passes only rows with C_ARCHIVED false or NULL. Neither checks permissions nor uses the cache.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#streamNotes",
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#streamUnarchivedNotes",
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#unarchivedNotesCondition"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/restore",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "Restoring a note inserts an AO_8BAD1B_NOTE row with ID = the number from its id, the trimmed name (same name rules and errors as creation), and its permission scheme, created time and archived flag as given; no permission check is made. A bad id gives INVALID_PARAMETER `invalid note id format: ...`; an ID already taken fails with the storage exception (StructureRuntimeException).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#restoreNote"
+   ]
+  },
+  {
+   "key": "c2-persistence/note-manager/stopped",
+   "module": "note-manager",
+   "api": null,
+   "behaviour": "After the plugin component has stopped, every note operation (get, create, rename, archive, stream, restore) throws StructureStoppedException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.itemproperty.note.AOBasedNoteManager#getNote",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-row-manager/create-row",
+   "module": "persistent-row-manager",
+   "api": null,
+   "behaviour": "Creating a persistent row for an item and semantics inserts one AO_8BAD1B_ROW row (C_ITEM_TYPE = item-type-registry id of the type key, registered if new; C_ITEM_LONG_ID = the long id or 0 for string-id items; C_ITEM_STRING_ID = the string id, or NULL for long-id items and empty strings; C_SEMANTICS) and returns row id = ID * 2. A stored ID <= 0 (integer overflow) throws StructureRuntimeException `Row ID overflow detected: <ID>`. The new row is readable at once and appears at once in that item's reverse lookup (both caches are refreshed for it).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#createRow",
+    "com.almworks.jira.structure.row.IdPartitioning#toIdFromPersistent",
+    "com.almworks.jira.structure.row.IdPartitioning#isOverflow"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-row-manager/get-row",
+   "module": "persistent-row-manager",
+   "api": null,
+   "behaviour": "Reading a row id that is not a persistent id (0, negative, or odd) throws MissingRowException without a database query. For a positive even id it returns the row with that id, its item identity (string id when C_ITEM_STRING_ID is non-blank, else long id; type key from item-type-registry) and C_SEMANTICS; an id with no AO_8BAD1B_ROW record throws MissingRowException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#getRow",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#getRowSpec",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#getItemIdFromAO",
+    "com.almworks.jira.structure.util.Util#itemId"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-row-manager/row-cache",
+   "module": "persistent-row-manager",
+   "api": null,
+   "behaviour": "Rows are cached per node (not cluster-wide; they never change) by row id, up to 1,000,000 entries (dark feature `structure.aobprm.cache.maxSize`), each expiring 3600 s after last access (dark feature `structure.aobprm.cache.timeout`). 'No such row' is cached too, so a row inserted by other means stays missing until the entry expires, the id is created or restored through this module, or clearCaches runs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager$RowSpecIO#load",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager$BulkRowSpecIO#load",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#clearCaches"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-row-manager/restore-row",
+   "module": "persistent-row-manager",
+   "api": null,
+   "behaviour": "Restoring row id r for an item and semantics: if no record exists for r, it is inserted with ID = r / 2 and r is returned; if a record exists with the same item and semantics, nothing is written and r is returned; if it exists with a different item or semantics, a new row is created as for a normal create and its new id (not r) is returned. A non-persistent r (0, negative, odd) throws MissingRowException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#restoreRow",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#createRow"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-row-manager/scan-rows",
+   "module": "persistent-row-manager",
+   "api": null,
+   "behaviour": "Scanning a list of row ids visits them in ascending id order (the list is sorted first unless the caller says it is already sorted; duplicates are visited again), loading missing ones from AO_8BAD1B_ROW in chunks of 1,000 ids (dark feature `structure.aobprm.scanChunkSize`) with one IN query per chunk. A row with no record goes to the caller's missing-id collector or, without a collector, throws MissingRowException at that point (rows before it were already visited). A non-persistent id (0, negative, odd) throws MissingRowException even when a collector is given. The scan stops as soon as the visitor returns false; an empty list does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#scanRows",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#createSortedIterator",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager$BulkRowSpecIO#load"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-row-manager/find-rows-of-item",
+   "module": "persistent-row-manager",
+   "api": null,
+   "behaviour": "Finding the rows of an item reports the row ids (ID * 2) of all AO_8BAD1B_ROW records with that item: a query on C_ITEM_LONG_ID (long-id items) or C_ITEM_STRING_ID (string-id items), filtered to the item's C_ITEM_TYPE, in database order, until the visitor returns false (the search then answers false; otherwise true). A null item answers true at once. A database failure is logged and treated as no rows; a load failure is logged and the search answers true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#findRows",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#findRows0"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-row-manager/reverse-caches",
+   "module": "persistent-row-manager",
+   "api": null,
+   "behaviour": "The item-to-rows answers are cached in two cluster caches, `com.almworks.structure.issues-to-rows` (keyed by issue id) and `com.almworks.structure.items-to-rows` (keyed by the item identity text), expiring 600 s after last access (dark feature `structure.aobprm.reverseCache.timeout`). Creating or restoring a row through this module drops the entry of that row's item; an empty answer after a database failure is cached like any other.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#createRow",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager$IssueToRowCacheLoader#load",
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager$NonIssueToRowCacheLoader#load"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-row-manager/filter-by-type",
+   "module": "persistent-row-manager",
+   "api": null,
+   "behaviour": "Filtering a list of row ids by item type passes to the collector, in ascending order and without duplicates, those ids that are persistent rows whose record has the given type (registered in item-type-registry if new); it reads only the ID range between the smallest and largest given id. Odd, zero and negative ids are never passed; an empty list does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#filterPersistentRowsByItemType"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-row-manager/total-count-statistic",
+   "module": "persistent-row-manager",
+   "api": null,
+   "behaviour": "The total number of AO_8BAD1B_ROW records is counted on request and offered to statistics-manager as source values `persistentTotalRowCount` (the count) and `persistentTotalRowCount.<bin>` (also the count), where <bin> is the first of 1000, 10000, 30000, 50000, 70000, 100000, 200000, 300000, 400000, 500000, 1000000, 2000000, 5000000 that is >= the count, or `inf`. Statistics stay local (SPEC §1.8).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.AOBasedPersistentRowManager#getTotalRowCount",
+    "com.almworks.jira.structure.row.RowStatisticSource#getStatistics"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-generator-manager/create",
+   "module": "persistent-generator-manager",
+   "api": null,
+   "behaviour": "Creating a stored generator inserts an AO_8BAD1B_GENERATOR row (C_MODULE_KEY from the spec, C_PARAMETERS = the parameters as JSON or NULL when empty, C_OWNING_STRUCTURE = the owner or NULL) and returns the public id C_ID * 2. Permission, existence of the module and of the owner are not checked (see generator-manager).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#createGenerator",
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#serializeParameters"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-generator-manager/restore-with-id",
+   "module": "persistent-generator-manager",
+   "api": null,
+   "behaviour": "Restoring generator g inserts an AO_8BAD1B_GENERATOR row with C_ID = g / 2 and the spec's key, parameters and owner, and returns the stored C_ID * 2. An id already taken fails with the storage exception (StructureRuntimeException) and stores nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#restoreGenerator"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-generator-manager/get-cached",
+   "module": "persistent-generator-manager",
+   "api": null,
+   "behaviour": "Reading generator g returns a GeneratorSpec with the stored key, the parameters read back from the JSON and the owner, or null when no row exists. Answers, 'not found' included, are cached per id in cluster cache `com.almworks.structure.generator`, expiring 3600 s after last access (dark feature `structure.generator.cache.timeout`); create, restore, a successful update and a successful delete drop the entry on all nodes. A load failure throws StructureRuntimeException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#getGenerator",
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager$GeneratorLoader#load"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-generator-manager/update-delete",
+   "module": "persistent-generator-manager",
+   "api": null,
+   "behaviour": "Updating generator g overwrites C_MODULE_KEY, C_PARAMETERS and C_OWNING_STRUCTURE and answers true, or answers false without writing when there is no row. Deleting g removes its row and answers whether a row was deleted. Neither notifies ItemTracker (generator-manager does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#updateGenerator",
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#deleteGenerator"
+   ]
+  },
+  {
+   "key": "c2-persistence/persistent-generator-manager/id-checks",
+   "module": "persistent-generator-manager",
+   "api": null,
+   "behaviour": "Every operation taking an id expects a positive even id: with assertions enabled (as the tests run) an odd, zero or negative id throws AssertionError; with assertions disabled the id is halved and used as is. After the plugin component has stopped, every operation throws StructureStoppedException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.AOBasedPersistentGeneratorManager#getGenerator",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check"
+   ]
+  },
+  {
+   "key": "c2-persistence/history-recorder-io/write-entry",
+   "module": "history-recorder-io",
+   "api": null,
+   "behaviour": "Writing a history entry of structure s that produced version v inserts one AO_8BAD1B_HISTORY_ENTRY row with C_ID = (s << 32) | v, C_PREV_VERSION, C_TIMESTAMP, C_USER_KEY and C_SYNCHRONIZER as the entry gives them (null stays NULL), then one AO_8BAD1B_HISTORY_CHANGE row per change, in the entry's order (so C_ID order is change order), each with C_HID = the entry's C_ID.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#writeEntry",
+    "com.almworks.jira.structure.structure.history.HistoryUtil#hid"
+   ]
+  },
+  {
+   "key": "c2-persistence/history-recorder-io/change-columns",
+   "module": "history-recorder-io",
+   "api": null,
+   "behaviour": "Each change row stores C_OPERATION 1 add, 2 copy, 3 move, 4 remove; C_FOREST as `{\"rows\":[...],\"depths\":[...]}`; C_PATH_FROM, C_AFTER_FROM, C_PATH_TO, C_AFTER_TO and C_ORIGINAL_ROWS as JSON arrays of numbers (`[]` for an empty list, NULL for an absent one); C_DIRECTION = the direction, or NULL when it is 0. The row ids written are the forest's public row ids, not AO_8BAD1B_ROW.ID.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#writeEntry",
+    "com.almworks.jira.structure.structure.Encoder#encodeForest",
+    "com.almworks.jira.structure.structure.Encoder#encodeLongList",
+    "com.almworks.jira.structure.structure.history.HistoryEntryIO#encodeOperation"
+   ]
+  },
+  {
+   "key": "c2-persistence/history-recorder-io/write-entry-assertions",
+   "module": "history-recorder-io",
+   "api": null,
+   "behaviour": "The packed key needs 1 <= s <= 2^31-1 and v >= 0: with assertions enabled (as the tests run) other values throw AssertionError before anything is written. A writing failure (for example an entry key that already exists) throws the storage exception (StructureRuntimeException); rows written before it stay.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryUtil#hid",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#writeEntry"
+   ]
+  },
+  {
+   "key": "c2-persistence/history-recorder-io/write-indexes",
+   "module": "history-recorder-io",
+   "api": null,
+   "behaviour": "Writing the indexes of an entry looks up every row id in every change's forest (not the path or after lists) through structure-row-manager without access checks; rows that no longer exist are skipped. For each distinct issue item found it inserts one AO_8BAD1B_HISTORY_ISSUE row (C_HID, C_ISSUE_ID), and for each distinct project of those issues (taken from the Jira issue object, skipped when the issue cannot be loaded) one AO_8BAD1B_HISTORY_PROJECT row (C_HID, C_PROJECT_ID). Non-issue items are not indexed. Indexes are written separately from the entry and can be written again only by calling it again (no duplicate check).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#writeIndexes"
+   ]
+  },
+  {
+   "key": "c2-persistence/history-recorder-io/clear-history-range",
+   "module": "history-recorder-io",
+   "api": null,
+   "behaviour": "Clearing history for the key range [from, to) deletes, in this order, AO_8BAD1B_HISTORY_ISSUE, AO_8BAD1B_HISTORY_PROJECT and AO_8BAD1B_HISTORY_CHANGE rows with from <= C_HID < to, then AO_8BAD1B_HISTORY_ENTRY rows with from <= C_ID < to. A whole structure s is cleared with [s << 32, (s + 1) << 32).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#clearHistory"
+   ]
+  },
+  {
+   "key": "c2-persistence/history-recorder-io/user-key-count-and-change",
+   "module": "history-recorder-io",
+   "api": null,
+   "behaviour": "Counting the entries of a user key counts AO_8BAD1B_HISTORY_ENTRY rows with C_USER_KEY equal to it. Changing a user key from old to new rewrites C_USER_KEY in all matching entries with one SQL update and answers true; an SQLException is logged and answers false. While the plugin database is locked by another thread, the rewrite throws StructureStoppedException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#countEntriesByUser",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#changeEntriesUserKey"
+   ]
+  },
+  {
+   "key": "c2-persistence/adjustment-store/read",
+   "module": "adjustment-store",
+   "api": null,
+   "behaviour": "Reading the manual adjustments of structure s returns the adjustments decoded from C_DATA of the AO_8BAD1B_MANUAL_ADJUSTMENTS row with C_STRUCTURE_ID = s, in stored order, or nothing (null) when there is no row, C_DATA is NULL or blank, decodes to an empty list, or cannot be decoded (logged as a warning). Answers are cached per structure in cluster cache `com.almworks.structure.manualAdjustments`, expiring 3600 s after last access (dark feature `structure.manualAdjustments.cache.timeout`); a load failure is logged and reads as nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.AbstractAdjustmentStore#getAdjustments",
+    "com.almworks.jira.structure.forest.gfs.manual.AOBasedAdjustmentStore#loadAdjustments",
+    "com.almworks.jira.structure.forest.gfs.manual.AbstractAdjustmentStore#deserialize"
+   ]
+  },
+  {
+   "key": "c2-persistence/adjustment-store/apply-versioning",
+   "module": "adjustment-store",
+   "api": null,
+   "behaviour": "Applying a list of changes to structure s reads the row, applies the changes in order and writes the result back: each change, of whatever kind, raises the version by one, and the stored C_VERSION becomes the old version (0 when there is no row) plus the number of changes. An empty change list does nothing at all.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.AbstractAdjustmentStore#applyChanges",
+    "com.almworks.jira.structure.forest.gfs.manual.AbstractAdjustmentStore$ChangeApplier#apply",
+    "com.almworks.jira.structure.forest.gfs.manual.AOBasedAdjustmentStore#txn"
+   ]
+  },
+  {
+   "key": "c2-persistence/adjustment-store/apply-change-kinds",
+   "module": "adjustment-store",
+   "api": null,
+   "behaviour": "While applying: an add of an adjustment with id <= 0 gives it the current version number as id and appends it; an add with a positive id that is not present appends it (undo/redo) and raises the version to at least that id; an add with an id already present changes nothing; a remove deletes the adjustment with that id if present; a replace overwrites the adjustment with the new one's id, or appends it when absent; a move puts the adjustment right after the one with the given id (both must be present, else nothing) or first when no 'after' is given; an expectation changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.AbstractAdjustmentStore$ChangeApplier#visit"
+   ]
+  },
+  {
+   "key": "c2-persistence/adjustment-store/owned-items",
+   "module": "adjustment-store",
+   "api": null,
+   "behaviour": "When an add or replace stores a fragment, every long-id item whose type is a StructureOwnedItemType (for example memos) is passed to that type's getOwnedItem for structure s, with the copy flag true when the item is already used by another adjustment of the structure; the fragment is stored with the identities returned (so an item owned by another structure is stored as its copy). A StructureException from the item type is thrown as the storage exception (StructureRuntimeException).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.AbstractAdjustmentStore$ChangeApplier#getOwnedAdjustment",
+    "com.almworks.jira.structure.forest.gfs.manual.AbstractAdjustmentStore$ChangeApplier#getOwnedFragment",
+    "com.almworks.jira.structure.forest.gfs.manual.AdjustmentUtil#getOwnedFragment"
+   ]
+  },
+  {
+   "key": "c2-persistence/adjustment-store/size-limit",
+   "module": "adjustment-store",
+   "api": null,
+   "behaviour": "If after applying the changes the structure would hold more than 2000 adjustments (dark feature `structure.gfs.manualAdjustments.maxAdjustmentsPerStructure`), nothing is written and a StructureRuntimeException with the current user's i18n text `s.ext.gen.block.too-many-adjustments-per-structure` (argument the limit) is thrown. Exactly 2000 is allowed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.AOBasedAdjustmentStore#txn"
+   ]
+  },
+  {
+   "key": "c2-persistence/adjustment-store/optimistic-write",
+   "module": "adjustment-store",
+   "api": null,
+   "behaviour": "The write is a compare-and-set: with no previous row it inserts (C_STRUCTURE_ID, C_VERSION = new version, C_DATA), and an insert conflict counts as a lost race; otherwise it updates C_VERSION and C_DATA where C_STRUCTURE_ID = s and C_VERSION = the version read. A lost race re-reads the row and applies the same changes again, up to 10 attempts in all; then it throws StructureRuntimeException `Concurrent update failed`. A successful write drops the cached adjustments of s on all nodes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.AOBasedAdjustmentStore#txn",
+    "com.almworks.jira.structure.forest.gfs.manual.AOBasedAdjustmentStore#insert",
+    "com.almworks.jira.structure.forest.gfs.manual.AOBasedAdjustmentStore#update"
+   ]
+  },
+  {
+   "key": "c2-persistence/adjustment-store/empty-stored-null",
+   "module": "adjustment-store",
+   "api": null,
+   "behaviour": "When the changes leave no adjustments, the row is kept with the new C_VERSION and C_DATA NULL (it then reads as no adjustments); adjustments are serialised as SPEC §1.5 describes for C_DATA.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.AdjustmentSerializer#serialize",
+    "com.almworks.jira.structure.forest.gfs.manual.AOBasedAdjustmentStore#update"
+   ]
+  },
+  {
+   "key": "c2-persistence/adjustment-store/delete-and-scan",
+   "module": "adjustment-store",
+   "api": null,
+   "behaviour": "Deleting the adjustments of structure s deletes its AO_8BAD1B_MANUAL_ADJUSTMENTS row (if any) and drops its cache entry. Scanning all adjustments passes (adjustment list, structure id) for every row whose data decodes to a non-empty list, reading the table directly.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.AOBasedAdjustmentStore#deleteAdjustments",
+    "com.almworks.jira.structure.forest.gfs.manual.AOBasedAdjustmentStore#forEach"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/create",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Creating an effector process inserts an AO_8BAD1B_EFFECTOR_PROCESS row with C_PARAMETERS = the run parameters as JSON (keys `structureId`, `effectorInstances`, `oneOffEffectorModuleKey`, `oneOffParams`, `oneOffForestSpec` in REST forest-spec form, `revertedProcessId`; absent ones omitted), C_STATUS `PENDING`, C_USER_KEY = the user's key, C_PROCESS_HANDLE_ID = the given handle id, C_CREATED = now, C_NODE_ID = this node's Jira cluster node id (NULL when not Data Center), C_ACKNOWLEDGED false; start, finish and queued times NULL, preview NULL.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#createNew",
+    "com.almworks.jira.structure.effector.EffectorProcessIO$StoredProcessParams#fromProcessParams"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/read-process",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Reading a process by id returns its parameters (parsed back from JSON, with `oneOffForestSpec` as a ForestSpec; unknown JSON keys ignored), preview, status, start and finish time, user key and acknowledged flag, or null when no row exists (a warning is logged). Answers, 'not found' included, are cached per id in cluster cache `com.almworks.structure.effectorProcess`, expiring 3600 s after last access (dark feature `structure.effectorProcess.cache.timeout`); each successful state change made here drops the entry. A load failure throws StructureRuntimeException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#getProcess",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#fromProcessAO",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#readParams",
+    "com.almworks.jira.structure.effector.EffectorProcessIO$EffectorProcessLoader#load"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/conditional-transitions",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Every status change is one conditional SQL update that succeeds only if the row is still in the expected status, and answers whether exactly one row changed: start calculation PENDING -> CALCULATING (C_START_TIME = now); finish calculation CALCULATING -> CALCULATED (preview stored, C_FINISH_TIME = now); fail calculation PENDING or CALCULATING -> CALCULATION_FAILED (preview `{\"errors\":[...]}`, C_FINISH_TIME = now); cancel calculation CALCULATING -> CALCULATION_STOPPED and cancel applying IN_PROGRESS -> APPLY_STOPPED (both clear the preview to NULL and set C_FINISH_TIME = now); resume APPLY_INTERRUPTED -> QUEUED (C_QUEUED = now, C_ACKNOWLEDGED false). A PENDING process cannot be cancelled this way.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#startCalculation",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#finishCalculation",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#failCalculation",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#cancelCalculation",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#cancelApplying",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#cancel",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#resumeInterrupted"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/queue-transitions",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Putting a process into the applying queue from a given current status sets C_STATUS `QUEUED` and C_QUEUED = now; the variant used right after calculation also stores the preview and sets C_FINISH_TIME = C_QUEUED = now. Updating only the preview stores it if the status is still the given one. Each answers whether one row changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#toApplyingQueue",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#toApplyingQueueAndUpdateFinishTime",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#updatePreview"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/complete",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Completing a process sets C_STATUS `COMPLETED` (or `COMPLETED_WITH_ERRORS`), clears the preview to NULL and sets C_FINISH_TIME = now, from any status except CALCULATION_STOPPED and APPLY_STOPPED (a stopped process stays stopped and the call answers false).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#complete"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/multi-row-update",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "If a conditional update reports more than one changed row, all three caches of the module are cleared and a StructureRuntimeException `Failed to update process #<id>` is thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#checkUpdate"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/poll-for-applying",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Picking the next process to apply takes the QUEUED process with the smallest C_QUEUED (rows with NULL C_QUEUED first) and moves it QUEUED -> IN_PROGRESS with C_START_TIME = now and C_FINISH_TIME NULL, returning it re-read from the database. If another node took it first, a warning is logged and the next candidate is tried, up to 5 attempts; then, or when nothing is queued, it answers null. More than one row changed throws StructureRuntimeException `Error: several effector processes have been updated by the same id.`",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#pollForApplying",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#findFirstForApplying"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/startup-recovery",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Recovery after a restart: with resume, every IN_PROGRESS process is set back to QUEUED; without resume, every IN_PROGRESS or QUEUED process becomes APPLY_INTERRUPTED (times unchanged). Abandoning calculations of a node sets every PENDING or CALCULATING process whose C_NODE_ID is that node (or, for a null node, whose C_NODE_ID is NULL) to CALCULATION_STOPPED with C_FINISH_TIME = now. Each returns the number of rows changed, logs it, and clears all caches when it is above 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#rollbackUnfinishedProcesses",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#cancelAllCalculatingProcesses"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/running-for-user",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "The 'running' processes of a user are those with C_USER_KEY = the user's key and C_ACKNOWLEDGED false, newest C_CREATED first, whatever their status. The id list is cached per user key in cluster cache `com.almworks.structure.runningEffectorProcesses` (3600 s after last access, dark feature `structure.runningEffectorProcesses.cache.timeout`) and dropped on create, acknowledge, delete, user-key change and the user's cache clearing; each process is then read through the process cache.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#getRunningProcessesForUser",
+    "com.almworks.jira.structure.effector.EffectorProcessIO$RunningProcessesLoader#load",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/find-processes",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Finding processes by optional user key, optional status and optional structure id returns matching processes newest C_CREATED first, read from the database; the structure filter keeps those whose parameters' `structureId` equals it (one-off runs without one are left out).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#findProcesses"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/acknowledge",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Acknowledging answers false for an unknown process. Otherwise it sets C_ACKNOWLEDGED true only if the status is COMPLETED, COMPLETED_WITH_ERRORS, APPLY_INTERRUPTED or APPLY_STOPPED, and answers whether that happened; on success the user's running list is refreshed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#acknowledge"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/delete-process",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Deleting a process removes its row only if its status has not changed since it was read, then deletes its process handle (AO_8BAD1B_PROCESS_STATE row) through process-handle-manager and drops its caches. The user may delete only a CALCULATED, CALCULATION_STOPPED or CALCULATION_FAILED process (otherwise, or when it does not exist, the answer is false); that delete leaves its AO_8BAD1B_EFFECTOR_RECORD rows in place.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#deleteCalculated",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#deleteProcess"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/purge",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Purging finished processes before time t deletes processes in COMPLETED, COMPLETED_WITH_ERRORS, APPLY_INTERRUPTED or APPLY_STOPPED whose C_FINISH_TIME < t (NULL finish time never matches), together with their AO_8BAD1B_EFFECTOR_RECORD rows and process handles. Purging stale previews before t deletes processes in PENDING, CALCULATING, CALCULATED, CALCULATION_STOPPED or CALCULATION_FAILED whose C_CREATED < t, with their handles (records are not deleted).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#clearFinishedBefore",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#clearCalculatingProcesses"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/effect-records",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Saving an effect record inserts an AO_8BAD1B_EFFECTOR_RECORD row: C_PROCESS_ID, C_EFFECT_MESSAGE = the message as JSON, C_ERROR, C_UNDO_EFFECT = the undo effect as JSON or an empty string when there is none, C_AFFECTED_ITEMS = a JSON array of compact item ids (issue `10234`, other `<typeId>/<id>` or `<typeId>//<id>`), or NULL when no items, C_TIMESTAMP and C_PREVIEW_INDEX. Reading the records of a process returns them in database order, cached per process in cluster cache `com.almworks.structure.effectRecords` for 600 s after last access (dark feature `structure.effectRecords.cache.timeout`), refreshed on every save.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#saveEffectRecord",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#serializeItemIds",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#getEffectRecords",
+    "com.almworks.jira.structure.effector.EffectorProcessIO$EffectRecordsLoader#load"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/record-message-users",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "When a stored message JSON has the key `argumentsWithUserKeys`, it is read in its unresolved form, so the `${<user key>}` references are turned into current display names when it is shown; otherwise it is read as a plain i18n text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO$EffectRecordsLoader#readMessage"
+   ]
+  },
+  {
+   "key": "c2-persistence/effector-process-io/user-key-and-handles",
+   "module": "effector-process-io",
+   "api": null,
+   "behaviour": "Changing a user key rewrites C_USER_KEY from old to new in all processes with one SQL update (only if the old key has processes) and drops their cache entries and both users' running lists. The list of all C_PROCESS_HANDLE_ID values is available (maintenance keeps those AO_8BAD1B_PROCESS_STATE rows).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorProcessIO#changeProcessesUserKey",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#getProcessHandleIds"
+   ]
+  },
+  {
+   "key": "c2-persistence/saved-column-io/create",
+   "module": "saved-column-io",
+   "api": null,
+   "behaviour": "Creating a global column inserts an AO_8BAD1B_SAVED_COLUMN row with C_OWNER NULL; creating a user column sets C_OWNER = the given user key. C_NAME, C_DESCRIPTION, C_TYPE are stored as given and C_PARAMETERS as the parameter map in JSON (`{}` for an empty map). The column is returned with its new ID. This module validates nothing (names, permissions are the callers').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#createGlobalColumn",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#createUserColumn",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#create0"
+   ]
+  },
+  {
+   "key": "c2-persistence/saved-column-io/find-by-owner",
+   "module": "saved-column-io",
+   "api": null,
+   "behaviour": "Listing global columns returns the rows with C_OWNER NULL; listing a user's columns returns the rows with C_OWNER = that key; both in database order, cached per owner in cluster cache `com.almworks.structure.savedColumnGroups` (3600 s after last access, dark feature `structure.savedColumnGroups.cache.timeout`). Listing all user columns (any non-null owner) always reads the database.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#findUserColumns",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#findGlobalColumns",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#findAllUserColumnsUncached",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl$ColumnGroupLoader#load"
+   ]
+  },
+  {
+   "key": "c2-persistence/saved-column-io/find-by-id",
+   "module": "saved-column-io",
+   "api": null,
+   "behaviour": "Reading a column by ID returns it whatever its owner, or null when no row exists; answers, 'not found' included, are cached per ID in cluster cache `com.almworks.structure.savedColumnItems` (3600 s after last access, dark feature `structure.savedColumnItems.cache.timeout`). A load failure is logged and thrown as StructureRuntimeException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#findColumn",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl$ColumnLoader#load",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#find"
+   ]
+  },
+  {
+   "key": "c2-persistence/saved-column-io/unreadable-parameters",
+   "module": "saved-column-io",
+   "api": null,
+   "behaviour": "A row whose C_PARAMETERS is empty or not a JSON object cannot be read: reading it (by ID, in an owner's list or in the uncached list) fails with an exception (a NullPointerException, wrapped as StructureRuntimeException where it happens during a cache load).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#toSavedColumn",
+    "com.almworks.jira.structure.savedcolumn.StoredColumn"
+   ]
+  },
+  {
+   "key": "c2-persistence/saved-column-io/update-delete-validate",
+   "module": "saved-column-io",
+   "api": null,
+   "behaviour": "Updating or deleting column id first reads the row: if none exists it throws StructureException SAVED_COLUMN_NOT_EXISTS_OR_NOT_ACCESSIBLE `Cannot find a saved column with id: <id>`. It then passes the stored owner key (null for global) to the caller's check; if that throws, nothing is changed. An update overwrites C_NAME, C_DESCRIPTION, C_TYPE and C_PARAMETERS (owner unchanged); a delete removes the row. Both drop that owner's list and the column's cache entry.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#update",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#delete",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#get"
+   ]
+  },
+  {
+   "key": "c2-persistence/saved-column-io/make-global",
+   "module": "saved-column-io",
+   "api": null,
+   "behaviour": "Making column id global sets its C_OWNER to NULL (no check of the caller; missing row gives the SAVED_COLUMN_NOT_EXISTS_OR_NOT_ACCESSIBLE error) and drops the previous owner's list, the global list and the column's cache entry.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#makeGlobal"
+   ]
+  },
+  {
+   "key": "c2-persistence/saved-column-io/restore",
+   "module": "saved-column-io",
+   "api": null,
+   "behaviour": "Restoring a column inserts an AO_8BAD1B_SAVED_COLUMN row with the given ID, name, description, type, owner and parameters JSON, and drops the owner's (or the global) list and the ID's cache entry. An ID already taken fails with the storage exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#restoreColumn"
+   ]
+  },
+  {
+   "key": "c2-persistence/saved-column-io/user-cache-clear",
+   "module": "saved-column-io",
+   "api": null,
+   "behaviour": "Clearing the caches of a user drops that user's column list and, if it was loaded, the cache entries of each column in it; clearing all caches drops both caches.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#clearUserCaches",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnIOImpl#clearCaches"
+   ]
+  }
+ ]
+}

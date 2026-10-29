@@ -405,9 +405,9 @@
    "params": {
     "body": "{{com.almworks.cfd.rest.data.RestSimulationParameters}}."
    },
-   "request": "`scopeStructureId`, `trainingStructureId` and `config` (with both issue type lists) are required. `simulations` defaults to 50 runs.",
+   "request": "`scopeStructureId`, `trainingStructureId` and `config` (with both issue type lists) are required. `simulations` defaults to 50 runs. The `config` must also give all four attribute specs (`teamAttributeSpec`, `whenAppearedAttributeSpec`, `whenWorkStartedAttributeSpec`, `whenCompletedAttributeSpec`), each with an id and a standard format; otherwise the run fails with the generic error below. (The meta and validate calls check only the team and completed specs.)",
    "response": "200 with {{com.almworks.cfd.rest.data.RestSimulationCFDResult}}.",
-   "errors": "Missing required input or a disabled feature raise errors that this module does not translate (no plugin exception mapper is installed for it): expect the platform's generic error response, normally status 500. A `targetDate` not in `YYYY-MM-DD` form fails the same way."
+   "errors": "Missing required input or a disabled feature raise errors that this module does not translate (no plugin exception mapper is installed for it): expect the platform's generic error response, normally status 500. With the feature disabled the original builds a 403 reply but throws it in a way no mapper handles, so the caller still gets the generic error. A `targetDate` not in `YYYY-MM-DD` form fails the same way."
   }
  },
  "shapes": {
@@ -461,7 +461,7 @@
     "whenAppearedAttributeSpec": "Attribute giving the time (epoch ms) an item appeared.",
     "whenWorkStartedAttributeSpec": "Attribute giving the time (epoch ms) work on an item started.",
     "whenCompletedAttributeSpec": "Attribute giving the time (epoch ms) an item was completed.",
-    "trainingPeriod": "History window in days: 7, 14, 21, 28, 42, 56, or -1 / absent for all history."
+    "trainingPeriod": "History window in days: 7, 14, 21, 28, 42, 56, or -1 for all history. The meta and validate calls reject an absent value; only the simulation treats an absent value as all history."
    }
   },
   "com.almworks.cfd.rest.data.RestSimulatedDate": {
@@ -469,7 +469,7 @@
    "summary": "A forecast completion moment with its spread.",
    "fields": {
     "mean": "Expected completion time, epoch milliseconds.",
-    "deviation": "Standard deviation of the completion time across simulation runs, in milliseconds."
+    "deviation": "Spread of the forecast: the median absolute deviation of the simulation runs' total remaining durations from their median, in milliseconds, for the team's whole remaining work (not a date)."
    }
   },
   "com.almworks.cfd.rest.data.RestSimulationCFDResult": {
@@ -507,7 +507,7 @@
     "whenAppearedAttributeSpec": "Attribute giving the time (epoch ms) an item appeared.",
     "whenWorkStartedAttributeSpec": "Attribute giving the time (epoch ms) work on an item started.",
     "whenCompletedAttributeSpec": "Attribute giving the time (epoch ms) an item was completed.",
-    "trainingPeriod": "History window in days: 7, 14, 21, 28, 42, 56, or -1 / absent for all history."
+    "trainingPeriod": "History window in days: 7, 14, 21, 28, 42, 56, or -1 for all history. The meta and validate calls reject an absent value; only the simulation treats an absent value as all history."
    }
   },
   "com.almworks.cfd.rest.data.RestTeamStats": {

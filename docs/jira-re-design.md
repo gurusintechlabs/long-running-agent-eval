@@ -441,3 +441,10 @@ Resolved 2026-10-28 (after JC2):
 - Helper brief: `analyst/claims-brief.md`. JC2 claims the 45 public components, which implement the API's
   service interfaces. The behaviour of the pure API interfaces is claimed there, by module.
 - The plugin's own error codes (6001–6017, wire name and category) are contract: SPEC.md, REST error responses.
+- JC3 (`docs/phase-JC3-summary.md`) claims the 166 internal components. The brief's module part now says
+  that an internal component's Java interface is not contract: a claim states what the component does for the
+  plugin (rules, limits, storage, Jira calls, what shows through REST or the API), never its method shapes. Only
+  the Jira 9.12 variant of a version bridge is claimed.
+- Owner 2026-10-29 (JC3): bundled formula columns are tested by the values they compute, never by formula
+  text (the original strings carry vendor comments and are not copied); the vendor-report and licence-check
+  job keys are not contract, and the replacement runs neither job.

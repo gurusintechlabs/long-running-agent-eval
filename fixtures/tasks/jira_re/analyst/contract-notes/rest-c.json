@@ -185,7 +185,7 @@
    "errors": "403 when the caller may not use the app."
   },
   "GET /rest/structure/2.0/issue-field": {
-   "summary": "Lists the Jira issue fields for which the app can offer a value picker (used by 'filter by field' and similar generator settings): the navigable fields the caller can see that have an option source, i.e. project, status, issue type, affects and fix versions, priority, reporter, creator, assignee, labels, components, resolution, and custom fields of user, multi-user, multi-group, version, labels, select, multi-select, cascading select, project, sprint, Advanced Roadmaps team, Tempo team and Assets object types (the last four only when that integration is present). When the app is not enabled for all projects, a custom field is listed only if it applies to at least one enabled project. Read-only.",
+   "summary": "Lists the Jira issue fields for which the app can offer a value picker (used by 'filter by field' and similar generator settings): the navigable fields the caller can see that have an option source, i.e. project, status, issue type, affects and fix versions, priority, reporter, creator, assignee, labels, components, resolution, and custom fields of user, multi-user, multi-group, version, labels, select, multi-select, cascading select, project, sprint, Advanced Roadmaps team, Tempo team and Assets object types (the last four only when that integration is present). When the app is not enabled for all projects, a custom field is listed only if it applies to at least one enabled project; global-context custom fields have no associated projects and are therefore left out (as the original does), although the single-field lookup accepts them. Read-only.",
    "params": {},
    "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.data.RestSupportedIssueField}} sorted by field name.",
    "errors": "403 when the caller may not use the app. Failure to read the field list yields an empty array."
@@ -284,7 +284,7 @@
    "params": {
     "spec": "URL-encoded JSON object describing the source: `sourceKey` (one of `PROJECTS`, `ISSUE_TYPES`, `PRIORITIES`, `VERSIONS`, `COMPONENTS`, `SPRINTS`, `USERS`, `GROUPS`, `FIELD_OPTIONS`, `EMPTY`), `projectId` (project the options are for; required for issue types, priorities, versions and components, which are empty without it or when the caller cannot browse that project) and `filters` (object of boolean flags: `excludeSubtasks` for issue types; `excludeInactive` to drop archived projects/versions/components, closed sprints, inactive users, disabled field options; `checkCreateIssues` and `checkStructureConfig` for projects (caller may create issues / app enabled in the project); `checkAssignable` for users (assignable in `projectId`); plus string `customField` (custom field id) and `issueTypeId` for `FIELD_OPTIONS`)."
    },
-   "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource$RestOption}} (`html` null), sorted by the source's order (group, then name; custom field options by their configured order). Projects, versions and components are limited to projects the caller can browse and view issues in. When `spec` is missing or not valid JSON, the source key is unknown or `EMPTY`, or the source is not selectable for the caller (`USERS` requires the Browse Users global permission), the response is 200 with a {{com.almworks.structure.commons.rest.RestEmpty}} instead.",
+   "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource$RestOption}} (`html` null), sorted by the source's order (group, then name; custom field options by their configured order). Versions and components are in practice sorted by name only, because their intended group order (unreleased, released, archived, then archived components) never applies (as the original does). Projects, versions and components are limited to projects the caller can browse and view issues in. When `spec` is missing or not valid JSON, the source key is unknown or `EMPTY`, or the source is not selectable for the caller (`USERS` requires the Browse Users global permission), the response is 200 with a {{com.almworks.structure.commons.rest.RestEmpty}} instead.",
    "errors": "403 when the caller may not use the app."
   },
   "GET /rest/structure/2.0/options-picker/search": {
@@ -297,7 +297,7 @@
    "errors": "403 when the caller may not use the app."
   },
   "GET /rest/structure/2.0/options-picker/suggestions": {
-   "summary": "Initial content of an option picker: the caller's recent items for the source (recent projects, recently used users, sprints of suggested boards) topped up with other options up to N (as in /search; users are not topped up), plus the currently selected options given by id. Read-only.",
+   "summary": "Initial content of an option picker: the caller's recent items for the source (recent projects, recently used users; for sprints the suggestions are always empty (as the original does)) topped up with other options up to N (as in /search; users are not topped up), plus the currently selected options given by id. Read-only.",
    "params": {
     "spec": "Option source description, as for /options-picker/list.",
     "ids": "URL-encoded JSON array of option ids that are currently selected; each one that exists and is valid for the source is included even beyond N. Omitted or invalid JSON: none."
@@ -331,14 +331,14 @@
    "errors": "403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (or the generic access 403) when the caller may not use the app."
   },
   "PUT /rest/structure/2.0/saved-column/{columnSource}/{id}": {
-   "summary": "Replaces all properties of a stored saved column (name, description, type and parameters; absent fields become null, absent parameters become an empty object). The caller must own the column (user column) or hold the 'manage global saved columns' app permission (global column). Not available while the app license is invalid (read-only mode). Persisted in the SAVED_COLUMN table.",
+   "summary": "Replaces all properties of a stored saved column (name, description, type and parameters; absent fields become null, absent parameters become an empty object). The caller must own the column (user column) or hold the 'manage global saved columns' app permission (global column). Persisted in the SAVED_COLUMN table.",
    "params": {
     "columnSource": "`stored` (the bundled source cannot be changed).",
     "id": "Saved column id (integer).",
     "body": "A {{com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput}}."
    },
    "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
-   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the source is unknown. 404 (same form) when the column does not exist or belongs to another user. 403 (same form) when a global column is changed without the permission, an anonymous caller changes a user column, or the caller may not use the app. 500 for the bundled source or in license read-only mode. 401 when not logged in."
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the source is unknown. 404 (same form) when the column does not exist or belongs to another user. 403 (same form) when a global column is changed without the permission, an anonymous caller changes a user column, or the caller may not use the app. 500 for the bundled source. 401 when not logged in."
   },
   "DELETE /rest/structure/2.0/saved-column/{columnSource}/{id}": {
    "summary": "Deletes a stored saved column. Same ownership/permission rules as PUT. Views that used it keep their own copy of the column configuration.",
@@ -347,7 +347,7 @@
     "id": "Saved column id."
    },
    "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
-   "errors": "400 text/plain (localized 'column not found') when the column does not exist or belongs to another user. 500 text/plain carrying the message for every other failure, including an unknown source, missing permission for a global column and license read-only mode; 500 also for the bundled source. 401 when not logged in."
+   "errors": "400 text/plain (localized 'column not found') when the column does not exist or belongs to another user. 500 text/plain carrying the message for every other failure, including an unknown source and missing permission for a global column; 500 also for the bundled source. 401 when not logged in."
   },
   "POST /rest/structure/2.0/saved-column/{columnSource}/{id}/edit": {
    "summary": "Changes only the name and/or description of a stored saved column; type and parameters stay. Fields that are null or absent are left unchanged. Same permission rules as PUT.",
@@ -357,10 +357,10 @@
     "body": "A {{com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput}}; only `name` and `description` are used."
    },
    "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
-   "errors": "400 text/plain (localized) when the column does not exist or is not readable by the caller (another user's column). 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} for an unknown source. 403 (same form) when editing a global column without the permission or when the caller may not use the app. 500 in license read-only mode or for the bundled source. 401 when not logged in."
+   "errors": "400 text/plain (localized) when the column does not exist or is not readable by the caller (another user's column). 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} for an unknown source. 403 (same form) when editing a global column without the permission or when the caller may not use the app. 500 for the bundled source. 401 when not logged in."
   },
   "POST /rest/structure/2.0/saved-column/{columnSource}/{id}/move/{newListKey}": {
-   "summary": "Moves a user's own saved column into the global list (it loses its owner and becomes shared). Only the move to `global` exists; it requires that the caller owns the column and holds the 'manage global saved columns' app permission. Not available in license read-only mode.",
+   "summary": "Moves a user's own saved column into the global list (it loses its owner and becomes shared). Only the move to `global` exists; it requires that the caller owns the column and holds the 'manage global saved columns' app permission.",
    "params": {
     "columnSource": "`stored`.",
     "id": "Saved column id.",
@@ -368,7 +368,7 @@
     "body": "Any JSON object (for example `{}`); ignored, present only so the request is a non-simple POST."
    },
    "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
-   "errors": "400 text/plain (localized messages joined by '. ') when the source is unknown or bundled, the column does not exist, is already global, belongs to another user, the target is not `global`, or the caller lacks the permission. 500 in license read-only mode. 401 when not logged in."
+   "errors": "400 text/plain (localized messages joined by '. ') when the source is unknown or bundled, the column does not exist, is already global, belongs to another user, the target is not `global`, or the caller lacks the permission. 401 when not logged in."
   },
   "POST /rest/structure/2.0/saved-column/{columnSource}/{id}/updateParameters": {
    "summary": "Replaces only the parameters of a stored saved column; name, description and type stay. A missing `parameters` clears them to an empty object. Same permission rules as PUT.",
@@ -390,14 +390,14 @@
    "errors": "404 with no body when the source or list is unknown. 403 when the caller may not use the app."
   },
   "POST /rest/structure/2.0/saved-column/{columnSource}/{listKey}": {
-   "summary": "Saves a new column into a list: into `user` as a personal column of the caller, or into `global` as a shared column (requires the 'manage global saved columns' app permission). No validation of name, type or parameters. Not available in license read-only mode. Persisted in the SAVED_COLUMN table.",
+   "summary": "Saves a new column into a list: into `user` as a personal column of the caller, or into `global` as a shared column (requires the 'manage global saved columns' app permission). No validation of name, type or parameters. Persisted in the SAVED_COLUMN table.",
    "params": {
     "columnSource": "`stored`.",
     "listKey": "`user` or `global`.",
     "body": "A {{com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput}} with the column's name, description, type and parameters."
    },
    "response": "200 with the new {{com.almworks.jira.structure.rest.v2.data.RestSavedColumn}}.",
-   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} for an unknown source or an unknown list key. 403 (same form) for `global` without the permission or when the caller may not use the app. 500 for the bundled source and in license read-only mode. 401 when not logged in."
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} for an unknown source or an unknown list key. 403 (same form) for `global` without the permission or when the caller may not use the app. 500 for the bundled source. 401 when not logged in."
   },
   "GET /rest/structure/2.0/structureWelcome/search": {
    "summary": "Structure finder on the app's welcome page. Without a query it returns the caller's recently opened structures; with a query, the structures the caller can view whose name contains the text. At most 10 are returned. Requires a logged-in user. Read-only.",
@@ -565,7 +565,7 @@
    "name": "formula-name-usage",
    "summary": "One distinct name (variable, function or aggregation) used in a formula and where it occurs.",
    "fields": {
-    "name": "The name as written.",
+    "name": "The name in canonical lower-case form; names that differ only in case are one entry.",
     "usage": "Ranges of every occurrence; an occurrence with a problem carries a localized `error`.",
     "declaration": "For a variable declared inside the formula (local variable), the range of its declaration (with an `error` if the declaration has a problem); null otherwise.",
     "resolved": "Local variable: always true. Free variable: true when listed in the request's `definedVariables`. Function or aggregation: true when the language knows it.",

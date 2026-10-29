@@ -1,0 +1,1618 @@
+{
+ "claims": [
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/structure-null-is-none",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Asked for a user's level on no structure (null), the calculator answers `PermissionLevel.NONE` without asking Jira anything.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getPermission"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/structure-jira-admin-bypass",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Computing a level on a structure, the first check is Jira administration: a user for whom `GlobalPermissionManager.hasPermission(GlobalPermissionKey.ADMINISTER, user)` is true gets `ADMIN`, before plugin availability, owner and rules are looked at (so an administrator gets `ADMIN` even when the plugin is not available to them). Anonymous (null) is never an administrator and Jira is not asked for it. The bypass is controlled by the dark feature `structure.permissions.jiraAdminHasAllPermissions` (default true), read once when the component is created; when false, administrators go through the same checks as everyone else (see `structure-manager` claims on levels).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isAdmin",
+    "com.almworks.jira.structure.util.Util#jiraAdminHasAllPermissions"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/structure-plugin-unavailable-is-none",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Second check: when the plugin is not available to the user (app permission `CoreAppPermissions.USE`, which the calculator answers with `StructureConfiguration.isStructureAvailable(user)`), the level is `NONE` for every structure. This is checked before ownership, so the owner of a structure also gets `NONE` when the plugin is not available to them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isStructureAvailable"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/structure-owner-is-admin",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Third check: when the structure has an owner and that owner subject matches the user (the same matching as for rule subjects; the owner is a `PermissionSubject.JiraUser` with the owner's user key), the level is `ADMIN` and the rules are not evaluated. A structure without owner skips this step. An anonymous user does not match an owner that has a user key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getPermission0",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#userMatches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/structure-rules-in-order",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Otherwise the level starts at `NONE` and the structure's rule list (`getPermissions()`) is walked in list order, each rule getting the level produced by the previous one: a `PermissionRule.SetLevel` whose subject matches the user replaces the current level with the rule's level (a later matching rule overrides an earlier one, also when it lowers the level); a non-matching `SetLevel` keeps the current level. The level after the last rule is the answer; a null rule list gives `NONE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermissions",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermission"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/structure-null-level-rule",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "A matching `PermissionRule.SetLevel` whose level is null makes the running level null; later rules continue from it (a later matching rule sets a real level again), and a null level at the end is reported as `NONE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getPermission0"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/structure-null-and-unknown-rules-skipped",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "A null entry in the rule list, and a rule of a type other than `PermissionRule.SetLevel` and `PermissionRule.ApplyStructure`, leave the running level unchanged (an unknown type is logged as a warning). A `SetLevel` with a null subject never matches.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#userMatches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/subject-anyone",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Rule subject `PermissionSubject.Anyone` matches every user, including the anonymous user (null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#userMatches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/subject-jira-user",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Rule subject `PermissionSubject.JiraUser` matches when its user key equals the user's key (`ApplicationUser.getKey()`, case-sensitive). A `JiraUser` subject whose key is null matches the anonymous user, since both keys are null (as the original does); it matches no logged-in user.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#userMatches",
+    "com.almworks.jira.structure.api.util.JiraUsers#getKeyFor"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/subject-jira-group",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Rule subject `PermissionSubject.JiraGroup` matches when Jira's `GroupManager.isUserInGroup(user, groupName)` returns true; the user (null for anonymous) and the stored group name are passed unchanged, so case handling and anonymous behaviour are Jira's.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#userMatches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/subject-project-role",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Rule subject `PermissionSubject.ProjectRole` matches only when both its project ID and its role ID are non-zero, `ProjectManager.getProjectObj(projectId)` finds the project, `ProjectRoleManager.getProjectRole(roleId)` finds the role, and `ProjectRoleManager.isUserInProjectRole(user, role, project)` returns true. A missing project or role, or a zero ID, gives no match without error. Subjects of any other type never match (logged as a warning).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#userMatches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/apply-rule-uses-referenced-rules",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "A `PermissionRule.ApplyStructure` rule with a non-null structure ID loads the referenced stored structure and walks that structure's rule list at this point, continuing from the current level, recursively (its own apply rules are followed too); the result becomes the running level. The referenced structure's owner is not considered, and the administrator and availability checks are not repeated. An apply rule with a null ID, or whose structure does not exist, leaves the level unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyStructurePermissions"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/apply-rule-self-and-cycle-skipped",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "An apply rule that refers to the structure whose rules are being walked, or to a structure already on the chain of apply rules that led here, is skipped (the level is unchanged and an error 'permissions dependency cycle' is logged); the remaining rules are still applied. Example: S1 = [apply S2], S2 = [apply S1, set VIEW for anyone]: the level on S1 is VIEW.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermission"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/apply-rule-chain-memory-not-unwound",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Inside one level computation the chain of structures entered through apply rules is never shortened when an applied structure is finished: every structure whose rule list processed an apply rule stays remembered for the rest of that top-level apply rule, so a second apply rule (at a nested level) pointing at a structure already applied earlier in the same branch is skipped as if it were a cycle (as the original does). Example: S1 = [apply S2]; S2 = [apply S3, set NONE for anyone, apply S3]; S3 = [apply S4]; S4 = [set VIEW for anyone]. The level on S1 is NONE (the second 'apply S3' is skipped), while the level on S2 computed directly is VIEW. Each apply rule of the structure being computed itself starts with a fresh chain.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermissions"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/view-null-is-none",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "The level on a view: no view (null) gives `PermissionLevel.NONE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getViewPermission"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/view-admin-bypass",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "On a view, a Jira administrator (`GlobalPermissionKey.ADMINISTER`; never anonymous) gets `ADMIN`, before availability, owner and rules, unless the dark feature `structure.permissions.jiraAdminHasViewPermissions` (default true, read once when the component is created) is false. This dark feature is separate from the one used for structures.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getViewPermission"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/view-availability-owner-rules",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "On a view, after the administrator check: `NONE` when the plugin is not available to the user; `ADMIN` when the view has an owner, the user is not anonymous and the owner subject matches the user; otherwise the view's rules are walked like a structure's `PermissionRule.SetLevel` rules (start `NONE`, last matching rule wins, null result reported as `NONE`). `PermissionRule.ApplyStructure` rules in a view's rule list are ignored (they never change the level).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getViewPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermission"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/app-permissions-config-backed",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "The calculator answers the app permissions as follows: `CoreAppPermissions.USE` = `StructureConfiguration.isStructureAvailable(user)`; `CREATE_STRUCTURE`, `SYNCHRONIZATION` and `AUTOMATION` = the configuration's `isAllowed` for that permission (via `isStructureCreationAllowed`, `isSynchronizationAllowed`, `isAutomationAccessAllowed`); `CONFIGURE_GENERATORS` = configuration allows `AUTOMATION` and `CONFIGURE_GENERATORS`; `CONFIGURE_EFFECTORS` = configuration allows `AUTOMATION` and `CONFIGURE_EFFECTORS`. These are the answers `StructurePluginHelper.isAllowed` returns (see the `helper` claims).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isStructureAvailable",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isGeneratorConfigurationAllowed",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isEffectorConfigurationAllowed",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isAutomationAccessAllowed"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/app-permissions-jira-backed",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "App permissions that also need a Jira global permission: `EXECUTE_EFFECTORS` = configuration allows `EXECUTE_EFFECTORS` and `GlobalPermissionManager.hasPermission(GlobalPermissionKey.BULK_CHANGE, user)`; `EXECUTE_EFFECTORS_ON_QUERIES` = the `CONFIGURE_EFFECTORS` answer and the `EXECUTE_EFFECTORS` answer and configuration allows `EXECUTE_EFFECTORS_ON_QUERIES`; `MANAGE_GLOBAL_SAVED_COLUMNS` = `GlobalPermissionManager.hasPermission(GlobalPermissionKey.CREATE_SHARED_OBJECTS, user)` and configuration allows `MANAGE_GLOBAL_SAVED_COLUMNS`. Jira is asked first for the saved-columns permission, the configuration first for the execute permissions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isEffectorExecutionAllowed",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isEffectorExecutionAllowedOnQueries",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isManageGlobalSavedColumnsAllowed"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/is-admin",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Whether a user is a Jira administrator: false for null without asking Jira; otherwise `GlobalPermissionManager.hasPermission(GlobalPermissionKey.ADMINISTER, user)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isAdmin"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/create-issue-in-enabled-project",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "'May create issues in a plugin-enabled project' is true when, for at least one project of `StructureConfiguration.getCurrentlyEnabledProjects()` (in that order, stopping at the first hit), `PermissionManager.hasPermission(ProjectPermissions.CREATE_ISSUES, project, user)` is true; with no enabled projects it is false. This answer is the `canCreate` flag of the widget configuration REST resource.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isCreateIssueAllowedInEnabledProject",
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/single-viewable-structure",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "The 'single viewable structure' answer is 0 (none) when `StructureConfiguration.isStructureAvailable(user)` is false; otherwise it is what the structure manager computes as the only non-archived structure the user can view (see `structure-manager`), 0 when there is none or several.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getSingleViewableStructureId"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-calculator/apply-rule-statistics",
+   "module": "permissions-calculator",
+   "api": null,
+   "behaviour": "Each time a structure level is actually computed (not answered by the administrator bypass, the availability check, or the permissions cache), usage statistics are counted through the plugin's statistics manager, when exactly one is enabled: for a structure with at least one `PermissionRule.ApplyStructure` rule the counter `calcPermissionWithApplyRule` is incremented and the level is computed a second time ignoring the structure's own top-level apply rules; if that gives a different level, `calcPermissionWithApplyRuleThatMatters` and `calcPermissionWithApplyRuleThatMatters.<actual level>.<level without apply>` (enum constant names, e.g. `calcPermissionWithApplyRuleThatMatters.EDIT.VIEW`) are incremented and the user is recorded under `usersAffectedByApplyRule`. For a structure without apply rules `calcPermissionWithoutApplyRule` is incremented. Counting never changes the returned level; statistics stay local (SPEC.md 1.8).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#recordApplyRuleStats",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getStatisticsManager",
+    "com.almworks.jira.structure.permissions.PermissionUtil#hasApplyRule"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-cache/level-cached-per-structure-and-user",
+   "module": "permissions-cache",
+   "api": null,
+   "behaviour": "A computed structure level is remembered per (structure ID, user key) and returned for later requests with the same pair without computing again. Anonymous and a user whose key is null share the key \"\". The key does not include the structure's contents, so a structure object with changed rules but the same ID gets the remembered level until the cache is cleared. Asked about no structure (null), it answers `PermissionLevel.NONE` without caching.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#getPermissionLevel",
+    "com.almworks.jira.structure.permissions.PermissionsCache#getUserKey",
+    "com.almworks.jira.structure.permissions.PermissionsCache$PermissionLevelKey"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-cache/five-minute-expiry",
+   "module": "permissions-cache",
+   "api": null,
+   "behaviour": "All remembered answers (levels, app-permission answers, administrator answers, 'may create issues' answers, single-viewable-structure answers) are dropped together on the first access that comes more than 5 minutes (by `System.nanoTime()`) after the previous drop; the very first access after start also drops (empty) caches and starts the 5-minute period. So changes made outside the plugin (Jira groups, project roles, administrator rights, configuration) can take up to 5 minutes to show.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.AbstractShortTermCache#maybeClear",
+    "com.almworks.jira.structure.cache.AbstractShortTermCache$Env",
+    "com.almworks.jira.structure.permissions.PermissionsCache#doClear"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-cache/clear-on-all-nodes",
+   "module": "permissions-cache",
+   "api": null,
+   "behaviour": "Clearing the permission caches (what `structure-manager` does when a structure is created, saved or deleted) drops every remembered answer on this node at once, restarts the 5-minute period, and then sends the cluster message `clearPermissionCaches` to the other nodes; a node receiving that message drops its caches the same way. A failure to send the message is logged and not thrown; the local clear has already happened.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#clearPermissions",
+    "com.almworks.jira.structure.cluster.ClusterAction#execute",
+    "com.almworks.jira.structure.cluster.ClusterAction#subscribe"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-cache/app-permission-answers-cached",
+   "module": "permissions-cache",
+   "api": null,
+   "behaviour": "Answers for the nine `CoreAppPermissions` (computed as in the `permissions-calculator` claims) are remembered per permission and user key; the first answer for a pair is reused until the next drop. A `StructureAppPermission` that is not one of the nine throws `IllegalArgumentException` with message `Unknown permission: <permission>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#isAllowed",
+    "com.almworks.jira.structure.permissions.PermissionsCache$UserPredicateCache#get"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-cache/admin-and-create-issue-cached",
+   "module": "permissions-cache",
+   "api": null,
+   "behaviour": "The Jira-administrator answer and the 'may create issues in an enabled project' answer are also remembered per user key until the next drop. The cached administrator and plugin-availability answers are the ones used when computing structure and view levels, so a level computed later in the same period uses the remembered answers.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#isAdmin",
+    "com.almworks.jira.structure.permissions.PermissionsCache#isCreateIssueAllowedInEnabledProject",
+    "com.almworks.jira.structure.permissions.PermissionsCache#isStructureAvailableToUser"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-cache/single-viewable-cached",
+   "module": "permissions-cache",
+   "api": null,
+   "behaviour": "The single-viewable-structure answer is remembered per user key; a remembered 0 (or negative) is returned as null ('no single structure'), a positive value as that structure ID.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#getSingleViewableStructureId"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-cache/view-levels-not-cached",
+   "module": "permissions-cache",
+   "api": null,
+   "behaviour": "View levels are not remembered: each request computes the level again from the view's owner and rules (only the administrator and plugin-availability answers come from the caches).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#getViewPermissionLevel"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permissions-cache/caching-component-clear",
+   "module": "permissions-cache",
+   "api": null,
+   "behaviour": "As a `CachingComponent`: `clearCaches()` drops every remembered answer on this node only, without restarting the 5-minute period and without a cluster message; `clearUserCaches(user)` and `clearUserCaches(userKey)` drop all remembered structure levels (of every user) and, for that user key only, the app-permission, administrator, 'may create issues' and single-viewable-structure answers. A user key that is not a Jira user is handled the same way (no lookup).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.AbstractShortTermCache#clearCaches",
+    "com.almworks.jira.structure.permissions.PermissionsCache#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/search-jql-text",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "Searching with JQL text: null or blank text gives an empty result without parsing; otherwise the text is parsed with Jira's `JqlQueryParser.parseQuery` (a `JqlParseException` reaches the caller) and the parsed query is searched as below.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#searchQuery",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#searchAndSortQuery"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/search-query-ids",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "Searching with a parsed query returns the IDs of the matching issues, searching Jira's issue index as the current `StructureAuth` user (issue security honoured unless `StructureAuth` security is overridden). The unsorted search returns IDs in index order (no promised order); a null query gives an empty result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#searchQuery",
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#collectIds"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/search-and-sort",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "The sorted search returns matching issue IDs in the order Jira's search gives for the query (its ORDER BY), at most `limit` of them (the first page) when `limit` > 0, all of them when `limit` is 0 or less (the forms without a limit use 0). A null query gives an empty result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#searchAndSortQuery",
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#search"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/index-unusable-gives-empty",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "Before using the index the helper asks `reindex-locker` whether index use is definitely impossible (index unavailable, a full foreground reindex running, the index write-locked, or the consistency check failed). If so, every search returns an empty result, field reads deliver nothing, and a throttled warning is logged ('a full reindex index is in progress or index is inconsistent'); no exception is thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#isIndexUsePossible"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/index-calls-protected",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "Every index call the helper makes runs under `reindex-locker`'s reindex protection (waiting for Jira's index lock and retrying when a reindex interferes), so a search can block while Jira holds its full-reindex lock.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#searchQuery",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchSortedIssuesChunk",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readIssuesByChunks",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readDocValuesField"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/match-issues-sorts-input",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "Matching a list of issue IDs against a query: null or empty input does nothing; input that is not sorted ascending without duplicates is first copied, sorted and de-duplicated; then it runs as the current `StructureAuth` user and security-override flag (the behaviour seen through `StructurePluginHelper.matchIssues`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssues"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/match-issues-chunks",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "Matching works in chunks of the sorted IDs: the chunk size is the dark feature `structure.matchIssuesSorted.chunkSize` when positive (read once when the component is created), otherwise Lucene's maximum clause count as reported by `index-search-service`. For each chunk one index search is made for `issue id in (<chunk IDs>)` AND the query's where clause (only the ID condition when the query or its where clause is null, so then every issue the user can see matches).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssuesSorted",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#getChunkSize"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/match-issues-results",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "In matching mode the IDs found in each chunk are passed to the collector chunk by chunk, in the order the index returns them. In non-matching mode the IDs of each chunk that were not found (including issues the user cannot see) are passed in ascending order; a chunk with no hits passes all its IDs; a chunk where everything matched passes none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssuesSorted"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/match-issues-index-unusable",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "When index use is impossible at the start of matching, matching mode passes nothing and non-matching mode passes every input ID. When it becomes impossible between chunks, the remaining chunks count as having no hits (non-matching mode then passes all their IDs).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssuesSorted",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchSortedIssuesChunk"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/match-sorted-requires-sorted",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "The sorted matching form trusts its input: with assertions enabled (as the tests run) unsorted input throws `AssertionError`; with them disabled, results for unsorted input are undefined (non-matching mode may report wrong IDs). The explicit-user form searches as the given user (null = anonymous) instead of the `StructureAuth` user.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssuesSorted"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/read-fields-by-chunks",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "Reading index field values for a set of issues (one field as single values, one field as all its values, or several fields) also works in chunks of at most the chunk size (and at most the number of issues): per chunk one index search for `issue id in (<chunk>)` AND the given query's where clause (or caller-supplied clauses), as the current `StructureAuth` user. Each matching issue is reported with its value(s); issues not visible or not matching are not reported. Empty input does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readIssueField",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readIssueFields",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readIssuesByChunks",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#createClauses"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/read-fields-no-retry",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "A field-reading chunk is never run twice: if the reindex protection would retry it (because a reindex happened while it ran), the retry fails with `SearchException` 'Cannot read issue index: most likely, reindex is in progress. Please try to repeat this operation when reindexing finishes.' (values already delivered stay delivered).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#once",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readIssuesByChunks"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/doc-values-read",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "Doc-values reading is reported as unsupported on Jira 9 (what `index-search-service` says). A doc-values read of a non-empty set while the index is usable is passed to `index-search-service` in batches of max(1, maximum clause count) IDs, and so on Jira 9 fails with `UnsupportedOperationException`; empty input, or an unusable index, does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#readDocValuesField",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#isDocValuesReadSupported"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/lucene-helper/literals-cache-trim",
+   "module": "lucene-helper",
+   "api": null,
+   "behaviour": "To limit memory, after each chunk of matching or field reading the helper counts chunks in Jira's per-request cache (key `structure.literalsCache.counter`); when the counter has reached the dark feature `structure.literalsCache.cleanupInterval` (default 100) it is reset and the map stored in the request cache under `jira.jql.query.literals.cache` is emptied (so every 101st chunk with the default). Outside a request (no request cache) nothing happens. Disabled by the dark feature `structure.cleanLiteralsCache.disabled`; any `RuntimeException` while doing this disables it for the rest of the component's life (logged as an error).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#cleanLiteralsCache"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/reindex-locker/index-use-impossible",
+   "module": "reindex-locker",
+   "api": null,
+   "behaviour": "Index use is reported as definitely impossible when any of these holds, checked in order: Jira's `IndexLifecycleManager.isIndexAvailable()` is false; a full foreground reindex is running according to events (see the events claim); Jira's index write lock is held (the default index manager's or the bulk-only index manager's lock, tested with a non-blocking try); the index consistency check fails.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.ReindexLockerJ9#isIndexUseDefinitelyImpossible",
+    "com.almworks.structure.compat.index.ReindexLockerJ9$IndexLocks#isWriteLocked"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/reindex-locker/reindex-events",
+   "module": "reindex-locker",
+   "api": null,
+   "behaviour": "From plugin start to stop the component listens to Jira's plugin events (registration failures are logged): a `ReindexAllStartedEvent` that is not using background indexing marks a full reindex as running (and counts as an index replacement); background reindexes are ignored. `ReindexAllCompletedEvent` and `ReindexAllCancelledEvent` clear the mark. `IndexDeactivatedEvent` counts as an index replacement. The 'running' mark counts only for the dark feature `structure.sync.reindex.eventTTL` milliseconds after the start event (default 30000; 0 or less: until completed or cancelled).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.AbstractReindexLocker#onReindexStarted",
+    "com.almworks.structure.compat.index.AbstractReindexLocker#onReindexCompleted",
+    "com.almworks.structure.compat.index.AbstractReindexLocker#onReindexCancelled",
+    "com.almworks.structure.compat.index.AbstractReindexLocker#onIndexDeactivated",
+    "com.almworks.structure.compat.index.AbstractReindexLocker#isReindexRunningAccordingToEvents",
+    "com.almworks.structure.compat.index.AbstractReindexLocker#startComponent",
+    "com.almworks.structure.compat.index.AbstractReindexLocker#stopComponent"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/reindex-locker/consistency-check",
+   "module": "reindex-locker",
+   "api": null,
+   "behaviour": "The consistency check asks `IndexLifecycleManager.isIndexConsistent()` and reuses the answer: a 'consistent' answer for 10 minutes, an 'inconsistent' answer for 5 seconds. When the index is unavailable the answer is 'inconsistent' without asking. If asking throws, the previous answer (or 'inconsistent' when there was none) is used for the next 30 seconds and a throttled warning is logged. With the dark feature `structure.indexConsistencyChecker.disabled` the index always counts as consistent. 'Consistency check failed' is reported as the negation of this check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.IndexConsistencyChecker#isConsistent",
+    "com.almworks.structure.compat.index.IndexConsistencyChecker$Env$ProductionEnv",
+    "com.almworks.structure.compat.index.ReindexLockerJ9#isIndexConsistencyCheckFailed"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/reindex-locker/consistency-check-concurrency",
+   "module": "reindex-locker",
+   "api": null,
+   "behaviour": "Only one thread asks Jira about consistency at a time. While one is asking, others get the previous answer at once; when there is no previous answer they wait up to 5 seconds for it, and if it still is not there they get 'inconsistent', and from then on, until a first answer exists, every call gets 'inconsistent' immediately.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.index.IndexConsistencyChecker#isConsistent",
+    "com.almworks.structure.compat.index.IndexConsistencyChecker#tryLock"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/reindex-locker/protection-no-lock-mode",
+   "module": "reindex-locker",
+   "api": null,
+   "behaviour": "Reindex protection is off (the protected code runs once, directly, with no waiting or retry, and the write-lock test is skipped) when the dark feature `structure.sync.reindex.noLock` is set (a warning is logged at creation) or when Jira's default index manager or its lock cannot be found (warning logged). A missing bulk-only index manager only drops that lock from the checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.ReindexLockerJ9#prepareIndexLocks",
+    "com.almworks.structure.compat.index.ReindexLockerJ9#getReadLockField",
+    "com.almworks.structure.compat.index.ReindexLockerJ9#withReindexProtection"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/reindex-locker/protection-retry-loop",
+   "module": "reindex-locker",
+   "api": null,
+   "behaviour": "With protection on, the code is tried up to the dark feature `structure.reindex.maxOptimisticLoopCount` times (default 10). Before each try it waits until Jira's index write lock(s) are free (taking and releasing the read lock); from the second try on, it first logs a warning and asks `index-flusher` to drop thread-local searchers. A try whose run overlapped an index replacement (full foreground reindex start or index deactivation) is discarded and retried, also when it threw. A result from a try with no replacement is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.AbstractReindexLocker#withReindexProtection",
+    "com.almworks.structure.compat.index.ReindexLockerJ9#waitForReindexLock"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/reindex-locker/protection-closed-reader",
+   "module": "reindex-locker",
+   "api": null,
+   "behaviour": "An exception from the code (`SearchException` or `RuntimeException`) without an index replacement during the try is rethrown unchanged, except when it, or any exception in its cause chain, has a class whose simple name ends with `AlreadyClosedException`: then the component sleeps 1 second and retries; a second such exception in a row (with no replacement in between) is rethrown. `Error`s are not caught. Interruption during that sleep throws `SearchException` 'Interrupted while waiting for retry after concurrent closure of index reader'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.AbstractReindexLocker#withReindexProtection",
+    "com.almworks.structure.compat.index.AbstractReindexLocker#isIndexReaderClosed",
+    "com.almworks.structure.compat.index.AbstractReindexLocker#sleepWithSearchEx"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/reindex-locker/protection-gives-up",
+   "module": "reindex-locker",
+   "api": null,
+   "behaviour": "When every try was discarded (or the configured count is 0 or less), a warning is logged and `StructureRuntimeException` is thrown with a message ending in 'optimistic loop failed - too many attempts'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.AbstractReindexLocker#withReindexProtection"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/reindex-locker/interrupt-while-waiting-for-lock",
+   "module": "reindex-locker",
+   "api": null,
+   "behaviour": "If the thread is interrupted while waiting for Jira's index lock, the interrupt flag is set again and the component tries to release a lock it never acquired, so the caller gets `IllegalMonitorStateException` instead of the intended `SearchException` 'Interrupted while waiting for reindex lock' (as the original does; seen in the bytecode).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.index.ReindexLockerJ9$IndexLocks#waitForLock"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/index-search-service/sorted-search",
+   "module": "index-search-service",
+   "api": null,
+   "behaviour": "A sorted search with a limit > 0 asks Jira's `SearchProvider` for the first page of `limit` results (a page-aligned filter starting at 0), else for all results, sorted as the query says, and returns the issue IDs read from each result's `issue_id` field in result order; a result whose `issue_id` is not a number is skipped with a warning. This search uses the current `StructureAuth` user and security override; the user and override arguments it is given are ignored (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#search",
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#searchQuery"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/index-search-service/collect-searches",
+   "module": "index-search-service",
+   "api": null,
+   "behaviour": "Collecting IDs, one field's single values, one field's multiple values, or several fields' values searches as the given user (null = anonymous) with Jira's `SearchQuery`; security override is on when `StructureAuth` security is overridden, whatever override argument is passed (as the original does). Each hit is reported with its issue ID: single value = the field's (first) stored value or null; multiple values = all values of the field; several fields = a map from each requested field to its value or null.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#collectIds",
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#collectSingleField",
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#collectMultiField",
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#collectFields",
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#searchQuery"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/index-search-service/max-clause-count",
+   "module": "index-search-service",
+   "api": null,
+   "behaviour": "The maximum clause count reported is Lucene's `BooleanQuery.getMaxClauseCount()` as configured in the running Jira.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#getMaxClauseCount"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/index-search-service/doc-values-unsupported",
+   "module": "index-search-service",
+   "api": null,
+   "behaviour": "On Jira 9 doc-values reading is not supported: the service reports it as unsupported, and a doc-values read throws `UnsupportedOperationException` with message 'docValues field read is not supported on this Jira version / search backend'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.IndexSearchService#collectDocValuesField",
+    "com.almworks.structure.compat.index.IndexSearchService#isDocValuesReadSupported"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/index-search-service/fast-fields",
+   "module": "index-search-service",
+   "api": null,
+   "behaviour": "Reading the fields `issue_id`, `projid`, `type` and `ISSUEPROP_jpo-issue-properties$parent_id` (when every requested field is one of these) is done from the index terms instead of stored documents; the reported values are the same as from stored fields.",
+   "confidence": "low",
+   "evidence": [
+    "com.almworks.structure.compat.index.LuceneIndexSearchService#createIssueCollector",
+    "com.almworks.structure.compat.index.IssueTermCollector"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/index-flusher/flush-thread-local-searchers",
+   "module": "index-flusher",
+   "api": null,
+   "behaviour": "Flushing asks Jira 9 to drop the current thread's cached index searchers by calling the static `DefaultIndexManager.flushThreadLocalSearchers()` (found by reflection), so later searches on that thread see fresh index data. Any exception is caught and logged as a throttled warning; nothing is thrown to the caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.IndexFlusherJ9#flushThreadLocalSearchers"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/index-flusher/used-before-retries",
+   "module": "index-flusher",
+   "api": null,
+   "behaviour": "The flusher is what `reindex-locker` calls before each retry of a protected index operation; it has no other behaviour.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.index.AbstractReindexLocker#withReindexProtection"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/mode-by-deployment",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "When the component is created it picks its storage once: on Jira Data Center the event queue is the table `AO_8BAD1B_SYNC_EVENT`, shared by all nodes; otherwise it is kept in this node's memory (the table stays empty). Events kept in memory are lost on restart.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.DelegatingSyncEventsManager"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/local-record",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Single node: a recorded Jira change is queued as a `SyncEvent.Jira` with the current time (epoch ms) and the ID of the synchronizer instance whose run is executing on this thread (null outside a run); a structure history entry is queued as a `SyncEvent.Structure`; a resync request is queued as given. An 'autosync enabled' notice is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#recordJiraEvent",
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#recordStructureEvent",
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#recordResyncRequest",
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#recordAutosyncEnabled"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/local-buffer-limit",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Single node: each of the three in-memory queues (Jira changes, structure changes, resync requests) keeps at most 1,000,001 entries: when a new entry arrives and the queue already holds more than 1,000,000, the oldest entries beyond 1,000,000 are dropped first (an error 'Dropping <n> events ...' is logged).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#add"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/local-drain",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Single node: draining hands over everything queued since the last drain and empties the queues: Jira and structure events in the order recorded; resync requests with a non-zero instance ID go into the per-instance map (a later request for the same instance replaces an earlier one, which is logged as expunged), requests with instance ID 0 (one-time resyncs) go into the one-time list in order. No 'autosync enabled' entries are ever reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#drainEvents"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/local-history-reads",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Single node: asking for a structure's history events between two versions returns an empty list, and the latest history version of any structure is reported as 0 (structure events are delivered only through the queue).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#getStructureEvents",
+    "com.almworks.jira.structure.sync.LocalSyncEventsManager#getLatestHistoryVersion"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-record-jira-change",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center: a recorded Jira change becomes one `AO_8BAD1B_SYNC_EVENT` row with `C_TIMESTAMP` = now (epoch ms), `C_SYNC_INSTANCE` = the synchronizer instance running on this thread (null outside a run) and `C_TYPE` by `JiraChangeType`: `GH_EPIC_UPDATED` 4, `GH_RANK_UPDATED` 5, `LINK_CREATED` 2, `LINK_DELETED` 3, `ISSUE_DELETED` 6, any other type 1. A `LinkChangeEvent` is stored as `{\"linkTypeId\":..,\"sourceId\":..,\"destinationId\":..}`, an `IssueChangeEvent` as its bare issue ID (SPEC.md 1.5).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#recordJiraEvent",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#getEventRecordType",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#createDbRecord",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#linkEventToMap"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-record-other-change-class",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center: a Jira change that is neither a link nor an issue change event: with assertions enabled (as the tests run) recording throws `AssertionError`; with them disabled the first of its affected issues (if any) is stored as an issue event of the mapped type, and nothing is stored when it affects no issue.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#recordJiraEvent"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-structure-events-from-history",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center: recording a structure history entry does nothing; structure events are read from `history-service` instead: the events between two versions are the history entries of that structure in that range (each as a `SyncEvent.Structure`), and the latest history version is `history-service`'s latest entry version of the structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#recordStructureEvent",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#getStructureEvents",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#getLatestHistoryVersion"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-record-resync",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center: a resync request becomes a row of type 127 whose `C_DATA` is the JSON object of SPEC.md 1.5 (`instanceId`, `structureId`, `moduleKey`, `ownerKey`, `parameters` with null stored as empty text, `processId` with null stored as 0, `autosyncEnabled`, `scheduledResync`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#recordResyncRequest",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#resyncRequestToMap"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-record-autosync-enabled",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center: an 'autosync enabled' notice for a synchronizer instance becomes a row of type 126 with data `[<instanceId>,<version>]`, where the version is the latest history version of the structure whose ID equals the instance ID, not of the instance's own structure (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#recordAutosyncEnabled",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#autosyncEnabledToList"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-skip-blank",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center: a row is written only when the event data is non-null and its JSON encoding is non-blank; if encoding fails the event is dropped with a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#createDbRecord",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#encodeData"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-drain-reads-and-deletes",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center: draining reads every `AO_8BAD1B_SYNC_EVENT` row in ascending `ID` order, decodes it, and then deletes exactly the rows it read, in batches of the dark feature `structure.sync.deleteEventsBatchSize` IDs (default 100) plus one final smaller batch. If the deletion fails with an SQL error, a warning says the events will be processed twice and the drain still succeeds; if a batch deletes fewer rows than asked, a warning is logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#drainEvents",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#removeEvents",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#deleteBatch"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-drain-read-failure",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center: if reading the rows fails part-way with a `RuntimeException`, the rows already read are still deleted and the exception is then rethrown; resync requests and autosync markers already decoded have been handed over, but the Jira changes already decoded are lost (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#drainEvents"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-decode-jira-changes",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center decoding: types 2 and 3 give a `LinkChangeEvent` (`LINK_CREATED` / `LINK_DELETED`) from the stored map; types 1, 4, 5, 6 give an `IssueChangeEvent` (`ISSUE_UPDATED`, `GH_EPIC_UPDATED`, `GH_RANK_UPDATED`, `ISSUE_DELETED`) for the stored issue ID. Each becomes a `SyncEvent.Jira` with the row's `C_TIMESTAMP` and `C_SYNC_INSTANCE`. A link map with a missing or non-numeric field, an issue ID of 0, or unreadable JSON is skipped with a warning (the row is still deleted). The Jira changes of one drain are handed over sorted by timestamp.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#decodeEvent",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#linkEventFromMap",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#jiraEvent",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#drainEvents",
+    "com.almworks.jira.structure.api.sync.SyncEvent#compareTo"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-decode-markers-and-resyncs",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center decoding: type 126 puts (instance ID -> version) into the enabled-autosyncs map (a later marker for the same instance overwrites); data that is not a two-element numeric array or has a negative version is skipped with a warning. Type 127 is decoded into a resync request (fields missing or of the wrong JSON type: skipped with a warning; `processId` may be null); non-zero instance IDs go into the per-instance map, a later request replacing an earlier one (logged as expunged), instance ID 0 goes into the one-time list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#decodeEvent",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#autosyncEnabledFromList",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#resyncRequestFromMap"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-unknown-type",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center decoding of a row whose `C_TYPE` is not one of 1-6, 126, 127: with assertions enabled (as the tests run) the drain fails with `AssertionError`, after deleting the rows read before it (that row and later ones stay); with assertions disabled the row is skipped with a warning and deleted.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager$EventRecordType#fromCode",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#decodeEvent"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-postponement-opt-in",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "Data Center only, when the dark feature `structure.delegatingSyncEventsManager.enableReindexMonitor` is on (read at creation): at plugin start the component makes sure Jira's index monitor is set up, turns on postponement of Jira changes and listens to `issue-reindex-tracker` for reindexed issues; at stop it stops listening. Without the dark feature, or on a single node, Jira changes are handed over in the same drain that read them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.DelegatingSyncEventsManager#startComponent",
+    "com.almworks.jira.structure.sync.DelegatingSyncEventsManager#stopComponent",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#enablePostponement"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-postponement-rule",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "With postponement on, drained Jira changes are held on this node in arrival order and handed over (in that order, stopping at the first one that must still wait) once either more than `structure.clusterSyncEventsManager.eventTimeout` milliseconds (default 6000) have passed since this node read it, or every issue it affects was reported reindexed on this node at a time no earlier than that timeout before the change was read. A change that affects no issues is handed over at once.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#drainEvents",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#drainPostponedEvents",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#wasReindexed",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#productionEnv"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-events-manager/dc-reindex-memory",
+   "module": "sync-events-manager",
+   "api": null,
+   "behaviour": "With postponement on, each reindexed issue is remembered with the time it was reported; on every drain, entries older than the event timeout are forgotten, and when more than `structure.clusterSyncEventsManager.reindexGCThreshold` (default 100000) entries are remembered the oldest are forgotten down to that number. Full and per-project reindex notices are ignored. Without postponement reindex notices are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#reindexDone",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#cleanupOutdatedReindexes",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#cleanupReindexesOverflow",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#fullReindexDone",
+    "com.almworks.jira.structure.sync.ClusterSyncEventsManager#projectReindexDone"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-hide-helper/enabled-or-installed",
+   "module": "sync-hide-helper",
+   "api": null,
+   "behaviour": "The 'synchronizers enabled or installed' answer is true when the dark feature `structure.feature.synchronizers.enabled` is on or the table `AO_8BAD1B_SYNC_INSTANCE` has at least one row. It is computed on the first request and then kept for the plugin's lifetime: installing the first synchronizer, or uninstalling all of them, later does not change it until restart.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.SyncHideHelper",
+    "com.almworks.jira.structure.sync.SyncHideHelper#isSyncEnabledOrInstalled"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/sync-hide-helper/drives-ui",
+   "module": "sync-hide-helper",
+   "api": null,
+   "behaviour": "This answer is what the plugin's pages and web conditions use to decide whether synchronizer features are shown (the `isSyncEnabledOrInstalled` condition method of the plugin's actions); the support page shows its note about synchronization only when the plugin is not locked and this answer is false.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureActionSupport#isSyncEnabledOrInstalled",
+    "com.almworks.jira.structure.webwork.StructureSupport#showSynchronizationNote"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-query-constraint-registry/names-from-enabled-modules",
+   "module": "structure-query-constraint-registry",
+   "api": null,
+   "behaviour": "The registry offers to the S-JQL parser every constraint of the enabled `structure-query-constraint` modules (in any plugin) under the module's `fname` attribute; names are matched case-insensitively (stored lower-cased), so `item`, `ITEM` and `Item` name the same constraint.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureQueryConstraintRegistryImpl#getTrie",
+    "com.almworks.jira.structure.query.StructureQueryConstraintRegistryImpl$ConstraintNamesTrieLoader#load",
+    "com.almworks.jira.structure.util.lang.LexerTrie#put",
+    "com.almworks.structure.compat.extension.StructureQueryContraintCommon"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-query-constraint-registry/invalid-names-ignored",
+   "module": "structure-query-constraint-registry",
+   "api": null,
+   "behaviour": "A module whose `fname` is missing or empty, contains characters other than Latin letters, digits and `_`, or (ignoring case) equals or is the beginning of an S-JQL keyword or operator word (such as `and`, `or`, `not`, `in`, `is`, `of`, `empty`, `null`, `issue`, `self`, `child`, `parent`, `root`, `leaf`, `sibling` and their variants; so `iss` or `an` are rejected too) is not registered; a warning names the module. A module whose constraint object cannot be obtained is skipped.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.lifecycle.ExtensionService$StructureQueryConstraints#validateDescriptorName",
+    "com.almworks.jira.structure.query.SjqlBasicToken#isSjqlKeyword"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-query-constraint-registry/same-name-lower-order-wins",
+   "module": "structure-query-constraint-registry",
+   "api": null,
+   "behaviour": "When several modules declare exactly the same name, the one with the lower `order` (module `order` element, default `Integer.MAX_VALUE`) is used; with equal order the first one seen wins; a warning names winner and loser. Names that differ only by case collide in the case-insensitive lookup: one of them (not predictable) is used and a 'Constraint names conflict' warning is logged.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.lifecycle.ExtensionService$StructureQueryConstraints#putDescriptorMaybeOverride",
+    "com.almworks.jira.structure.query.StructureQueryConstraintRegistryImpl$ConstraintNamesTrieLoader#load"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-query-constraint-registry/rebuilt-on-module-change",
+   "module": "structure-query-constraint-registry",
+   "api": null,
+   "behaviour": "The name lookup is built on first use and reused until the set of enabled constraint modules changes (a module or plugin is enabled or disabled): the next lookup after a change rebuilds it, so a newly enabled constraint can be used in the next parsed query and a disabled one is no longer recognised. `clearCaches()` also forces a rebuild; `clearUserCaches` does nothing. The lookup is per node and not persisted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureQueryConstraintRegistryImpl#getTrie",
+    "com.almworks.jira.structure.query.StructureQueryConstraintRegistryImpl#clearCaches",
+    "com.almworks.jira.structure.query.StructureQueryConstraintRegistryImpl#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-query-constraint-registry/load-failure-empty",
+   "module": "structure-query-constraint-registry",
+   "api": null,
+   "behaviour": "If building the lookup fails, a warning is logged and an empty lookup is used for that request, so no constraint name is recognised (queries using one fail to parse).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureQueryConstraintRegistryImpl#getTrieCached"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/arguments",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "The S-JQL constraint `item` (module `constraint-item`) takes one or two arguments: `item(type)` or `item(type, text)`. Validation reports an argument-count error (from `StructureQueryConstraints.validateArgumentCount`) for zero or more than two arguments, and otherwise the type or text errors below; a query whose arguments are invalid matches no rows.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#validate",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#filter"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/type-star-and-blank",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "The type argument is trimmed and lower-cased (`Locale.US`). `*` matches rows of every item type. An empty type gives the error 'needs type (specify * to match all types)'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#parseType"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/type-full-key",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "A type argument equal, ignoring case, to the complete module key of an installed item type (for example `com.almworks.jira.structure:type-issue`) selects that type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#parseType",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint$TypeNamesCacheLoader#load"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/type-short-name",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "A type argument without `:` is first tried as a Structure standard type, `com.almworks.jira.structure:type-<arg>` (so `issue`, `folder`, `generator`, `memo` select the plugin's own types). Otherwise it must match exactly one installed item type key that ends with `<arg>` preceded by `:type-`, `:`, `-` or `_` (ignoring case); no match gives the error 'error: type <arg> not found', several give 'error: several types match <arg>'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#parseTypeUncached",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#suffixMatches",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#findOneType"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/type-with-colon",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "A type argument containing `:` that is not a full key must match exactly one installed item type key whose part before its `:` contains the argument's part before the `:` and whose part after contains the argument's part after it (ignoring case); otherwise the same 'not found' or 'several types match' errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#parseTypeUncached",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#containsBeforeAndAfterColon",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#findOneType"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/type-resolution-cached",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "Type names are resolved against the installed item types read once and reused until the set of item-type modules changes or `clearCaches()` is called; resolved short names are remembered as well. If the item types cannot be read the error is 'cannot collect item types registered with Structure (technical error: <message>)'. Item type keys that differ only by case are logged and only the first is matchable.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#getTypeNameCache",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint$TypeNamesCacheLoader#typeNamesByLowercase",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#clearCaches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/type-match",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "A row matches the type part when the type is `*` or the row's item type equals the resolved type key exactly. With one argument only the type is checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#matchRowType",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#filter"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/text-regex",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "A second argument of two or more characters that starts and ends with `/` is a Java regular expression (between the slashes, case-sensitive unless it uses flags); a row of the right type matches when the expression is found anywhere in the item's summary (`CoreAttributeSpecs.SUMMARY`, read through the attribute service for the current user). An invalid expression gives the error 'error: regular expression <expr> is invalid (<description>)'. `//` matches every row with a summary.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#parseExpr",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#matchSummary"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/text-escape-and-single-char",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "A second argument starting with `\\/` is text search for the argument without the leading backslash (so `\\/abc/` searches for `/abc/`). A one-character second argument (including `/`) is always text search.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#parseExpr"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/text-word-prefix",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "Text search (any other second argument): the text is trimmed, `*` characters are removed and it is lower-cased; each of its whitespace-separated words must be the beginning of some whitespace-separated word of the item's summary (also lower-cased), in any order. A blank or missing summary never matches. Example: the text `fix log` matches the summary 'Logging fixes' but not 'Prefix log'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.util.TextSearchQuery#build",
+    "com.almworks.structure.commons.util.TextSearchQuery#matches",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#matchSummary"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/text-quoted-strict",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "Text search with text in double quotes (`\"...\"`, after trimming): the words inside must each equal some word of the summary (lower-cased), and a word ending with `*` matches summary words starting with the rest. Text that is blank, or only a pair of double quotes, adds no text condition: the constraint then matches by type only.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.util.TextSearchQuery#build",
+    "com.almworks.structure.commons.util.TextSearchQuery#matches",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#filter"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/text-locale-fixed-at-start",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "Lower-casing for text search and the error message texts use the locale and language of the Jira text helper obtained when the component was created, not those of the user running the query (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#textQuery",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#error"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/item-query-constraint/summary-batches",
+   "module": "item-query-constraint",
+   "api": null,
+   "behaviour": "Summaries are needed only for rows whose type matches; they are loaded in batches of the dark feature `structure.itemQueryConstraint.bulkSize` rows (default 1000). An item without a summary value used with a regular expression fails the constraint, which per the S-JQL rules then matches no further rows (`structure-query-parser`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#filter",
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#matchSummary"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/attribute-sensitivity-manager/settings-read-once",
+   "module": "attribute-sensitivity-manager",
+   "api": null,
+   "behaviour": "The sensitivity policy comes from `StructureConfiguration.getAttributeSensitivitySettings()`: it is read on first use and reused until the component's caches are cleared (`clearCaches()`), which happens on all nodes whenever the settings are saved through `StructureConfiguration.setAttributeSensitivitySettings` (it clears all plugin caches). `clearUserCaches` does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ConfigBasedAttributeSensitivityManager#getStrategy",
+    "com.almworks.jira.structure.attribute.ConfigBasedAttributeSensitivityManager#clearCaches",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setAttributeSensitivitySettings"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/attribute-sensitivity-manager/three-answers",
+   "module": "attribute-sensitivity-manager",
+   "api": null,
+   "behaviour": "For an attribute spec the policy gives one of three answers: sensitive; not sensitive by default; not sensitive because the administrator listed it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ConfigBasedAttributeSensitivityManager"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/attribute-sensitivity-manager/permissive",
+   "module": "attribute-sensitivity-manager",
+   "api": null,
+   "behaviour": "`AttributeSensitivityMode.PERMISSIVE`: every attribute is 'not sensitive by default'; the administrator's list is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ConfigBasedAttributeSensitivityManager$PermissiveAttributeSensitivityStrategy"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/attribute-sensitivity-manager/standard",
+   "module": "attribute-sensitivity-manager",
+   "api": null,
+   "behaviour": "`AttributeSensitivityMode.STANDARD`: an attribute matching the administrator's list is 'listed'; otherwise it is 'not sensitive by default' when its value format is `ValueFormat.NUMBER`, `BOOLEAN`, `DURATION` or `TIME`, or its format's value class carries the annotation `NonSensitiveInStandardMode`; every other attribute (for example text, HTML, JSON) is sensitive.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ConfigBasedAttributeSensitivityManager$StandardAttributeSensitivityStrategy",
+    "com.almworks.jira.structure.attribute.ConfigBasedAttributeSensitivityManager$WhitelistAttributeSensitivityStrategy",
+    "com.almworks.jira.structure.attribute.AttributeSensitivityManager"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/attribute-sensitivity-manager/strict",
+   "module": "attribute-sensitivity-manager",
+   "api": null,
+   "behaviour": "`AttributeSensitivityMode.STRICT`: an attribute matching the administrator's list is 'listed'; every other attribute is sensitive, whatever its format.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ConfigBasedAttributeSensitivityManager$StrictAttributeSensitivityStrategy",
+    "com.almworks.jira.structure.attribute.ConfigBasedAttributeSensitivityManager$WhitelistAttributeSensitivityStrategy"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/attribute-sensitivity-manager/list-matching",
+   "module": "attribute-sensitivity-manager",
+   "api": null,
+   "behaviour": "An attribute spec matches the administrator's list when it equals a listed spec, or when a listed spec has the same ID and the same value format (a listed spec with format `ValueFormat.ANY` matches any format) and every parameter of the listed spec is present in the attribute's parameters with an equal value (the attribute may have more parameters). Example: listed `{id: customfield, params: {fieldId: 10001}}` with format any matches `customfield` with `fieldId` 10001 in number or text format, but not `fieldId` 10002.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ConfigBasedAttributeSensitivityManager$WhitelistAttributeSensitivityStrategy#getSensitivity",
+    "com.almworks.structure.commons.util.AttributeUtil#isGeneralization"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-issue-index/is-issue-in-structure",
+   "module": "structure-issue-index",
+   "api": null,
+   "behaviour": "'Is issue X in structure Y' is false when either ID is null, zero or negative; otherwise it is true when Y is among the structures listed for X (see next claim).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#isIssueInStructure"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-issue-index/structures-with-issue",
+   "module": "structure-issue-index",
+   "api": null,
+   "behaviour": "The structures containing an issue are the distinct `C_STRUCTURE_ID` values of the `AO_8BAD1B_ISSUE_INDEX` rows with that `C_ISSUE_ID` and `C_OCCURRENCES` > 0, sorted ascending; none gives an empty list. If reading fails a warning is logged and an empty list is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#getStructuresWithIssue",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex$IssueIndexIO#load"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-issue-index/cache-per-issue",
+   "module": "structure-issue-index",
+   "api": null,
+   "behaviour": "The per-issue answer is cached, cluster-wide on Data Center, and expires 600 seconds after last access (dark feature `structure.issueindex.cache.timeout`, in seconds; the JVM system property `structure.cache.expiration-override` overrides it). Changes made through this component invalidate it as described in the update claims; `clearCaches()` empties it; `clearUserCaches` does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#moderatelyExpiring",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#clearCaches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-issue-index/update-counts-deltas",
+   "module": "structure-issue-index",
+   "api": null,
+   "behaviour": "Updating a structure's index with sorted lists of added and removed issue occurrences (an issue may appear several times, once per row): per issue the change is (times added) - (times removed); issues whose change is 0 are not touched. For each other issue: with no row for (issue, structure) a row is created with `C_OCCURRENCES` = the change, even when it is negative; with a row, the change is added, and the row is deleted when the result is exactly 0, otherwise saved (also when negative). Two empty lists do nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#updateIndex",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#getDeltas",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex$IssueIndexIO#updateIndexCount"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-issue-index/update-duplicates-removed",
+   "module": "structure-issue-index",
+   "api": null,
+   "behaviour": "When more than one row exists for the same (issue, structure) during an update, a warning is logged, all but the first row returned by the database are deleted, and the first is updated.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex$IssueIndexIO#getEntry"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-issue-index/update-invalidation",
+   "module": "structure-issue-index",
+   "api": null,
+   "behaviour": "After an update the cached answers of the touched issues are invalidated; when the added and removed lists together have at least the dark feature `structure.cache.invalidateAllThreshold` entries (default 1000) the whole cache is invalidated instead.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#updateIndex",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#shouldInvalidateAll"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-issue-index/update-requires-sorted",
+   "module": "structure-issue-index",
+   "api": null,
+   "behaviour": "The added and removed lists must be sorted ascending: with assertions enabled (as the tests run) an unsorted list throws `AssertionError`; with them disabled the counts written are undefined.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#getDeltas",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex$SortedCountingLongScanner#nextValue"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-issue-index/clear-structure",
+   "module": "structure-issue-index",
+   "api": null,
+   "behaviour": "Clearing a structure's index (done when the structure is deleted) deletes all its `AO_8BAD1B_ISSUE_INDEX` rows and invalidates the whole cache.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#clearIndexForStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex$IssueIndexIO#deleteForStructure"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/structure-issue-index/full-reindex",
+   "module": "structure-issue-index",
+   "api": null,
+   "behaviour": "Full rebuild (maintenance `reindexStructures`): at the start every `AO_8BAD1B_ISSUE_INDEX` row is deleted (the cache is not invalidated then, so cached answers can still be served during the rebuild); for each structure one row is inserted per distinct issue of its sorted issue list with `C_OCCURRENCES` = the number of times it occurs, without reading existing rows; at the end the whole cache is invalidated.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#reindexStarted",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#reindexStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#reindexFinished"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/query-result-cache/result-and-key",
+   "module": "query-result-cache",
+   "api": null,
+   "behaviour": "The cache answers 'which rows of this forest match this query' as a set of row IDs, computed by `various-query-parser` (parse the query text with its type, run it on the given forest) as the current `StructureAuth` user. Entries are keyed by (user key, forest spec, query text, query type); the same query for another user, another forest spec or another type is a separate entry.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache#getCachedQueryResult",
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache#loadValue",
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache$CacheKey"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/query-result-cache/version-check",
+   "module": "query-result-cache",
+   "api": null,
+   "behaviour": "An entry is reused only when it was computed for the same forest version and items version (`DataVersion`) as requested. If the stored version is newer than the requested one (same signature, higher version) for either, the cache returns null (no answer) and keeps the entry. Otherwise (older version or different signature) it recomputes for the requested versions and stores the new result; after 50 recomputations without success it logs a throttled warning and returns null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache#getCachedQueryResult",
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache#cacheHasNewerVersion"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/query-result-cache/expiry",
+   "module": "query-result-cache",
+   "api": null,
+   "behaviour": "Entries are kept on this node only and expire 60 seconds after they were computed (dark feature `structure.attribute.queryCache`, in seconds; the JVM system property `structure.cache.expiration-after-write-override` overrides it), whatever the versions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#expireAfterWriteInSeconds"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/query-result-cache/errors",
+   "module": "query-result-cache",
+   "api": null,
+   "behaviour": "A `StructureException` raised while parsing or running the query (for example an empty query or an unknown query type, see `various-query-parser`) is thrown to the caller and nothing is cached; any other failure is logged (throttled) and gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache#getCachedQueryResult"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/query-result-cache/current-user-only",
+   "module": "query-result-cache",
+   "api": null,
+   "behaviour": "The cache must be called for the current `StructureAuth` user: with assertions enabled (as the tests run) passing another user throws `AssertionError`; with them disabled the key uses the given user while the query runs as the current user.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache#getCachedQueryResult",
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache#loadValue"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/query-result-cache/clearing",
+   "module": "query-result-cache",
+   "api": null,
+   "behaviour": "`clearCaches()` drops every entry; `clearUserCaches(user)` and `clearUserCaches(userKey)` drop only the entries of that user key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache#clearCaches",
+    "com.almworks.jira.structure.extension.attribute.query.QueryResultCache#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/various-query-parser/empty-query",
+   "module": "various-query-parser",
+   "api": null,
+   "behaviour": "Parsing a null, empty or whitespace-only query (of any type) throws `StructureException` with `StructureErrors.INVALID_PARAMETER` and the localized message 'Query should not be empty' (`s.w.query-match.status.noQuery`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.VariousQueryParser#parse"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/various-query-parser/query-types",
+   "module": "various-query-parser",
+   "api": null,
+   "behaviour": "The query type must be exactly `sjql`, `jql` or `text` (case-sensitive). Any other type, including null, throws `StructureException` with `StructureErrors.INVALID_PARAMETER` and the message 'Unknown query type' (`s.w.query-match.status.unknownType`); the empty-query check comes first.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.VariousQueryParser#parse"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/various-query-parser/sjql",
+   "module": "various-query-parser",
+   "api": null,
+   "behaviour": "Type `sjql`: the text is parsed by `structure-query-parser` (its errors reach the caller); validation is that query's validation; running it on a forest returns the IDs of the matching rows as the S-JQL query selects them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.VariousQueryParser#parse",
+    "com.almworks.jira.structure.query.VariousQueryParser$SjqlQuery#validate",
+    "com.almworks.jira.structure.query.VariousQueryParser$SjqlQuery#execute"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/various-query-parser/jql-parse-error",
+   "module": "various-query-parser",
+   "api": null,
+   "behaviour": "Type `jql`: the text is parsed with Jira's `JqlQueryParser`; a `JqlParseException` becomes a `StructureException` with error code 6003 (category INVALID_INPUT), Jira's parse-error message key and arguments as its localized message, the exception as cause, and the position (line and column) of the error in the query.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.VariousQueryParser#parse",
+    "com.almworks.jira.structure.error.InternalErrors"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/various-query-parser/text-to-jql",
+   "module": "various-query-parser",
+   "api": null,
+   "behaviour": "Type `text` is turned into JQL in the current user's locale: text in double quotes searches `summary ~ \"<inner text>\"` (only `\"\"` throws the empty-query error); text whose first word (words split at whitespace, `,` or `;`) is an issue key, as typed or upper-cased, searches `issue in (<all words that are issue keys>)`; otherwise each whitespace-separated word gives `(summary ~ word OR summary ~ word*)`, or `summary ~ word*` when it already ends with `*`, all joined with AND. Text starting with `'` is never treated as keys.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.VariousQueryParser#parse",
+    "com.almworks.structure.commons.util.TextSearchQuery#build",
+    "com.almworks.structure.commons.util.TextSearchQuery#buildQuery",
+    "com.almworks.structure.commons.util.TextSearchQuery#getKeysFromText"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/various-query-parser/jql-validate",
+   "module": "various-query-parser",
+   "api": null,
+   "behaviour": "Validating a `jql` or `text` query returns Jira's `SearchService.validateQuery(user, query)` messages for the current `StructureAuth` user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.VariousQueryParser$JqlQuery#validate"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/various-query-parser/jql-execute",
+   "module": "various-query-parser",
+   "api": null,
+   "behaviour": "Running a `jql` or `text` query on a forest: the forest's rows are scanned (rows that no longer exist are ignored), the rows whose item is a Jira issue are collected, and their issue IDs are matched against the query with `StructurePluginHelper.matchIssues` (matching mode, current `StructureAuth` user and security override). The result is the row IDs of every issue row whose issue matched, in forest order; an issue that appears in several rows gives all of them. Non-issue rows never match. A `SearchException` is logged as a warning and gives an empty result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.VariousQueryParser$JqlQuery#execute"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/bulk-permission-checker/role-check",
+   "module": "bulk-permission-checker",
+   "api": null,
+   "behaviour": "For a list of issues and a user, the role check asks Jira once, `ProjectRoleManager.createProjectIdToProjectRolesMap(user, <distinct project IDs of the issues>)`, and then answers (issue ID, role ID) without further Jira calls: a null role ID (no role restriction) is always allowed; an issue ID not in the list is not allowed; otherwise allowed exactly when the user holds that role in the issue's project according to that one answer.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionChecker#createRolePredicate"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/bulk-permission-checker/role-check-bad-input",
+   "module": "bulk-permission-checker",
+   "api": null,
+   "behaviour": "Building the role check fails when the issue list contains two issues with the same ID (`IllegalStateException` for the duplicate key) or a null entry (`NullPointerException`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionChecker#createRolePredicate"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/bulk-permission-checker/group-check",
+   "module": "bulk-permission-checker",
+   "api": null,
+   "behaviour": "The group check asks Jira once for `GroupManager.getGroupNamesForUser(user)` and then answers a group name without further calls: null (no group restriction) is always allowed, otherwise allowed exactly when the name is among the returned names (case-sensitive comparison). A null user throws `NullPointerException` when the check is built.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionChecker#createGroupPredicate"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/bulk-permission-checker/used-for-restricted-comments",
+   "module": "bulk-permission-checker",
+   "api": null,
+   "behaviour": "These checks are what the comment and worklog attributes use to hide comments and worklogs whose visibility is restricted to a project role or group the user does not have; the answers are fixed when the check is built, so later membership changes are not seen by it.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionChecker",
+    "com.almworks.jira.structure.extension.attribute.WorklogObjectsProvider"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/user-display-name-searcher/search-all-directories",
+   "module": "user-display-name-searcher",
+   "api": null,
+   "behaviour": "Looking up users by display name asks each user directory from `CrowdDirectoryService.findAllDirectories()` (in that order) with `DirectoryManager.searchUsers` for all users whose `displayName` term equals the given text (no result limit; exactness and case handling are the directory's), resolves every result by username with `UserManager.getUserByName`, and returns the resolved users in that order. Unresolvable names are dropped; inactive users are not filtered out; a username found in several directories appears once per directory.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.util.UserDisplayNameSearcher#findUsersByDisplayName",
+    "com.almworks.jira.structure.util.UserDisplayNameSearcher#streamDirectoryUsersWithDisplayName"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/user-display-name-searcher/directory-errors",
+   "module": "user-display-name-searcher",
+   "api": null,
+   "behaviour": "A directory that throws `DirectoryNotFoundException` or `OperationFailedException` is skipped with a throttled warning; the other directories are still searched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.UserDisplayNameSearcher#streamDirectoryUsersWithDisplayName"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/user-display-name-searcher/cache",
+   "module": "user-display-name-searcher",
+   "api": null,
+   "behaviour": "Results (also empty ones) are cached on this node per exact display-name text (case-sensitive key) for 5 minutes after they were computed (dark feature `structure.userHelperService.displayNameCache.cacheExpireTime`, in seconds, default 300; the JVM system property `structure.cache.expiration-after-write-override` overrides it), at most 10000 names (dark feature `structure.userHelperService.displayNameCache.maxCacheSize`). If computing fails, a throttled warning is logged and an empty list is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.UserDisplayNameSearcher",
+    "com.almworks.jira.structure.util.UserDisplayNameSearcher#getUsersByDisplayName"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/user-display-name-searcher/clearing",
+   "module": "user-display-name-searcher",
+   "api": null,
+   "behaviour": "`clearCaches()` empties the cache; `clearUserCaches` (by user or key) does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.UserDisplayNameSearcher#clearCaches",
+    "com.almworks.jira.structure.util.UserDisplayNameSearcher#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/user-display-name-searcher/used-by-formulas",
+   "module": "user-display-name-searcher",
+   "api": null,
+   "behaviour": "This lookup is what formula functions use when they resolve a user given by display name (after a user key or username lookup failed).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ResolveFunction"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permission-scheme-manager/spec-decoding-order",
+   "module": "permission-scheme-manager",
+   "api": null,
+   "behaviour": "A stored permission scheme spec (as used by notes) is decoded by trying, in order: a JSON object with a `structure` parameter that reads as a long (a structure-bound scheme); one of the exact lower-case words `none`, `view`, `edit`, `admin` (a fixed level); the exact text `defaultNote` (the default-note scheme). Anything else, such as `View`, `{}` or `{\"structure\":\"x\"}`, throws `IllegalArgumentException` with message `Cannot parse permission scheme spec: <spec>` (also logged as a warning).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissionscheme.PermissionSchemeManagerImpl#getPermissionScheme",
+    "com.almworks.jira.structure.permissionscheme.PermissionSchemeManagerImpl#decodeScheme",
+    "com.almworks.jira.structure.permissionscheme.StructureBasedPermissionScheme#decodeScheme",
+    "com.almworks.jira.structure.permissionscheme.BasicPermissionScheme#decodeScheme",
+    "com.almworks.jira.structure.permissionscheme.DefaultNotePermissionScheme#decodeScheme"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permission-scheme-manager/spec-encoding",
+   "module": "permission-scheme-manager",
+   "api": null,
+   "behaviour": "Specs are written as: structure-bound `{\"structure\":<id>}`; fixed level the lower-case level name (`none`, `view`, `edit`, `admin`); default note `defaultNote`. Two schemes are equal when they are of the same kind and have the same structure ID or level.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissionscheme.StructureBasedPermissionScheme#encodeScheme",
+    "com.almworks.jira.structure.permissionscheme.BasicPermissionScheme#writeSpec",
+    "com.almworks.jira.structure.permissionscheme.DefaultNotePermissionScheme#writeSpec"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permission-scheme-manager/levels-order",
+   "module": "permission-scheme-manager",
+   "api": null,
+   "behaviour": "Scheme levels are none < view < edit < admin; a granted level includes every lower one.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissionscheme.BasicPermissionSchemeLevel#includes"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permission-scheme-manager/structure-scheme-levels",
+   "module": "permission-scheme-manager",
+   "api": null,
+   "behaviour": "In a structure-bound scheme a user's scheme level follows their level on that structure (`StructureManager.getStructurePermission(id, user)`): `ADMIN` gives admin, `EDIT` or `AUTOMATE` gives edit, `VIEW` gives view, `NONE` gives no level at all, so a user without access to the structure (or when it does not exist) is refused even the 'none' level.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissionscheme.StructureBasedPermissionScheme#getPermissionLevel",
+    "com.almworks.jira.structure.permissionscheme.StructureBasedPermissionScheme#checkPermission"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permission-scheme-manager/structure-scheme-denial-reason",
+   "module": "permission-scheme-manager",
+   "api": null,
+   "behaviour": "A structure-bound refusal carries the reason `Need \"<level>\" access level to structure <structure>` (`s.permission-scheme.structure.no-permission`), with level text None, View, Edit or Control, and structure text `\"<name> (id: <id>)\"` when the current `StructureAuth` user can view the structure, else just the ID. Texts are in the language of the current user at the time the spec was decoded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissionscheme.StructureBasedPermissionScheme#checkPermission",
+    "com.almworks.jira.structure.permissionscheme.StructureBasedPermissionScheme#getLevelText",
+    "com.almworks.jira.structure.permissionscheme.StructureBasedPermissionScheme#getStructureText"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permission-scheme-manager/fixed-level-scheme",
+   "module": "permission-scheme-manager",
+   "api": null,
+   "behaviour": "A fixed-level scheme grants exactly the levels up to its own to everybody, the anonymous user included; a refusal has no reason text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissionscheme.BasicPermissionScheme#checkPermission"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permission-scheme-manager/default-note-scheme",
+   "module": "permission-scheme-manager",
+   "api": null,
+   "behaviour": "The `defaultNote` scheme grants view (and none) to everybody and refuses edit and admin with the reason 'Cannot edit default note' (`s.w.notes.note.edit-denied.default`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissionscheme.DefaultNotePermissionScheme#checkPermission"
+   ]
+  },
+  {
+   "key": "c4-query-perms-sync/permission-scheme-manager/has-permission-checks",
+   "module": "permission-scheme-manager",
+   "api": null,
+   "behaviour": "Checking a spec for the current user (view, edit, admin, or a given level): true without decoding when `StructureAuth` security is overridden; false when the spec cannot be decoded; otherwise the scheme's answer for the current `StructureAuth` user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissionscheme.PermissionSchemeManager#hasPermission",
+    "com.almworks.jira.structure.permissionscheme.PermissionSchemeManager#hasViewPermission",
+    "com.almworks.jira.structure.permissionscheme.PermissionSchemeManager#hasEditPermission",
+    "com.almworks.jira.structure.permissionscheme.PermissionSchemeManager#hasAdminPermission"
+   ]
+  }
+ ]
+}

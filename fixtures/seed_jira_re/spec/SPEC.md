@@ -1743,7 +1743,7 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
-| `query` | query | string |  | Text typed by the user; items whose name matches (case-insensitive word/prefix match; empty matches everything) are returned best match first, with the matching part wrapped in `<b>` in the item's html label. |
+| `query` | query | string |  | Text typed by the user; items whose name contains it (case-insensitive literal substring; empty matches everything) are returned ordered by name length, shortest first, with the matching part wrapped in `<b>` in the item's html label. |
 | `maxResults` | query | integer |  | Maximum number of items; only values between 1 and the server limit (20 by default) lower the limit. When results are cut, the group carries a footer text with shown/total counts. |
 
 Suggests agile boards visible to the caller (item value = board id, label and title = board name). Empty when Jira Software is absent.
@@ -1758,7 +1758,7 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
-| `query` | query | string |  | Text typed by the user; items whose name matches (case-insensitive word/prefix match; empty matches everything) are returned best match first, with the matching part wrapped in `<b>` in the item's html label. |
+| `query` | query | string |  | Text typed by the user; items whose name contains it (case-insensitive literal substring; empty matches everything) are returned ordered by name length, shortest first, with the matching part wrapped in `<b>` in the item's html label. |
 | `maxResults` | query | integer |  | Maximum number of items; only values between 1 and the server limit (20 by default) lower the limit. When results are cut, the group carries a footer text with shown/total counts. |
 
 Suggests Jira projects that are enabled for Structure and browseable by the caller (item value = project id, title = project description).
@@ -1773,7 +1773,7 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
-| `query` | query | string |  | Text typed by the user; items whose name matches (case-insensitive word/prefix match; empty matches everything) are returned best match first, with the matching part wrapped in `<b>` in the item's html label. |
+| `query` | query | string |  | Text typed by the user; items whose name contains it (case-insensitive literal substring; empty matches everything) are returned ordered by name length, shortest first, with the matching part wrapped in `<b>` in the item's html label. |
 | `maxResults` | query | integer |  | Maximum number of items; only values between 1 and the server limit (20 by default) lower the limit. When results are cut, the group carries a footer text with shown/total counts. |
 
 Suggests permission subjects for sharing a new structure: a `private` choice (item value `private.nobody`) when its label matches, Jira project roles (value = role id, title = role description) and Jira groups the caller may use (value = group name). Logged-in users only.
@@ -1788,7 +1788,7 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
-| `query` | query | string |  | Text typed by the user; items whose name matches (case-insensitive word/prefix match; empty matches everything) are returned best match first, with the matching part wrapped in `<b>` in the item's html label. |
+| `query` | query | string |  | Text typed by the user; items whose name contains it (case-insensitive literal substring; empty matches everything) are returned ordered by name length, shortest first, with the matching part wrapped in `<b>` in the item's html label. |
 | `maxResults` | query | integer |  | Maximum number of items; only values between 1 and the server limit (20 by default) lower the limit. When results are cut, the group carries a footer text with shown/total counts. |
 | `projectIds` | query | string |  | Comma-separated decimal Jira project ids; blank entries are ignored; omitted means no projects (no group). |
 
@@ -2251,7 +2251,7 @@ Data for the app's 'about' popup: app version, license, update availability, the
 
 Access: anonymous users allowed. Consumes: `application/json`. Produces: `application/json`.
 
-Lists the Jira issue fields for which the app can offer a value picker (used by 'filter by field' and similar generator settings): the navigable fields the caller can see that have an option source, i.e. project, status, issue type, affects and fix versions, priority, reporter, creator, assignee, labels, components, resolution, and custom fields of user, multi-user, multi-group, version, labels, select, multi-select, cascading select, project, sprint, Advanced Roadmaps team, Tempo team and Assets object types (the last four only when that integration is present). When the app is not enabled for all projects, a custom field is listed only if it applies to at least one enabled project. Read-only.
+Lists the Jira issue fields for which the app can offer a value picker (used by 'filter by field' and similar generator settings): the navigable fields the caller can see that have an option source, i.e. project, status, issue type, affects and fix versions, priority, reporter, creator, assignee, labels, components, resolution, and custom fields of user, multi-user, multi-group, version, labels, select, multi-select, cascading select, project, sprint, Advanced Roadmaps team, Tempo team and Assets object types (the last four only when that integration is present). When the app is not enabled for all projects, a custom field is listed only if it applies to at least one enabled project; global-context custom fields have no associated projects and are therefore left out (as the original does), although the single-field lookup accepts them. Read-only.
 
 **Response.** 200 with a JSON array of [`pickable-issue-field`](#shape-pickable-issue-field) sorted by field name.
 
@@ -2545,7 +2545,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Returns every option of an option source (projects, issue types, priorities, versions, components, sprints, users, groups or custom field options), for drop-downs in item-creation forms. Read-only.
 
-**Response.** 200 with a JSON array of [`picker-option`](#shape-picker-option) (`html` null), sorted by the source's order (group, then name; custom field options by their configured order). Projects, versions and components are limited to projects the caller can browse and view issues in. When `spec` is missing or not valid JSON, the source key is unknown or `EMPTY`, or the source is not selectable for the caller (`USERS` requires the Browse Users global permission), the response is 200 with a [`empty-ok`](#shape-empty-ok) instead.
+**Response.** 200 with a JSON array of [`picker-option`](#shape-picker-option) (`html` null), sorted by the source's order (group, then name; custom field options by their configured order). Versions and components are in practice sorted by name only, because their intended group order (unreleased, released, archived, then archived components) never applies (as the original does). Projects, versions and components are limited to projects the caller can browse and view issues in. When `spec` is missing or not valid JSON, the source key is unknown or `EMPTY`, or the source is not selectable for the caller (`USERS` requires the Browse Users global permission), the response is 200 with a [`empty-ok`](#shape-empty-ok) instead.
 
 **Errors.** 403 when the caller may not use the app.
 
@@ -2573,7 +2573,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 | `spec` | query | string |  | Option source description, as for /options-picker/list. |
 | `ids` | query | string |  | URL-encoded JSON array of option ids that are currently selected; each one that exists and is valid for the source is included even beyond N. Omitted or invalid JSON: none. |
 
-Initial content of an option picker: the caller's recent items for the source (recent projects, recently used users, sprints of suggested boards) topped up with other options up to N (as in /search; users are not topped up), plus the currently selected options given by id. Read-only.
+Initial content of an option picker: the caller's recent items for the source (recent projects, recently used users; for sprints the suggestions are always empty (as the original does)) topped up with other options up to N (as in /search; users are not topped up), plus the currently selected options given by id. Read-only.
 
 **Response.** 200 with a JSON array of [`picker-option`](#shape-picker-option) (`html` null) without duplicates, sorted in the source's order. Same [`empty-ok`](#shape-empty-ok) fallback as /list.
 
@@ -2675,11 +2675,11 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 | `id` | path | integer |  | Saved column id (integer). |
 | (body) | body | [`saved-column-input`](#shape-saved-column-input) |  | A [`saved-column-input`](#shape-saved-column-input). |
 
-Replaces all properties of a stored saved column (name, description, type and parameters; absent fields become null, absent parameters become an empty object). The caller must own the column (user column) or hold the 'manage global saved columns' app permission (global column). Not available while the app license is invalid (read-only mode). Persisted in the SAVED_COLUMN table.
+Replaces all properties of a stored saved column (name, description, type and parameters; absent fields become null, absent parameters become an empty object). The caller must own the column (user column) or hold the 'manage global saved columns' app permission (global column). Persisted in the SAVED_COLUMN table.
 
 **Response.** 200 with a [`empty-ok`](#shape-empty-ok).
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the source is unknown. 404 (same form) when the column does not exist or belongs to another user. 403 (same form) when a global column is changed without the permission, an anonymous caller changes a user column, or the caller may not use the app. 500 for the bundled source or in license read-only mode. 401 when not logged in.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the source is unknown. 404 (same form) when the column does not exist or belongs to another user. 403 (same form) when a global column is changed without the permission, an anonymous caller changes a user column, or the caller may not use the app. 500 for the bundled source. 401 when not logged in.
 
 #### `DELETE /rest/structure/2.0/saved-column/{columnSource}/{id}`
 
@@ -2694,7 +2694,7 @@ Deletes a stored saved column. Same ownership/permission rules as PUT. Views tha
 
 **Response.** 200 with a [`empty-ok`](#shape-empty-ok).
 
-**Errors.** 400 text/plain (localized 'column not found') when the column does not exist or belongs to another user. 500 text/plain carrying the message for every other failure, including an unknown source, missing permission for a global column and license read-only mode; 500 also for the bundled source. 401 when not logged in.
+**Errors.** 400 text/plain (localized 'column not found') when the column does not exist or belongs to another user. 500 text/plain carrying the message for every other failure, including an unknown source and missing permission for a global column; 500 also for the bundled source. 401 when not logged in.
 
 #### `POST /rest/structure/2.0/saved-column/{columnSource}/{id}/edit`
 
@@ -2710,7 +2710,7 @@ Changes only the name and/or description of a stored saved column; type and para
 
 **Response.** 200 with a [`empty-ok`](#shape-empty-ok).
 
-**Errors.** 400 text/plain (localized) when the column does not exist or is not readable by the caller (another user's column). 400 with a [`structure-error`](#shape-structure-error) for an unknown source. 403 (same form) when editing a global column without the permission or when the caller may not use the app. 500 in license read-only mode or for the bundled source. 401 when not logged in.
+**Errors.** 400 text/plain (localized) when the column does not exist or is not readable by the caller (another user's column). 400 with a [`structure-error`](#shape-structure-error) for an unknown source. 403 (same form) when editing a global column without the permission or when the caller may not use the app. 500 for the bundled source. 401 when not logged in.
 
 #### `POST /rest/structure/2.0/saved-column/{columnSource}/{id}/move/{newListKey}`
 
@@ -2723,11 +2723,11 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 | `newListKey` | path | string |  | Target list; only `global` is accepted. |
 | (body) | body | map<string, any> |  | Any JSON object (for example `{}`); ignored, present only so the request is a non-simple POST. |
 
-Moves a user's own saved column into the global list (it loses its owner and becomes shared). Only the move to `global` exists; it requires that the caller owns the column and holds the 'manage global saved columns' app permission. Not available in license read-only mode.
+Moves a user's own saved column into the global list (it loses its owner and becomes shared). Only the move to `global` exists; it requires that the caller owns the column and holds the 'manage global saved columns' app permission.
 
 **Response.** 200 with a [`empty-ok`](#shape-empty-ok).
 
-**Errors.** 400 text/plain (localized messages joined by '. ') when the source is unknown or bundled, the column does not exist, is already global, belongs to another user, the target is not `global`, or the caller lacks the permission. 500 in license read-only mode. 401 when not logged in.
+**Errors.** 400 text/plain (localized messages joined by '. ') when the source is unknown or bundled, the column does not exist, is already global, belongs to another user, the target is not `global`, or the caller lacks the permission. 401 when not logged in.
 
 #### `POST /rest/structure/2.0/saved-column/{columnSource}/{id}/updateParameters`
 
@@ -2770,11 +2770,11 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 | `listKey` | path | string |  | `user` or `global`. |
 | (body) | body | [`saved-column-input`](#shape-saved-column-input) |  | A [`saved-column-input`](#shape-saved-column-input) with the column's name, description, type and parameters. |
 
-Saves a new column into a list: into `user` as a personal column of the caller, or into `global` as a shared column (requires the 'manage global saved columns' app permission). No validation of name, type or parameters. Not available in license read-only mode. Persisted in the SAVED_COLUMN table.
+Saves a new column into a list: into `user` as a personal column of the caller, or into `global` as a shared column (requires the 'manage global saved columns' app permission). No validation of name, type or parameters. Persisted in the SAVED_COLUMN table.
 
 **Response.** 200 with the new [`saved-column`](#shape-saved-column).
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) for an unknown source or an unknown list key. 403 (same form) for `global` without the permission or when the caller may not use the app. 500 for the bundled source and in license read-only mode. 401 when not logged in.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) for an unknown source or an unknown list key. 403 (same form) for `global` without the permission or when the caller may not use the app. 500 for the bundled source. 401 when not logged in.
 
 #### `GET /rest/structure/2.0/structure`
 
@@ -3126,11 +3126,11 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Runs a Monte Carlo forecast of when the work in the scope structure will be finished, per team and overall, and returns the cumulative-flow chart (past plus simulated future) and per-team statistics. Throughput per team is learned from items completed in the training structure within the training period; containers without enough child items get extra predicted items based on the historical average per container. Per-team percentage adjustments and an ignore threshold (teams whose share of the total item count is at most that percentage are not simulated and are lumped together as `Other` when there are several) shape the result. Items without a team value belong to team `No Team`. The reply includes a human-readable calculation trace unless the system property `structure.cfd.disableTracing` is on. Read-only; dates use the caller's Jira time zone. The predictive cumulative-flow (CFD) feature can be switched off by the system property `structure.pcfd.enabled=false` (on by default). These endpoints are not behind the plugin's common access gate.
 
-**Request.** `scopeStructureId`, `trainingStructureId` and `config` (with both issue type lists) are required. `simulations` defaults to 50 runs.
+**Request.** `scopeStructureId`, `trainingStructureId` and `config` (with both issue type lists) are required. `simulations` defaults to 50 runs. The `config` must also give all four attribute specs (`teamAttributeSpec`, `whenAppearedAttributeSpec`, `whenWorkStartedAttributeSpec`, `whenCompletedAttributeSpec`), each with an id and a standard format; otherwise the run fails with the generic error below. (The meta and validate calls check only the team and completed specs.)
 
 **Response.** 200 with [`cfd-forecast-result`](#shape-cfd-forecast-result).
 
-**Errors.** Missing required input or a disabled feature raise errors that this module does not translate (no plugin exception mapper is installed for it): expect the platform's generic error response, normally status 500. A `targetDate` not in `YYYY-MM-DD` form fails the same way.
+**Errors.** Missing required input or a disabled feature raise errors that this module does not translate (no plugin exception mapper is installed for it): expect the platform's generic error response, normally status 500. With the feature disabled the original builds a 403 reply but throws it in a way no mapper handles, so the caller still gets the generic error. A `targetDate` not in `YYYY-MM-DD` form fails the same way.
 <!-- END generated: rest-endpoints -->
 
 ### 1.3.2 JSON shapes
@@ -3469,7 +3469,7 @@ A forecast completion moment with its spread.
 | key | JSON type | meaning |
 |---|---|---|
 | `mean` | integer | Expected completion time, epoch milliseconds. |
-| `deviation` | integer | Standard deviation of the completion time across simulation runs, in milliseconds. |
+| `deviation` | integer | Spread of the forecast: the median absolute deviation of the simulation runs' total remaining durations from their median, in milliseconds, for the team's whole remaining work (not a date). |
 
 <a id="shape-cfd-forecast-result"></a>
 
@@ -3510,7 +3510,7 @@ Saved settings of a predictive-CFD gadget, sent for validation.
 |---|---|---|
 | `scopeStructureId` | integer | Structure id of the work to forecast. |
 | `trainingStructureId` | integer | Structure id of the historical work used for learning. |
-| `trainingPeriod` | integer | History window in days: 7, 14, 21, 28, 42, 56, or -1 / absent for all history. |
+| `trainingPeriod` | integer | History window in days: 7, 14, 21, 28, 42, 56, or -1 for all history. The meta and validate calls reject an absent value; only the simulation treats an absent value as all history. |
 | `teamAttributeSpec` | [`attribute-spec`](#shape-attribute-spec) | Attribute whose value (as text) is an item's team; empty values mean team `No Team`. |
 | `targetDate` | string | Optional delivery target date, `YYYY-MM-DD`. |
 | `whenAppearedAttributeSpec` | [`attribute-spec`](#shape-attribute-spec) | Attribute giving the time (epoch ms) an item appeared. |
@@ -3536,7 +3536,7 @@ How the forecast reads the structures: which issue types are containers and work
 | `whenAppearedAttributeSpec` | [`attribute-spec`](#shape-attribute-spec) | Attribute giving the time (epoch ms) an item appeared. |
 | `whenWorkStartedAttributeSpec` | [`attribute-spec`](#shape-attribute-spec) | Attribute giving the time (epoch ms) work on an item started. |
 | `whenCompletedAttributeSpec` | [`attribute-spec`](#shape-attribute-spec) | Attribute giving the time (epoch ms) an item was completed. |
-| `trainingPeriod` | integer | History window in days: 7, 14, 21, 28, 42, 56, or -1 / absent for all history. |
+| `trainingPeriod` | integer | History window in days: 7, 14, 21, 28, 42, 56, or -1 for all history. The meta and validate calls reject an absent value; only the simulation treats an absent value as all history. |
 
 <a id="shape-cfd-simulation-request"></a>
 
@@ -4163,7 +4163,7 @@ One distinct name (variable, function or aggregation) used in a formula and wher
 
 | key | JSON type | meaning |
 |---|---|---|
-| `name` | string | The name as written. |
+| `name` | string | The name in canonical lower-case form; names that differ only in case are one entry. |
 | `usage` | array<[`formula-text-range`](#shape-formula-text-range)> | Ranges of every occurrence; an occurrence with a problem carries a localized `error`. |
 | `declaration` | [`formula-text-range`](#shape-formula-text-range) | For a variable declared inside the formula (local variable), the range of its declaration (with an `error` if the declaration has a problem); null otherwise. |
 | `resolved` | boolean | Local variable: always true. Free variable: true when listed in the request's `definedVariables`. Function or aggregation: true when the language knows it. |
@@ -5879,7 +5879,7 @@ Other tables declare their key column themselves.
 <!-- BEGIN generated: ao -->
 #### Table `AO_8BAD1B_BOOTSTRAP`
 
-Bootstrap/lock marker table of the shared storage layer. Normally holds exactly one row, created lazily (with C_IS_LOCKED=false) the first time the storage layer is touched or the lock flag is read; it is never deleted. Its only meaningful content is the global 'storage locked' flag, raised while a backup restore or data migration rewrites the plugin tables so that all cluster nodes refuse ordinary writes. If several rows exist, the flag is considered raised when ANY row has it true, and lock/unlock writes the flag to every row.
+Bootstrap/lock marker table of the shared storage layer. Normally holds exactly one row, created lazily, with C_IS_LOCKED false or NULL (both read as unlocked), the first time the storage layer is touched or the lock flag is read; it is never deleted. Its only meaningful content is the global 'storage locked' flag, raised while a backup restore or data migration rewrites the plugin tables so that all cluster nodes refuse ordinary writes. If several rows exist, the flag is considered raised when ANY row has it true, and lock/unlock writes the flag to every row.
 
 | column | Java type | length | constraints | meaning and stored format |
 |---|---|---|---|---|
@@ -6007,7 +6007,7 @@ Reverse index view -> structures, derived from AO_8BAD1B_STRUCTURE_TO_VIEW, used
 
 #### Table `AO_8BAD1B_PROPERTY`
 
-Global key/value store of the plugin (string values). One row per key. Setting an empty or null value deletes the row; otherwise the row is created or its value overwritten. A restore writes every global property found in the backup. Values are plain strings: booleans as 'true'/'false' (anything other than 'true' reads as false), numbers as decimal text, structured values as JSON. Keys written by the plugin: 'createdDefaultViews' (boolean; true once the default views were created at first start, prevents re-creating them); 'generationTimeLimit' (long, seconds; global limit for generator execution time per structure, overridable per structure in structure properties); 'manualAdjustments.enableForNewStructure' (boolean, default false); 'statistics.sendingEnabled' (boolean; consent to send usage statistics, default false); 'welcomeScreen.help' (JSON {"title":"...","content":"<wiki markup>","contactKeys":["<user key>",...]} for the admin-defined help panel; row removed when cleared); 'appSupport.blockedSerials' (space-separated list of license serial numbers); 'appSupport.lastCheckedSerial' (license serial of the plugin last reported to the vendor's app-support check) and 'appSupport.lastCheckedSerial:<product key>' for extension products; 'sjm.<job key>' (epoch milliseconds of the last run of an internal scheduled job; job keys: 'statistics.lastSentTime', 'appSupport.lastCheckTime', 'licenseCheck:<module key>', 'forestChanges.lastCleanTime', 'maintenance.scheduled.job'); 'maintenance.scheduled.enabled' (boolean, default true); 'maintenance.scheduled.time' ('H:M' daily time, e.g. '3:0' or '23:45', default 3:00); 'maintenance.scheduled.crontab.enabled' (boolean, default false); 'maintenance.scheduled.crontab.schedule' (5-field cron expression minute hour day month weekday, default '0 3 * * *'); 'maintenance.scheduled.parameters' and 'maintenance.manual.parameters' (JSON object of string values, keys: backup, backup-saveHistory, removeOldBackups, removeOldBackups-minFilesToKeep (default 5), removeOldBackups-minDaysToKeep (15), cleanupFavorites, cleanupForests, cleanupViews, cleanupSynchronizers, cleanupStructureProperties, removeOldSyncAuditLogRecords, removeOldSyncAuditLogRecords-daysToKeep (30), reindexHistory, cleanupPerspectives, cleanupPerspectives-daysToKeep (30), reindexStructures, removeOldChangeHistory, removeOldChangeHistory-daysToKeep (30), removeOldChangeHistory-changesPerStructureToKeep (1000), removeOldEffectorProcesses, removeOldEffectorProcesses-daysToKeep (30), removeOldEffectorProcesses-waitingPreviewHoursToKeep (24), removeOldProcessStates, cleanupItemTracker; booleans as "true"/"false", numbers as decimal strings, e.g. {"backup":"true","removeOldBackups-minFilesToKeep":"5"}); 'maintenance.scheduled.nextRunTime' (epoch ms of next scheduled run) and 'maintenance.scheduled.nextRunTime.tz' (Java time zone id, e.g. 'Europe/Berlin', in which it was computed); 'maintenance.scheduled.currentProcessId' (id of the running maintenance process, AO_8BAD1B_PROCESS_STATE id); 'maintenance.manual.lastRunTime' (epoch ms); 'maintenance.successful' (boolean outcome of the last run, default true). Legacy key read during restore of old backups: 'view.defaultAssociatedViews_v2' (JSON in the same format as AO_8BAD1B_STRUCTURE_TO_VIEW.C_VIEW_SETTINGS, global default view settings from 2.x).
+Global key/value store of the plugin (string values). One row per key. Setting an empty or null value deletes the row; otherwise the row is created or its value overwritten. A restore writes every global property found in the backup. Values are plain strings: booleans as 'true'/'false' (anything other than 'true' reads as false), numbers as decimal text, structured values as JSON. Keys written by the plugin: 'createdDefaultViews' (boolean; true once the default views were created at first start, prevents re-creating them); 'generationTimeLimit' (long, seconds; global limit for generator execution time per structure, overridable per structure in structure properties); 'manualAdjustments.enableForNewStructure' (boolean, default false); 'statistics.sendingEnabled' (boolean; consent to send usage statistics, default false); 'welcomeScreen.help' (JSON {"title":"...","content":"<wiki markup>","contactKeys":["<user key>",...]} for the admin-defined help panel; row removed when cleared); 'appSupport.blockedSerials' (space-separated list of license serial numbers); 'appSupport.lastCheckedSerial' (license serial of the plugin last reported to the vendor's app-support check) and 'appSupport.lastCheckedSerial:<product key>' for extension products; 'sjm.<job key>' (epoch milliseconds of the last run of an internal scheduled job; job keys: 'statistics.lastSentTime', 'forestChanges.lastCleanTime', 'maintenance.scheduled.job'; the original's vendor-report and licence-check jobs are not contract (§1.8), and the replacement neither runs them nor writes their rows); 'maintenance.scheduled.enabled' (boolean, default true); 'maintenance.scheduled.time' ('H:M' daily time, e.g. '3:0' or '23:45', default 3:00); 'maintenance.scheduled.crontab.enabled' (boolean, default false); 'maintenance.scheduled.crontab.schedule' (5-field cron expression minute hour day month weekday, default '0 3 * * *'); 'maintenance.scheduled.parameters' and 'maintenance.manual.parameters' (JSON object of string values, keys: backup, backup-saveHistory, removeOldBackups, removeOldBackups-minFilesToKeep (default 5), removeOldBackups-minDaysToKeep (15), cleanupFavorites, cleanupForests, cleanupViews, cleanupSynchronizers, cleanupStructureProperties, removeOldSyncAuditLogRecords, removeOldSyncAuditLogRecords-daysToKeep (30), reindexHistory, cleanupPerspectives, cleanupPerspectives-daysToKeep (30), reindexStructures, removeOldChangeHistory, removeOldChangeHistory-daysToKeep (30), removeOldChangeHistory-changesPerStructureToKeep (1000), removeOldEffectorProcesses, removeOldEffectorProcesses-daysToKeep (30), removeOldEffectorProcesses-waitingPreviewHoursToKeep (24), removeOldProcessStates, cleanupItemTracker; booleans as "true"/"false", numbers as decimal strings, e.g. {"backup":"true","removeOldBackups-minFilesToKeep":"5"}); 'maintenance.scheduled.nextRunTime' (epoch ms of next scheduled run) and 'maintenance.scheduled.nextRunTime.tz' (Java time zone id, e.g. 'Europe/Berlin', in which it was computed); 'maintenance.scheduled.currentProcessId' (id of the running maintenance process, AO_8BAD1B_PROCESS_STATE id); 'maintenance.manual.lastRunTime' (epoch ms); 'maintenance.successful' (boolean outcome of the last run, default true). Legacy key read during restore of old backups: 'view.defaultAssociatedViews_v2' (JSON in the same format as AO_8BAD1B_STRUCTURE_TO_VIEW.C_VIEW_SETTINGS, global default view settings from 2.x).
 
 | column | Java type | length | constraints | meaning and stored format |
 |---|---|---|---|---|
@@ -6060,14 +6060,14 @@ One committed version step of a structure's stored (manual) forest: the header o
 
 #### Table `AO_8BAD1B_HISTORY_CHANGE`
 
-One elementary forest change inside a history entry. Several rows per entry, applied in ascending C_ID order (undo applies them in reverse). Consecutive compatible changes of the same kind are merged before writing (adjacent inserts at the same place, or moves/removals from the same spot become one row with a bigger forest). Created together with its AO_8BAD1B_HISTORY_ENTRY; deleted with it (see that table). Rows refer to structure rows (AO_8BAD1B_ROW.ID values; may also include rows whose ROW record no longer exists).
+One elementary forest change inside a history entry. Several rows per entry, applied in ascending C_ID order (undo applies them in reverse). Consecutive compatible changes of the same kind are merged before writing (adjacent inserts at the same place, or moves/removals from the same spot become one row with a bigger forest). Created together with its AO_8BAD1B_HISTORY_ENTRY; deleted with it (see that table). Rows refer to structure rows by public row id, the same ids as in AO_8BAD1B_FOREST.C_FOREST (even, = AO_8BAD1B_ROW.ID * 2), in every row-id column; they may include rows whose ROW record no longer exists.
 
 | column | Java type | length | constraints | meaning and stored format |
 |---|---|---|---|---|
 | `C_ID` | long |  | primary key, auto increment, not null | Auto-increment surrogate key; defines the order of changes within an entry. |
 | `C_HID` | long |  | not null, indexed | AO_8BAD1B_HISTORY_ENTRY.C_ID of the owning entry (packed structure id and version). Indexed. |
 | `C_OPERATION` | int |  | not null | Integer operation code: 1 = add (new rows inserted), 2 = copy (rows inserted as copies of existing rows), 3 = move (existing subtrees moved), 4 = remove (subtrees removed). Any other value is invalid and makes the entry unreadable. |
-| `C_FOREST` | String | unlimited | not null | JSON forest fragment affected by the change: `{"rows":[<rowId>,...],"depths":[<depth>,...]}` — two equally long arrays in depth-first order, row ids are AO_8BAD1B_ROW.ID values (64-bit), depths are 0-based relative to the fragment (roots have depth 0). For add/copy: the inserted rows; for move: the moved subtrees; for remove: the removed subtrees. Example: `{"rows":[101,102,103],"depths":[0,1,0]}` (101 with child 102, then 103). Never empty string. |
+| `C_FOREST` | String | unlimited | not null | JSON forest fragment affected by the change: `{"rows":[<rowId>,...],"depths":[<depth>,...]}` — two equally long arrays in depth-first order, row ids are public row ids (64-bit; even, = AO_8BAD1B_ROW.ID * 2, as in AO_8BAD1B_FOREST.C_FOREST), depths are 0-based relative to the fragment (roots have depth 0). For add/copy: the inserted rows; for move: the moved subtrees; for remove: the removed subtrees. Example: `{"rows":[101,102,103],"depths":[0,1,0]}` (101 with child 102, then 103). Never empty string. |
 | `C_PATH_FROM` | String | unlimited |  | For move and remove: JSON array of row ids from the top level down to and including the former parent of the moved/removed rows (`[]` when they were at top level). Null for add and copy. Example `[55,60]`. Readers also accept a bare number (treated as one-element list) and treat JSON null elements as 0. |
 | `C_AFTER_FROM` | String | unlimited |  | For move and remove: JSON array with the row id of the sibling that preceded the moved/removed rows in their old position, or `[]` if they were first under their parent. Null for add and copy. Example `[61]`. |
 | `C_PATH_TO` | String | unlimited |  | For add, copy and move: JSON array of row ids from the top level down to and including the new parent (`[]` = inserted at top level). Null for remove. |
@@ -6103,7 +6103,7 @@ A shared 'perspective': a saved snapshot of the structure page state (which stru
 |---|---|---|---|---|
 | `C_ID` | long |  | primary key, not null | Perspective id, not auto-increment: a random integer in [1, 2147483647] (stored as 64-bit) chosen at creation; on a primary-key collision a new random id is tried, up to 10 attempts. Appears in shared URLs, so existing ids must be preserved. |
 | `C_LAST_USED` | long |  | not null, indexed | Epoch milliseconds of creation or of the last retrieval by id (or of the restore). Indexed; drives the purge. |
-| `C_SPEC` | String | unlimited | not null | Non-empty client-defined JSON text describing the page state, stored verbatim as supplied by the browser. The server only interprets top-level keys `primary` and `secondary` (each an object describing a forest panel, which may contain `viewSpec`, a view specification in the same JSON shape the view REST API uses); on read, view specifications referencing saved columns are re-expanded from AO_8BAD1B_SAVED_COLUMN and the JSON is re-serialized, preserving all other keys. Example: `{"primary":{"structureId":12,"viewSpec":{"columns":[...]}},"secondary":null}`. |
+| `C_SPEC` | String | unlimited | not null | Non-empty client-defined JSON text describing the page state, stored verbatim as supplied by the browser. The server only interprets top-level keys `primary` and `secondary` (each an object describing a forest panel, which may contain `viewSpec`, a view specification in the same JSON shape the view REST API uses); on read, view specifications referencing saved columns are re-expanded from AO_8BAD1B_SAVED_COLUMN and the JSON is re-serialized, preserving all other keys. Example: `{"primary":{"forestSpec":{"structureId":12},"viewSpec":{"columns":[...]}},"secondary":null}`; `perspective-mail-sender` reads the structure from `primary.forestSpec.structureId`. |
 
 #### Table `AO_8BAD1B_ISSUE_INDEX`
 
@@ -6136,8 +6136,8 @@ Cluster-wide queue of pending synchronizer events, used only on Jira Data Center
 | column | Java type | length | constraints | meaning and stored format |
 |---|---|---|---|---|
 | `ID` | int |  | primary key, auto increment, not null | Auto-increment id; defines processing order. |
-| `C_TYPE` | int |  | not null | Event type code: 1 = issue updated, 2 = issue link created, 3 = issue link deleted, 4 = epic link changed (Agile), 5 = rank changed (Agile), 6 = issue deleted, 126 = autosync enabled, 127 = resync request. Unknown codes are skipped with a warning. |
-| `C_DATA` | String | unlimited | not null | JSON payload by type. Types 1, 4, 5, 6: a bare JSON number, the Jira issue id (e.g. `10234`). Types 2, 3: `{"linkTypeId":<long>,"sourceId":<issueId>,"destinationId":<issueId>}`. Type 126: two-element array `[<syncInstanceId>,<latestHistoryVersion>]` where the second is the latest AO_8BAD1B_HISTORY_ENTRY version of that instance's structure at the time autosync was enabled (>= 0), e.g. `[4,57]`. Type 127: object `{"instanceId":<long, 0 for one-time resync>,"structureId":<long>,"moduleKey":"<complete module key>","ownerKey":"<user key>","parameters":"<C_PARAMETERS string, empty if none>","processId":<AO_8BAD1B_PROCESS_STATE.ID or 0>,"autosyncEnabled":<bool>,"scheduledResync":<bool>}`. Never blank. |
+| `C_TYPE` | int |  | not null | Event type code: 1 = issue updated, 2 = issue link created, 3 = issue link deleted, 4 = epic link changed (Agile), 5 = rank changed (Agile), 6 = issue deleted, 126 = autosync enabled, 127 = resync request. Unknown codes fail an assertion when the events are drained: with assertions enabled (as the tests run) the drain throws AssertionError; with them disabled the row is skipped with a warning. |
+| `C_DATA` | String | unlimited | not null | JSON payload by type. Types 1, 4, 5, 6: a bare JSON number, the Jira issue id (e.g. `10234`). Types 2, 3: `{"linkTypeId":<long>,"sourceId":<issueId>,"destinationId":<issueId>}`. Type 126: two-element array `[<syncInstanceId>,<latestHistoryVersion>]` where the second is the latest AO_8BAD1B_HISTORY_ENTRY version, at the time autosync was enabled (>= 0), of the structure whose id equals the synchronizer instance id, not of the instance's own structure (as the original does), e.g. `[4,57]`. Type 127: object `{"instanceId":<long, 0 for one-time resync>,"structureId":<long>,"moduleKey":"<complete module key>","ownerKey":"<user key>","parameters":"<C_PARAMETERS string, empty if none>","processId":<AO_8BAD1B_PROCESS_STATE.ID or 0>,"autosyncEnabled":<bool>,"scheduledResync":<bool>}`. Never blank. |
 | `C_TIMESTAMP` | long |  | not null | Epoch milliseconds when the event was recorded. |
 | `C_SYNC_INSTANCE` | Long |  |  | AO_8BAD1B_SYNC_INSTANCE.ID of the synchronizer whose run caused this Jira change (so it can ignore its own changes), or null if the change was not made by a synchronizer. |
 
@@ -6224,13 +6224,13 @@ One row is one named cluster-wide flag holding a short string, updated with comp
 
 #### Table `AO_8BAD1B_MANUAL_ADJUSTMENTS`
 
-One row per structure that has manual adjustments: the list of manual changes a user made to the generated (automation-produced) part of a structure's forest (adding items under generated rows, moving generated rows). Natural key = C_STRUCTURE_ID. Written with optimistic concurrency: the row is read, modified, and written back with UPDATE ... WHERE C_STRUCTURE_ID = ? AND C_VERSION = old version (up to 10 retries); the first write inserts with the new version (an insert conflict counts as a lost race). The total number of adjustments per structure is capped (default 2000; the change is rejected above it). The row is deleted when the structure is deleted or when a user clears all adjustments of the structure. Relations: C_STRUCTURE_ID -> AO_8BAD1B_STRUCTURE.ID; row ids inside the data refer to AO_8BAD1B_ROW.ID; item ids use AO_8BAD1B_ITEM_TYPE ids.
+One row per structure that has manual adjustments: the list of manual changes a user made to the generated (automation-produced) part of a structure's forest (adding items under generated rows, moving generated rows). Natural key = C_STRUCTURE_ID. Written with optimistic concurrency: the row is read, modified, and written back with UPDATE ... WHERE C_STRUCTURE_ID = ? AND C_VERSION = old version (up to 10 retries); the first write inserts with the new version (an insert conflict counts as a lost race). The total number of adjustments per structure is capped (default 2000; the change is rejected above it). The row is deleted when the structure is deleted or when a user clears all adjustments of the structure. Relations: C_STRUCTURE_ID -> AO_8BAD1B_STRUCTURE.ID; row ids inside the data are public row ids, as in AO_8BAD1B_FOREST.C_FOREST; item ids use AO_8BAD1B_ITEM_TYPE ids.
 
 | column | Java type | length | constraints | meaning and stored format |
 |---|---|---|---|---|
 | `C_STRUCTURE_ID` | int |  | primary key, not null | Structure id (AO_8BAD1B_STRUCTURE.ID), primary key (not auto-increment). |
 | `C_VERSION` | int |  | not null | Change counter used for optimistic locking and as the id source of new adjustments. Starts at 0 meaning 'no row'; each applied change increments it by one, so the first stored version is >= 1. A newly added adjustment gets the new version number as its `id`. |
-| `C_DATA` | String | unlimited |  | JSON array of adjustment objects (compact, null members omitted), or null/empty when there are none (an empty list is stored as null; a row with empty data is treated as no adjustments). Each object: `id` (int, the adjustment id, unique within the structure) and either an add form `{"id":..,"added":[rowSpec,..],"under":R,"after":R,"before":R}` or a move form `{"id":..,"moved":R,"under":R,"after":R,"before":R}`; a `removed` key is accepted on read but never written; unknown keys are ignored. `added` is a forest fragment, a list of strings `<rowId>:<depth>:<itemId>:<semantics>` in depth-first order (depth 0 = top of the fragment), where rowId is a row id (AO_8BAD1B_ROW.ID), itemId uses the compact item-id grammar below and semantics is the row's semantics code (long). R (a row identity) is one of: the number 0 (= the root / nothing, e.g. 'at top' or 'no after'), the number -1 (= missing/unknown row), a positive number (a plain row id), or a JSON array that is a path of row specs from the top, each spec being either a number (a row id) or a string `<itemId>:<semantics>` optionally followed by the letter `p` (`p` marks a persistent, non-generated row). Compact item-id grammar used here (shared with other columns of the plugin): an issue is written as its bare Jira issue id in decimal (e.g. `10234`); any other item is `<typeId>/<longId>` for items with a numeric id (e.g. `7/42`) or `<typeId>//<stringId>` for items with a string id (e.g. `5//jsmith`), where <typeId> is AO_8BAD1B_ITEM_TYPE.ID of the item type key (the registry assigns a new id on first use). Parsing regex: `(\d+)(?:/(?:(\d+)\|/(.+)))?`; a lone number is always an issue. Example: `[{"id":3,"added":["901:0:10234:0","902:1:7/42:0"],"under":["12/5:0p","10500:0"],"after":0,"before":-1},{"id":4,"moved":["12/5:0p","10777:0"],"under":["12/5:0p"],"after":0,"before":0}]`. Unparseable data is logged and treated as empty. |
+| `C_DATA` | String | unlimited |  | JSON array of adjustment objects (compact, null members omitted), or null/empty when there are none (an empty list is stored as null; a row with empty data is treated as no adjustments). Each object: `id` (int, the adjustment id, unique within the structure) and either an add form `{"id":..,"added":[rowSpec,..],"under":R,"after":R,"before":R}` or a move form `{"id":..,"moved":R,"under":R,"after":R,"before":R}`; a `removed` key is accepted on read but never written; unknown keys are ignored. `added` is a forest fragment, a list of strings `<rowId>:<depth>:<itemId>:<semantics>` in depth-first order (depth 0 = top of the fragment), where rowId is a public row id (as in AO_8BAD1B_FOREST.C_FOREST), itemId uses the compact item-id grammar below and semantics is the row's semantics code (long). R (a row identity) is one of: the number 0 (= the root / nothing, e.g. 'at top' or 'no after'), the number -1 (= missing/unknown row), a positive number (a plain row id), or a JSON array that is a path of row specs from the top, each spec being either a number (a row id) or a string `<itemId>:<semantics>` optionally followed by the letter `p` (`p` marks a persistent, non-generated row). Compact item-id grammar used here (shared with other columns of the plugin): an issue is written as its bare Jira issue id in decimal (e.g. `10234`); any other item is `<typeId>/<longId>` for items with a numeric id (e.g. `7/42`) or `<typeId>//<stringId>` for items with a string id (e.g. `5//jsmith`), where <typeId> is AO_8BAD1B_ITEM_TYPE.ID of the item type key (the registry assigns a new id on first use). Parsing regex: `(\d+)(?:/(?:(\d+)\|/(.+)))?`; a lone number is always an issue. Example: `[{"id":3,"added":["901:0:10234:0","902:1:7/42:0"],"under":["12/5:0p","10500:0"],"after":0,"before":-1},{"id":4,"moved":["12/5:0p","10777:0"],"under":["12/5:0p"],"after":0,"before":0}]`. Unparseable data is logged and treated as empty. |
 
 #### Table `AO_8BAD1B_EFFECTOR_INSTANCE`
 
@@ -6286,7 +6286,7 @@ One row is one named cloud-migration configuration: which structures (and which 
 | `ID` | int |  | primary key, auto increment, not null | Configuration id (auto-increment integer). |
 | `C_NAME` | String | 190 | not null, unique | Configuration name, unique; must match the Jira Cloud Migration Assistant migration plan name to be used. Up to 190 characters. |
 | `C_STATUS` | String | 190 | not null | Status as text, one of `DRAFT` (saved but not published; not runnable), `READY` (published, runnable), `RUNNING` (a migration is in progress; not runnable), `DONE` (last run succeeded; runnable again), `FAILED` (last run failed; runnable again). |
-| `C_STRUCTURE_IDS` | String | unlimited | not null | Structures to migrate, as a JSON array of structure ids (numbers), e.g. `[12,57,130]`; `[]` (or an empty string) means none selected, which the migration treats as 'migrate all structures'. Never null (empty string written instead of null). A single bare number is also accepted on read. |
+| `C_STRUCTURE_IDS` | String | unlimited | not null | Structures to migrate, as a JSON array of structure ids (numbers), e.g. `[12,57,130]`; `[]` means none selected, which the migration treats as 'migrate all structures'. A row holding the empty string cannot be read back: reading it fails (as the original does). Never null (empty string written instead of null). A single bare number is also accepted on read. |
 | `C_EXTENSION_KEYS` | String | unlimited |  | Optional add-on data to include, as a JSON array of Jira app (plugin) keys of apps that contribute structure backup data, e.g. `["com.almworks.structure.gantt"]`; null when the set is empty. |
 | `C_RUN_AT` | Long |  |  | Epoch ms when the last migration using this configuration finished (DONE or FAILED); null when it has not run since the last save or is running. |
 | `C_EDITED_AT` | long |  | not null | Epoch ms of the last create/edit by an administrator. |
@@ -6451,6 +6451,7 @@ Some dark-feature keys are prefixed with a fully qualified internal class name a
   - These are per-user overrides of the system values above, and absent means "inherit". Resetting a user's settings removes all four.
   - `com.almworks.jira.structure.statistics.offerRejected` is a boolean property, set to true once the user (an admin) dismisses the usage-statistics offer.
 - **User extended preferences:** `structure.board.issueLinkAction` holds `showDetails`, `openIssuePage` or `doNothing`.
+- **SAL user settings:** `almworks.jira.structure.recents` holds the user's recently opened structures as space-separated structure ids, most recent first (`recents-manager`).
 
 #### Plugin settings (SAL global plugin settings)
 
@@ -6462,7 +6463,6 @@ Only `com.almworks.jira.structure:build` (see above). The plugin keeps all its o
 - `com.almworks.jira.structure.maintenance`: one maintenance run at a time.
 - `com.almworks.jira.structure.indexMonitorManager`: creating the index-monitor custom field.
 - **Lockers from the shared library:** named `com.almworks.structure..<locker name>.<id>`, with the double dot. Lockers in use:
-  - `AOLock`: structure-level database lock, id = structure id.
   - `sjm`: internal scheduled-job runs, id = job key.
   - `ViewManagerInit`: id `createDefaultViews`.
   - `ievent-signature-lock`: item-event node signatures, id `0`.
@@ -6471,10 +6471,10 @@ Only `com.almworks.jira.structure:build` (see above). The plugin keeps all its o
 
 The plugin registers no jobs with Jira's scheduler. It runs internal periodic jobs and records each job's last run time in `AO_8BAD1B_PROPERTY` under `sjm.<job key>`, in epoch ms. Job keys:
 - `statistics.lastSentTime`
-- `appSupport.lastCheckTime`
-- `licenseCheck:<module key>`
 - `forestChanges.lastCleanTime`
 - `maintenance.scheduled.job`
+
+The original also ran a vendor-report job and per-module licence-check jobs. They are not contract (§1.8, owner 2026-10-29): the replacement registers neither and never writes their `sjm.*` rows.
 
 The maintenance schedule itself is in the `maintenance.scheduled.*` properties.
 
@@ -6485,8 +6485,8 @@ The shared caches are named `com.almworks.structure.<name>`, for example `forest
 #### Jira entities the plugin creates or references
 
 - **Custom field type** `com.almworks.jira.structure:index-monitor-cf-type` and **searcher** `com.almworks.jira.structure:index-monitor-cf-searcher`:
-  - At start-up the plugin makes sure there is exactly one global custom field of this type, named `Structure Index Monitor`, with description "System custom field, required for correct functioning of Structure add-on. Does not store any data."
-  - It locks that field as a managed configuration item. A non-global instance is deleted and re-created.
+  - At start-up the plugin looks at the first custom field of this type (any further ones are left alone) and, when there is none, creates a global one named `Structure Index Monitor`, with description "System custom field, required for correct functioning of Structure add-on. Does not store any data."
+  - A field it has just created is locked as a managed configuration item; an existing global field is not locked again. A non-global first field is deleted and re-created.
   - The field stores no values and adds nothing to the issue index; its indexer only observes reindexing.
   - Existing installs have this field in Jira's custom-field table, keyed by the type key above.
 - **JQL function** `structure` (list function). Saved filters, board filters and gadget configs persist JQL such as `issue in structure("My structure", "child of X")`, so the function name and argument grammar are stored contract.

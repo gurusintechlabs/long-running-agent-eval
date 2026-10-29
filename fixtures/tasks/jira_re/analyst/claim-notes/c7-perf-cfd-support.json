@@ -1,0 +1,1152 @@
+{
+ "claims": [
+  {
+   "key": "c7-perf-cfd-support/performance-observer/audit-log-tree",
+   "module": "performance-observer",
+   "api": null,
+   "behaviour": "Asked for the performance audit log, the component returns one branch titled `Performance Audit Log` whose children are, in order, the results of `PerformanceLogProvider.getLogs()` of every performance-log provider module currently registered with the plugin (as `extension-service` lists them). A provider that returns null contributes no child. The tree is built anew on every call; nothing is cached.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.PerformanceObserversManager#getLogs"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/performance-observer/provider-failure-isolated",
+   "module": "performance-observer",
+   "api": null,
+   "behaviour": "When one provider's `getLogs()` throws any `Exception` or a `LinkageError` (e.g. `NoClassDefFoundError` from an uninstalled companion app), that provider's child is replaced by a leaf titled `Unexpected exception occurred. See logs for more information.`, the error is logged at error level, and the other providers' logs are still returned in their places. Other `Error`s propagate to the caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.PerformanceObserversManager#logException",
+    "com.almworks.jira.structure.perfstats.PerformanceObserversManager#getLogs"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/performance-observer/no-providers",
+   "module": "performance-observer",
+   "api": null,
+   "behaviour": "With no performance-log provider registered the component returns null (an empty branch is never returned, following `NodeInfo.branch`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.PerformanceObserversManager#getLogs"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/sync-observer/records-finished-syncs",
+   "module": "sync-observer",
+   "api": null,
+   "behaviour": "For every synchronizer run the sync manager observes, the component starts a timer when the run starts and, when the run is reported finished, adds one log entry, but only if the run took at least 1 ms (elapsed nanoseconds rounded to whole milliseconds). Runs that never report finishing are never logged. Its log keeps at most 400 entries: once full, each new entry evicts the oldest. Listing returns the kept entries oldest first. While a listing is being copied, entries added concurrently by other threads are dropped rather than kept.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.SyncObserver#observe",
+    "com.almworks.jira.structure.perfstats.observers.SyncObserver#onFinishSync",
+    "com.almworks.structure.commons.perfstats.CircularBuffer#add",
+    "com.almworks.structure.commons.perfstats.CircularBuffer#getElements"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/sync-observer/log-format",
+   "module": "sync-observer",
+   "api": null,
+   "behaviour": "The sync log is a `NodeInfo` branch titled `Syncs` with one leaf per kept entry, oldest first; each leaf title is `<duration>; <start>; <sync>` where duration is the elapsed milliseconds right-aligned in 4 characters followed by `ms` (e.g. `  12ms`), start is the local start time in the JVM time zone as `yyyy-MM-dd HH:mm:ss,SSS`, and sync is the text of the synchronizer instance's data (id, structure, module key and parameters). With no entries the log is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.SyncObserver#getSyncEvents",
+    "com.almworks.jira.structure.perfstats.observers.SyncObserver$SyncHandle#toString",
+    "com.almworks.structure.commons.perfstats.AbstractPerformanceObserverHandle#formatDeltaTime",
+    "com.almworks.structure.commons.perfstats.AbstractPerformanceObserverHandle#formatStartDateTime"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/sync-observer/installed-and-enabled-synchronizers",
+   "module": "sync-observer",
+   "api": null,
+   "behaviour": "For the audit log it reports, for a structure id, the synchronizers installed on that structure as `StructureSyncManager.getInstalledSynchronizersForStructure` returns them, and for a synchronizer id whether autosync is enabled (`StructureSyncManager.isAutosyncEnabled`). Before the sync manager has been handed to it (or after it was cleared to null) the list is empty and every synchronizer counts as not enabled; nothing throws.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.SyncObserver#getSyncInstances",
+    "com.almworks.jira.structure.perfstats.observers.SyncObserver#isSynchronizerEnabled",
+    "com.almworks.jira.structure.perfstats.observers.SyncObserver#setSyncManager"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/effect-observer/two-logs",
+   "module": "effect-observer",
+   "api": null,
+   "behaviour": "The component keeps two separate logs, one of effector preparation runs and one of effector application runs. An entry is added at the moment a run starts (with status `running`), not when it ends, so unfinished runs are listed too. Its log keeps at most 200 entries: once full, each new entry evicts the oldest. Listing returns the kept entries oldest first. While a listing is being copied, entries added concurrently by other threads are dropped rather than kept. The logs are `NodeInfo` branches titled `Effect preparations` and `Effect applications` with one leaf per entry; an empty log is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.EffectObserver#createPreparationHandle",
+    "com.almworks.jira.structure.perfstats.observers.EffectObserver#createApplicationHandle",
+    "com.almworks.jira.structure.perfstats.observers.EffectObserver#getPreparationLogs",
+    "com.almworks.jira.structure.perfstats.observers.EffectObserver#getApplicationLogs",
+    "com.almworks.structure.commons.perfstats.CircularBuffer#add"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/effect-observer/target-forest",
+   "module": "effect-observer",
+   "api": null,
+   "behaviour": "Each entry names the forest the effector process works on: the process's one-off forest spec when it has one; otherwise `ForestSpec.structure(structureId, user)` for the process's structure id and the Jira user found by the process's user key; otherwise null (printed `null`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.EffectObserver#createHandle"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/effect-observer/entry-text-and-status",
+   "module": "effect-observer",
+   "api": null,
+   "behaviour": "Each leaf title is `<duration>; <start>; effects <preparation|application> for <forest spec> is <status>; times and counts: <map>`, with duration as 4-character right-aligned milliseconds plus `ms` (the time elapsed so far while running, the final time once resolved) and start as local JVM time `yyyy-MM-dd HH:mm:ss,SSS`. Status is `running` until resolved, then `stopped`, `finished successfully` or `finished with error`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.EffectObserver$EffectHandle#toString",
+    "com.almworks.jira.structure.perfstats.observers.EffectObserver$EffectHandleStatus",
+    "com.almworks.structure.commons.perfstats.AbstractPerformanceObserverHandle#getDeltaTime"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/effect-observer/per-module-times",
+   "module": "effect-observer",
+   "api": null,
+   "behaviour": "Within a run, each timed sub-step is attributed to an effector module key: for every key the entry accumulates how many sub-steps ran and their total duration, printed in the map as `<module key>=(count=<n>; duration=<total>ms)` with the total truncated to whole milliseconds. A key's count starts at 1 with its first sub-step. The map's text order is not defined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.EffectObserver$EffectHandle#finishSubProcess",
+    "com.almworks.jira.structure.perfstats.observers.EffectObserver$LongPair#toString"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-update-observer/bounded-log",
+   "module": "forest-update-observer",
+   "api": null,
+   "behaviour": "The component logs every forest recalculation (full or incremental) the forest service reports, adding the entry when the recalculation starts. Its log keeps at most 400 entries (dark feature `structure.gfs.updateObserver.entriesCount`, read once at creation); once full, each new entry evicts the oldest. Listing returns entries oldest first; entries added while a listing is being copied are dropped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver#observe",
+    "com.almworks.structure.commons.perfstats.CircularBuffer#add",
+    "com.almworks.structure.commons.perfstats.CircularBuffer#getElements"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-update-observer/log-tree",
+   "module": "forest-update-observer",
+   "api": null,
+   "behaviour": "The log is a `NodeInfo` branch titled `Forest changes updates` (null when empty) with one node per entry. The node is a leaf when the entry has no detail lines, otherwise a branch with, in this order and only when present: `  source update: <text>`, `  items update: <text>`, `  item change filters: <ids>, update checkers: <ids>` (each detail title starts with two spaces).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver#getLogs",
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver$UpdateHandle#toNodeInfo"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-update-observer/entry-title",
+   "module": "forest-update-observer",
+   "api": null,
+   "behaviour": "An entry's title is `<duration>; <start>; update for <forest spec>; version: <from> => <to>; <status> update; times: <times>`. Duration is 4-character right-aligned milliseconds plus `ms`, start is local JVM time `yyyy-MM-dd HH:mm:ss,SSS`. While running, `<to>` is `...`, status is `running incremental` or `running full`, and times is `null`. Once resolved, `<to>` is the resulting data version, status is `incremental` or `full` (prefixed `stopped ` when the recalculation was stopped), and times lists each generation step as `<step id>: <ms>ms` joined by `; ` (`null` when no timings were given).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver$UpdateHandle#toString",
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver$GenerationDiagnostics#formatTimes"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-update-observer/update-descriptions",
+   "module": "forest-update-observer",
+   "api": null,
+   "behaviour": "Source and item updates are described as: `full, <version>` for a full update; `empty, <version>` for an empty one; for an incremental forest update `incremental, <version>, changes: <n> [<changes joined by ', '>]`; for an incremental item update `incremental, <from version> => <version>, items: <n> [<item identities in simplified form joined by ', '>]`; any other kind is its text abbreviated to 100 characters. An absent update gives no detail line.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver#describeSourceUpdate",
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver#describeItemsUpdate",
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver#describeUpdate"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-update-observer/forest-change-codes",
+   "module": "forest-update-observer",
+   "api": null,
+   "behaviour": "Each forest change is written compactly: an add as `a.<rows>.<under>.<after>`, a move as `m.<rows>.<under>.<after>`, a remove as `r.<rows>`, a reorder as `o.<under>.<children rows>`. A row list of up to 20 rows is `[r1,r2,...]` (comma, no spaces); a longer one is the row count followed by the first 20 rows and `...`, e.g. `25[1,2,...,20...]`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver$ForestChangeDescriber#visit",
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver$ForestChangeDescriber#appendRows"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-update-observer/trigger-generators",
+   "module": "forest-update-observer",
+   "api": null,
+   "behaviour": "The trigger line appears only when the item-change-filter generator list or the update-checker generator list is non-empty. Each list is printed as `[a, b]`; ids -1, -2 and -3 are printed as `structure`, `generators` and `adjustments`, any other id as its number; a null or empty list is printed `none`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver#describeGeneratorIds",
+    "com.almworks.jira.structure.perfstats.observers.ForestUpdateObserver$UpdateHandle#getTriggerInfo"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-stats-container/tree-shape",
+   "module": "forest-stats-container",
+   "api": null,
+   "behaviour": "For the audit log the component reports the forest caches the forest service hands it (a general cache and a pinned cache): a `NodeInfo` branch `Forest caches` with children `General cache` and `Pinned cache`, each listing one branch per forest spec currently cached, titled with the spec's text. A cache with no entries gives no child; when both are empty, or before the caches were handed over, the result is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.ForestsStatsContainer#getForestsInfo",
+    "com.almworks.jira.structure.perfstats.observers.ForestsStatsContainer#getNodes",
+    "com.almworks.jira.structure.perfstats.observers.ForestsStatsContainer#setCaches"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-stats-container/per-forest-statistics",
+   "module": "forest-stats-container",
+   "api": null,
+   "behaviour": "For each cached forest whose current version can be read, its branch has five leaves in this order: `version: <data version>`, `count of rows: <rows>`, `unique items count: <distinct item identities>`, `types: <count per item type>` (item type keys with the plugin-key prefix `com.almworks.jira.structure:` removed, e.g. `issue`, `folder`) and `counts on depths: <number of rows at depth 0, 1, 2, ...>` (the depth list text bounded to 200 entries). When the forest cannot be read (loading fails or the cached source is not a transformed forest) the branch has the single leaf `no information`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.ForestsStatsContainer#getForestInfo",
+    "com.almworks.jira.structure.perfstats.observers.ForestsStatsContainer#getNodes",
+    "com.almworks.jira.structure.perfstats.observers.ForestsStatsContainer#getInfoLa"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-stats-container/statistics-reused-per-version",
+   "module": "forest-stats-container",
+   "api": null,
+   "behaviour": "The statistics of a forest are computed by scanning it once per (forest spec, data version) and reused while the version stays the same; a new version is scanned again. Reading the statistics does not take the forest's locks and does not change the forest caches.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.observers.ForestsStatsContainer#getInfoLa",
+    "com.almworks.jira.structure.perfstats.observers.ForestsStatsContainer$VersionedForestWrapper#equals",
+    "com.almworks.jira.structure.perfstats.observers.ForestsStatsContainer#accessForest"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-update-statistics-collector/tracks-largest-forest",
+   "module": "forest-update-statistics-collector",
+   "api": null,
+   "behaviour": "On every forest update reported to it, the component remembers the largest forest size (row count) updated so far together with the time it was seen; an update at least as large as the remembered one replaces it (refreshing the time), a smaller one is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ForestUpdateStatisticsCollector#onForestUpdate"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-update-statistics-collector/statistic-source",
+   "module": "forest-update-statistics-collector",
+   "api": null,
+   "behaviour": "At start it registers a statistic source with `statistics-manager`. Each time a report is assembled it contributes `maxForestSize` = the remembered size (as a decimal number) and `maxForestSize.<bin>` = 1.0, where bin is the first of 1000, 2000, 4000, 8000, 10000, 20000, 30000, 50000, 100000, 200000, 500000, 1000000 that is >= the size, or `inf` above 1000000 (size 0 gives `1000`). On Jira Data Center the bin key is `maxForestSize.dc.<bin>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ForestUpdateStatisticsCollector#startComponent",
+    "com.almworks.jira.structure.forest.ForestUpdateStatisticsCollector",
+    "com.almworks.jira.structure.statistics.BinUtil#findBin"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/forest-update-statistics-collector/period-expiry",
+   "module": "forest-update-statistics-collector",
+   "api": null,
+   "behaviour": "The remembered maximum expires once more than the statistics send interval has passed since it was seen (dark feature `almworks.statistics.dev.requestInterval`, default 86,400,000 ms, read at construction). The report that finds it expired still contributes the expired size and only then resets the maximum to 0, so the stale value is reported once more (as the original does). Before any update the remembered size is 0.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ForestUpdateStatisticsCollector#startComponent",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#getSendJobInterval"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/jira-configuration-cache/default-locale",
+   "module": "jira-configuration-cache",
+   "api": null,
+   "behaviour": "Gives Jira's default locale (as Jira's application properties define it), never null. The answer is computed on first use and reused by all callers until the cache is cleared.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.JiraConfigurationCache#getJiraDefaultLocale"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/jira-configuration-cache/navigable-field-ids",
+   "module": "jira-configuration-cache",
+   "api": null,
+   "behaviour": "Gives the set of ids of all navigable fields available in Jira (`FieldManager.getAllAvailableNavigableFields()`), computed on first use and reused until cleared. When Jira throws `FieldException` the answer is an empty set and nothing is cached, so the next call asks Jira again.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.JiraConfigurationCache#getAvailableFieldIds"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/jira-configuration-cache/clearing",
+   "module": "jira-configuration-cache",
+   "api": null,
+   "behaviour": "Both cached values are dropped: when the component is created and when it starts; every 300,000 ms (5 minutes) by the plugin's `pinger`; on every Jira `GeneralConfigurationUpdatedEvent`; and whenever the plugin clears its caches (`CachingComponent.clearCaches`). Clearing caches for one user does nothing. The cache is shared JVM-wide, not per user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.JiraConfigurationCache#startComponent",
+    "com.almworks.jira.structure.util.JiraConfigurationCache#ping",
+    "com.almworks.jira.structure.util.JiraConfigurationCache#onConfigurationEvent",
+    "com.almworks.jira.structure.util.JiraConfigurationCache#clearCaches",
+    "com.almworks.jira.structure.util.JiraConfigurationCache#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/jira-configuration-cache/lifecycle",
+   "module": "jira-configuration-cache",
+   "api": null,
+   "behaviour": "At start the component registers for Jira events and with the pinger (5-minute period); at stop it stops pinging and unregisters from the event publisher.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.JiraConfigurationCache#startComponent",
+    "com.almworks.jira.structure.util.JiraConfigurationCache#stopComponent"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-performance-tracker/broken-attribute-record",
+   "module": "attribute-performance-tracker",
+   "api": null,
+   "behaviour": "When the attribute system reports that an attribute failed to load, the component keeps one record per attribute spec: the number of failures, the local time of the first and of the last failure, and from the last failure only the user key (null for anonymous), forest spec, row id and item identity (each may be null). Each report also logs a warning (rate-limited per attribute) naming the attribute, the failure count, row, item and forest, with the exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#reportBrokenAttribute",
+    "com.almworks.jira.structure.attribute.statistics.AttributeBreakageStats#report"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-performance-tracker/broken-attributes-listing-and-clear",
+   "module": "attribute-performance-tracker",
+   "api": null,
+   "behaviour": "Listing broken attributes returns a consistent snapshot of every record (one per attribute that failed since the last clear), in no defined order. Clearing removes all broken-attribute records only; slow requests and performance statistics are kept. Records live in memory only and are lost on restart.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#getBrokenAttributes",
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#clear",
+    "com.almworks.jira.structure.attribute.statistics.AttributeBreakageStats#takeSnapshot"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-performance-tracker/slow-requests",
+   "module": "attribute-performance-tracker",
+   "api": null,
+   "behaviour": "Every attribute-system request is timed. A request whose total time is at least 500 ms (dark feature `structure.attribute.performance.slowRequests.threshold`) is kept in a slow-request log of at most 400 entries (dark feature `structure.attribute.performance.slowRequests.count`), oldest evicted first, listed oldest first. Each entry has the name `<request name>; <forest spec>` (or `<request name>; by ItemForest` when the request had no forest spec), the start time, the total time in ms, the request's counters, and its nested timed steps: the 5 slowest by total time, slowest first, each with its own 5 slowest nested steps.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#attributeSystemRequest",
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#handleRequestTimeout",
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#buildRequestInfo"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-performance-tracker/last-cache-cleanup",
+   "module": "attribute-performance-tracker",
+   "api": null,
+   "behaviour": "The most recent run of the value-cache cleaner (see `value-cache-cleaner`) is kept as the last cache-cleanup record, named `cacheCleanup`, with its start time, total time and counters (`removed`, `retained`, `totalSizeAfterClean`). Before the first cleanup finished there is no record (null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#cacheCleanup",
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#saveCacheCleanup",
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#getLastCacheCleanupInfo"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-performance-tracker/aggregated-statistics",
+   "module": "attribute-performance-tracker",
+   "api": null,
+   "behaviour": "Per named timed operation (attribute-system request names, each attribute spec's loading, and `cacheCleanup`) the component aggregates total time, timed sub-parts and counters (min, max, average and number of events), both for the current window and since start. Event counters for the attribute subsystem's 34 named events (cache clears, request kinds, update kinds, loader failures, cancelled or restarted loads, cached-value reuse and so on) are aggregated the same way; `CONSISTENT_LOAD_SUCCESS` is further split into bins by the counted value: <=1, <=2, <=3, <=4, <=5, <=10 and above 10 (`inf`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.perf.UniversalPerformanceTrackerImpl#count",
+    "com.almworks.jira.structure.statistics.perf.UniversalPerformanceTrackerImpl#frame",
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceEvent"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-performance-tracker/periodic-snapshots",
+   "module": "attribute-performance-tracker",
+   "api": null,
+   "behaviour": "Every 5 minutes (via the plugin's `pinger`, registered at start and removed at stop) the component takes a snapshot of all aggregated statistics with its local time and then resets the window values (since-start totals are kept). The last 12 snapshots are kept. Asking for the snapshots returns those 12 (oldest first) followed by one extra live snapshot of the current window taken without resetting it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#startComponent",
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceTrackerImpl#stopComponent",
+    "com.almworks.jira.structure.statistics.perf.UniversalPerformanceTrackerImpl#ping",
+    "com.almworks.jira.structure.statistics.perf.UniversalPerformanceTrackerImpl#getLastSnapshots",
+    "com.almworks.jira.structure.statistics.perf.UniversalPerformanceTrackerImpl#buildSnapshot"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-performance-tracker/usage-statistics",
+   "module": "attribute-performance-tracker",
+   "api": null,
+   "behaviour": "Each periodic snapshot also feeds usage statistics: for every attribute event (and bin) that had at least one occurrence in the closing window it adds the window's occurrence count to the total statistic `av4.<EVENT_NAME>` (or `av4.<EVENT_NAME>.<bin>` for a binned event, e.g. `av4.CONSISTENT_LOAD_SUCCESS.inf`) through `statistics-manager`'s asynchronous total counts. The live snapshot taken for display sends nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.perf.UniversalPerformanceTrackerImpl#buildSnapshot",
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceEvent#getAppsupportPrefix"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-performance-tracker/ratios",
+   "module": "attribute-performance-tracker",
+   "api": null,
+   "behaviour": "Boolean ratios can be counted globally (by prefix, true-name and false-name, keyed `<prefix><true>/<false>`) and per timed operation; a window shows the true count, false count, total and the true share. A window with no counted values shows no ratio.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.perf.UniversalPerformanceTrackerImpl#globalRatio",
+    "com.almworks.jira.structure.statistics.perf.TrackerFrameImpl#ratio",
+    "com.almworks.jira.structure.statistics.perf.RatioCounter#buildKey"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-performance-tracker/frame-assertions",
+   "module": "attribute-performance-tracker",
+   "api": null,
+   "behaviour": "Reading a timed operation's name, start, times, counters or nested steps before it is closed, or adding totals or ratios after it is closed, is checked only with `assert`: with assertions enabled (as the tests run) it throws `AssertionError`; with them disabled the call proceeds (reads give the values so far, counters may be null before close). Closing twice has no further effect.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.perf.TrackerFrameImpl#getName",
+    "com.almworks.jira.structure.statistics.perf.TrackerFrameImpl#addTotal",
+    "com.almworks.jira.structure.statistics.perf.TrackerFrameImpl#close"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-detailed-log-provider/dump-parts",
+   "module": "attribute-detailed-log-provider",
+   "api": null,
+   "behaviour": "A dump has four parts: historical statistics (a list), total statistics, broken attributes (a list) and cache info. It is used by the admin attribute troubleshooting page. Asked without cache info, the cache-info part is null and the value caches are not scanned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#dump"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-detailed-log-provider/historical-and-total",
+   "module": "attribute-detailed-log-provider",
+   "api": null,
+   "behaviour": "Historical statistics have one `NodeInfo` per performance snapshot of `attribute-performance-tracker` (its last 12 plus the live one), newest first, titled with the snapshot's local time `yyyy-MM-dd HH:mm:ss,SSS` and built from window values. Total statistics is one node titled `Total` built from the since-start values of the last (live) snapshot. Each such node has the children `Counters`, `Ratios` and `Roots`, an empty group being left out. With no snapshots both parts are null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#dump",
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#buildWindow"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-detailed-log-provider/counter-and-ratio-lines",
+   "module": "attribute-detailed-log-provider",
+   "api": null,
+   "behaviour": "A counter line is `<EVENT_NAME>[.<bin>]; <avg> (min: <min>; max: <max>); events: <count>` with the three numbers to 2 decimals (JVM default locale); a ratio line is `<key>; <true share to 2 decimals>; <true name>: <n>; <false name>: <n>; total: <n>`. Counters or ratios with no events in the chosen window or total are left out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#buildCounters",
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#buildStatString",
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#buildLeaf"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-detailed-log-provider/roots",
+   "module": "attribute-detailed-log-provider",
+   "api": null,
+   "behaviour": "Under `Roots`, each timed operation gives a branch titled with its name whose first child is a time node `total time; <avg> (min: ...; max: ...); events: <n>` (or `total time; unknown` when only sub-parts have data) carrying `norm by <key>` lines and nested part times recursively, followed by its counter lines. Operations with no data are left out. Roots are ordered: those without a `calculate` part (or without its time) first, then by the average time of their `calculate` part, slowest first.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#buildRoots",
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#getRootsComparator",
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#buildTimeNodeInfo"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-detailed-log-provider/broken-attribute-lines",
+   "module": "attribute-detailed-log-provider",
+   "api": null,
+   "behaviour": "Broken attributes give one leaf per attribute record: `<attribute spec>; count: <n>; first: <time>; last: <time>; lastUser: <user key>; lastForest: <forest spec>; lastRow: <row id>; lastItem: <item>`, times as local `yyyy-MM-dd HH:mm:ss,SSS`, absent values printed `null`. An empty list when nothing broke.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#buildBrokenAttribute"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/attribute-detailed-log-provider/cache-info",
+   "module": "attribute-detailed-log-provider",
+   "api": null,
+   "behaviour": "Cache info scans every cached attribute value of all value caches (without removing any) and gives a branch `Cache info` with: `Total size: <bytes>` (estimated size of all values), `Size by attribute` with one leaf `<bytes> bytes (<count> values) : <attribute spec>` per attribute, largest first, and `Unknown value classes` with one branch per value class whose size could not be estimated, listing the attribute specs that hold such values. When the attribute system has no value cache yet, cache info is null. A failure while scanning is thrown as `StructureRuntimeException`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributeDetailedLogProvider#dumpCacheInfo",
+    "com.almworks.jira.structure.attribute.ValueCacheSizeCounter#count"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/value-cache-cleaner/worker-thread",
+   "module": "value-cache-cleaner",
+   "api": null,
+   "behaviour": "At start the component starts one daemon background thread (its name ends in `#<n>`, n counting thread starts from 1) and subscribes to cached-value notifications; at stop it interrupts the thread and unsubscribes. If the thread ends abnormally while the component is active it is restarted after a 1-second pause.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#startComponent",
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#stopComponent",
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#startJobThread",
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#doJob"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/value-cache-cleaner/schedule",
+   "module": "value-cache-cleaner",
+   "api": null,
+   "behaviour": "A cleanup runs every 5 minutes (dark feature `structure.attribute.cleanup.interval`, ms), and also early whenever a cached value of a newer generation than any seen before appears (a new value or a generation change). Two cleanups are never closer than 15 seconds (dark feature `structure.attribute.cleanup.minInterval`, ms), measured from the end of one wait to the next cleanup; the first cleanup runs about 15 s after start.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#waitNextClean",
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#handleSeenGeneration",
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#wakeUp"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/value-cache-cleaner/old-generations-removed",
+   "module": "value-cache-cleaner",
+   "api": null,
+   "behaviour": "Each cleanup runs as an attribute process covering everything and removes every cached attribute value whose generation is at most min(current generation - 10, last unused generation) (10 from dark feature `structure.attribute.cleanup.generationsLimit`). Values in use (newer than the last unused generation) are never removed. A value cache left with no values is removed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#clean",
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#cleanCaches"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/value-cache-cleaner/size-limit",
+   "module": "value-cache-cleaner",
+   "api": null,
+   "behaviour": "If more than 10,000,000 values remain after that (dark feature `structure.attribute.cleanup.valuesInCacheLimit`), it also removes the oldest whole generations, oldest first, the fewest needed to bring the remaining count to at most the limit, but never a generation newer than the last unused one; this second pass is skipped when the component is stopping.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#clean",
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#getLastGenerationToClean"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/value-cache-cleaner/reports-to-tracker",
+   "module": "value-cache-cleaner",
+   "api": null,
+   "behaviour": "Each cleanup is recorded with `attribute-performance-tracker` as the `cacheCleanup` operation with totals `removed` (values removed in both passes), `retained` (values left) and `totalSizeAfterClean` (estimated bytes left); when there is no value cache yet all three are 0. A cleanup interrupted by a cancelled attribute process or by plugin stop is logged at info level and leaves the cache as it is at that moment; the recording is still closed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner#clean",
+    "com.almworks.jira.structure.attribute.ValueCacheCleaner$CleanInfo"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-meta-maker/feature-switch",
+   "module": "cfd-meta-maker",
+   "api": null,
+   "behaviour": "The predictive CFD feature is on unless the dark feature `structure.pcfd.enabled` (a Jira application property or JVM system property) is `false`; it is read on every call, so changing it takes effect without restart. The status answer (`GET /rest/cfd/1.0/gadget/status`) is `{\"enabled\": <that value>}` for any caller, anonymous included.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.MetaMaker#getStatus",
+    "com.almworks.cfd.util.MiscKt#isCfdEnabled"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-meta-maker/disabled-meta",
+   "module": "cfd-meta-maker",
+   "api": null,
+   "behaviour": "When the feature is off, the meta answer carries only `errors` with one general (non-field) message, the localized `s.cfd.error.notEnabled` text in the current user's locale; no user and no structures are filled and nothing else is checked. The GET validate call then answers 400 with those errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.MetaMaker#getMeta",
+    "com.almworks.cfd.rest.MetaMaker#validate"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-meta-maker/user-and-structures",
+   "module": "cfd-meta-maker",
+   "api": null,
+   "behaviour": "When enabled, the answer always carries the current user as built for gadgets by `rest-user-builder` (from `StructurePluginHelper.getUser()`). Each of the scope and training structures is looked up with `structure-manager`'s `getStructure(id, PermissionLevel.VIEW)` for the current user: on success it is returned as a structure summary; on `StructureException` (null id, missing structure, not viewable) the summary is absent and a field error is added under `scopeStructureId` (`s.cfd.error.noScopeStructure`) or `trainingStructureId` (`s.cfd.error.noTrainingStructure`), with the exception's localized message as parameter {0}.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.MetaMaker#getMeta"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-meta-maker/training-period-rule",
+   "module": "cfd-meta-maker",
+   "api": null,
+   "behaviour": "`trainingPeriod` must be one of -1, 7, 14, 21, 28, 42, 56; any other value, and an absent value, gives a field error `trainingPeriod` (`s.cfd.error.invalidTrainingPeriod`). (Only the simulation treats an absent period as all history.)",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.MetaMaker#getMeta",
+    "com.almworks.cfd.rest.MetaMaker$Companion"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-meta-maker/attribute-rules",
+   "module": "cfd-meta-maker",
+   "api": null,
+   "behaviour": "An absent `teamAttributeSpec` gives field error `teamAttributeSpec` (`s.cfd.error.noTeamAttribute`); an absent `whenCompletedAttributeSpec` gives `whenCompletedAttributeSpec` (`s.cfd.error.noCompletionAttribute`). The appeared and work-started specs are not checked, nor is the content of a present spec (a spec object with no id passes). In the GET form each spec parameter is JSON text: absent, empty or unparseable text (a warning is logged) counts as absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.MetaMaker#getMeta",
+    "com.almworks.cfd.rest.MetaMaker#validate",
+    "com.almworks.cfd.rest.MetaMaker#fromJson"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-meta-maker/target-date-and-threshold",
+   "module": "cfd-meta-maker",
+   "api": null,
+   "behaviour": "A non-null `targetDate` that is not an ISO `YYYY-MM-DD` date gives field error `targetDate` (`s.cfd.error.targetDateFormat`); an empty or blank string is accepted. A non-null `ignoreThreshold` below 0 or above 100 gives field error `ignoreThreshold` (`s.cfd.error.ignoreThreshold`); 0 and 100 are accepted. `adjustments` are never checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.MetaMaker#getMeta",
+    "com.almworks.cfd.rest.CfdFormatsKt#parseDate"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-meta-maker/issue-type-rules",
+   "module": "cfd-meta-maker",
+   "api": null,
+   "behaviour": "For each of `estimationIssueTypes` and `scopeIssueTypes`: a null or empty list gives one field error under that name with the message of key `s.cfd.error.noTypes.+<field name>` (literally, e.g. `s.cfd.error.noTypes.+scopeIssueTypes`); otherwise every id not among Jira's issue type ids (`ConstantsManager.getAllIssueTypeIds()`, null treated as none) gives its own field error `s.cfd.error.unknownType` with the id as {0}. If any id is in both lists, one more field error goes under `scopeIssueTypes` (`s.cfd.error.intersectingTypes`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.MetaMaker#checkIssueTypes",
+    "com.almworks.cfd.rest.MetaMaker#hasIntersection"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-meta-maker/error-order-and-status",
+   "module": "cfd-meta-maker",
+   "api": null,
+   "behaviour": "Field errors are listed in check order: scope structure, training structure, training period, team attribute, completion attribute, target date, ignore threshold, estimation types, scope types, overlap. `errors` is absent when nothing failed. POST meta always answers 200; GET validate answers 200 with an empty object when there is no error, else 400 with the error collection; both validate replies carry `Cache-Control: no-cache, no-store`. Messages are in the current user's locale.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.MetaMaker#getMeta",
+    "com.almworks.cfd.rest.MetaMaker#addError",
+    "com.almworks.cfd.rest.javax.CfdGadgetResource#validate",
+    "com.almworks.cfd.rest.javax.AbstractCfdResource"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-issue-loader/reads-latest-forest",
+   "module": "cfd-issue-loader",
+   "api": null,
+   "behaviour": "To read a structure the component takes the latest forest of `ForestSpec.structure(id)` (secured for the current user) from the forest service and loads, for all its rows through the attribute service, the issue type id, issue key, status and the configured team, appeared, work-started and completed attributes. Errors of those services propagate unchanged.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#loadIssues"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-issue-loader/classifies-by-issue-type",
+   "module": "cfd-issue-loader",
+   "api": null,
+   "behaviour": "Among the issues in the forest, those of a configured estimation (container) issue type are epics and those of a configured scope issue type are stories, as Jira's issue search answers for the current user (issues it cannot see are neither). Non-issue rows and issues of other types are ignored but still traversed. If the search fails the component throws `StructureRuntimeException` with message `cannot run Lucene searches`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#buildHierarchy",
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#createIssueTypeIdsQuery",
+    "com.almworks.structure.commons.agile.AgileCommonUtil#visitForest"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-issue-loader/story-epic-attribution",
+   "module": "cfd-issue-loader",
+   "api": null,
+   "behaviour": "A story belongs to the nearest epic row above it in the forest (at any depth, through non-epic rows); a story with no epic above it has no epic. An issue that appears in several rows counts as one story, at its first row in forest order. Every epic row gives an epic, also when it has no stories.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#buildHierarchy",
+    "com.almworks.structure.commons.agile.AgileCommonUtil#visitForest"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-issue-loader/outer-epic-kept-empty",
+   "module": "cfd-issue-loader",
+   "api": null,
+   "behaviour": "An epic whose only epics-below are other epics (no story directly attributed to it) is still reported as an epic with zero stories; its nested epics' stories go to the nested epics (as the original does: it means to drop such outer epics but compares row ids with issue ids).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#buildHierarchy"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-issue-loader/item-fields",
+   "module": "cfd-issue-loader",
+   "api": null,
+   "behaviour": "Each epic and story carries its issue key (`?row:<row id>?` when no key value), its team (the team attribute's value as text; `No Team` when the value is absent) and its state from the status category: key `indeterminate` gives in-progress, `done` gives done, anything else (including no status) gives to-do. A story's team is its own value, not its epic's.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#getIssueKey",
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#getTeamId",
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#getState"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-issue-loader/date-normalisation",
+   "module": "cfd-issue-loader",
+   "api": null,
+   "behaviour": "A story's three times (epoch ms from the appeared, work-started and completed attributes) are normalised by state. Let A = appeared, else started, else completed. To-do: only A is kept. In progress: S = started, else appeared, else completed; A is dropped when S <= A; no completion time. Done: C = completed, else started, else appeared; A is dropped when C <= A; started is kept only when it is after the (kept) A and before C. A story whose three times are all absent is left out entirely.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.DataNormalizationKt#normalizeDates",
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#getStories"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-distribution/geometric",
+   "module": "cfd-distribution",
+   "api": null,
+   "behaviour": "Given a mean m (the team's average seconds between completions, after adjustment), the component returns a geometric integer distribution with success probability p = min(1/m, 0.1) (Apache Commons Math `GeometricDistribution`: the number of failures before the first success, values >= 0, P(k) = (1-p)^k p, mean (1-p)/p). Each sample is read as a number of seconds for one story.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.GeometricDistributionCreator#create",
+    "com.almworks.cfd.service.ThroughputModelKt"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-distribution/unseeded",
+   "module": "cfd-distribution",
+   "api": null,
+   "behaviour": "The distribution draws from its own new random generator seeded from the clock (Commons Math's default), so results are not reproducible and no seed is accepted from the request.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.GeometricDistributionCreator#create"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/scope-and-teams",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "The delivery scope is the scope structure read by `cfd-issue-loader`: its epics grouped by state, all its stories, and its teams = the sorted set of every epic's and story's team.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.TeamCompletionServiceImpl#loadDeliveryScope",
+    "com.almworks.cfd.service.TeamCompletionServiceImpl#getDeliveryHierarchy"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/average-stories-per-epic",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "From the training structure (read the same way) it computes, per team, the average number of stories per epic over all that team's training epics in any state, empty epics included, rounded half up to an integer. A team with no training epic has no average.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.AverageScopeModel$Companion#averagesFromHistory",
+    "com.almworks.cfd.service.TeamCompletionServiceImpl#createSimulator"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/throughput-intervals",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "Throughput per team is learned from the training stories of that team that have a completion time, sorted by completion time: the intervals between consecutive completions (ms). Fewer than 2 completed stories give no intervals. With a training period of N > 0 days and at least 3 completed stories, only stories completed at or after the cutoff (start of the day, in the caller's time zone, N days before now) are used, plus the one completed just before the first of them; when none is at or after the cutoff there are no intervals. -1, 0 or no period uses all history.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.FinishDateDiffThroughputModelFactory#getIntervals",
+    "com.almworks.cfd.service.FinishDateDiffThroughputModelFactory#filterStoriesForSpecificNumberOfTrainingDays"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/throughput-outliers-and-average",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "Intervals longer than mean + 3 x standard deviation (bias-corrected sample deviation around the mean) are dropped when that deviation is non-zero; the team's throughput value is then the mean of the remaining intervals in seconds. No intervals, or a mean of exactly 0, means no throughput (the team cannot be forecast).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.FinishDateDiffThroughputModelFactory#create",
+    "com.almworks.cfd.service.FinishDateDiffThroughputModelFactory#getThroughput",
+    "com.almworks.cfd.service.ThroughputModelKt#getAverageSeconds"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/throughput-adjustment",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "A team adjustment `throughput` of t percent (non-zero) divides the average interval by (1 + t/100), i.e. multiplies speed by (1 + t/100); the unadjusted value is kept as the raw throughput. The adjusted interval is the mean handed to `cfd-distribution` (one distribution per team per run).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.FinishDateDiffThroughputModelFactory#getThroughput",
+    "com.almworks.cfd.service.FinishDateDiffThroughputModelFactory#createDistribution",
+    "com.almworks.cfd.service.FinishDateDiffThroughputModelFactory$create$1#getDistribution"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/scope-stories",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "Stories counted for a team are: all stories of in-progress epics; the not-completed stories of done epics; all stories of to-do epics; all stories with no epic; plus predicted stories. Only the not-completed ones are simulated: existing stories = not-completed counted stories minus predicted ones.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.AverageScopeModel#getStories",
+    "com.almworks.cfd.service.CompletionSimulator#simulateCompletion"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/predicted-stories",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "Predicted (not yet created) stories are generated only for to-do epics: each to-do epic of a team is short of max(0, team average - its real story count) stories (0 when the team has no average); the raw prediction is the sum. A team adjustment `predictedStories` of q percent (non-zero) makes it max(0, trunc(raw x (1 + q/100))). The adjusted number is spread over the team's to-do epics in order, each taking at most its shortfall; any excess goes to no epic. Generated stories appear at the simulation time.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.AverageScopeModel#getStories",
+    "com.almworks.cfd.service.AverageScopeModel$Companion#adjustPredictedStories",
+    "com.almworks.cfd.service.AverageScopeModel#getNumberOfGeneratedStories",
+    "com.almworks.cfd.service.StoryGenerator#generate"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/ignore-threshold",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "With ignore threshold T percent, limit = floor(sum over teams of (existing + predicted) x T / 100). When limit > 0, a team whose existing + predicted count is at most limit is ignored: not simulated, with no throughput. A team in the scope with no counted stories and no to-do epics is reported with zero counts and is also marked ignored whenever limit > 0. T = 0 or absent ignores nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.CompletionSimulator#simulateCompletion"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/monte-carlo",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "A forecastable team with n = existing + predicted stories is simulated `simulations` times; each run samples n per-story durations (seconds) from the team's distribution and sums them. Runs are sorted by total; the run at index simulations/2 (the median) gives the per-story completion intervals used for the chart, and the deviation is the median (index simulations/2) of the absolute differences between each run's total and the median total, in seconds. n = 0 gives no intervals and deviation 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.TeamPerStoryCompletionSimulator#simulate",
+    "com.almworks.cfd.service.CompletionSimulator#simulateCompletion"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/simulation-count-assertion",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "The number of runs must exceed 1, checked only with `assert`: with assertions enabled (as the tests run) 1 or fewer runs (when n > 0) throws `AssertionError`, which is not caught; with them disabled a single run is used as the median with deviation 0, and 0 or negative runs fail that team's simulation (caught: the team is reported as not forecastable, the failure is logged as a warning).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.service.TeamPerStoryCompletionSimulator#simulate",
+    "com.almworks.cfd.service.CompletionSimulator#simulateCompletion"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/team-result",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "Per team the result carries: existing, predicted and raw predicted counts, both adjustments (0 when none), throughput and raw throughput, the completion intervals and deviation when simulated, an error flag (true when there is no throughput or the simulation failed) and the ignore flag.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.CompletionSimulator#simulateCompletion",
+    "com.almworks.cfd.service.TeamSimulationResult"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/trace",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "While tracing is on (see `cfd-simulator`) the component records its inputs and intermediate values in the calculation trace: the teams, the training data from the training structure (`Training Data From Structure [<id>]`), training epic and story counts, average stories per epic (and `!!! Teams without average stories per epic: ...`), throughput intervals before and after filtering, averages, generated stories per epic, and each team's simulation. Tracing never changes the results.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.service.TeamCompletionServiceImpl#createSimulator",
+    "com.almworks.cfd.service.TeamCompletionServiceImpl#loadDeliveryScope",
+    "com.almworks.cfd.service.TracingKt"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-completion-service/extreme-throughput-adjustment",
+   "module": "cfd-completion-service",
+   "api": null,
+   "behaviour": "A throughput adjustment of -100 percent or less makes the adjusted interval infinite or negative, so no valid distribution can be built; the resulting Commons Math range exception is not caught for that team and fails the whole simulation request (generic 500).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.service.FinishDateDiffThroughputModelFactory#getThroughput",
+    "com.almworks.cfd.service.CompletionSimulator#simulateCompletion",
+    "com.almworks.cfd.service.GeometricDistributionCreator#create"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/request-checks",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "Checks, in this order, before any work: feature off (`structure.pcfd.enabled` false) fails with an error that carries a 403 response and the localized `s.cfd.error.notEnabled` text; missing `scopeStructureId` (`scope structure not defined`), missing `trainingStructureId` (`training structure not defined`), missing `config` (`simulation configuration not defined`), missing `config.estimationIssueTypes` (message `no scope issue types`) and missing `config.scopeIssueTypes` (message `no estimation issue types`; the two messages are swapped, as the original does). None of these is translated by `rest-cfd`, so callers see the platform's generic error (normally 500).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.Simulator#simulateCFD"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/config-requirements",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "The hierarchy config then also needs all four attribute specs (team, appeared, work started, completed), each with an id and a standard value format, and non-empty estimation and scope issue type lists; otherwise `IllegalArgumentException` (`No team attribute specified`, `No 'when appeared' attribute specified`, `No 'when work started' attribute specified`, `No 'when completed' attribute specified`, `No estimation issue types specified`, `No scope issue types specified`, checked in that order) fails the request with the generic error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.StructureAgileHierarchyConfig$Companion#fromRest",
+    "com.almworks.cfd.util.MiscKt#toModel"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/parameters",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "Simulation parameters: now = the current instant; time zone = the caller's Jira time zone (`TimeZoneManager.getTimeZoneforUser`, anonymous allowed); runs = `simulations` or 50 when absent; ignore threshold = `ignoreThreshold` or 0; adjustments = the `adjustments` map with each missing `throughput` or `predictedStories` read as 0. Training days = `config.trainingPeriod`. Nothing is stored: the call is read-only.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.Simulator#simulateCFD",
+    "com.almworks.cfd.rest.Simulator$simulateCFD$1$simulationParams$1",
+    "com.almworks.cfd.service.TeamAdjustment$Companion#from"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/target-date",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "`deliveryTargetDate` is `config.targetDate` (ISO `YYYY-MM-DD`) at 09:00 in the caller's time zone, as epoch ms; absent or blank gives no target date; any other text fails the request (`cannot parse target date <text>`, generic error).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.CfdFormatsKt#parseDate",
+    "com.almworks.cfd.rest.Simulator#simulateCFD"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/past-flow",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "The past flow of each team is built from all of its scope stories (real ones only): a story contributes a done event at its completion time, a to-do event at its appeared time if that is before completion (or it is not completed), and an in-progress event at its start time if that is after appeared and before completion; times of 0 or less are ignored. Each event moves the story from its previous state (in time order) to the new one. Teams with no stories get an empty flow. Not-completed stories of ignored teams are left out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.FixedStoryBasedFlowKt#calculateTeamFlows",
+    "com.almworks.cfd.service.FixedStoryBasedFlowKt#storyFlow",
+    "com.almworks.cfd.service.DiffFlowModelBuilder#addOneItem"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/simulated-flow",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "For each simulated team the future is appended to its past flow: if it has p > 0 predicted stories, a to-do change of 0 at now and +p at now + 1 minute. Then, walking the median run's per-story intervals from now (t += interval), each completion moves one story to done at t, taking it from to-do while the to-do count at the end of the past plus p is not used up, then from in-progress. A completion falling on a Saturday or Sunday in the caller's time zone is placed at the following Monday 09:00; the running time t itself is not shifted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.SimulatedFlowKt#addSimulatedFlow",
+    "com.almworks.cfd.service.SimulatedFlowKt#skipWeekends"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/simulated-flow-assertions",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "Two consistency checks run only with `assert`: the team's in-progress + to-do count at the end of its past flow must equal its existing stories, and the number of intervals must equal existing + predicted. With assertions enabled (as the tests run) a mismatch throws `AssertionError` (generic error reply); with them disabled the flow is built anyway.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.service.SimulatedFlowKt#addSimulatedFlow"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/team-charts-selection",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "`teamCharts` and `teamStats` hold the teams of the scope that are not ignored and whose flow has at least one point or that have a non-zero adjustment. A single ignored team is left out of both maps. When two or more teams are ignored, they are replaced by one entry `Other`, whose stats sum their existing, predicted and raw predicted counts, with no throughput, no adjustment, `ignore` true; its chart has no time points, because the ignored teams' flows were already removed before merging (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.rest.Simulator#simulateCFD",
+    "com.almworks.cfd.rest.SimulatorKt#combinedFlows",
+    "com.almworks.cfd.rest.SimulatorKt#combineAndIgnoreResults"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/chart-shape",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "A chart (`cfd-chart-series`) lists every distinct event time of the flow ascending in `timestamps`, the same instants as `YYYY-MM-DD` in the caller's time zone in `dateNames`, and per state (`todo`, `inProgress`, `done`) the cumulative count at each time point. A state with no event at all is absent from `series`; an empty flow gives empty lists and an empty map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.SimulatorKt#toRestCFD",
+    "com.almworks.cfd.rest.SimulatorKt#seriesName",
+    "com.almworks.cfd.service.FlowModelKt#toFlowSeries"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/overall-chart-and-cutoff",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "`overallChart` is the sum of all charted team flows (including `Other`). Its long lead is cut: when the final total of items is at least 10, find the first time point where the items present (all states) reach 10 percent of that total; if that is not the first point, the chart starts 14 days before it, dropping earlier points and, when that start is not itself a point, adding a first point there with the counts at that moment. Each team chart is cut at the overall chart's first time point the same way.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.FlowModelCutoffKt#cutoffLongLead",
+    "com.almworks.cfd.service.FlowModelCutoffKt#cutoffLongLeadBasedOnOverallSeries",
+    "com.almworks.cfd.service.FlowSeries#cutLead"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/team-stats-numbers",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "Per team: `totalStories` = existing + predicted; `predictedStories`, `predictedStoriesRaw`, `predictedStoriesAdjustment` and `throughputAdjustment` as computed; `throughput` and `throughputRaw` in items per week = 604800 / interval seconds, absent when the interval is absent or not above 1e-6; `ignore` from the threshold rule.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.Simulator#simulateCFD",
+    "com.almworks.cfd.service.ThroughputModelKt#getWeeklyThroughput"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/team-completion",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "A team's `completion.mean` is the last event time of its flow (past plus simulated) and `completion.deviation` is the simulated deviation in ms (seconds x 1000; 0 when not simulated); it is given when the team is already completed or its simulation had no error (and absent when the flow has no point). Otherwise `predictionProblem` is the localized `s.cfd.problem.insufficientData` text and there is no completion.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.Simulator#simulateCFD",
+    "com.almworks.cfd.rest.data.RestSimulatedDate#fromValues"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/team-completed-flag",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "`completed` is true when the team's (cut) chart, from the last time point at or before now (the first point when all are later) onward, has no to-do and no in-progress item and no further rise of done, and either done is above 0 at that point or some earlier point had any item; an empty chart is not completed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.FixedStoryBasedFlowKt#isCompletedAt"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/overall-completion",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "`completion` of the whole result is the completion of the team with the latest `completion.mean` among teams that have one (the first such team on ties); absent when no team has one.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.Simulator#simulateCFD"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/trace",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "Unless the dark feature `structure.cfd.disableTracing` is true, the reply's `trace` is a multi-line text log of this calculation (lines joined by `\\n`, nested sections indented by 4 spaces), starting with `running PCFD calculation on <date>`, `user: <user key or anonymous>` and `time zone: <zone id>`, then the adjustments (`No team adjustments` when none), the request parameters, the scope, training data, past and predictive flows and the charts. With tracing disabled `trace` is absent. The trace is collected per request thread and discarded afterwards.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.rest.Simulator#simulateCFD",
+    "com.almworks.cfd.util.CalculationTracerKt#withCalculationTracer",
+    "com.almworks.cfd.util.CalculationTracerKt#getCalculationTrace",
+    "com.almworks.cfd.service.TracingKt#dumpInputParameters"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/nondeterministic",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "Because the sampling is unseeded and runs in parallel, two identical requests can give different simulated time points, completions and deviations; the past part of the charts, the counts and the throughputs are deterministic.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.service.TeamPerStoryCompletionSimulator#simulate",
+    "com.almworks.cfd.service.GeometricDistributionCreator#create"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/cfd-simulator/no-permission-gate",
+   "module": "cfd-simulator",
+   "api": null,
+   "behaviour": "The simulation applies no access gate of its own (anonymous callers allowed, not behind the common gate); what it can read is limited only by the current user's view of the two structures' forests and of the issues in Jira's search. A structure the caller cannot read fails the request with the generic error.",
+   "confidence": "low",
+   "evidence": [
+    "com.almworks.cfd.rest.Simulator#simulateCFD",
+    "com.almworks.cfd.service.StructureAgileHierarchyLoader#loadIssues",
+    "com.almworks.cfd.rest.javax.SimulationResource#simulateCFD"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/license-manager/always-licensed",
+   "module": "license-manager",
+   "api": null,
+   "behaviour": "The component reports the plugin as licensed at all times, from the moment it exists: licensed yes, has a licence yes, the effective licence is valid and not expiring (never `LicenseData.DISABLED`, licence error `StructureLicenseError.NO_ERROR`), and the installed-licence error is `NO_ERROR`. It never reports an unlicensed, expired, blocked or read-only state (SPEC.md 1.1).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.license.StructureLicenseManagerImpl"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/license-manager/writable-check-never-fails",
+   "module": "license-manager",
+   "api": null,
+   "behaviour": "The plugin's \"is the licence writable\" check never throws: no operation anywhere is refused, restricted or made read-only on licence grounds (no `StructureErrors.LICENSE_PROBLEM` is ever raised by it).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.license.StructureLicenseManagerImpl"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/license-manager/no-licence-sources",
+   "module": "license-manager",
+   "api": null,
+   "behaviour": "It reads, validates and stores no licence data: it does not consult the Universal Plugin Manager's plugin licence, Jira's licence, certificates, blocked serials or the application properties `com.almworks.structure.license` and `com.almworks.structure.license.starttime`, and it contacts no server. Values left in those properties by the original have no effect and are left untouched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.license.StructureLicenseManagerImpl"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/license-manager/install-uninstall-noop",
+   "module": "license-manager",
+   "api": null,
+   "behaviour": "Installing a licence key (any text, with or without validation requested) and removing the installed licence store nothing, delete nothing, never fail with a licence error, and leave every licence answer unchanged (still licensed, valid, not expiring).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.license.StructureLicenseManagerImpl"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/app-support-connector/no-network",
+   "module": "app-support-connector",
+   "api": null,
+   "behaviour": "The module keeps its key and is present as a component, but it opens no network connection of any kind: it holds no vendor address, key or timeout setting and sends and receives nothing (SPEC.md 1.8). Anything in the plugin that would have used it sees the \"nothing sent / nothing known\" state.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.appsupport.AppSupportConnector"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/app-support-client/sends-nothing",
+   "module": "app-support-client",
+   "api": null,
+   "behaviour": "The module keeps its key but never reports licence or installation facts of the plugin or of any companion app to anyone: no request is made at start, periodically or on demand, in dev mode or not (SPEC.md 1.8).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.appsupport.AppSupportClient"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/app-support-client/never-blocks",
+   "module": "app-support-client",
+   "api": null,
+   "behaviour": "Since nothing is reported, no serial is ever marked blocked: the component writes no blocked-serial data (in particular it never changes `appSupport.blockedSerials` in `AO_8BAD1B_PROPERTY`), so `app-support-store` keeps answering not blocked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.appsupport.AppSupportClient",
+    "com.almworks.jira.structure.appsupport.AppSupportStore"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/certificate-manager/no-certificates",
+   "module": "certificate-manager",
+   "api": null,
+   "behaviour": "The module keeps its key but carries no behaviour: the replacement holds no vendor certificate and verifies no certificate or signed licence material, and nothing in the plugin depends on such a check (SPEC.md 1.1).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.license.CertificateManager"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/plugin-update-checker/never-update",
+   "module": "plugin-update-checker",
+   "api": null,
+   "behaviour": "Asked whether an update is available for any plugin key (the plugin's own, a companion app's, an unknown or an uninstalled one), it answers no (false), immediately and without contacting the Atlassian Marketplace or any other server; it throws nothing (SPEC.md 1.8). The `info-popup` \"update available\" flags it feeds are therefore always false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.PluginUpdateChecker#isUpdateAvailable"
+   ]
+  },
+  {
+   "key": "c7-perf-cfd-support/plugin-update-checker/cache-clear-noop",
+   "module": "plugin-update-checker",
+   "api": null,
+   "behaviour": "Clearing the plugin's caches (all users or one user) changes nothing about its answers; it keeps no state that a clear could affect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.PluginUpdateChecker#clearCaches",
+    "com.almworks.jira.structure.util.PluginUpdateChecker#clearUserCaches"
+   ]
+  }
+ ]
+}

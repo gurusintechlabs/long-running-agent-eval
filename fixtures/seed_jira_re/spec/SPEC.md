@@ -9,7 +9,7 @@ never how its code does it. Read `INVENTORY.md` first for what the plugin is and
   parameter names, JSON keys, table and column names, persisted strings.
 - **Part 2, the public Java API**, is in its own file, `API.md`: the types and signatures other plugins
   compile against. It is contract too.
-- **Part 3, behaviour**, is in `claims.jsonl`: one testable behaviour per line, by module.
+- **Part 3, behaviour**, is in `claims.jsonl`: one testable behaviour per line, by module or by public API type.
 - Everything not named here is your own design: class names, packages, internal structure, algorithms.
 - Where this file and `inventory.json` differ on a contract fact, this file wins; `CHANGES-*.md` files win
   over both.

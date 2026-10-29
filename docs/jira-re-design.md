@@ -345,6 +345,7 @@ Resolved 2026-10-28:
 - **identity:** the plugin key and bundle symbolic name are kept. The display name, vendor, version and icons
   are the implementer's own; the replacement never presents itself as the vendor's product (JS2).
 
+
 ### 7.4 The public API tier (decided 2026-10-27; built in phase JA1, `docs/phase-JA1-summary.md`)
 
 - **Spec.** `spec/SPEC.md` lists the API's packages and public types, with every public signature, as
@@ -405,3 +406,15 @@ Resolved 2026-10-28:
   own words. Stale notes and internal class names fail the build; `--check`, `--skeleton PKG`.
 - `check_spec.py` now wants a heading for every API type and package in API.md, with nothing pending
   (counted per top-level type), instead of SPEC.md naming every type.
+
+**Claims as built (phase JC1, 2026-10-28, `docs/phase-JC1-summary.md`):**
+- `analyst/build_claims.py` generates `spec/claims.jsonl`, the harness-side `analyst/claims-evidence.jsonl` and
+  `analyst/api-test-claims.json` from `analyst/claim-notes/*.json`, where each claim has a stable key. Ids are
+  permanent (`analyst/claim-ids.json`, append-only): a key that leaves the notes fails the build; mark the claim
+  `retracted` instead. Unknown modules or API types, evidence that does not resolve and internal class names fail
+  the build; `--check`, and `--validate FILE` for helpers working in parallel.
+- A claim belongs to exactly one module (`module`) or one public top-level API type (`api`, `module` null).
+  `check_spec.py` wants an active claim for every module and for every API type that carries code of its own
+  (268: classes, enums, interfaces with default or static methods). Pure interfaces are covered by the claims of
+  the modules that implement them. Evidence may cite the API jar too.
+- Stage 4 asks for a test named after each active API claim, as stage 2 does for module claims.

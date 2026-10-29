@@ -203,7 +203,7 @@
    "summary": "Static helper that normalises attribute parameters the way `AttributeSpec` does on creation. Marked internal. Not meant to be instantiated.",
    "members": {
     "<init>()": "Public default constructor (the class has only static members).",
-    "normalizeParams(String, java.util.Map)": "Returns the normalised form of the parameters (second argument) of the attribute with the given ID (first argument): entries with default-like values (null, false, empty list or map, `Long` zero, an `Integer` equal to the parameter's default) are removed, recursively inside lists and nested attribute objects, whose keys are rewritten in the order `id`, `format`, `params` (empty `params` and missing `format` are left out). Returns the same map object when nothing needs to change, otherwise a new mutable map. Does not validate or copy values."
+    "normalizeParams(String, java.util.Map)": "Returns the normalised form of the parameters (second argument) of the attribute with the given ID (first argument): entries with default-like values (null, false, empty list or map, `Long` zero, an `Integer` equal to the parameter's default) are removed, recursively inside lists and nested attribute objects. When something is removed, nested attribute objects are rebuilt with their keys in the order `id`, `format`, `params` (empty `params` and missing `format` are left out); when nothing needs to change, their original key order is kept. Nested maps that are not attribute objects are never normalised. Returns the same map object when nothing needs to change, otherwise a new mutable map. Does not validate or copy values."
    }
   },
   "com.almworks.jira.structure.api.attribute.AttributeUpdateChecker": {
@@ -716,12 +716,12 @@
    "summary": "Static utility for reading dark features: named settings that tune the plugin. Each lookup first reads the Jira application property (string) with that name; if it is missing or empty, the JVM system property with the same name is used; if that is missing too, the given default. Values are read on every call (callers often cache them at start-up). Failures to reach Jira's application properties are logged and treated as \"not set\". Not meant to be instantiated.",
    "members": {
     "<init>()": "Public default constructor (the class has only static members; creating an instance is pointless).",
-    "getLong(String, long)": "The named setting (first argument) as a long. If the application property is set but is not a valid number, the default (second argument) is returned without consulting the system property; if only the system property is set and it is not a valid number, the default is returned.",
-    "getInteger(String, int)": "The named setting as an int, with the same fallback rules as `getLong`.",
+    "getLong(String, long)": "The named setting (first argument) as a long. If the application property is set but is not a valid number, the default (second argument) is returned without consulting the system property; if only the system property is set and it is not a valid number, the default is returned. An application property is read as a plain decimal number; a system property is decoded the way `Long.getLong` does, so `0x10` and `#10` are 16 and `010` is 8.",
+    "getInteger(String, int)": "The named setting as an int, with the same fallback rules and number formats as `getLong` (a system property decoded the way `Integer.getInteger` does).",
     "getBoolean(String)": "The named setting as a boolean, defaulting to false. Same as `getBoolean(name, false)`.",
     "getBoolean(String, boolean)": "The named setting as a boolean: a non-empty application property is true only if it equals `true` ignoring case; otherwise the system property is read the same way; if neither is set, the default (second argument) is returned.",
     "getProperty(String)": "The named setting as a string, or null if neither the application property nor the system property is set (an empty application property counts as not set).",
-    "getProperty(String, String)": "The named setting as a string, or the default (second argument) if neither property is set. Never null when the default is not null.",
+    "getProperty(String, String)": "The named setting as a string, or the default (second argument) if neither property is set. A system property set to the empty string counts as set and is returned as `\"\"`. Never null when the default is not null.",
     "getApplicationProperty(String)": "Only the Jira application property with the given name, or null if it is not set or Jira's application properties are not available (problems are logged at most occasionally, never thrown). Marked internal."
    }
   }

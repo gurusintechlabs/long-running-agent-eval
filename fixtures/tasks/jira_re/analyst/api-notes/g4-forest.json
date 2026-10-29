@@ -344,13 +344,13 @@
       }
     },
     "com.almworks.jira.structure.api.forest.ForestChange": {
-      "summary": "An immutable description of one change to a forest: add a sub-forest, move rows, remove rows, or reorder children. Incremental forest updates (`VersionedForestUpdate.Incremental`) are lists of these. Instances are created with the static factories or the subclass constructors; the class cannot be subclassed outside the API. Positions use row IDs: `under` 0 means the top level and `after` 0 means first position under the parent.",
+      "summary": "An immutable description of one change to a forest: add a sub-forest, move rows, remove rows, or reorder children. Incremental forest updates (`VersionedForestUpdate.Incremental`) are lists of these. Instances are created with the static factories or the subclass constructors; `ForestChange` itself cannot be subclassed outside the API, but its nested change classes are not final and have public constructors. Positions use row IDs: `under` 0 means the top level and `after` 0 means first position under the parent.",
       "members": {
         "add(long, long, com.almworks.jira.structure.api.forest.raw.Forest)": "Creates an `Add` change. Arguments: the parent row (0 for top level), the preceding sibling row (0 for first position), and the forest to insert. Throws `IllegalArgumentException` if the forest is null.",
         "move(long, long, com.almworks.integers.LongList)": "Creates a `Move` change. Arguments: the new parent row (0 for top level), the row after which to place the moved rows (0 for first position), and the rows to move, in their new order. Throws `IllegalArgumentException` if the list is null.",
         "remove(com.almworks.integers.LongList)": "Creates a `Remove` change for the given rows (each removed with its subtree). Throws `IllegalArgumentException` if the list is null.",
         "reorder(long, com.almworks.integers.LongList)": "Creates a `Reorder` change. Arguments: the parent row (0 for top level) and its children in the new order. Throws `IllegalArgumentException` if the list is null.",
-        "apply(com.almworks.jira.structure.api.forest.raw.ArrayForest)": "Applies the change to the given mutable forest in place. Invalid positions are tolerated as described for each subclass; the forest must not be null.",
+        "apply(com.almworks.jira.structure.api.forest.raw.ArrayForest)": "Applies the change to the given mutable forest in place. Invalid positions are tolerated as described for each subclass; the forest must not be null. An immutable forest is not tolerated: changing it throws `UnsupportedOperationException`.",
         "accept(com.almworks.jira.structure.api.forest.ForestChange.Visitor)": "Calls the visitor method that matches this change's concrete type."
       }
     },
@@ -401,7 +401,7 @@
         "<init>(long, com.almworks.integers.LongList)": "Creates the change. Arguments: the parent row (0 for top level) and its children in the new order (copied). Throws `IllegalArgumentException` if the list is null.",
         "getUnder()": "Returns the parent whose children are reordered; 0 means the top level.",
         "getChildren()": "Returns the children of the parent in their new order, never null.",
-        "apply(com.almworks.jira.structure.api.forest.raw.ArrayForest)": "Rearranges the parent's children, each with its subtree, into the given order.",
+        "apply(com.almworks.jira.structure.api.forest.raw.ArrayForest)": "Rearranges the parent's children, each with its subtree, into the given order. If the parent (non-zero) is not in the forest, or has no children, nothing happens. If the list names a row that is not a direct child of the parent, an unchecked `RuntimeException` is thrown and the forest is left unchanged.",
         "accept(com.almworks.jira.structure.api.forest.ForestChange.Visitor)": "Calls `visitor.visit(Reorder)` with this change.",
         "equals(Object)": "Equal to another object of exactly the same class with the same parent and children list.",
         "hashCode()": "Hash code consistent with `equals`.",
@@ -446,7 +446,7 @@
       }
     },
     "com.almworks.jira.structure.api.forest.ForestSpec": {
-      "summary": "An immutable, thread-safe value that names a forest: either a structure (optionally a historical version), a structure query (`SQuery`), or a clipboard session; optionally with a list of transformations (generators applied on top, last one outermost), a 'title' flag (the structure itself shown as a root row), a 'skeleton' flag (only the stored rows, generators not run), and security (the forest as seen by a given user). Exactly one of structure, query or clipboard is meant to be set; this is checked only by Java assertions, so an inconsistent spec can be built with assertions off and fails later. Specs are used as cache keys and compare by all their fields. A non-secured, non-transformed structure spec never carries a user key.",
+      "summary": "A value meant to be immutable and thread-safe (but see `Builder.build()`) that names a forest: either a structure (optionally a historical version), a structure query (`SQuery`), or a clipboard session; optionally with a list of transformations (generators applied on top, last one outermost), a 'title' flag (the structure itself shown as a root row), a 'skeleton' flag (only the stored rows, generators not run), and security (the forest as seen by a given user). Exactly one of structure, query or clipboard is meant to be set; this is checked only by Java assertions, so an inconsistent spec can be built with assertions off and fails later. Specs are used as cache keys and compare by all their fields. A non-secured, non-transformed structure spec never carries a user key.",
       "members": {
         "builder()": "Returns a new empty builder.",
         "builder(com.almworks.jira.structure.api.forest.ForestSpec)": "Returns a builder initialised from the given spec, or an empty builder if the argument is null.",
@@ -501,7 +501,7 @@
         "setSecured(boolean)": "Sets whether the spec is secured for its user.",
         "setSkeleton(boolean)": "Sets whether only stored rows are wanted. A skeleton spec should have no version, query, clipboard or transformations (only asserted).",
         "setTitle(boolean)": "Sets whether the structure is shown as a root row.",
-        "build()": "Creates the immutable spec. The builder can be reused. A plain structure spec (not secured, no transformations) is built without the user key."
+        "build()": "Creates the immutable spec. The builder can be reused, but the built spec shares the builder's list of transformations: adding a transformation to the builder afterwards also changes specs already built (as the original does), whose cached hash code then no longer matches. A plain structure spec (not secured, no transformations) is built without the user key."
       }
     },
     "com.almworks.jira.structure.api.forest.ForestSpec.SQuery": {

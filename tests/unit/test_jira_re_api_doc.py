@@ -247,7 +247,7 @@ def _api_problems(analyst):
     import check_spec
     jar, api, spec, folder = analyst
     rep = check_spec.check(jar=jar, spec_dir=spec, analyst_dir=folder, api_jars=[api], jira="9.12.2")
-    return rep, [p for p in rep.problems if "API" in p or "package" in p]
+    return rep, [p for p in rep.problems if ("API" in p or "package" in p) and not p.startswith("claims")]
 
 
 def test_a_fully_described_api_md_passes(analyst, classes):

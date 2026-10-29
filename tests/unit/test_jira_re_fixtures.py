@@ -517,16 +517,23 @@ def test_spec_check_wants_every_module_with_its_type(tmp_path):
 
 # --- phase JA1: the public API in the analyst's spec ---
 
-def _mini_class(name: str, public: bool = True) -> bytes:
-    """A minimal valid class file: ``name`` (dotted) extends Object, no members."""
+def _mini_class(name: str, public: bool = True, code: bool = False) -> bytes:
+    """A minimal valid class file: ``name`` (dotted) extends Object, no members; with ``code``, one method
+    ``public void m()`` with a body."""
     import struct
 
     def utf8(s: str) -> bytes:
         b = s.encode()
         return b"\x01" + struct.pack(">H", len(b)) + b
     pool = utf8(name.replace(".", "/")) + b"\x07\x00\x01" + utf8("java/lang/Object") + b"\x07\x00\x03"
-    return (b"\xca\xfe\xba\xbe" + struct.pack(">HHH", 0, 52, 5) + pool
-            + struct.pack(">HHHHHHH", 0x21 if public else 0x20, 2, 4, 0, 0, 0, 0))
+    if not code:
+        return (b"\xca\xfe\xba\xbe" + struct.pack(">HHH", 0, 52, 5) + pool
+                + struct.pack(">HHHHHHH", 0x21 if public else 0x20, 2, 4, 0, 0, 0, 0))
+    pool += utf8("m") + utf8("()V") + utf8("Code")
+    body = struct.pack(">HHI", 0, 1, 1) + b"\xb1" + struct.pack(">HH", 0, 0)        # return
+    method = struct.pack(">HHHH", 0x0001, 5, 6, 1) + struct.pack(">HI", 7, len(body)) + body
+    return (b"\xca\xfe\xba\xbe" + struct.pack(">HHH", 0, 52, 8) + pool
+            + struct.pack(">HHHHHH", 0x21 if public else 0x20, 2, 4, 0, 0, 1) + method + struct.pack(">H", 0))
 
 
 def _api_fixture(tmp_path: Path):
@@ -564,6 +571,54 @@ def test_spec_check_wants_every_api_type_and_a_claim_behind_every_api_test(tmp_p
     assert "com.acme.api.impl.Cache" in text and "internal" in text          # a non-public API class leaked
     assert "t.IdsTest#parses" in text and "C-0009" in text                   # every test backed by an active claim
     assert "t.Gone#x" in text                                                # stale mapping entry
+
+
+def _api_with_code(tmp_path: Path):
+    """The API fixture where ``com.acme.api.Ids`` carries code (its own behaviour), ``Store`` none."""
+    jar, spec, analyst, api = _api_fixture(tmp_path)
+    with zipfile.ZipFile(api, "w") as z:
+        z.writestr("com/acme/api/Store.class", _mini_class("com.acme.api.Store"))
+        z.writestr("com/acme/api/Ids.class", _mini_class("com.acme.api.Ids", code=True))
+    return jar, spec, analyst, api
+
+
+def _add_claim(spec: Path, analyst: Path, claim: str, evidence: str) -> None:
+    with (spec / "claims.jsonl").open("a") as f:
+        f.write(claim + "\n")
+    with (analyst / "claims-evidence.jsonl").open("a") as f:
+        f.write(evidence + "\n")
+
+
+def test_every_api_type_with_code_needs_an_api_claim(tmp_path):
+    """JC1: the API's own code (value and helper classes, default methods) is behaviour like a module's; a
+    claim names its top-level API type in ``api`` (``module`` null), and its evidence may cite the API jar."""
+    jar, spec, analyst, api = _api_with_code(tmp_path)
+    rep = _check_api(jar, spec, analyst, api)
+    assert rep.problems == ["claims.jsonl: no active claim describes API type 'com.acme.api.Ids'"], rep.problems
+    assert (rep.api_code_types, rep.api_claimed) == (1, 0)
+    _add_claim(spec, analyst,
+               '{"id": "C-0003", "module": null, "api": "com.acme.api.Ids", "behaviour": "m does nothing.",'
+               ' "confidence": "high", "status": "active"}',
+               '{"id": "C-0003", "evidence": ["com.acme.api.Ids#m"]}')
+    rep = _check_api(jar, spec, analyst, api)
+    assert rep.problems == [] and (rep.api_code_types, rep.api_claimed) == (1, 1)
+
+
+def test_a_claim_belongs_to_exactly_one_module_or_api_type(tmp_path):
+    jar, spec, analyst, api = _api_with_code(tmp_path)
+    for cid, owner in (("C-0003", '"module": null, "api": "com.acme.api.Ids"'),
+                       ("C-0004", '"module": "gate", "api": "com.acme.api.Ids"'),
+                       ("C-0005", '"module": null'),
+                       ("C-0006", '"module": null, "api": "com.acme.api.Nope"'),
+                       ("C-0007", '"module": null, "api": "com.acme.api.impl.Cache"')):
+        _add_claim(spec, analyst, f'{{"id": "{cid}", {owner}, "behaviour": "b.", "confidence": "low"}}',
+                   f'{{"id": "{cid}", "evidence": ["com.acme.api.Ids"]}}')
+    text = "\n".join(_check_api(jar, spec, analyst, api).problems)
+    assert "C-0003" not in text
+    assert "C-0004: names both a module and an API type" in text
+    assert "C-0005: names neither a module nor an API type" in text
+    assert "C-0006: API type 'com.acme.api.Nope' is not a public top-level API type" in text
+    assert "C-0007: API type 'com.acme.api.impl.Cache' is not a public top-level API type" in text
 
 
 def test_spec_check_reads_jvm_form_names_too(tmp_path):

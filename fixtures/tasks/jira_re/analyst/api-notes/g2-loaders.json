@@ -482,7 +482,7 @@
     "getAttributeDependencies()": "A singleton set holding the dependency. Final.",
     "loadValue(com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Reads the dependency's value; if it has no value applies the yield rule, otherwise returns the result of `getValue` wrapped as an attribute value (null result handled by the yield rule).",
     "getValue(Object, com.almworks.jira.structure.api.attribute.loader.DerivedAttributeContext)": "Subclass hook: computes the value from the dependency's non-null value (argument 1) and the context. May return null.",
-    "idLoader(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Returns a loader for spec (argument 1) that simply copies the value of spec (argument 2), or null if the two specs' formats differ. Used to serve a spec by reusing an equivalent one."
+    "idLoader(com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.jira.structure.api.attribute.AttributeSpec)": "Returns a loader for spec (argument 1) that simply copies the value of spec (argument 2), or null if the two specs' formats are not the same instance (two equal but separately created formats count as different). Used to serve a spec by reusing an equivalent one."
    }
   },
   "com.almworks.jira.structure.api.attribute.loader.builder.ArbitraryDependenciesAttributeLoaderBuilder": {
@@ -761,7 +761,7 @@
   "com.almworks.jira.structure.api.attribute.loader.reduce.ReductionStrategy": {
    "summary": "One way of combining a row's own value with its children's values into an aggregate. Strategies are stateless singletons obtained from the static methods. The value of each row may carry extra loader data that later rows of the same attribute read, so a strategy must be used consistently for all rows of an attribute. Four exist, named by the spec parameter `type`: `subtree` (default), `children`, `leaves` and `strict`.",
    "members": {
-    "apply(java.util.function.Supplier, java.util.List, com.almworks.jira.structure.api.attribute.loader.reduce.ValueReducer)": "Computes the row's aggregate. Argument 1: supplies the row's own value (called lazily, at most as needed). Argument 2: the children's values as computed by the same strategy (not null; may be empty). Argument 3: the reducer. Never returns null. If the self value is an error, the error is returned (for `strict` and `children`, it is carried as loader data instead).",
+    "apply(java.util.function.Supplier, java.util.List, com.almworks.jira.structure.api.attribute.loader.reduce.ValueReducer)": "Computes the row's aggregate. Argument 1: supplies the row's own value (called lazily, at most as needed). Argument 2: the children's values as computed by the same strategy (not null; may be empty). Argument 3: the reducer. Never returns null. If the self value is read and is an error, the error is returned (for `strict` and `children`, it is carried as loader data instead); `leaves` does not read the self value of a row that has children.",
     "getStrategyType(com.almworks.jira.structure.api.attribute.AttributeSpec)": "The value of the spec's `type` parameter as a string, or `subtree` if absent.",
     "forAttributeSpec(com.almworks.jira.structure.api.attribute.AttributeSpec)": "The strategy named by the spec's `type` parameter (see `forStrategyType`).",
     "forStrategyType(String)": "Returns the strategy for `children`, `leaves`, `strict` or `subtree`. Throws IllegalArgumentException for any other name (case-sensitive)."

@@ -159,10 +159,14 @@ def _add_classes(ref: Reference, z: zipfile.ZipFile) -> None:
             ref.all_classes[name] = set()
 
 
-def reference(jar: Path, libs: list[str] = ()) -> Reference:
+def reference(jar: Path, libs: list[str] = (), extra_jars: list[Path] = ()) -> Reference:
     """The jar's classes and modules. ``libs``: globs over the jar's entries naming bundled jars whose classes
-    count as the plugin's own (the vendor's internal libraries, ``internal_libs`` in target.yaml)."""
+    count as the plugin's own (the vendor's internal libraries, ``internal_libs`` in target.yaml).
+    ``extra_jars``: standalone jars whose classes are added too (the public API, for claim evidence)."""
     ref = Reference()
+    for extra in extra_jars:
+        with zipfile.ZipFile(extra) as z:
+            _add_classes(ref, z)
     with zipfile.ZipFile(jar) as z:
         _add_classes(ref, z)
         for lib in (n for n in z.namelist() if any(fnmatch.fnmatchcase(n, g) for g in libs)):

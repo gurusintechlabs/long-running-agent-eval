@@ -1,0 +1,1024 @@
+{
+ "claims": [
+  {
+   "key": "e10-inserters-extenders/inserter-jql/parameters",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "Stored parameters: `jql` (String, the JQL text) and `limit` (integer, the maximum number of issues; null or absent means no limit). Example: {\"jql\": \"project = TEST\", \"limit\": 1000}. A new inserter's form starts with `limit` = 1000 and no `jql`; showing stored parameters on a form puts `jql` and `limit` (read as an integer, null when absent or not a number) there.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#addParametersToForm"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/form-to-parameters",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "Building parameters from a form returns a map with exactly `jql` and `limit`: `jql` is the form value with leading and trailing horizontal whitespace removed; when non-blank it is parsed with Jira's JqlQueryParser and validated with SearchService.validateQuery as the current StructureAuth user, and a parse error (its localized parse message, or Jira's generic parse message) or the first validation error message is added under field `jql`; a present but blank value adds `s.ext.gen.jql.param.jql.error.no-jql` ('Please type in a JQL query') under `jql`; an absent value adds no error. `limit` is the form value read as an integer (null when missing, blank or not a number; no error). The map is returned even when errors were added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.JQLUtil#getJQLParameter",
+    "com.almworks.jira.structure.extension.JQLUtil#sanitizeJQL"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/rows",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "Generating inserts, as a flat list of top-level rows (no nesting), the issues matching the stored JQL in the query's own ORDER BY order, searched with the plugin's sorted search as the current StructureAuth user (see `helper`); each issue appears once. With a missing, zero or negative `limit` all matches are inserted; with a positive n at most the first n. When the plugin is not enabled for all projects the query is first narrowed with the project-scope clause of `structure-configuration`. These rules are the same as for `recent-issue-inserter` (limit, hit-limit report, scope).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter#createFragment",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#createFragment",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#createJQLFragment"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/blank-or-invalid-jql",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "A blank or missing `jql` inserts nothing; JQL that no longer parses inserts nothing (a warning is logged) and nothing is thrown to the generation. A SearchException from the search is logged and leaves the fragment empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter#createFragment",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#createFragment"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/hit-limit",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "When a refresh inserts at least `limit` issues (limit > 0), the generation reports that this inserter hit its limit (with the limit value) as generation trouble; with no limit nothing is reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#createFragment"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/regeneration",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "The inserted fragment is regenerated when a changed-items batch contains any item of type `com.almworks.jira.structure:type-sprint`, `:type-version`, `:type-project`, `:type-project-component` or `com.almworks.jira.stucture:type-tempo-team-membership` (misspelt as in the original); or any issue that was inserted; or an issue inside the project scope that now matches the stored JQL (checked with a match search as the current user, a failing search counting as no match). Changed issues outside the scope never cause regeneration. Same rules as `recent-issue-inserter`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#createJQLFragment",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#checkItemChanges"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/action-handler-presence",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "The inserter takes part in deciding user edits only when its `jql` is non-blank and parses; otherwise it offers no action handler. Its action handling cannot be switched off: the generator form reports `canHandleUpdates` false, and a stored `disableActions` = true is ignored for it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter#createActionHandler",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#isActionHandlingDisabled",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#addDefaultFormParameters"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/add-rules",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "Adding (placing) a fragment into the inserter's rows: placing it under any row (not at the inserter's own top level) yields with `s.ext.gen.inserter.jql.blocked.add` ('Cannot add items to JQL query result.'). At top level: if any root of the fragment is not an issue it yields with the same message; roots that are new, not yet created issues are ignored, and if no existing issue roots remain the add is allowed with an empty effect. If any existing issue root does not match the JQL (matched with Jira security overridden) the add is blocked with that message. If all match and the fragment is flat it is allowed with an empty effect (no Jira change). If the fragment has sub-rows, the extenders that follow are asked to generate the sub-tree for those roots; the add is allowed (empty effect) only when the fragment is contained in what they generate, otherwise it yields with the add message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.QueryActionHandler#addFragment",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryActionHandler#getFragmentClass",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryActionHandler#isMatchingIssues"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/move-remove-blocked",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "Moving a row of the inserter's result (including reordering) is always blocked with `s.ext.gen.inserter.jql.blocked.move` ('Cannot move issues inside JQL query result.'); removing a row is always blocked with `s.ext.gen.inserter.jql.blocked.remove` ('Cannot remove issues from JQL query result.'). The add and move messages (not the remove message) are wrapped in `s.ext.gen.block.suggest-adjustment` ('{0} You can enable manual adjustments in the structure configuration.') when manual adjustment is possible in that action.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.QueryActionHandler#moveRow",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryActionHandler#removeRow",
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter$JqlActionHandler",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#getErrorMessageWithManualAdjustmentSuggestion"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/option-descriptions",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "The add option is described as `s.ext.gen.inserter.jql.option.add` ('Add to \"{0}\"') and the move option as `s.ext.gen.inserter.jql.option.move` ('Move within \"{0}\"'), with the JQL abbreviated to at most 30 characters (longer text becomes its first 27 characters followed by '...'), texts in the current user's locale.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter$JqlActionHandler#getAddOptionDescription",
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter$JqlActionHandler#getMoveOptionDescription"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-jql/new-items",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "The inserter is marked as consuming new items: when a new item is created into a place handled by several generators, the item REST resource treats an interaction that involves this inserter as a conflict with a new-item consumer and does not offer it as a choice.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#isConflictWithNewItemConsumer"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-text/parameters",
+   "module": "inserter-text",
+   "api": null,
+   "behaviour": "Stored parameters: `text` (String, the search text) and `limit` (integer; null or absent means no limit). A new inserter's form starts with `limit` = 1000; showing parameters on a form puts `text` and `limit` there.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.TextSearchInserter#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#addDefaultFormParameters"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-text/form-to-parameters",
+   "module": "inserter-text",
+   "api": null,
+   "behaviour": "Building parameters from a form returns {`text`, `limit`}: `text` is the form value unchanged (not trimmed); when it is present but blank, error `s.ext.gen.text.param.text.error.no-text` ('Please type in a text query') is added under field `text`; an absent value adds no error. `limit` is the form value read as an integer (null when missing or not a number).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.TextSearchInserter#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#getTextQueryParameter"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-text/text-to-query",
+   "module": "inserter-text",
+   "api": null,
+   "behaviour": "The text becomes a Jira query (after trimming): text of length 2 or more wrapped in double quotes searches the summary for the inner text (summary ~ \"inner\"); exactly `\"\"` gives no query. Otherwise, if the first whitespace/comma/semicolon-separated token is a valid Jira issue key (as typed, or upper-cased in Locale.US), the query is `issue in (<keys>)` with every token that is a valid key (others skipped); text starting with a single quote is never read as keys. Otherwise each whitespace-separated word w adds, ANDed together, (summary ~ w OR summary ~ \"w*\"), or summary ~ w alone when w already ends with `*`. Blank or missing text gives no query.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.util.TextSearchQuery#build",
+    "com.almworks.structure.commons.util.TextSearchQuery#buildQuery",
+    "com.almworks.structure.commons.util.TextSearchQuery#getKeysFromText"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-text/rows",
+   "module": "inserter-text",
+   "api": null,
+   "behaviour": "Generating inserts the matching issues as flat top-level rows sorted by issue key descending (ORDER BY key DESC added to the text query), with the same limit, hit-limit report, project-scope narrowing, search-error and regeneration rules as `inserter-jql` (matching changed issues against the text query). With no query (blank text or `\"\"`) nothing is inserted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.TextSearchInserter#createFragment",
+    "com.almworks.jira.structure.extension.generator.inserter.TextSearchInserter#addSorting",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#createFragment"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-text/actions",
+   "module": "inserter-text",
+   "api": null,
+   "behaviour": "With a query, user edits follow the same add, move and remove rules as `inserter-jql` (matching against the text query), with messages `s.ext.gen.inserter.text.blocked.add` ('Cannot add items to text query result.'), `.blocked.move` ('Cannot move issues inside text query result.'), `.blocked.remove` ('Cannot remove issues from text query result.') and options `s.ext.gen.inserter.text.option.add` ('Add to \"{0}\"') / `.option.move` ('Move within \"{0}\"') with the raw text abbreviated to 30 characters. Without a query it offers no action handler. Action handling cannot be disabled (form `canHandleUpdates` false, `disableActions` ignored), and it is marked as consuming new items like `inserter-jql`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.TextSearchInserter#createActionHandler",
+    "com.almworks.jira.structure.extension.generator.inserter.TextSearchInserter$TextActionHandler",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryActionHandler"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-recent-issues/same-as-component",
+   "module": "inserter-recent-issues",
+   "api": null,
+   "behaviour": "The module `inserter-recent-issues` is the generator behind `recent-issue-inserter`: its rows, `limit` handling, project-scope narrowing, timed and item-change regeneration, search errors and form handling are exactly those claimed for `recent-issue-inserter` (recently viewed issues, newest first, refreshed after 1 minute by default). Its descriptor has no label, form, summary or icon, so it is not offered in the generator UI.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.RecentIssueInserter#createFragment",
+    "com.almworks.jira.structure.extension.generator.inserter.RecentIssueInserter"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-recent-issues/jql-action-handler",
+   "module": "inserter-recent-issues",
+   "api": null,
+   "behaviour": "When stored parameters contain a non-blank parseable `jql`, the inserter offers the same action handler as `inserter-jql` for that JQL (add only issues matching that JQL at top level, moves and removals blocked with the `s.ext.gen.inserter.jql.*` messages), although its rows come from the issue history (as the original does). Unlike `inserter-jql`, its action handling can be disabled with `disableActions` and it is not marked as consuming new items (the markers are not inherited).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter#createActionHandler",
+    "com.almworks.jira.structure.extension.generator.inserter.RecentIssueInserter",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#isActionHandlingAlwaysAllowed"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/agile-board/parameters",
+   "module": "agile-board",
+   "api": null,
+   "behaviour": "Stored parameters: `rapidViewId` (long, the Jira Software board id) and `insertEpics` (boolean: true inserts only epics, false only issues that are neither epics nor sub-tasks). A new inserter's form starts with `rapidViewId` = -1 and `insertEpics` = true; showing stored parameters puts the stored `rapidViewId` (or -1 when absent) and the stored `insertEpics` value as is. The form's board list is the boards the current user sees (see `gh-integration`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#getAllRapidViews"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/agile-board/form-to-parameters",
+   "module": "agile-board",
+   "api": null,
+   "behaviour": "Building parameters from a form: when `rapidViewId` reads as a long and `gh-integration` returns a filter query for that board for the current StructureAuth user, the result is exactly {`rapidViewId`: id, `insertEpics`: the form's boolean (true only for a true value or text 'true' ignoring case)}. Otherwise (missing or unparsable id, -1, unknown or invisible board, board without filter) error `s.gen.ins.agile.error.no-board-selected` ('Please select a board') is added under field `rapidViewId` and an empty map is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/agile-board/availability",
+   "module": "agile-board",
+   "api": null,
+   "behaviour": "The inserter is available exactly when `gh-integration` reports board support; if that check throws a RuntimeException it is unavailable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#isAvailable"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/agile-board/query",
+   "module": "agile-board",
+   "api": null,
+   "behaviour": "The issues come from the board's saved filter query (from `gh-integration`, for the current user) with a condition ANDed to its where clause: with `insertEpics` true, issue type = the epic issue type id, or 'issuetype is EMPTY' (matching nothing) when Jira Software reports no epic type; with `insertEpics` false, NOT issue type = epic type (left out when there is no epic type) AND NOT issue type in (all sub-task issue type ids) (left out when Jira has no sub-task types). The filter's ORDER BY is kept.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#specifyIsEpic",
+    "com.almworks.jira.structure.util.Util#addSubtasksCondition"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/agile-board/rows",
+   "module": "agile-board",
+   "api": null,
+   "behaviour": "Generating inserts the matching issues as flat top-level rows in the filter's order, with no limit and no hit-limit report, after the same project-scope narrowing as `inserter-jql`; regeneration on item changes follows the same rules as `inserter-jql`, matching against the narrowed board query. A missing or unparsable `rapidViewId`, or a board with no filter query, inserts nothing (warning logged); a SearchException is logged and leaves the fragment empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#createFragment",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#createJQLFragment"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/agile-board/summary",
+   "module": "agile-board",
+   "api": null,
+   "behaviour": "For a summary, when `rapidViewId` is readable, `rapidViewName` (the board name from `gh-integration` for the current user, null when not found) and `insertEpics` are added, and then every stored parameter is copied into the summary as well.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#addParametersForSummary"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/agile-board/actions",
+   "module": "agile-board",
+   "api": null,
+   "behaviour": "With a readable board id whose filter query exists, user edits follow the same add, move and remove rules as `inserter-jql`, matching against the narrowed board query, with messages `s.ext.gen.inserter.agile.blocked.add` ('Cannot add items to the board.'), `.blocked.move` ('Cannot move issues inside the board.'), `.blocked.remove` ('Cannot remove issues from the board.') and options `s.ext.gen.inserter.agile.option.add` ('Add to \"{0}\"') / `.option.move` ('Move within \"{0}\"') with the board name ('???' when unknown) abbreviated to 30 characters. Otherwise there is no action handler. Action handling cannot be disabled and it is marked as consuming new items like `inserter-jql`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#createActionHandler",
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter$AgileActionHandler",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryActionHandler"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-substructure/parameters",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "Stored parameters are a JSON object with `forestSpec` (a REST forest spec object, as in SPEC's REST forest spec, e.g. {\"structureId\": 12}), `rowId` (long, 0 = the whole forest), `reuseRows` (boolean, default false) and `security` (object with `userKey` (String) and `secured` (boolean)), each optional; unknown keys are ignored. A user-built inserter stores only {\"forestSpec\": {\"structureId\": <id>}}; the other keys are written by `forest-service` for transformed specs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter$Parameters",
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter$Security",
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter#createParameters"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-substructure/form",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "Building parameters from a form: a missing or unreadable `structureId` adds `s.gen.ins.substructure.error.no-structure-selected` ('Please select a structure.') under field `structureId` and returns an empty map; a structure the current user cannot VIEW (or that does not exist) adds `s.gen.ins.substructure.error.no-structure` ('Structure with id \"{0}\" does not exist or you don't have permissions to view it, sorry! Please try again.', argument the id) and returns an empty map; otherwise the map is {\"forestSpec\": {\"structureId\": id}}. Showing parameters on a form puts `forestSpec.structureId` as `structureId`; the form's choice list is every structure the user can VIEW.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter#buildParametersFromForm",
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter#addParametersToForm",
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter#getAllStructures"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-substructure/summary",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "For a summary with a structure id > 0: `structureName` is the structure's name (looked up with VIEW permission); when `rowId` is not 0, `under` is the KEY attribute of that row in the stored forest spec, or its SUMMARY when the key is blank, or `?` when both are blank, or the empty string when the row is missing. If the structure cannot be read (StructureException), `structureName` is `#<id>`. Without a structure id nothing is added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter#addParametersForSummary",
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter#getRowKey"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-substructure/forest-spec",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "The source forest is the stored `forestSpec`: with `security` present it is secured for `security.userKey` and then kept secured when `security.secured` is true or made unsecured otherwise; without `security` the unsecured spec is used. Without a `forestSpec` nothing is inserted and the structure id counts as 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#<init>"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-substructure/regeneration",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "The inserted rows are regenerated when the source structure's item (`com.almworks.jira.structure:type-structure`, id) is reported changed, or when the source forest's version changes.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#generate",
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#generate1"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-substructure/edit-pass-through",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "User edits (add, move, remove) on rows that came from the source are passed through to the source structure's forest and handled there by its own generators and stored rows. They are blocked with `s.ext.gen.block.update-disabled` ('Changes via Structure are not allowed in generator settings.') when the inserter's `disableActions` is true; with `s.ext.gen.block.not-editable` ('Forest is not editable.') when the source cannot be edited (no structure id, or a source that is not a generated forest); and, for an untransformed source, with `s.item.edit.error.no-edit-perm` ('No \"Edit\" permission for structure {0}.') when the user lacks EDIT on it, or `s.item.edit.error.no-automate-perm` ('No \"Automate\" permission for structure {0}.') when the moved fragment contains generators or effectors and the user lacks AUTOMATE. When this inserter blocks, no generator after it is asked.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#checkEditable",
+    "com.almworks.jira.structure.forest.gfs.ActionContext#createFrames",
+    "com.almworks.jira.structure.forest.gfs.ActionContext#removeAllFramesAfterBlockingSubStructure"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/inserter-substructure/own-fragment-empty",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "Through the plain generator interface the inserter produces no rows itself (its fragment is always empty); the copying described for this module is done by the generation engine for any generator of this module key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter#createFragment",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/parameters",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "Stored parameter `typeIds`: a list of sub-task issue type ids (Strings) to include; null, absent or empty means all sub-task types. A parameter `allTypes` (boolean) may also be stored; it only affects the form.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#getParameters",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender$Parameters"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/subtasks-disabled",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "The extender is available exactly when Jira's SubTaskManager reports sub-tasks enabled. When they are disabled, filling a new form, showing parameters on a form and building parameters from a form throw GeneratorUnavailableException with message `subtasks are disabled` and localized message `s.gen.ext.subtasks.error.subtasks-disabled` ('Sub-task feature is not enabled in your Jira settings, sorry! Please enable it and try again.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#checkSubtaskSystemEnabled",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#isAvailable"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/form",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "A new form gets `typeIds` = empty set and `allTypes` = true. Showing stored parameters puts `typeIds` (the stored set) and `allTypes`: the stored boolean when the key `allTypes` is present, otherwise true exactly when `typeIds` is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#addParametersToForm"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/form-to-parameters",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "Building parameters from a form: when `allTypes` is true the result is {\"typeIds\": null}. Otherwise each form `typeIds` value that is not the id of one of Jira's sub-task issue types adds error `s.gen.ext.subtasks.error.no-type` ('Cannot find sub-task type with ID \"{0}\", sorry! Please try again.', argument the id) under field `typeIds` and is dropped; the result is {\"typeIds\": [remaining ids]}, and when none remain error `s.gen.ext.subtasks.error.no-type-selected` ('Please select at least one sub-task type.') is added under `typeIds` and `allTypes` = false is added to the map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/summary",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "For a summary: `allTypes` = true when `typeIds` is empty (then `typeNames` = null); otherwise `allTypes` = false and `typeNames` = the names of the stored sub-task types joined with ', ' in stored order, unknown ids skipped (warning logged).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#addParametersForSummary",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#getSubTaskTypeNames"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/rows",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "Each visible issue row that is not itself a sub-task (as `sub-task-issue-cache` says) gets as children its sub-tasks, in Jira's sub-task sequence order, found through the issue links of every link type Jira flags as the sub-task link type (a warning is logged once in a while when there is more than one such type). Sub-tasks the current StructureAuth user cannot see (unless security is overridden) are left out, and so are sub-tasks whose issue type (read from the Jira index) is not in a non-empty `typeIds`; if that index read fails no type filtering is done (error logged). Non-issue rows, invisible issues and sub-task rows get no children.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#getExtenderFunction",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#getChildIssueIds",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#validateNonSubTaskIssueRoots",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#findIgnorableIssues",
+    "com.almworks.jira.structure.extension.generator.extender.LevelPreloadingIssueExtenderFunction#extend"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/scope",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "With the default breadth-first generation (dark feature `structure.gfs.breadthFirstTraversal`, default true) the sub-tasks of a whole level are loaded in bulk and sub-tasks outside the plugin's project scope are left out too; when breadth-first generation is switched off the sub-tasks are read one parent at a time and out-of-scope sub-tasks are not removed (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.LevelPreloadingIssueExtenderFunction#preloadLevel",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#getChildIssueIds",
+    "com.almworks.jira.structure.extension.IssueLinksUtil#collectMatchingLinkedIssues"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/regeneration",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "The extension is regenerated when a changed-items batch contains an issue it extended (a parent it processed) or a sub-task it added, or an issue inside the project scope whose parent (found through the sub-task links) is an issue it processed. Non-issue items and out-of-scope issues alone never trigger it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.IssueExtenderChangeFilter#accept",
+    "com.almworks.jira.structure.extension.generator.extender.IssueExtenderChangeFilter#getOrCreate"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/move-checks",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "Moving a row under a new parent: with no target parent (the row is taken out of its parent) the extender yields with `s.ext.gen.extender.subtasks.block.no-parent` ('Cannot remove the link to parent.'); when the row or the new parent is not an issue it yields with `s.ext.gen.extender.subtasks.block.not-an-issue` ('Only issues can be made sub-tasks.'); when either issue cannot be obtained it blocks with `s.ext.gen.block.no-issue` ('Issue does not exist or you have no permission to see it.'). Otherwise it gives a move effect to the new parent (placed after the target's previous sibling) whose inverse moves it back under its current Jira parent after its previous sibling (no inverse when the issue has no parent).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender$SubTaskActionHandler#moveExtension"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/move-effect-validation",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "When the move effect is evaluated: an issue or parent that cannot be resolved blocks with `s.ext.gen.block.no-issue`; a parent that is a sub-task yields with `s.ext.gen.extender.subtasks.block.parent-sub-task` ('Sub-tasks cannot have sub-tasks.'); an issue that is not a sub-task (or has no parent) yields with `s.ext.gen.extender.subtasks.block.not-a-sub-task` ('The issue is not a sub-task.'). When the parent changes, it blocks with, in this order: `s.ext.gen.extender.subtasks.block.no-move-perm` ('You don't have the \"Move issues\" permission.') without Jira's MOVE_ISSUES on the sub-task for the current user; `.different-project` ('The parent issue must be in the same project.'); `.parent-itself` ('Cannot make an issue a sub-task of itself.'); `.parent-not-editable` ('The new parent issue is not editable.'). Then, with a non-empty `typeIds` not containing the sub-task's type, it blocks with `.unsupported-type` ('Cannot process this type of sub-task.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender$MoveEffect#apply",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#checkMoveSubTaskPermissions"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/move-effect-run",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "A valid move effect is described as `s.ext.gen.extender.subtasks.effect.move` ('Moved sub-task {0} to parent task {1}.', keys) when the parent changes, else `s.ext.gen.extender.subtasks.effect.reorder` ('Reordered sub-task {0}.') when the user has EDIT_ISSUES on the parent, else no description. Running it changes the parent with Jira's SubTaskManager.changeParent as the current user and applies the update bean with IssueUpdater.doUpdate (dispatching the event); then, when the user has EDIT_ISSUES on the parent and the target previous sibling is none or a sub-task, it reorders the sub-task after it. A RemoveException or CreateException becomes StructureException UPDATE_ITEM_FAILED for the issue. In every case the sub-task, its old parent and the new parent are reported changed (ISSUE_UPDATED) through `event-bridge`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender$MoveEffect#apply",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#reportChanges"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/reorder",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "Reordering a sub-task among its siblings gives nothing when the previous sibling is the same before and after; otherwise an effect placing it after the new previous sibling, with an inverse placing it after the old one. When evaluated: unresolvable issue blocks with `s.ext.gen.block.no-issue`; an issue that is not a sub-task or has no parent blocks with `s.ext.gen.extender.subtasks.block.not-a-sub-task`; a previous sibling id > 0 that cannot be resolved blocks with `s.ext.gen.block.no-issue`, one that is not a sub-task with `.not-a-sub-task`, one with another parent with `.different-parent` ('The parent issue must be the same.'); without EDIT_ISSUES on the parent it blocks with `.no-edit-perm` ('You don't have the \"Edit issues\" permission.'). Otherwise it is described as `s.ext.gen.extender.subtasks.effect.reorder` and, when run, reorders and reports the issue and parent changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender$SubTaskActionHandler#reorderExtension",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender$ReorderEffect#apply"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/reorder-sequence",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "Reordering uses the parent's sub-task links in Jira's sequence: with no previous sibling the sub-task moves to position 0; otherwise to just after the previous sibling (the sibling's position + 1 when the sibling comes before the sub-task, the sibling's position when it comes after). Nothing is changed when the position is unchanged; otherwise Jira's SubTaskManager.moveSubTask(parent, current, new) is called. If the sub-task or the previous sibling is not among the parent's sub-task links, StructureException UPDATE_ITEM_FAILED with message `Sub-tasks cannot be reordered` is thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#reorderSubTask"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-subtasks/options",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "Option descriptions: add and move are both `s.ext.gen.extender.subtasks.option.move` ('Change sub-task parent'); reorder is `s.ext.gen.extender.subtasks.option.reorder` ('Reorder sub-tasks'). The action handler is always offered. The extender is marked as consuming new items: with `disableActions` true it still handles an action that creates a new item.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender$SubTaskActionHandler",
+    "com.almworks.jira.structure.extension.generator.extender.SubTaskExtender#createActionHandler",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#isConsumingNewItem"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-links/parameters",
+   "module": "extender-links",
+   "api": null,
+   "behaviour": "Stored parameters, form handling, summary and the link-disabled behaviour are those of `issue-links-support`: `linkTypeId` (long), `direction` (`outward`, `inward` or `any`; a legacy boolean `inward` = true means inward) and `shortestPaths` = true stored with direction any. The extender is available exactly when Jira issue linking is enabled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.LinkExtender#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.generator.extender.LinkExtender#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.extender.LinkExtender#isAvailable"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-links/rows",
+   "module": "extender-links",
+   "api": null,
+   "behaviour": "Each visible issue row gets as children the issues linked to it by the stored link type: for outward, the destinations of its outward links; for inward, the sources of its inward links; for any, both. Children are ordered by link id ascending, each issue once; issues the current StructureAuth user cannot see (unless security is overridden) and issues outside the plugin's project scope are left out. When the link type is missing, unknown or hidden (see `issue-links-support`) the extender adds nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.LinkExtender#getExtenderFunction",
+    "com.almworks.jira.structure.extension.IssueLinksUtil#collectMatchingLinkedIssues",
+    "com.almworks.jira.structure.extension.IssueLinksUtil#collectLinkedIssues"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-links/regeneration",
+   "module": "extender-links",
+   "api": null,
+   "behaviour": "The extension is regenerated when a changed-items batch contains an issue it processed as a parent, or an issue inside the project scope that is linked by the stored type in the opposite direction to an issue it processed (so a change of a child counts once its link to a processed parent exists). Changes of added children alone do not trigger it otherwise.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.IssueExtenderChangeFilter#accept",
+    "com.almworks.jira.structure.extension.generator.extender.LinkExtender#getExtenderFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-links/actions",
+   "module": "extender-links",
+   "api": null,
+   "behaviour": "Moving, adding or removing a row is handled by `issue-links-support` for the stored link type and direction: the moved issue, its old parent (0 when taken from outside) and its new parent (0 when placed at no parent) are checked as linkable issues (not-an-issue yields, missing issue or no LINK_ISSUES permission blocks) and the resulting effect removes the link to the old parent and creates one to the new parent. Reordering is always blocked with `s.ext.gen.links.block.reorder` ('Link reordering is not supported by Jira.'), wrapped in `s.ext.gen.block.suggest-adjustment` when manual adjustment is possible. Without a valid link type there is no action handler.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.LinkExtender$LinkActionHandler#moveExtension",
+    "com.almworks.jira.structure.extension.generator.extender.LinkExtender$LinkActionHandler#reorderExtension",
+    "com.almworks.jira.structure.extension.generator.extender.LinkExtender#createActionHandler"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-links/options",
+   "module": "extender-links",
+   "api": null,
+   "behaviour": "Option descriptions use the link type's name: `s.ext.gen.links.option.add` ('Create issue links of type \"{0}\"'), `s.ext.gen.links.option.move` ('Change issue links of type \"{0}\"') and `s.ext.gen.links.option.reorder` ('Reorder issue links of type \"{0}\"').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.LinkExtender$LinkActionHandler"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-agile/parameters-availability",
+   "module": "extender-agile",
+   "api": null,
+   "behaviour": "The extender has no parameters of its own (only the framework's level parameters); its form adds nothing. It is available exactly when `gh-integration` finds the epic issue link type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.AgileEpicExtender#isAvailable",
+    "com.almworks.jira.structure.extension.generator.extender.AgileEpicExtender"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-agile/rows",
+   "module": "extender-agile",
+   "api": null,
+   "behaviour": "Each visible issue row whose issue has the epic issue type (checked with an index match of 'issuetype = <epic type id>', the answer kept per issue for the generation) gets as children the destinations of its outward links of the epic link type, ordered by link id ascending, each once; issues the current StructureAuth user cannot see (unless security is overridden) and issues outside the project scope are left out. When `gh-integration` finds no epic link type or no epic issue type the extender adds nothing (warning logged).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.AgileEpicExtender#getExtenderFunction",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#validateMatchingIssueRoots",
+    "com.almworks.jira.structure.extension.IssueLinksUtil#collectMatchingLinkedIssues"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-agile/regeneration",
+   "module": "extender-agile",
+   "api": null,
+   "behaviour": "The extension is regenerated when a changed-items batch contains an epic it processed or an issue it added under an epic, or an issue inside the project scope whose epic (its inward epic link) is an epic it processed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.IssueExtenderChangeFilter#accept",
+    "com.almworks.jira.structure.extension.generator.extender.AgileEpicExtender#getExtenderFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-agile/move",
+   "module": "extender-agile",
+   "api": null,
+   "behaviour": "Moving a row: when the row is not an issue, or the new parent is not an issue, it yields with `s.ext.gen.extender.agile.block.not-an-issue` ('Only issues can be added to epics.'); moving to no parent is allowed (it removes the issue from its epic). An issue that cannot be obtained blocks with `s.ext.gen.block.no-issue`. For a new issue (no id yet) it gives a change-epic effect with no inverse. For an existing issue, when its current epic (from `gh-integration`) is the same as the new parent (or both none) nothing happens; otherwise a change-epic effect to the new parent (none when moved out) with an inverse back to the current epic. There is no action handler when the epic link type, the epic issue type or Jira Software's epic service is unavailable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.AgileEpicExtender#createActionHandler"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-agile/effect",
+   "module": "extender-agile",
+   "api": null,
+   "behaviour": "When the change-epic effect is evaluated it yields with `s.ext.gen.extender.agile.block.no-epic-service` ('Epic service is unavailable.'), `.no-epic-link-type` ('Epic link type is not found.') or `.no-epic-issue-type` ('Epic issue type is not found.') when those are missing; blocks with `s.ext.gen.block.no-issue` when the issue or a target epic id > 0 cannot be resolved; yields with `.sub-task` ('Sub-tasks cannot be added to epics directly.') for a sub-task, `.epic` ('Epics cannot be added to other epics.') when the issue is an epic, `.not-an-epic` ('Issues cannot be added to non-epics.') when the target is not an epic; and blocks with the permission text from `gh-integration` (EDIT_ISSUES). For a new issue it then is an empty effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.ChangeEpicEffect#apply"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-agile/effect-run",
+   "module": "extender-agile",
+   "api": null,
+   "behaviour": "A valid change for an existing issue is described as `s.ext.gen.agile.effect.epic.move` ('Moved {0} to epic {1}.') when it had an epic and gets another, `s.ext.gen.agile.effect.epic.add` ('Added {0} to epic {1}.') when it had none, `s.ext.gen.agile.effect.epic.remove` ('Removed {0} from epic {1}.') when it is taken out, with the issue key and the epic's display name (see `gh-integration`); no description otherwise. Running it sets the issue's epic through `gh-integration` as the current StructureAuth user (target epic, or none to remove); a false result from the service is not reported as an error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.ChangeEpicEffect#apply"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-agile/reorder-options",
+   "module": "extender-agile",
+   "api": null,
+   "behaviour": "Reordering is always blocked with `s.ext.gen.extender.agile.block.reorder` ('Issue reordering is not supported.'), without the manual-adjustment suggestion. Options: `s.ext.gen.extender.agile.option.add` ('Add issues to epic'), `.option.move` ('Move issues to epic'), `.option.reorder` ('Reorder issues within epic').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.AgileEpicExtender#createActionHandler"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-portfolio-children/parameters-availability",
+   "module": "extender-portfolio-children",
+   "api": null,
+   "behaviour": "The extender has no parameters of its own; it is available, and generates and handles actions, only when `portfolio-integration` reports Advanced Roadmaps available. When it is not available it adds nothing and offers no action handler.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.PortfolioChildrenExtender#isAvailable",
+    "com.almworks.jira.structure.extension.generator.extender.PortfolioChildrenExtender#getExtenderFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-portfolio-children/rows",
+   "module": "extender-portfolio-children",
+   "api": null,
+   "behaviour": "Each visible issue row gets as children the issues whose Advanced Roadmaps Parent Link points to it (from `portfolio-integration`), with issues outside the plugin's project scope removed, de-duplicated and sorted by issue id ascending. No visibility check is made here.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.PortfolioChildrenExtender#filterAndSort",
+    "com.almworks.jira.structure.extension.generator.extender.PortfolioChildrenExtender#preload",
+    "com.almworks.jira.structure.extension.generator.extender.PortfolioChildrenExtender#filterAndConvertToParentChild"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-portfolio-children/bulk-threshold",
+   "module": "extender-portfolio-children",
+   "api": null,
+   "behaviour": "In breadth-first generation the children of a whole level are asked from `portfolio-integration` in one request when the level has at least `structure.feature.portfolioChildrenExtender.luceneBatchingThreshold` parent issues (dark feature, default 5, read when the module is created); otherwise they are asked parent by parent. The result is the same either way.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.PortfolioChildrenExtender",
+    "com.almworks.jira.structure.extension.generator.extender.LevelPreloadingIssueExtenderFunction#preloadLevel"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-portfolio-children/regeneration",
+   "module": "extender-portfolio-children",
+   "api": null,
+   "behaviour": "The extension is regenerated when a changed-items batch contains an issue it processed as a parent, or an issue inside the project scope whose Roadmaps parent (from `portfolio-integration`, ids > 0 only) is an issue it processed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.IssueExtenderChangeFilter#accept",
+    "com.almworks.jira.structure.extension.generator.extender.PortfolioChildrenExtender#getParentIssues"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-portfolio-children/move",
+   "module": "extender-portfolio-children",
+   "api": null,
+   "behaviour": "Moving a row: a row that is not an issue, or a new parent that is not an issue, yields with `s.ext.gen.extender.portfolio.yield.not-an-issue` ('Only issues can be made parents and children in Advanced Roadmaps(Portfolio).'); moving to no parent clears the parent. An issue that cannot be obtained blocks with `s.ext.gen.block.no-issue`. A new issue (no id) gets a change-parent effect with no inverse. For an existing issue, when its current Roadmaps parent id equals the target's id (0 for none) nothing happens; otherwise a change-parent effect with an inverse back to the current parent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.PortfolioChildrenExtender#createActionHandler"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-portfolio-children/effect",
+   "module": "extender-portfolio-children",
+   "api": null,
+   "behaviour": "When the change-parent effect is evaluated: an issue, or a target parent id > 0, that cannot be resolved blocks with `s.ext.gen.block.no-issue`; a sub-task child yields with `s.portfolio.parent.error.child-is-subtask` ('Child issue is a sub-task.'); a child that has an epic (Jira Software) or a target that is an epic yields with `s.ext.gen.portfolio.yield.use-epic-link` ('Cannot set parent issue, please use Epic Link instead.'). Otherwise the change is validated by `portfolio-integration`; an invalid result blocks with its error messages joined by ', '. For a new issue a valid change is an empty effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.ChangePortfolioParentEffect#apply",
+    "com.almworks.structure.commons.util.CommonUtil#asErrorMessage"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-portfolio-children/effect-run",
+   "module": "extender-portfolio-children",
+   "api": null,
+   "behaviour": "A valid change for an existing issue is described as `s.ext.gen.portfolio.effect.parent.move` ('Moved {0} to parent {1}.') when it had a parent and gets another, `.parent.add` ('Added {0} to parent {1}.') when it had none, `.parent.remove` ('Removed {0} from parent {1}.', with the old parent's key) when cleared, with issue keys. Running it sets the parent through `portfolio-integration`; an invalid result throws StructureException UPDATE_ITEM_FAILED for the issue with the joined error messages.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.ChangePortfolioParentEffect#apply"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/extender-portfolio-children/reorder-options",
+   "module": "extender-portfolio-children",
+   "api": null,
+   "behaviour": "Reordering is always blocked with `s.ext.gen.extender.portfolio.block.reorder` ('Child issue reordering is not supported.'). Options: `s.ext.gen.extender.portfolio.option.add` ('Add child issues to parent'), `.option.move` ('Move child issues to parent'), `.option.reorder` ('Reorder child issues').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.extender.PortfolioChildrenExtender#createActionHandler"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/parameters",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Stored parameter: `fieldId` (String), a system field id (`project`, `labels`, `reporter`, `creator`, `assignee`, `status`, `resolution`, `issuetype`, `versions`, `fixVersions`, `priority`, `components`) or a custom field id (`customfield_NNNNN`). Showing parameters on a form puts `fieldId` there; the framework's grouping-level parameters are separate.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/form-to-parameters",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Building parameters from a form: no `fieldId` adds `s.gen.grp.field.error.no-field-selected` ('Please select an issue field.') under `fieldId` and returns an empty map; one of the 12 system ids returns {\"fieldId\": id}; an id Jira's FieldManager does not know (blank included) adds `s.gen.grp.field.error.no-field` ('Cannot find issue field \"{0}\", sorry! Please try again.', argument the id); a custom field of a supported type returns {\"fieldId\": id}; any other field adds `s.gen.grp.field.error.not-supported` ('Field \"{0}\" is not supported by this generator type, sorry!', argument the field's localized name, or its name when the name key has no text) and returns an empty map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/supported-custom-types",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Supported custom field types (checked in this order, by type class): project picker, single user picker, select lists (single select and radio buttons), version pickers (single and multiple), multi user picker, group pickers (single and multiple), multi select (including checkboxes), labels, cascading select, the ScriptRunner single issue picker, the Service Management request type field (when the `com.atlassian.servicedesk` plugin is enabled and the field's type class equals the request type field's), and Insight/Assets object fields (when Insight is enabled). Other custom fields are not supported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#isCFSupported",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$IssuePickerFunctionSupplierFactory#isCFTSupported",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$ServiceDeskRequestTypeFunctionSupplierFactory#isCFTSupported",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$InsightObjectFunctionSupplierFactory#isCFTSupported"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/presets",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Presets: one GeneratorPreset per supported field (the 12 system fields Jira's FieldManager knows, then every supported custom field), in Jira's field sort order, labelled with the field's localized name (its name when the name key has no text) and with parameters {\"fieldId\": <id>}.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#getPresets",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#getSupportedFields"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/summary-label",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "For a summary `fieldName` is the field's (unlocalized) name from Jira's FieldManager, null for a missing or unknown `fieldId`; the same name is the grouper's semantic label.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#addParametersForSummary",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#getSemanticLabel",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#getFieldName"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/no-function",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "When `fieldId` is missing, unknown, or a custom field of an unsupported type, the grouper produces no grouping (no groups at all).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#createGrouperFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/group-row-order",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Group rows are created in this order: the regular groups sorted as for the field (see the per-field claims), then any regular groups that could not be sorted, then the field's empty group (when used), and last the not-an-issue group `s.grouper.field.+not-an-issue` (folder item, see `effect-based-issue-movers`). Rows that are not visible issues go to the not-an-issue group.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#createGroupRows",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#getGroups"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/unavailable-values",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "A group value whose item cannot be resolved for the current user (for example a deleted or invisible version or project) is dropped; when an issue has no remaining value it goes to the field's empty group. An issue whose value cannot be read at all (the issue object is missing) goes to the not-an-issue group.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#filterUnavailableGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#getGroups"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/index-values",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Values are read in bulk from Jira's issue index for the rows of the grouping level, ignoring issue security, and are kept for the generation; issues not in the index read get no value and go to the empty group. For a custom field whose contexts do not cover all projects and issue types, only issues inside its configuration contexts are read, so issues outside go to the empty group. Values not preloaded are read from the issue object.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#setContext",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#preloadGroups",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#readIssueFieldsFromIndex",
+    "com.almworks.jira.structure.extension.query.CustomFieldContextQueryBuilder#build"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/single-vs-multi",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Single-valued fields (project, project picker, users, status, resolution, issue type, priority, selects, cascading select, issue picker, request type) put each issue in exactly one group. Multi-valued fields (labels, versions, fix versions, version pickers, components, multi select, multi user, groups, Insight objects) put an issue under each of its values, so the same issue appears in several groups.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueSingleFunction#isExclusiveGroup",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$AbstractIssueMultiFunction#isExclusiveGroup",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$MultiUserFunction#isExclusiveGroup"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/project",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Project (`project`) and project picker custom fields: groups are `com.almworks.jira.structure:type-project` items with the project id, sorted by project name ignoring case (missing names last); issues with no project go to `s.grouper.field.+no-project`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$AbstractProjectFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/users",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Assignee, reporter, creator, user picker and multi user picker: groups are `com.almworks.jira.structure:type-user` items with the user key, sorted by display name (case-sensitive), users not found by key after the sorted ones. Empty groups: assignee `s.grouper.field.+unassigned`, reporter `+no-reporter`, creator `+no-creator`, user pickers `+no-user`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$AbstractUserFunction#sortRegularGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$SingleUserFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$MultiUserFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/issue-constants",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Status, resolution, issue type and priority: groups are string-id items of type `com.almworks.jira.structure:type-status`, `:type-resolution`, `:type-issuetype`, `:type-priority` with the constant's id. Order: priorities in Jira's priority order, resolutions in Jira's resolution order, issue types in Jira's order of all issue types, statuses in Jira's status order stable-sorted by status category. Empty groups: `+no-status`, `+unresolved`, `+no-issue-type`, `+no-priority`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$AbstractIssueConstantFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$StatusFunction#getAllObjectsOrdered",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$PriorityFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$ResolutionFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$IssueTypeFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/versions",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Affects versions (`versions`), fix versions (`fixVersions`) and version picker custom fields: groups are `com.almworks.jira.structure:type-version` items with the version id, ordered by the reverse of Jira's version comparator (within a project the latest version first). Empty groups: `+no-version` for affects versions and version pickers, `+no-fix-version` for fix versions.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$VersionFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$AffectsVersionsFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$FixVersionsFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/components",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Components: groups are `com.almworks.jira.structure:type-project-component` items with the component id, sorted by their project's name (ignoring case) and then by component name ignoring case; unknown components last. Empty group `+no-components`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$ProjectComponentFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/labels",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Labels and labels custom fields: groups are `com.almworks.jira.structure:type-label` items with the label text, sorted by text ignoring case. Empty group `+no-labels`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$AbstractLabelsFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/options",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Single select, radio and multi select custom fields: groups are `com.almworks.jira.structure:type-cf-option` items with the option id, sorted by option sequence (unknown options last). Cascading select: the group is the deepest selected option (the child when one is chosen, else the parent), as a `type-cf-option` item; groups are ordered by the parent option's sequence, each parent before its own children, children by sequence. Empty group `+no-option`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$AbstractSelectFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$MultiSelectFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$CascadingOptionComparator#compare"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/groups-field",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Group picker custom fields (single or multiple): groups are `com.almworks.jira.structure:type-group` items with the group name, sorted by name ignoring case. Empty group `+no-group`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$MultiGroupFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/issue-picker",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "ScriptRunner single issue picker (when ScriptRunner is installed): groups are issue items (the picked issue's id), sorted by issue key as text; picked issues that cannot be resolved come last. Empty group `+no-issue`. Without ScriptRunner such fields are not supported.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$IssuePickerFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$IssuePickerFunctionSupplierFactory"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/request-type",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Service Management request type field (custom field type `com.atlassian.servicedesk:vp-origin`, only when the `com.atlassian.servicedesk` plugin is enabled): groups are `com.almworks.jira.structure:type-sd-request-type` items with the request type id, sorted by request type name with a collator of the plugin's i18n locale. Empty group `s.grouper.field.+no-customer-request-type`. Without Service Management the field is not supported.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$ServiceDeskRequestTypeFunctionSupplierFactory",
+    "com.almworks.jira.structure.integration.servicedesk.AbstractRequestTypeIssueFunction#sortRegularGroups",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#isRequestTypeField"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/insight",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Insight/Assets object custom fields (only when Insight is enabled): groups are `com.almworks.jira.structure:type-insight-object` items with each referenced object's id, ordered by object type id and then object label. Empty group `+no-insight-object`. Without Insight such fields are not supported.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.InsightObjectIssueFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$InsightObjectFunctionSupplierFactory"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/generic-items",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "When the field is known to `structure-field-manager` with an item-based field type, memos and planning tasks are grouped too: their value comes from the item's field accessor (an item value becomes its group, a collection value one group per item value); a memo whose configuration hides the field goes to the not-an-issue group; an item without a field accessor or value goes to the empty group. Other non-issue rows go to the not-an-issue group.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.GenericItemAwareGrouperFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.GenericItemAwareGrouperFunction#getGenericItemGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#createGrouperFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/regeneration",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "The grouping is regenerated when a changed-items batch contains any issue it grouped or any regular group item it created (for example a version, user, option or status); empty and not-an-issue groups are not tracked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#createGroupRows",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#createGrouperFunction"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/actions",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "User moves between groups are handled by the mover of `effect-based-issue-movers` for the `fieldId`. For the Service Management request type field (which has no such mover) a request-type mover is used; any other field without a mover has no action handler.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper#createActionHandler"
+   ]
+  },
+  {
+   "key": "e10-inserters-extenders/grouper-field/request-type-move",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "Moving an existing issue between request type groups gives a set-request-type effect from the source request type to the target (none for the empty group) with the reverse as inverse. When evaluated: a source or target id that no longer loads blocks with `s.ext.gen.grouper.servicedesk.error.no-request-type` ('Request type does not exist.') but evaluation continues (as the original does); an issue the current user cannot edit blocks with `s.ext.gen.grouper.servicedesk.error.issue-not-editable` ('Issue is not editable.'); a failed Service Management validation blocks with its errors joined by ', '; otherwise it is described as `s.ext.gen.grouper.servicedesk.effect.request-type` ('Changed request type of {0}.', issue key) and running it updates the request type, an invalid result throwing StructureException UPDATE_ITEM_FAILED with the errors. For a new issue placed in a request type group, Service Management validation of that value runs and a failure blocks with its errors.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$ServiceRequestTypeCustomFieldMover#moveIssue",
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper$ServiceRequestTypeCustomFieldMover#validateCreate",
+    "com.almworks.jira.structure.extension.generator.grouper.SetServiceRequestTypeEffect#apply"
+   ]
+  }
+ ]
+}

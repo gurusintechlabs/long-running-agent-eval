@@ -5690,7 +5690,7 @@ Optional extension interface that an item type module (a `StructureItemType` imp
 
 | member | meaning |
 |---|---|
-| `public abstract void filterInaccessible(com.almworks.jira.structure.api.item.ItemIdentitySet, com.atlassian.jira.user.ApplicationUser, boolean, com.almworks.jira.structure.api.item.ItemIdentitySet)` | Examines the items in the first argument (the plugin passes only items of this module's type) and adds to the fourth argument (a mutable collector) every item that does not exist or that the user in the second argument (null means anonymous) may not see. When the third argument is true, security is overridden: only items that do not exist should be collected. Must not modify the first argument and must not remove anything from the collector; items not added are treated as accessible. |
+| `public abstract void filterInaccessible(com.almworks.jira.structure.api.item.ItemIdentitySet, com.atlassian.jira.user.ApplicationUser, boolean, com.almworks.jira.structure.api.item.ItemIdentitySet)` | Examines the items in the first argument (the plugin passes only items of this module's type) and adds to the fourth argument (a mutable collector) every item that does not exist or that the user in the second argument (null means anonymous) may not see. When the third argument is true, security is overridden: only items that do not exist should be collected. Must not modify the first argument and must not remove anything from the collector; items not added are treated as accessible. This is the rule for other plugins' types; the built-in item types follow their own module claims, where several collect fewer items (some none at all). |
 
 ### `com.almworks.jira.structure.api.item.BulkAccessibleItemType`
 

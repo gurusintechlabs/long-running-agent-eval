@@ -1,4 +1,4 @@
-# JC3 helper brief: behavioural claims for the plugin's internal components
+# JC4 helper brief: behavioural claims for the plugin's extension modules
 
 Repo: /Users/tonylee/Documents/coding/longhorizon_testing (branch jira-re). You are an analyst helper in a
 clean-room reverse-engineering project. Another engineer (an AI agent) will re-implement this Jira plugin
@@ -6,20 +6,60 @@ clean-room reverse-engineering project. Another engineer (an AI agent) will re-i
 claim, in your own words. The implementer writes a JUnit test per claim (named after the claim id) against its
 own code, and hidden tests check the re-implementation against them.
 
-This session covers the plugin's **internal components**: Spring components the plugin does *not* export
-(no `public="true"`). Their module keys are contract (the descriptor is kept), but their Java interfaces are
-internal: the implementer designs its own classes and methods. So a claim here says **what the component does
-for the plugin** (its responsibility, inputs, results, rules, limits, timing, storage, what it asks Jira),
-never which internal methods or types it has. The 45 public components (JC2) and the API types (JC1) are
-already claimed; build on those claims rather than repeating them.
+This session covers the plugin's **extension modules**: the many-instance modules that plug into the public
+API's extension points (attribute loader providers, effect providers, item types, export renderer providers,
+generators: inserters, extenders, groupers, sorters and filters, synchronizers, effectors, query constraints,
+new-structure templates, performance-log providers, a calendar provider) and the `module-type` declarations
+of those extension points. The API types (JC1), the 45 public components (JC2) and the 166 internal
+components (JC3) are already claimed; build on those claims rather than repeating them.
+
+## What is contract for an extension module
+- **The module key and type, and its descriptor element** (attributes and children such as `label`,
+  `description`, `order`, i18n keys, `resource` names): the descriptor is kept. Velocity templates and the UI
+  they render come in a later session; do not describe their HTML.
+- **The extension interface** it implements is a public API type (API.md). Its general rules are claimed
+  already (JC1, by API type). Your claims say what **this module** does through it, for example:
+  - *attribute loader provider*: which `AttributeSpec`s it answers (attribute id and every params key it reads,
+    with defaults and the value format), which it declines, what each value is for each item type (and for
+    missing, invisible or unsupported items), its dependencies on other attributes, how it aggregates or
+    propagates over the forest, nulls and errors, and how changes invalidate values (what it tracks);
+  - *effect provider*: the effect parameters it accepts (keys, value types, how ids or names are resolved),
+    validation and the problems it reports (by i18n key with the English text), what the effect does to the
+    issue or item when applied, its undo, and the description it gives;
+  - *item type*: the item type key, how item ids are formed and parsed (long id or string id), what object an
+    item resolves to and for whom (visibility and permission checks), which events or changes it tracks,
+    and what creating, copying or editing an item of this type does;
+  - *generator* (inserter, extender, grouper, sorter, filter): **its parameters as stored** (the JSON keys of
+    `AO_8BAD1B_GENERATOR.C_PARAMETERS`, value types, defaults, limits), how form input becomes those
+    parameters and which errors it rejects, the rows it produces (order, levels, duplicates, limits), the
+    actions it allows or blocks on the generated rows (move, add, remove: which become Jira changes or
+    effects), and what changes make it regenerate;
+  - *synchronizer* and *effector*: their stored parameters, what they read and write in Jira and in the
+    structure, in which direction and order, conflict rules, and their limits and errors;
+  - *export renderer provider*: which columns it renders (column key and params), the cell value and type in
+    Excel and in print, and its formats;
+  - *module-type*: which descriptor attributes and children it reads, their defaults and validation, what a
+    module of that type must provide, and how its instances become available (ordering, enabling and
+    disabling, Jira-version restrictions);
+  - *performance-log provider*: what it adds to the performance log, and when.
+- **Stored and wire formats are contract** and must be exact: parameter keys and value encodings, attribute ids
+  and params keys, item type keys and the form of item ids, and i18n message keys that are persisted or sent
+  (say the key and the English text from `analyst-work/jar/i18n/StructureMessages.properties`).
+- The implementing classes, their helpers and their method shapes are **not** contract: never name them.
 
 Jira version: the pinned platform is **Jira 9.12**. Where a module has several classes for different Jira
-ranges (`...J9` / `...J10` / `...J11`, javax / jakarta), claim the Jira 9 one only.
+ranges (`...J9` / `...J10` / `...J11`, javax / jakarta), claim the Jira 9 one only. Integrations (Jira
+Software, Advanced Roadmaps, Tempo, Assets, Service Management, ScriptRunner) are claimed for when the other
+app is present and for when it is absent.
 
 ## Your inputs
-- Your modules: `modules.txt` in your own scratch folder (path in your prompt): module key, the original's
-  implementing class(es) and internal interface (internal, never name them in a claim), purpose from the
-  inventory, related modules, SPEC.md lines that mention the key.
+- Your modules: `modules.txt` in your own scratch folder (path in your prompt): module key, its descriptor
+  element(s), the original's implementing class (internal, never name it in a claim) with the path of its
+  decompiled source, purpose from the inventory, related modules, SPEC.md lines and existing claim ids that
+  mention the key.
+- The descriptor itself, the Velocity templates and the i18n bundle are in `analyst-work/jar/`
+  (`atlassian-plugin.xml`, `templates/`, `i18n/StructureMessages.properties`). Read a generator's form and
+  summary templates for its parameter names, but claim parameters from the Java code that reads them.
 - Decompiled source (Vineflower): the plugin in `analyst-work/vf/`, its internal libraries in
   `analyst-work/libvf/<lib>/` (much real logic lives in structure-commons), the public API in
   `analyst-work/apivf/`. Class files: `analyst-work/jar/` (plugin), `analyst-work/apijar/` (API), the libraries
@@ -34,7 +74,9 @@ ranges (`...J9` / `...J10` / `...J11`, javax / jakarta), claim the Jira 9 one on
     columns (§1.5), persisted names such as property keys (§1.6), and §1.8 (out of scope: contacting the
     vendor; the replacement never phones home, and no Marketplace licensing: every licence check behaves as
     licensed and valid).
-  - `fixtures/seed_jira_re/spec/claims.jsonl`: existing claims (API types). Do not repeat them; build on them.
+  - `fixtures/seed_jira_re/spec/claims.jsonl`: existing claims (API types, public and internal components).
+    Do not repeat them; build on them. Search it for your module key and for the API interfaces you implement
+    (`"api": "<fq type>"`).
   - If API.md or SPEC.md is wrong, say so in your report; do not edit them.
 - **Never read `analyst-work/central-src/`, and keep it out of every search** (search `vf/`, `libvf/`, `apivf/`
   by name, or use `grep -r --exclude-dir=central-src`). It is the vendor's source with javadoc. Copying from
@@ -63,8 +105,8 @@ scripts or notes go in your own scratch folder only.
 - Keys are permanent ids once built. Make them descriptive and stable.
 
 ## What a good claim is
-- **Observable at the component's boundary, without prescribing its shape.** State the behaviour as
-  "given this situation / input, the component does / returns / stores / asks Jira for ...". Good subjects:
+- **Observable at the module's boundary, without prescribing its shape.** State the behaviour as
+  "given this situation / input, the module does / returns / stores / asks Jira for ...". Good subjects:
   results and their order, defaults, limits and sizes (cache sizes, expiry times, batch sizes, thresholds,
   stated with their numbers), validation and errors (by public `StructureErrors` name or a JDK/Jira exception
   type where callers see it), permission rules (who gets what, and what an unauthorised user sees), what is
@@ -85,7 +127,8 @@ scripts or notes go in your own scratch folder only.
 - **Uniformly deep.** Every module gets claims covering each responsibility: normal case, boundaries,
   errors, permissions, nulls, persistence. Typical: 2–5 claims for a thin bridge or holder, 4–10 for a cache,
   store or helper, 15–40 for a large one (a formula function library, an event bridge, a permissions
-  calculator). Don't pad, and don't skip responsibilities.
+  calculator, a synchronizer, a field grouper). For extension modules: 2–4 for a tiny effect provider or
+  item type, 5–15 for a typical loader, generator or item type, more for the large ones. Don't pad, and don't skip responsibilities.
 - **Big catalogues** (a formula function library, a field catalogue, a set of statistics): one claim per
   function or entry, or per small family of them, with argument rules, results, edge values and error
   results. Completeness matters more than brevity here: the implementer has nothing else to go on.
@@ -93,7 +136,7 @@ scripts or notes go in your own scratch folder only.
   they report or do on Jira 9.12 and their fallbacks (what happens when the Jira service is missing or
   throws). If a module really carries no behaviour of its own, write one claim stating what it provides and
   to whom, and say so in your report.
-- **Delegation:** a component that forwards to another is still claimed by what the caller sees. Follow it
+- **Delegation:** a module that forwards to another is still claimed by what the caller sees. Follow it
   as far as needed; claim the observable result, not the path. If the behaviour belongs to a module that
   already has claims (claims.jsonl), refer to that module by key instead of restating it.
 - **Describe the original faithfully, bugs included.** Where it looks like a bug, state what it does, add

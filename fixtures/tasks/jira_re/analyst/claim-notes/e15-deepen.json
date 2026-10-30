@@ -1,0 +1,494 @@
+{
+ "claims": [
+  {
+   "key": "e15-deepen/sync-links/run-step-order",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "One run (resync or incremental) works in this order: (1) collect the links and the parent/child scope; (2) on incremental sync with primacy other than `links`, replay the batch's structure changes as link changes; (3) merge duplicate sibling rows of the same issue, then re-read the forest; (4) structure-to-Jira scan (primacy other than `links`); (5) Jira-to-structure scan; (6) add missing children under each parent row, in forest order of the parent rows; (7) add missing link parents at the top level; (8) handle the remaining orphan rows; (9) enforce the loop rule (only when there is anything to do: always on resync, on incremental sync only when the batch has changed issues or link events); (10) write all link creations and removals to Jira in one transaction. All structure changes happen before any link is written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#doSync"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/row-issue-of-loop-marker",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "For every placement rule of this synchronizer a row counts as the issue of its item, and a loop-marker row (`com.almworks.jira.structure:type-loop-marker/<rowId>`) counts as the issue of the row it points to (followed through chains of markers). Rows of any other item type (folders, generators, projects...) count as no issue: they are never moved, removed or added by the synchronizer, and a child row under such a row has no parent issue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.util.RowIssueCache#getIssueId",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#<init>"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/row-classification",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Each row of an issue that may be a child (passes the child filter) and is relevant (on resync always; on incremental sync when its issue or its parent row's issue changed in the batch, or either issue has links in the collected link set) is classified by its parent row's issue P (0 at the top level or under a non-issue row): (a) in place when P is one of the issue's link parents; else (b) when P may be a parent: with primacy `links` the row is an orphan; with primacy `structure` the row stays and the link P -> issue is to be created, unless P is the issue itself or this batch's structure changes removed that link, in which case it is an orphan; with primacy `none` the row is an orphan when Jira or this batch's structure changes removed the link P -> issue, else it behaves as with `structure`; else (c) the row is an orphan when the issue has at least one link parent, otherwise it stays untouched. Example (resync, primacy `links`, no filters): forest [P > X] with no link P -> X makes X an orphan; with primacy `structure` X stays and link P -> X is created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$BaseSyncScan#visitParent",
+    "com.almworks.jira.structure.extension.sync.links.ForestIssuesScanner#scanForestIssuesDown"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/missing-children-position",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "For each row whose issue may be a parent, the link children of that issue that are not the issue of one of its direct child rows are missing. They are placed under that row right after its current last child row (whatever item that last child is), or as its first child when it has none, in ascending issue id order. Each missing child either reuses an orphan row of that issue (moved with its subtree, see orphan reuse) or is added as a new issue row; a newly added issue row gets all its own link children (in scope) as new nested rows recursively, and those nested children are ordered by the Jira link id of their link (ascending; links only planned in this run and not yet in Jira come last, by parent then child issue id). Example (resync, primacy `links`): links P->A, P->B, P->C1 with issue ids C1=100, A=101, B=102; forest [P > [C1, F], G > A] with F, G folders. A's row under G is an orphan and is moved; B is new: result [P > [C1, F, A, B], G].",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$SyncInScan#visitChildren",
+    "com.almworks.jira.structure.extension.sync.links.ForestIssuesScanner#scanForestIssuesDown",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#addMissingChildren",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$AddMissingChildren#insertIssue",
+    "com.almworks.jira.structure.extension.sync.links.LinksGraph#getChildren",
+    "com.almworks.jira.structure.extension.sync.links.LinkIdComparator"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/orphan-reuse-order",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "When a missing child has orphan rows, one of them is moved instead of adding a row. Candidates are that issue's orphan rows in forest order; the search starts at the first orphan row that comes after the parent row in forest order and then alternates: first after, second after, last before, third after, second before, and so on. A candidate that is an ancestor of the parent row (taking moves already planned in this run into account) is skipped. An orphan row that is used is no longer an orphan. When no candidate fits, see the cycle-breaking rule; otherwise a new row is added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$AddMissingChildren#findOrphanIdxIdx",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#isAncestor"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/orphan-ancestor-bubble",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Cycle breaking: walking up from the parent row, the first row that is not held in place by a link is found (a row is held when its issue may be a child, it is not an orphan, and its parent row's issue may be a parent); call it M. When the only orphan rows of the missing child are ancestors of the parent row and M exists, the last such orphan row in forest order (skipping M itself) is used: M is first moved out (with its subtree) to sit right after the topmost ancestor of that orphan row reached through rows whose issues may be parents, under that ancestor's parent (top level when none), and then the orphan row is moved under the parent row. M stops being an orphan when its issue has no link parents. Example (resync, primacy `links`, no filters): forest [X > A] with the single link A -> X (A parent of X): result [A > X], both original rows kept.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$AddMissingChildren#findAncestorOrphanIdxAndBubble",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$AddMissingChildren#bubble",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$AddMissingChildren#run",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$AddMissingChildren#canBeMoved"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/loop-marker-in-held-chain",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "While walking up from the parent row to M (the first ancestor-or-self not held in place by a link), the issues of the rows passed (the parent row and its held ancestors, not M) are remembered. A missing child that is one of these issues is not added as an issue: a loop-marker row `com.almworks.jira.structure:type-loop-marker/<id of that ancestor row>` is added at its position instead. The same applies inside newly added nested rows (a nested child equal to a newly added ancestor gets a marker pointing to that new row). When, on that walk, an ancestor row above the parent row has the parent row's own issue, nothing at all is added under that parent row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$AddMissingChildren#run",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$AddMissingChildren#insertLoopMarker",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#moveOrphansAndInsertLoopMarkers"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/cycle-example",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Worked example (resync, primacy `links`, either orphan action, no filters): links A -> B and B -> A, forest [A > B]. B is in place, the top-level A row is an orphan (A has link parent B) that cannot be reused under B because it is B's ancestor, so a new row A' with a loop marker to B is first added under B; the loop rule then merges A' into the top A row and replaces it with a marker. Final forest: [A > B > ↻A], where ↻A is a `type-loop-marker` row pointing to the top A row. No links are written.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#doSync",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#enforceLoopInvariant",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#mergeDuplicateRowIntoAncestor"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/missing-parents-top-level",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Link parents that have no row in the structure and were not added during this run are reduced to the roots of the link graph above them (issues with no link parent, or one issue of a cycle). With primacy `links`, or `none` for roots not removed from the structure in this batch, these roots are added in one block at the top level, after the row that was the last top-level row before this run's additions, in ascending issue id order, each with its link subtree built as for missing children (orphan rows reused). Example (resync, primacy `links`, `expandParent` true): forest [X], link P -> X with P not in the structure: result [P > X], X's original row moved under the new P row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#processMissingParents",
+    "com.almworks.jira.structure.extension.sync.links.LinksGraph#findRoots"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/orphan-merge",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Orphans still left after missing children are placed are first merged, issue by issue in ascending issue id, into another row of the same issue that is not an orphan (anywhere in the forest, any depth): the candidate nearest by forest index is tried first (the preceding one on a tie), then the others alternating after/before; a candidate inside the orphan's own subtree is skipped. Merging moves the orphan's children into the target and removes the orphan row. Example (resync, primacy `links`): link P -> X, forest [F > X > Y, P > X2] where X2 is a second row of X and F a folder: the X row under F is an orphan and is merged into X2: result [F, P > X2 > Y]. The merge is tried once more after the orphan action for orphans still present.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#processOrphans",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#mergeOrphansWithNonOrphans",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#mergeOrphanWithNonOrphan"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/merge-semantics",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Merging a row R into a target row T (used for duplicate siblings, orphans and loops): R's children are matched to T's children by item (loop markers resolved to the item of the row they point to); a matched child is merged recursively into T's matching child, unmatched children are moved under T after its last child, keeping their order; then R is removed. Nothing happens (and the merge counts as failed) when R and T are the same row (`StructureErrors.INVALID_FOREST_OPERATION`, message `cannot merge row <R> into itself`), when either row is not in the current forest, or when T lies in R's subtree. If a child move fails, R is kept.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.SyncUtil#merge",
+    "com.almworks.jira.structure.extension.sync.SyncUtil#merge0"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/orphan-remove",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "With `orphanAction` `remove`, an orphan row is removed (with its subtree) only when its parent row's issue may be a parent and the orphan's issue has no link parent at all among the collected links; other orphans are moved up as for `moveUp`. Orphans inside a subtree being removed are removed with it, except that orphans there that cannot be removed are rescued. Example (resync, primacy `links`, source of truth Jira): forest [P > X], no links: `remove` gives [P]; `moveUp` gives [P, X].",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$OrphanActionsCollector#acceptRow",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$OrphanActionsCollector#canRemove"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/orphan-remove-rescue",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "When an orphan row is removed, rows inside its subtree are rescued (moved out with their subtrees before the removal) when they are orphans that cannot be removed, or when they are non-orphan rows whose issue may be a parent, whose parent row is not a non-orphan row of a possible-parent issue, and which have at least one non-orphan child row of a possible-parent issue. Rescued rows go, in forest order, to the place the removed orphan would have been moved up to. Example (resync, primacy `links`, `remove`, no filters): link R -> S only, forest [P > X > F > R > S] with F a folder: X is removed with F, R is rescued: result [P, R > S].",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$OrphanActionsCollector#shouldRescueNonOrphanFromRemovedSubtree",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$OrphanActionsCollector#exitedRemovedRootSubtree",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$OrphanActionsCollector#findBubbleTarget"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/orphan-move-up",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Moving an orphan up: walking up from its parent row, rows whose issue may be a parent are passed; the orphan (with its subtree) is placed under the first ancestor that is not such a row (top level when there is none), right after the topmost passed ancestor. When the parent row itself is not a possible-parent row (top level, folder, issue failing the parent filter) the orphan stays. Orphans with the same destination are moved together in forest order; removals are applied after all moves. Example: forest [F > P1 > P2 > X] with F a folder, P1 and P2 possible parents, X an orphan: result [F > [P1 > P2, X]].",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#applyOrphanAction",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$OrphanActionsCollector#findBubbleTarget",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$OrphanActionsCollector#addMove"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/duplicate-siblings-before-scan",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Before the scans, among the children of each row (never at the top level), rows of the same issue are merged into the first one when the issue has links in the collected set or (incremental) changed in the batch and may be a child. If the first one is a loop marker and a later one is a regular issue row, the loop marker is merged into the regular row instead. Example: [P > [X, Y, X2]] with X2 a second row of X gives [P > [X, Y]] with X2's children appended to X's children; top-level duplicates [X, X2] are left alone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#mergeSiblingRowsForSameIssues"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/loop-rule",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Loop rule, applied to rows of relevant issues after all moves: when a row's issue is already the issue of one of its ancestor rows that has children (the outermost such ancestor), the row is merged into that ancestor and a loop-marker row pointing to the ancestor row is added under the row's former parent at the row's former position (after its former preceding sibling, first when none); rows inside a subtree merged this way are merged without further markers. A loop-marker row that already points to that ancestor is kept (only its children, if any, are merged into the ancestor). A loop-marker row whose issue is not an ancestor's issue is converted: a new issue row is added just before it under the same parent, its children are moved under the new row, and the marker is removed (if adding fails the marker stays, if moving fails the marker is not removed).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#enforceLoopInvariant",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#mergeDuplicateRowIntoAncestor",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#convertLoopMarkerToIssue"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-links/expansion-stops-at-scope",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Links are collected, then every link whose parent fails the parent filter or whose child fails the child filter is dropped, and the expansion from the structure's issues is redone over the remaining links. So `expandChild`/`expandParent` only reach issues through in-scope links. Example (`expandChild` true, primacy `links`): structure [X], links X -> C and C -> D, child filter excluding C: neither C nor D is added; without the filter the result is [X > C > D].",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#init",
+    "com.almworks.jira.structure.extension.sync.links.LinksGraph#filter",
+    "com.almworks.jira.structure.extension.sync.links.LinkCollector$Expand#processLinks"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epic-tree-walk",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "The synchronizer judges a story row by its nearest epic ancestor: the closest ancestor row (any depth) whose issue is an in-scope epic. Folders, other items and issues that are neither in-scope epics nor in-scope stories are transparent (a story under E > Folder > S counts as under E). An epic row is never treated as a story, and a nearer epic row hides outer ones (in E1 > E2 > S, S is under E2). A story row with no epic ancestor counts as under no epic.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.AgileCommonUtil#visitForest",
+    "com.almworks.structure.commons.agile.AgileVisitorContext#detaByIndex"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epics-in-placement",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Jira to structure (epics): for each epic row, its Jira stories in scope that have no correctly placed row under it are completed. Stories moved in from elsewhere are appended after the epic row's last child; stories with no row at all are inserted as new rows, in Jira's epic-link order, right after the child row of the epic row that is or holds the last story row found correctly under that epic (in forest order), or as first children when there is none. Insertions happen before moves. Example: epic E with Jira stories S1, S2, S3; forest [E > [S1, N], E2 > S3] with S2 not in the structure and N a non-story: result [E > [S1, S2, N, S3], E2].",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsIn#moveOrphanedChildrenRows",
+    "com.almworks.jira.structure.extension.sync.agile.EpicsIn#fillMissings",
+    "com.almworks.jira.structure.extension.sync.OrphansResolver#moveOrphans",
+    "com.almworks.jira.structure.extension.sync.OrphansResolver#moveUnder"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epics-in-destination",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "A story row is misplaced when its nearest epic ancestor is not its Jira epic (in scope), including a story under no epic whose epic has a row. It is moved (with its subtree) under a row of its Jira epic: the nearest row of that epic before it in forest order or after it outside its own subtree, the nearer one by row distance, ties to the one before. A story whose epic is not in scope or has no row, and which is under no epic, stays. Example: forest [E, S] with S's epic E: result [E > S].",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsIn#moveOrphanedChildrenRows",
+    "com.almworks.jira.structure.extension.sync.PossibleParentRowsFinder#find"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epics-in-deepest-destination",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "When the chosen epic row is itself an ancestor of the misplaced story (an inner epic row hides it), the story is moved to the deepest ancestor between them that is not being moved itself, whose own nearest epic is the story's epic, and that is not a row of the story itself; if there is none, under the epic row. Example: forest [E > F > E2 > S] with F a folder and S's epic E: result [E > F > [E2, S]].",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsIn#moveOrphanedChildrenRows"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epics-in-bubble-out",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "A story row under an epic row it does not belong to, whose own epic is not in scope, has no row, or is none, is moved out of the epics: it goes under the parent of its outermost epic ancestor (the deepest ancestor such that it and every ancestor above it are not epic rows), after that row's last child, or to the end of the top level when the outermost epic row is a top-level row. Example: [F > E1 > S] with S in no epic: result [F > [E1, S]]; [E1 > S]: result [E1, S]. Issues are never removed by this step.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsIn#moveOrphanedChildrenRows"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epics-in-passengers",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Story rows inside the subtree of a row that is being moved or bubbled travel with it: a story there that would go to the same destination is not moved separately; one bound elsewhere gets its own move. Story rows inside a moved subtree whose issues were not under examination (on incremental sync) are left in the moved subtree and recorded; after the rank step their Jira epic is set to their new nearest epic ancestor when that differs and is not none (see escapees).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsIn#moveOrphanedChildrenRows",
+    "com.almworks.jira.structure.extension.sync.agile.EpicsIn$Changes"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epics-in-merge-on-arrival",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Destination rows are handled from the bottom of the forest up, the top level last. When the destination row already has a direct child row of the arriving story, the arriving row is merged into it (children joined, arriving row removed) instead of being moved; several rows of the same story arriving at one destination become one row. Before and, when a move had to break a cycle, after the step, sibling rows (same parent, including the top level) of the same in-scope epic or story are merged into the first one.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.OrphansResolver#mergeAndMoveUnder",
+    "com.almworks.jira.structure.extension.sync.OrphansResolver#moveUnder",
+    "com.almworks.jira.structure.extension.sync.agile.EpicsIn#mergeDuplicates"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epics-out-incremental-detail",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Structure to Jira on incremental sync, for each row of each change in the batch (with epics synced): ADD or COPY of a story row (story in scope, its current epic none or in scope) under an epic ancestor sets the story's epic to the nearest epic ancestor; added at a place with no epic ancestor does nothing. MOVE of a story row sets its epic to the nearest epic ancestor after the move, or removes it from its epic when there is none (only when its current epic is none or in scope). REMOVE of a story row whose nearest epic ancestor before removal was its own epic removes the story from the epic, even if another row of it stays under that epic. Moving an epic row marks all its stories as moved for the rank step. With source of truth Jira, stories whose epic link Jira changed in the same batch are skipped. Example: moving S from [E1 > S, E2] to [E1, E2 > S] sets S's epic to E2.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#onAdd",
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#onMove",
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#onRemove",
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#changeEpic"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epics-out-resync-first-row",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Resync, structure to Jira (source of truth structure): only the first row of each story in forest order decides its epic: under an epic ancestor E different from its Jira epic, its epic becomes E; under no epic ancestor, it is removed from its epic only when that epic issue has a row in the structure. Then every story of an epic that has a row, which appears under no row of that epic as nearest epic ancestor, is removed from the epic. Examples: Jira S in E; forest [E, S]: S is removed from E; forest [E > S2]: the other stories of E are removed from E; forest [S, E > S'] with S' a second row of S: the first row decides and S is removed from E although a row of it is under E (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#resync"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/epics-out-escapees",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "On incremental sync, story rows that were carried along inside a subtree moved by the epics step (escapees) are written back to Jira after the rank step: each such story under an epic ancestor different from its Jira epic gets that epic; escapees under no epic keep their Jira epic. These changes are reported as their own audit actions after the batch's epic actions.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#enslave",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#sync"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/ranks-in-rearrange",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Jira to structure (rank): under each examined parent row (including the top level), the child rows of issues in the rank scope (the board filter or project query) are made to follow Jira rank order with the fewest moves: the largest set already in rank order stays (when several exist, the backtracking keeps the earlier rows of a swapped pair), every other one is moved to sit right after the row of the issue ranked just before it among these siblings, or to the very first position under the parent when it is ranked first. Rows of other items keep their relative places. Nothing is done with fewer than two issues in the rank scope. Examples (rank A < B): [B, A] gives [A, B]; [N, B, A] with N not in scope gives [A, N, B].",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.RanksIn#sync",
+    "com.almworks.jira.structure.extension.sync.agile.RanksIn#addRearrangeMoves",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSyncUtils#rearrangeSameLevelIssues",
+    "com.almworks.jira.structure.util.IntLongestCommonSequence#getLCS"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/ranks-in-which-parents",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Which parents are re-sorted from rank: on resync, all parent rows. On incremental sync, with independent ranking: the parent rows changed by the batch or by the epics step, the parents of rows whose issue Jira updated in the batch or whose position changed in this run (moved, added, merged or re-ranked); with consecutive ranking: every parent row, but only when anything changed. The rank-scope order is read once per pass by searching the scope query and is re-read after ranks were written.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#resync",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#sync",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#findAllToSyncRankIn",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#hasChanges"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/ranks-out-consecutive",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Consecutive ranking (structure to Jira): the forest order is the order of first appearance of each issue in a depth-first walk of all rows. The rank-scope non-sub-task issues, read in rank order, are re-ranked so those that are in the structure follow the forest order with the fewest moves (same rule as rank in); issues not in the structure keep their rank. Then sub-tasks in the rank scope, read in rank order, are taken in consecutive runs with the same parent issue and each run is re-ranked the same way. Any change to the structure in a batch triggers this for the whole structure. Example: top level [B, A, C], Jira rank A, B, C, D: B is ranked before A (`RankService.rankBefore(B, A)`), audit action `{type:updateRank, issue:B, newBefore:A, oldAfter:A, oldBefore:C, rankField}`; final rank B, A, C, D.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.RanksOut#rankConsecutively",
+    "com.almworks.jira.structure.extension.sync.agile.RanksOut#getForestIssueOrder",
+    "com.almworks.jira.structure.extension.sync.agile.RanksOut#reorder",
+    "com.almworks.jira.structure.extension.sync.agile.RanksOut#applyRankChanges"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/ranks-out-independent",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Independent ranking (structure to Jira): under each examined parent (resync: all; incremental: parent rows changed by the batch or by the epics and rank steps, and parents having a moved child row), consecutive rank-scope sibling issues give constraints 'previous before next'. Issues linked by constraints form groups; each group gets one order satisfying its constraints (when the constraints conflict, some order is picked) and its issues are re-ranked among themselves to that order with the fewest moves. Issues under unexamined parents and in other groups keep their relative ranks. Example: [P > [B, A]], rank A, B, X: B is ranked before A; X untouched.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.RanksOut$IndependentSorter#sort",
+    "com.almworks.jira.structure.extension.sync.agile.RanksOut$IndependentSorter#buildGraph",
+    "com.almworks.jira.structure.extension.sync.agile.RanksOut$IndependentSorter#scanLevel",
+    "com.almworks.jira.structure.extension.sync.agile.RanksOut$IndependentSorter#findOrderedConnectedComponents"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/rank-move-mechanics",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Each planned rank move 'issue W right after V' (V none = to the front) is skipped when W is already right after V; otherwise, if W is above its target position it is ranked with `rankAfter(W, V)`, and if below with `rankBefore(W, U)` where U is the issue currently right after V in the working rank list (the first issue when V is none). The move is skipped (debug log only) when W, or the target issue V or U, is in the forbidden set. The working list is updated after each attempt, so later moves see earlier ones.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.RanksOut#applyRankChanges",
+    "com.almworks.jira.structure.extension.sync.agile.RankActionApplier#moveRank"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/incremental-step-detail",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Incremental sync steps and conflict sets: events of type `GH_EPIC_UPDATED` and link events of the epic link type count as Jira epic changes, all other Jira events as Jira updates. (1) Epics are written from the batch's structure changes; (2) ranks are written for changed parents with a forbidden set of the issues Jira updated in the batch plus newly added issues (source of truth Jira) or only the newly added issues (source of truth structure); (3) epics are synced into the structure for the affected stories and epics; (4) sub-tasks forced; (5) ranks synced into the structure; (6) escapees written to Jira; (7) ranks written again with no forbidden set. Audit actions: epic actions of (1), then of (6), then all rank actions.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#sync"
+   ]
+  },
+  {
+   "key": "e15-deepen/sync-gh/incremental-scope",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Incremental scope: epics and stories in scope are first taken from the structure's issues. The changed issues (Jira-changed and structure-changed in the batch) give their epics (an epic counts as its own epic); the examined stories are all Jira stories of those epics plus the changed issues that are not epics, keeping those matching the stories query; examined sub-tasks are the changed non-epic issues matching the sub-task query; examined epics are those epics matching the epics query. These are added to the scope.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#collectFullChangesInScope",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#sync"
+   ]
+  },
+  {
+   "key": "e15-deepen/inserter-substructure/placement-after-inserter",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "The copied rows are placed among the inserter row's siblings, right after the inserter row and its own subtree, keeping the source's levels (no depth limit) and order; source top-level rows become siblings of the inserter. Example: generated forest [F > [I, Z]] with I the inserter and source structure [A > A1, B]: result [F > [I, A > A1, B, Z]].",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#generate1",
+    "com.almworks.jira.structure.forest.gfs.RefreshContext#generate"
+   ]
+  },
+  {
+   "key": "e15-deepen/inserter-substructure/subtree-from-row",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "With `rowId` not 0 only the descendants of that source row are copied, its children becoming siblings of the inserter. A `rowId` that is a leaf inserts nothing (no warning); a `rowId` missing from the source forest inserts nothing and logs a warning. Example: source [A > [A1 > A2, A3], B], `rowId` = A: inserted [A1 > A2, A3].",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#generate1"
+   ]
+  },
+  {
+   "key": "e15-deepen/inserter-substructure/invisible-source-hidden",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "In a structure viewed with security, every row whose generation history includes a sub-structure inserter whose source structure (id not 0) the viewing user cannot VIEW is hidden, together with its subtree; other hidden-row rules apply on top.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SecuredForestSource#rebuildInvisibleStructureInserters",
+    "com.almworks.jira.structure.forest.gfs.SecuredForestSource#filterForest"
+   ]
+  },
+  {
+   "key": "e15-deepen/inserter-substructure/self-insert-cycle",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "When sub-structure inserters form a cycle (a structure inserts itself, directly or through other inserted structures), each inserter on the cycle that does not reuse rows (`reuseRows` false, as built from the form) inserts nothing and takes no part in edit handling; inserters with `reuseRows` true stay active.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.AbstractTransformingForestSource#collectForestSources",
+    "com.almworks.jira.structure.forest.gfs.RefreshContext#generate1",
+    "com.almworks.jira.structure.forest.gfs.ActionContext#collectGenerators"
+   ]
+  },
+  {
+   "key": "e15-deepen/inserter-substructure/pass-through-positions",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "An edit is passed to the source only when its target position touches the inserted rows: the target parent is an inserted row (then the source row it was copied from), or the inserter's own row (then the top level of the source, or the `rowId` row when set); otherwise the neighbours decide: an inserted `after`/`before` row is mapped to its source row, `after` equal to the inserter row means first position, and other rows count as none. An add whose parent is not an inserted row but whose after/before is one goes to the source's top level (or under `rowId`) next to that row. Directly under a title row whose child is the inserter, and (for an inserter created for a transformation) under any row whose subtree holds inserted rows, the position maps to the source top level, keeping only inserted neighbours; an add with an empty position (no parent, no neighbours) also goes to the source top level. Example: generated [I, A, B] from source [A, B]: adding X after A (top level) adds X to the source's top level after A.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#getPositionTo",
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#convertRowUnder",
+    "com.almworks.jira.structure.forest.gfs.InserterDriver#convertRowAfter",
+    "com.almworks.jira.structure.forest.gfs.OriginalIdConverter#convertPosition"
+   ]
+  },
+  {
+   "key": "e15-deepen/inserter-substructure/pass-through-actions",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "Mapped actions are then handled by the source structure's own generators and stored rows exactly as if made there: adding or copying at a mapped position adds there; moving an inserted row to a mapped position moves its source row, and moving it outside the inserted rows removes it from the source (disown); moving a row from elsewhere into the inserted rows adds it to the source (adopt); removing an inserted row removes its source row. Copied rows in the moved fragment are replaced by their source rows, and repeated copies of one source row are dropped.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.InserterDriver$GetActionOptions#visit",
+    "com.almworks.jira.structure.forest.gfs.ActionContext#createFrames",
+    "com.almworks.jira.structure.forest.gfs.OriginalIdConverter#convertFragment",
+    "com.almworks.jira.structure.forest.gfs.PositionFromConverter#visit"
+   ]
+  },
+  {
+   "key": "e15-deepen/inserter-substructure/pass-through-blocks",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "Checks before passing an edit to the source, in this order: stored `disableActions` true blocks with `s.ext.gen.block.update-disabled` (`Changes via Structure are not allowed in generator settings.`); a source that cannot be obtained (no `forestSpec`, the structure missing or not VIEW-able, or not a generated forest) blocks with `s.ext.gen.block.not-editable` (`Forest is not editable.`); a source structure id of 0 blocks with the same text; for an untransformed source spec the current user needs EDIT on the source structure, or AUTOMATE when the action's fragment contains generator or effector rows, else it blocks with `s.item.edit.error.no-edit-perm` / `s.item.edit.error.no-automate-perm` (`No \"Edit\"|\"Automate\" permission for structure {0}.` with the source structure id); a transformed source spec has no permission check here. A block stops all generators after the inserter; the edit then fails with `StructureErrors.FOREST_SOURCE_ACTION_FAILED` whose message is that text.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.ActionContext#createFrames",
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#checkEditable",
+    "com.almworks.jira.structure.forest.gfs.SubStructureDriver#getCurrentForestSource",
+    "com.almworks.jira.structure.forest.gfs.ActionContext#checkForErrors",
+    "com.almworks.jira.structure.forest.gfs.ActionContext#getErrorMessage"
+   ]
+  },
+  {
+   "key": "e15-deepen/inserter-substructure/form-no-update-toggle",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "The inserter is not an action-handling generator, so its form gets `canHandleUpdates`=false and building parameters from a form never stores `disableActions`, whatever `allowUpdates` says; only parameters written another way (for example over REST) can carry `disableActions`=true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#addDefaultFormParameters",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#buildParametersFromForm",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#isActionHandlingDisabled"
+   ]
+  }
+ ]
+}

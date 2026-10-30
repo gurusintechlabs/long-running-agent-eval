@@ -1,0 +1,975 @@
+{
+ "claims": [
+  {
+   "key": "e1-module-types/structure-synchronizer/descriptor",
+   "module": "structure-synchronizer",
+   "api": null,
+   "behaviour": "The `structure-synchronizer` module type declares synchronizer modules whose module object (from `class`) must be a `StructureSynchronizer`. Besides Jira's standard module attributes (`key`, `name`, `class`, `description`, resources) it reads the integer attribute `order`, the child elements `label` and `rules`, and a velocity resource named `form` (the parameters form). It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.SynchronizerDescriptorJ9",
+    "com.almworks.structure.compat.extension.SynchronizerDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-synchronizer/order-attribute",
+   "module": "structure-synchronizer",
+   "api": null,
+   "behaviour": "A synchronizer's `order` attribute is parsed as a decimal integer; when it is absent the order is 0, and when it is not an integer (for example `ten`) a warning `Invalid order specified: \"ten\". Should be an integer.` is logged, the order is 0 and the module still loads. The built-in synchronizers use `sync-filter` 10, `sync-links` 30, `sync-gh` 40, `sync-status-rollup` 50 and `sync-subtasks` 230.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.DescriptorBridgeUtil#getOrderAttribute",
+    "com.almworks.structure.compat.extension.SynchronizerDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-synchronizer/text-elements",
+   "module": "structure-synchronizer",
+   "api": null,
+   "behaviour": "Text child elements of extension descriptors (`label` and `rules` here; also `label`, `dialog-title`, `dialog-description-html`, the blocked-message elements, item type `displayable`, `title`, `newItemTitle` and template `label` in the other module types) are resolved per request in the current user's language: when the element has a `key` attribute and Jira's i18n text for that key differs from the key itself, that text is used (with any message parameters substituted); otherwise the element's trimmed body text is used. A missing element, or a key that has no translation and an empty body, gives the empty string (never null, never the bare key).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.ResourcedText#configuredText",
+    "com.almworks.structure.compat.extension.ResourcedText#getText"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-synchronizer/descriptor-view",
+   "module": "structure-synchronizer",
+   "api": null,
+   "behaviour": "Through the synchronizer's `SynchronizerDescriptor`, `getLabel()` is the resolved `label` text, `getRules()` the resolved `rules` text, `getCompleteKey()` `<plugin key>:<module key>`, and `getParametersFormHtml(params)` renders the module's `form` velocity resource with the given variables.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.SynchronizerDescriptorJ9#getLabel",
+    "com.almworks.structure.compat.extension.SynchronizerDescriptorJ9#getRules",
+    "com.almworks.structure.compat.extension.SynchronizerDescriptorJ9#getParametersFormHtml"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-synchronizer/dialog-listing",
+   "module": "structure-synchronizer",
+   "api": null,
+   "behaviour": "The synchronizer choice in the sync dialogs lists the enabled `structure-synchronizer` modules whose module object can be loaded and which suit the action, in ascending `order` (equal orders keep Jira's order): for installing a synchronizer only those that are available and support automatic sync; for import/export (resync) all available ones. A module whose object fails to load is left out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#getSyncDescriptors",
+    "com.almworks.jira.structure.webwork.StructureSync#isModuleSuitableForAction",
+    "com.almworks.jira.structure.webwork.StructureImportExport#isModuleSuitableForAction"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-export-renderer-provider/descriptor",
+   "module": "structure-export-renderer-provider",
+   "api": null,
+   "behaviour": "The `structure-export-renderer-provider` module type declares modules whose module object must be an `ExportRendererProvider`. Besides the standard module attributes it reads any number of `column-key` and `export-format` child elements (for example `<export-format>ms-excel</export-format><column-key>field</column-key>`). It has no `order`; providers come in Jira's module order. It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.ExportRendererProviderDescriptorJ9",
+    "com.almworks.structure.compat.extension.ExportRendererProviderDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-export-renderer-provider/keys-and-formats",
+   "module": "structure-export-renderer-provider",
+   "api": null,
+   "behaviour": "The column keys and export formats of a provider are the trimmed texts of its `column-key` and `export-format` elements in document order; elements with empty text are dropped, and no element gives an empty list (which `extension-service` files under the null key or format). The lists are fixed when the module is loaded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.ExportRendererProviderDescriptorCommon",
+    "com.almworks.structure.compat.extension.DescriptorBridgeUtil#getStringList"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-item-type/descriptor",
+   "module": "structure-item-type",
+   "api": null,
+   "behaviour": "The `structure-item-type` module type declares item types whose module object must be a `StructureItemType`. Besides the standard module attributes it reads: child `icon` (attribute `spanClass`), text elements `displayable`, `title` and `newItemTitle`, attribute `weight`, and child `feature` (attribute `key`). It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.ItemTypeDescriptorJ9",
+    "com.almworks.structure.compat.extension.ItemTypeDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-item-type/icon-class",
+   "module": "structure-item-type",
+   "api": null,
+   "behaviour": "An item type's icon CSS class is the `spanClass` of its first `icon` element; when that class contains the whole word `s-fa`, ` s-fa-fw` is appended (`s-fa s-fa-folder` becomes `s-fa s-fa-folder s-fa-fw`; `alm alm-fw alm-memo` is unchanged). Without an `icon` element (or without `spanClass`) the type has no icon class.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.DescriptorBridgeUtil#iconSpanClass"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-item-type/weight",
+   "module": "structure-item-type",
+   "api": null,
+   "behaviour": "The `weight` attribute is a decimal integer; an absent or non-integer weight means no weight, and types without a weight sort after all weighted ones (as `Integer.MAX_VALUE`) in the third-party item type list, which is ordered by weight and then by title.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.ItemTypeDescriptorCommon",
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-item-type/feature-hidden",
+   "module": "structure-item-type",
+   "api": null,
+   "behaviour": "An item type with a `<feature key=\"K\"/>` element is hidden whenever the dark feature `K` is not true; the check is made on each request, so switching the dark feature shows or hides it without reloading. A type without `feature` is never hidden. Hidden types are left out of the third-party item type list offered to the structure widget.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.ItemTypeDescriptorCommon#isHidden",
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-item-type/third-party-list",
+   "module": "structure-item-type",
+   "api": null,
+   "behaviour": "The structure widget's list of third-party item types (shape `third-party-item-type`) contains the enabled item types from plugins other than `com.almworks.jira.structure` that are generic item types and not hidden, with `type` the complete module key, `title` and `newItemTitle` the resolved texts and `weight` the weight; a type whose resolved `title` or `newItemTitle` is empty is skipped with a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource",
+    "com.almworks.structure.compat.extension.ItemTypeDescriptorJ9#getTitle",
+    "com.almworks.structure.compat.extension.ItemTypeDescriptorJ9#getNewItemTitle"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-item-type/displayable",
+   "module": "structure-item-type",
+   "api": null,
+   "behaviour": "For rows of a generic item type, the displayable text is the module's `displayable` text with the item's name as message parameter `{0}` (for example a key whose text is `Memo: {0}` gives `Memo: Groceries`); it is undefined when the item type's descriptor is not found or the item cannot be loaded.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.extension.ItemTypeDescriptorJ9#getDisplayableText",
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-inserter/descriptor",
+   "module": "structure-inserter",
+   "api": null,
+   "behaviour": "The `structure-inserter` module type declares inserters whose module object must be an `Inserter`. Besides the standard module attributes it reads: attribute `group`, text elements `label`, `dialog-title`, `dialog-description-html`, `add-blocked-message`, `move-blocked-message` and `remove-blocked-message`, any number of `icon` elements (attributes `key` and `spanClass`), and velocity resources `form`, `summary` and optionally `icon`. The same elements are read for `structure-extender`, `structure-grouper`, `structure-filter` and `structure-sorter`. It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.AutomationDescriptorJ9",
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon",
+    "com.almworks.structure.compat.extension.GeneratorDescriptorJ9",
+    "com.almworks.structure.compat.extension.GeneratorDescriptorCommon",
+    "com.almworks.structure.compat.extension.InserterDescriptorJ9"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-inserter/group-attribute",
+   "module": "structure-inserter",
+   "api": null,
+   "behaviour": "The `group` attribute (menu group number) is parsed as an integer; absent means no group (null in the `generator-module-info` shape). A non-integer `group` makes loading the module fail with `NumberFormatException`, so that generator is not available.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-inserter/dialog-title",
+   "module": "structure-inserter",
+   "api": null,
+   "behaviour": "The generator's dialog title is the resolved `dialog-title` text, or the resolved `label` when there is no `dialog-title` element; the dialog description HTML is the resolved `dialog-description-html` text, or none (null) when that element is absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon#getDialogTitle",
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon#getDialogDescriptionHtml"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-inserter/icons",
+   "module": "structure-inserter",
+   "api": null,
+   "behaviour": "Icons are looked up by key: each `icon` element with a `spanClass` is filed under its `key` attribute (no `key` = the default icon; an `icon` without `spanClass` is ignored; a later element with the same key replaces an earlier one). A lookup for a key falls back to the default icon when that key has none. Unlike item types, nothing is appended to the class.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon#getIconSpanClass",
+    "com.almworks.structure.compat.extension.DescriptorBridgeUtil#iconSpanClasses"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-inserter/icon-html",
+   "module": "structure-inserter",
+   "api": null,
+   "behaviour": "A generator's icon HTML is `<span class=\"s-generator-icon CLASS\"></span>` for its icon class; with no icon class but a velocity resource named `icon`, that resource rendered and trimmed; otherwise the default `<span class=\"s-fa s-fa-fw s-fa-tasks\"></span>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#getIconHtml",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#getIconHtmlOrNull"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-inserter/blocked-messages",
+   "module": "structure-inserter",
+   "api": null,
+   "behaviour": "When an action on a generated row cannot be handled, the message shown is: for add and copy the resolved `add-blocked-message`, for move `move-blocked-message`, for remove `remove-blocked-message`; when that text is empty, the generator kind's own message if it has one, else `s.ext.gen.block.no-handler` (`Cannot handle this operation.`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#getNoActionHandlerMessage",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#getGeneratorSpecificNoActionHandlerMessage",
+    "com.almworks.structure.compat.extension.GeneratorDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-inserter/rest-listing",
+   "module": "structure-inserter",
+   "api": null,
+   "behaviour": "In the list of generator modules (shape `generator-module-info`) a generator module appears only when its module object loads and `isAvailable()` is true, with `module` its complete key, `label` the resolved label (empty string when none), `type` `inserter` for an `Inserter` (`extender`, `grouper`, `sorter`, `filter` for the other kinds), `group` the `group` attribute and `presets` from a configurable generator; when the dark feature `structure.generator.defaults.disableUpdates` is true every preset's parameters get `disableActions` true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#fromDescriptor",
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#withDisabledUpdates"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-extender/descriptor",
+   "module": "structure-extender",
+   "api": null,
+   "behaviour": "The `structure-extender` module type declares generators whose module object must be a `Extender`. It reads exactly the descriptor elements described for `structure-inserter` (`group`, `label`, `dialog-title`, `dialog-description-html`, the three blocked-message elements, `icon` elements, and the `form`, `summary` and `icon` resources) with the same defaults, icon, title and blocked-message rules. It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.ExtenderDescriptorJ9",
+    "com.almworks.structure.compat.extension.GeneratorDescriptorJ9",
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-extender/rest-type",
+   "module": "structure-extender",
+   "api": null,
+   "behaviour": "An available `structure-extender` module is listed among the generator modules with `type` `extender`; all five generator module types share one generator catalogue looked up by complete key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#fromDescriptor",
+    "com.almworks.structure.compat.extension.ExtenderDescriptorJ9"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-grouper/descriptor",
+   "module": "structure-grouper",
+   "api": null,
+   "behaviour": "The `structure-grouper` module type declares generators whose module object must be a `Grouper`. It reads exactly the descriptor elements described for `structure-inserter` (`group`, `label`, `dialog-title`, `dialog-description-html`, the three blocked-message elements, `icon` elements, and the `form`, `summary` and `icon` resources) with the same defaults, icon, title and blocked-message rules. It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.GrouperDescriptorJ9",
+    "com.almworks.structure.compat.extension.GeneratorDescriptorJ9",
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-grouper/rest-type",
+   "module": "structure-grouper",
+   "api": null,
+   "behaviour": "An available `structure-grouper` module is listed among the generator modules with `type` `grouper`; all five generator module types share one generator catalogue looked up by complete key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#fromDescriptor",
+    "com.almworks.structure.compat.extension.GrouperDescriptorJ9"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-filter/descriptor",
+   "module": "structure-filter",
+   "api": null,
+   "behaviour": "The `structure-filter` module type declares generators whose module object must be a `Filter`. It reads exactly the descriptor elements described for `structure-inserter` (`group`, `label`, `dialog-title`, `dialog-description-html`, the three blocked-message elements, `icon` elements, and the `form`, `summary` and `icon` resources) with the same defaults, icon, title and blocked-message rules. It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.FilterDescriptorJ9",
+    "com.almworks.structure.compat.extension.GeneratorDescriptorJ9",
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-filter/rest-type",
+   "module": "structure-filter",
+   "api": null,
+   "behaviour": "An available `structure-filter` module is listed among the generator modules with `type` `filter`; all five generator module types share one generator catalogue looked up by complete key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#fromDescriptor",
+    "com.almworks.structure.compat.extension.FilterDescriptorJ9"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-sorter/descriptor",
+   "module": "structure-sorter",
+   "api": null,
+   "behaviour": "The `structure-sorter` module type declares generators whose module object must be a `Sorter`. It reads exactly the descriptor elements described for `structure-inserter` (`group`, `label`, `dialog-title`, `dialog-description-html`, the three blocked-message elements, `icon` elements, and the `form`, `summary` and `icon` resources) with the same defaults, icon, title and blocked-message rules. It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.SorterDescriptorJ9",
+    "com.almworks.structure.compat.extension.GeneratorDescriptorJ9",
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-sorter/rest-type",
+   "module": "structure-sorter",
+   "api": null,
+   "behaviour": "An available `structure-sorter` module is listed among the generator modules with `type` `sorter`; all five generator module types share one generator catalogue looked up by complete key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#fromDescriptor",
+    "com.almworks.structure.compat.extension.SorterDescriptorJ9"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-attribute-loader-provider/descriptor",
+   "module": "structure-attribute-loader-provider",
+   "api": null,
+   "behaviour": "The `structure-attribute-loader-provider` module type declares modules whose module object must be an `AttributeLoaderProvider`. Besides the standard module attributes it reads only the integer attribute `order` (default 0 when absent; a non-integer value logs `Invalid order specified: \"<value>\". Should be an integer.` and counts as 0). Providers are consulted in ascending `order`. It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.AttributeLoaderProviderDescriptorJ9",
+    "com.almworks.structure.compat.extension.DescriptorBridgeUtil#getOrderAttribute"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-query-constraint/descriptor",
+   "module": "structure-query-constraint",
+   "api": null,
+   "behaviour": "The `structure-query-constraint` module type declares S-JQL constraints whose module object must be a `StructureQueryConstraint`. It reads the attribute `fname`, which is the constraint's name in queries (the module's reported name is `fname`, not the `name` attribute; null when `fname` is absent), and an optional child element `<order>` whose trimmed text is an integer. It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.StructureQueryConstraintDescriptorJ9",
+    "com.almworks.structure.compat.extension.StructureQueryContraintCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-query-constraint/order-element",
+   "module": "structure-query-constraint",
+   "api": null,
+   "behaviour": "A query constraint's order comes from the `<order>` child element (not an attribute); without that element the order is `Integer.MAX_VALUE` (2147483647); a non-integer text logs `Invalid order specified: \"<text>\". Should be an integer.` and keeps 2147483647. The built-in constraints (`folder`, `memo`, `item`, `rowId`, `planningtask`) have no `<order>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.DescriptorBridgeUtil#getOrderElement",
+    "com.almworks.structure.compat.extension.StructureQueryContraintCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-effector/descriptor",
+   "module": "structure-effector",
+   "api": null,
+   "behaviour": "The `structure-effector` module type declares effectors whose module object must be an `Effector`. It reads the same elements as the generator module types except the blocked messages: attribute `group`, text elements `label`, `dialog-title`, `dialog-description-html`, `icon` elements, and the `form` and `summary` velocity resources, with the same title fallback (dialog title = label when absent). It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.EffectorDescriptorJ9",
+    "com.almworks.structure.compat.extension.AutomationDescriptorJ9",
+    "com.almworks.structure.compat.extension.AutomationDescriptorCommon"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-effector/icon",
+   "module": "structure-effector",
+   "api": null,
+   "behaviour": "An effector's icon class is its default (keyless) `icon` `spanClass`, or `alm alm-fw alm-effector` when it has none; its icon HTML is `<span class=\"s-effector-icon CLASS\"></span>`. In REST effector listings `icon` is that class and `title` the dialog title (empty string when null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.EffectorDescriptorCommon#getIconSpanClass",
+    "com.almworks.structure.compat.extension.EffectorDescriptorCommon#getIconSpan",
+    "com.almworks.jira.structure.rest.v2.data.RestEffector"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-core-extension/descriptor",
+   "module": "structure-core-extension",
+   "api": null,
+   "behaviour": "The `structure-core-extension` module type declares modules whose module object must be a `StructureCoreExtension`. It reads only Jira's standard module attributes and children (`key`, `name`, `i18n-name-key`, `class`, `description`, resources, parameters) and nothing of its own; it has a single declaration, not restricted to a Jira version. Extensions are keyed by complete module key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.StructureCoreExtensionDescriptor"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-core-extension/rest-data",
+   "module": "structure-core-extension",
+   "api": null,
+   "behaviour": "When forest, item, poll or effect REST responses are assembled, every core extension is asked for data with the value found under its complete key in the request's `extensionRequests` (null when absent or when there is no `extensionRequests`). A non-null answer is put under that key in `extensionData`, in catalogue order; an exception or `LinkageError` is logged as a warning (repeated warnings for the same extension are throttled) and that extension contributes nothing. When no extension answers, `extensionData` is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.ExtensionDataRetriever#getExtensionData"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-core-extension/widget-config",
+   "module": "structure-core-extension",
+   "api": null,
+   "behaviour": "The structure widget configuration includes, under each core extension's complete key, the map it returns for widget configuration; null or empty maps are left out, and with no contribution at all the extensions entry is absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-performance-log-provider/descriptor",
+   "module": "structure-performance-log-provider",
+   "api": null,
+   "behaviour": "The `structure-performance-log-provider` module type declares modules whose module object must be a `PerformanceLogProvider`. It reads only Jira's standard module attributes and children (`key`, `name`, `i18n-name-key`, `class`, `description`, resources, parameters) and nothing of its own; it has a single declaration, not restricted to a Jira version. Providers are kept as a plain list in Jira's module order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.PerformanceLogProviderDescriptor"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-query-skeleton-factory/descriptor",
+   "module": "structure-query-skeleton-factory",
+   "api": null,
+   "behaviour": "The `structure-query-skeleton-factory` module type declares modules whose module object must be an `SQuerySkeletonFactory`. It reads only Jira's standard module attributes and children (`key`, `name`, `i18n-name-key`, `class`, `description`, resources, parameters) and nothing of its own; it has a single declaration, not restricted to a Jira version. Factories are keyed by complete module key. The plugin itself declares no module of this type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.SQuerySkeletonFactoryDescriptor"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-effect-provider/descriptor",
+   "module": "structure-effect-provider",
+   "api": null,
+   "behaviour": "The `structure-effect-provider` module type declares modules whose module object must be an `EffectProvider`. It reads only Jira's standard module attributes and children (`key`, `name`, `i18n-name-key`, `class`, `description`, resources, parameters) and nothing of its own; it has a single declaration, not restricted to a Jira version. An effect names its provider by complete module key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.EffectProviderDescriptor"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-backup-provider/descriptor",
+   "module": "structure-backup-provider",
+   "api": null,
+   "behaviour": "The `structure-backup-provider` module type declares modules whose module object must be a `StructureBackupProvider`. It reads only Jira's standard module attributes and children (`key`, `name`, `i18n-name-key`, `class`, `description`, resources, parameters) and nothing of its own; it has a single declaration, not restricted to a Jira version. Providers are kept by their plugin's key. The plugin itself declares no module of this type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.BackupProviderDescriptor"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-calendar-provider/descriptor",
+   "module": "structure-calendar-provider",
+   "api": null,
+   "behaviour": "The `structure-calendar-provider` module type declares modules whose module object must be a `CalendarProvider`. It reads only Jira's standard module attributes and children (`key`, `name`, `i18n-name-key`, `class`, `description`, resources, parameters) and nothing of its own; it has a single declaration, not restricted to a Jira version. Providers are keyed by complete module key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.CalendarProviderDescriptor"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-calendar-provider/full-id",
+   "module": "structure-calendar-provider",
+   "api": null,
+   "behaviour": "A calendar's full id is `<provider complete module key>/<calendar id>` (e.g. `com.almworks.jira.structure:simple-calendar-provider/1`). Parsing a full id splits on `/` and requires exactly two parts, else `IllegalArgumentException` `Unsupported calendar key format <id>`; a non-numeric second part gives `NumberFormatException`; a provider key containing `/` is rejected with `IllegalArgumentException` `module key should not contain slashes!`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.calendar.CalendarFullId#parse",
+    "com.almworks.jira.structure.extension.calendar.CalendarFullId#toString"
+   ]
+  },
+  {
+   "key": "e1-module-types/structure-integration-details-provider/descriptor",
+   "module": "structure-integration-details-provider",
+   "api": null,
+   "behaviour": "The `structure-integration-details-provider` module type declares modules whose module object must be a `StructureIntegrationDetails`. It reads only Jira's standard module attributes and children (`key`, `name`, `i18n-name-key`, `class`, `description`, resources, parameters) and nothing of its own; it has a single declaration, not restricted to a Jira version. Providers are kept by module key with their plugin's name. The plugin itself declares no module of this type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.StructureIntegrationDetailsDescriptor"
+   ]
+  },
+  {
+   "key": "e1-module-types/new-structure-template/descriptor",
+   "module": "new-structure-template",
+   "api": null,
+   "behaviour": "The `new-structure-template` module type declares create-structure wizard templates whose module object must be a `NewStructureTemplate`. Besides the standard module attributes (its `description` element gives the template's description) it reads the text element `label`, a download resource named `icon.png` (the template icon; its URL is Jira's relative static plugin resource URL for that resource) and one velocity resource per step, named by the step key (a template with a custom final step also has one named `__end`). It is declared twice in the plugin descriptor: once restricted to Jira `[9.0.0,10.0.0)` (the declaration that is active on Jira 9.12) and once to `[10.0.0,)`, with the same key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.extension.NewStructureTemplateModuleDescriptorJ9",
+    "com.almworks.structure.compat.extension.NewStructureTemplateDescriptorCommon#getIconPath",
+    "com.almworks.structure.compat.extension.NewStructureTemplateDescriptorCommon#getLabel"
+   ]
+  },
+  {
+   "key": "e1-module-types/new-structure-template/chooser-listing",
+   "module": "new-structure-template",
+   "api": null,
+   "behaviour": "The wizard's template chooser (`CreateStructure.jspa` without `__templateKey`) lists every enabled `new-structure-template` module in Jira's module order, each with its complete key, resolved label, description and icon URL; the first one is preselected when no template was chosen before. A template whose `isEnabled()` is false or throws (a `RuntimeException` or `LinkageError`, logged as `Template problem: <key>`) is shown as disabled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#getTemplateModuleDescriptors",
+    "com.almworks.jira.structure.webwork.CreateStructure#isTemplateEnabled"
+   ]
+  },
+  {
+   "key": "e1-module-types/new-structure-template/template-lookup",
+   "module": "new-structure-template",
+   "api": null,
+   "behaviour": "The wizard finds the template by the complete module key in parameter `__templateKey` among enabled modules; when it is not an enabled `new-structure-template` module or its object cannot be loaded, the wizard shows the error `Unable to find template for the key: <key>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#action",
+    "com.almworks.jira.structure.webwork.CreateStructure#getTemplate"
+   ]
+  },
+  {
+   "key": "e1-module-types/new-structure-template/step-resource",
+   "module": "new-structure-template",
+   "api": null,
+   "behaviour": "A step page is rendered from the template module's velocity resource named after the step key. When the step is `__end` and the template has no custom final step, the plugin's general step page (name, description, sharing) is used instead. A missing resource or one with a blank location gives the error `s.tpl.template.not-found` (`Unable to load template for key \"<step>\"`); a template module that is no longer enabled gives `s.tpl.error.module-descriptor-not-found` (`Unable to load module descriptor for key: \"<key>\"`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#renderPartial",
+    "com.almworks.jira.structure.webwork.CreateStructure#getStepByKey"
+   ]
+  },
+  {
+   "key": "e1-module-types/new-structure-template/enabled-not-rechecked",
+   "module": "new-structure-template",
+   "api": null,
+   "behaviour": "The wizard checks `isEnabled()` only for showing the chooser; a request that names a disabled template in `__templateKey` is still stepped through and can create a structure (as the original does). Creating still requires the user to be allowed to create structures, else the error `s.manage.create.noaccess` (`You don't have permissions to create new structures`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#action",
+    "com.almworks.jira.structure.webwork.CreateStructure#createNewStructure"
+   ]
+  },
+  {
+   "key": "e1-module-types/new-structure-template/template-switch-params",
+   "module": "new-structure-template",
+   "api": null,
+   "behaviour": "The wizard keeps every step's submitted fields in the parameters map under the step key. When the user switches to another template (`__prevTemplateKey` differs from `__templateKey`), only top-level entries named `name`, `description`, `roles` or `projects` are meant to be kept; since the general step's fields are stored under `__end`, not at top level, in practice all earlier step values are dropped (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#restoreParams"
+   ]
+  },
+  {
+   "key": "e1-module-types/empty-structure/descriptor",
+   "module": "empty-structure",
+   "api": null,
+   "behaviour": "`empty-structure` is a `new-structure-template` module: label `s.tpl.empty.title` (`Empty Structure`), description `s.tpl.empty.desc` (`Create an empty structure and add content manually.`), icon resource `icon.png`. Its module object is the API's `EmptyTemplate`: always enabled, first step `__end`, so the wizard goes straight to the general step.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.template.EmptyTemplate",
+    "com.almworks.jira.structure.webwork.CreateStructure#getStepByKey"
+   ]
+  },
+  {
+   "key": "e1-module-types/empty-structure/created-structure",
+   "module": "empty-structure",
+   "api": null,
+   "behaviour": "Finishing the general step for `empty-structure` creates a structure owned by the current user with the trimmed `name` and `description` from the step, `editRequiresParentIssuePermission` false and no rows. Sharing (`roles`): a group name available to the current user gives that group EDIT; `private.nobody` gives no permission rules; a project role id gives EDIT to that role in each selected project (`projects`, comma-separated ids). Validation: blank name `s.manage.edit.noname` (`Please enter a name for your structure`), name over 190 characters `s.manage.edit.too-long-name` (`The name should be 190 characters or less`), a role without projects on field `projects` `s.tpl.step.general.no-projects` (`Please specify at least one project`). The same general step ends `backlog-structure` and `agile-structure`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#createNewStructure",
+    "com.almworks.jira.structure.webwork.CreateStructure$GeneralStep#validateStep",
+    "com.almworks.jira.structure.util.StructureNameValidator"
+   ]
+  },
+  {
+   "key": "e1-module-types/backlog-structure/descriptor",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "`backlog-structure` is a `new-structure-template` module: label `s.tpl.backlog.title` (`Backlog Structure`), description `s.tpl.backlog.desc`, icon `icon.png`, step resources `project` and `group-by`. It is enabled only for users who hold the configure-generators app permission (`CoreAppPermissions.CONFIGURE_GENERATORS`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#isEnabled"
+   ]
+  },
+  {
+   "key": "e1-module-types/backlog-structure/steps",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "Steps: first `project` (title `s.tpl.backlog.step.project.title`, `Build a List of Scheduled Issues`), next `group-by` (title `s.tpl.backlog.step.group-by.title`, `Group Issues`), then the general `__end` step. Back from `group-by` goes to `project`, back from `project` to the template chooser. Any other step key throws `StructureTemplateException` with `s.tpl.error.unknown-step` (`Unknown step name: \"<step, HTML-escaped>\"`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#createStep",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate$ProjectStep#getNextStep",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate$GroupByStep#getNextStep"
+   ]
+  },
+  {
+   "key": "e1-module-types/backlog-structure/project-input",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "The `project` step takes `backlog-project`, a comma-separated list of project ids, and `backlog-version`, a comma-separated list of version ids (optional); `backlog-projects-selection` and `backlog-versions-selection` only carry the pickers' previous selection. Moving forward with no project gives the error `s.tpl.backlog.error.project` (`Please select a project`) on field `backlog-project`. Ids must be plain longs: a value such as `1, 2` (with a space) fails with `NumberFormatException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.BacklogTemplate$ProjectStep#validateStep",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate$ProjectStep"
+   ]
+  },
+  {
+   "key": "e1-module-types/backlog-structure/group-by-input",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "The `group-by` step takes `backlog-field` (a field id, or `epic` or `sprint`) and the checkbox `backlog-allow-changes`. Moving forward with an empty field gives `s.tpl.backlog.field.error` (`Please select a field`) on `backlog-field`; when building the structure an absent field means `assignee`. The checkbox is true when it was submitted with two values (checked box plus its hidden companion), false with one value, and when not submitted at all defaults to true unless the dark feature `structure.generator.defaults.disableUpdates` is true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.BacklogTemplate$GroupByStep",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate$GroupByStep#validateStep",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#getCheckboxValue"
+   ]
+  },
+  {
+   "key": "e1-module-types/backlog-structure/field-options",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "The field choices offered in `group-by` are the presets of the `grouper-field` generator except `project` and custom fields (`customfield_...`), plus `Epic` (`s.ext.gen.grouper.agileepic.label`, value `epic`) when `grouper-agile-epic` is enabled and available, plus `Sprint` (`s.ext.gen.grouper.agilesprint.label`, value `sprint`) when `grouper-sprint` is; sorted by label case-insensitively in the user's locale, keyed by field id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.BacklogTemplate$GroupByStep#getFields",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#getAvailableGenerator"
+   ]
+  },
+  {
+   "key": "e1-module-types/backlog-structure/inserter",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "The structure gets a `inserter-jql` generator (`com.almworks.jira.structure:inserter-jql`, no owning structure) with stored parameters `{\"limit\":1000,\"jql\":<query>}`. The query has one clause per selected project in the submitted order, `project = \"<project name>\"`, followed, when versions of that project were selected, by ` AND fixVersion = \"<name>\"` for one version or ` AND fixVersion IN (\"<a>\", \"<b>\")` for several (in the submitted order); double quotes in names are escaped as `\\\"`. Several clauses are joined as `(<c1>) OR (<c2>)`; a single clause has no parentheses. Selected versions of projects that were not selected are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#createInserterParams",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#createProjectClause",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#createVersionsClause"
+   ]
+  },
+  {
+   "key": "e1-module-types/backlog-structure/inserter-errors",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "Building fails with `StructureTemplateException` (shown as the wizard error) when no project id was given (`Unable to get project ids to create generator for!`), a version id is unknown (`Unable to find version for id: <id>`) or a project id is unknown (`Unable to find project for id: <id>`). The structure saved by the general step remains.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#createInserterParams",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#groupVersionsByProject"
+   ]
+  },
+  {
+   "key": "e1-module-types/backlog-structure/grouper",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "The structure gets one grouper generator: for `epic` a `grouper-agile-epic` generator whose parameters are those of that generator's first preset (none when it has no presets or is unavailable); for `sprint` a `grouper-sprint` generator; for any other field a `grouper-field` generator with `fieldId` the field id. In every case the parameters include `disableActions` = not allow-changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#createGrouper",
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#getPresets"
+   ]
+  },
+  {
+   "key": "e1-module-types/backlog-structure/forest",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "`backlog-structure` adds two top-level rows to the new (empty) structure's forest (through its unsecured forest source, without permission checks): the inserter's generator item (`com.almworks.jira.structure:type-generator` with the generator id) and after it the grouper's. It creates no view and sets no other permission than the general step's.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.BacklogTemplate#configureNewStructure",
+    "com.almworks.jira.structure.extension.template.TemplateUtil#writeToStructure"
+   ]
+  },
+  {
+   "key": "e1-module-types/agile-structure/descriptor",
+   "module": "agile-structure",
+   "api": null,
+   "behaviour": "`agile-structure` is a `new-structure-template` module: label `s.tpl.agile.title` (`Agile Structure`), description `s.tpl.agile.desc`, icon `icon.png`, step resources `epics`, `stories` and `sorting`. It is enabled only when the user holds the configure-generators app permission and the plugin `com.pyxis.greenhopper.jira` (Jira Software) is enabled; without Jira Software it is shown disabled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.AgileTemplate#isEnabled"
+   ]
+  },
+  {
+   "key": "e1-module-types/agile-structure/steps",
+   "module": "agile-structure",
+   "api": null,
+   "behaviour": "Steps: `epics` (title `s.tpl.agile.step.epics.title`, `Add Epics`), `stories` (`s.tpl.agile.step.stories.title`, `Add Stories`), `sorting` (`s.tpl.agile.step.sorting.title`, `Order by Rank`), then the general `__end` step; back goes `sorting` to `stories` to `epics` to the chooser. An unknown step key throws `StructureTemplateException` `s.tpl.error.unknown-step`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.AgileTemplate#createStep",
+    "com.almworks.jira.structure.extension.template.AgileTemplate$EpicsStep#getNextStep",
+    "com.almworks.jira.structure.extension.template.AgileTemplate$StoriesStep#getNextStep",
+    "com.almworks.jira.structure.extension.template.AgileTemplate$SortingStep#getNextStep"
+   ]
+  },
+  {
+   "key": "e1-module-types/agile-structure/inputs",
+   "module": "agile-structure",
+   "api": null,
+   "behaviour": "Inputs: `agile-boards` (comma-separated board ids; empty gives `s.tpl.agile.step.epics.boards.error`, `Please select at least one Agile board`, on field `agile-boards`), `agile-update-epics` (stories step), `agile-rank-sorter` and `agile-update-issues` (sorting step); `agile-boards-selection` only carries the picker selection. The checkboxes are true with two submitted values, false with one, and when absent default to true for `agile-rank-sorter` and to true unless the dark feature `structure.generator.defaults.disableUpdates` is true for the two update options. The stories and sorting steps never report errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.AgileTemplate$EpicsStep#validateStep",
+    "com.almworks.jira.structure.extension.template.AgileTemplate#getCheckboxValue",
+    "com.almworks.jira.structure.extension.template.AgileTemplate$SortingStep",
+    "com.almworks.jira.structure.extension.template.AgileTemplate$StoriesStep"
+   ]
+  },
+  {
+   "key": "e1-module-types/agile-structure/generators",
+   "module": "agile-structure",
+   "api": null,
+   "behaviour": "Generators created (no owning structure): one `agile-board` inserter per selected board, in the submitted order, with parameters `{\"limit\":1000,\"rapidViewId\":<board id>,\"insertEpics\":true}`; one `extender-agile` with `{\"disableActions\":<not update-epics>}`; and, when the rank sorter is chosen, one `sorter-agile-rank` with `{\"fieldId\":<numeric id of Jira Software's default rank field>,\"disableActions\":<not update-issues>}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.AgileTemplate#createInserterParams",
+    "com.almworks.jira.structure.extension.template.AgileTemplate#createExtenderParams",
+    "com.almworks.jira.structure.extension.template.AgileTemplate#createSorterParams",
+    "com.almworks.jira.structure.extension.template.AgileTemplate#configureNewStructure"
+   ]
+  },
+  {
+   "key": "e1-module-types/agile-structure/rank-sorter-missing",
+   "module": "agile-structure",
+   "api": null,
+   "behaviour": "The rank sorter is silently left out when Jira Software's rank service cannot be obtained or has no default rank field; the structure is still created.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.AgileTemplate#configureNewStructure",
+    "com.almworks.structure.commons.agile.RankAPIAccessor#getRankService"
+   ]
+  },
+  {
+   "key": "e1-module-types/agile-structure/forest",
+   "module": "agile-structure",
+   "api": null,
+   "behaviour": "`agile-structure` adds to the new (empty) structure's forest, at the top level, the board inserters' generator rows in board order, then the extender row, then the sorter row when created, all as siblings (`com.almworks.jira.structure:type-generator` items).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.AgileTemplate#configureNewStructure",
+    "com.almworks.jira.structure.extension.template.TemplateUtil#writeToStructure"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/descriptor",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "`personal-backlog-structure` is a `new-structure-template` module: label `s.tpl.personal-backlog.title` (`Personal Backlog Structure`), description `s.tpl.personal-backlog.desc`, icon `icon.png`, and its own final step resource `__end`. It is enabled for users with the configure-generators app permission. It has a custom final step and a single step: the first step is `__end` (title `s.tpl.personal-backlog.step.issues.title`, `Personal Backlog`); forward creates the structure, back returns to the chooser; any other step key throws `StructureTemplateException` `s.tpl.error.unknown-step`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#isEnabled",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#getInitialStep",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#createStep",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#hasCustomFinalStep",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate$IssuesStep#getNextStep"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/inputs",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "Inputs of the step: `personal-backlog-name`, checkboxes `personal-backlog-assigned`, `personal-backlog-reporter`, `personal-backlog-watching` (each true when its first submitted value is `true`, false for any other value, and true when not submitted), `personal-backlog-columns` (multi-valued column ids) and `personal-backlog-columns-changed` (`true` when the user edited the column list). Validation: the name must be non-blank (`s.manage.edit.noname`) and at most 190 characters after trimming (`s.manage.edit.too-long-name`), on field `personal-backlog-name`; when none of the three checkboxes is true the error `s.tpl.personal-backlog.error.track` (`Please select at least one`) goes on field `personal-backlog-track`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate$IssuesStep#validateStep",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate$Companion#getCheckboxValue",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate$IssuesStep"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/name",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "The structure's name is `personal-backlog-name` as submitted (not trimmed); when the parameter is absent it is `s.tpl.personal-backlog.step.issues.backlog` with the current user's display name (`<Display Name>'s Backlog`). The name is set and the structure saved before content is added; no description and no permission rules are set (only the owner, the current user, has access).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate$IssuesStep",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#configureNewStructure"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/sections",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "For each checked option, in the order assigned, reporter, watching, the structure gets a top-level memo with an inserter and a grouper under it (as two children): assigned: memo `Assigned to me` (`s.tpl.personal-backlog.step.issues.+assigned+.summary`, description `...+assigned+.description`, params `iconClass` `alm-flag`, `color` `red`), `inserter-jql` with `{\"limit\":1000,\"jql\":\"assignee = currentUser() and resolution is EMPTY\"}` and a `grouper-field` on `status`; reporter: memo `I'm Reporter` (`alm-memo`, `blue`), JQL `reporter = currentUser() and resolution is EMPTY`, grouper on `status`; watching: memo `I'm watching` (`alm-memo`, `gray`), JQL `watcher = currentUser() and reporter != currentUser() and resolution is EMPTY`, grouper on `project`. Groupers are stored as `{\"fieldId\":<field>,\"disableActions\":<value of dark feature structure.generator.defaults.disableUpdates>}`. The rows are added to the new structure's forest through its unsecured forest source.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#configureNewStructure",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#createRows",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#createMemoParams",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#createGrouper",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#createInserterParams"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/memo-errors",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "Memos are created through the `type-memo` item type with `summary`, `description` and `params` {`iconClass`, `color`}; when it reports errors, creation fails with `StructureTemplateException` carrying the first error message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#createMemo"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/status-snapshot",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "When the template's module object is created (normally once, when the plugin starts) it records which Jira statuses are named exactly (case-sensitive) `New`, `Open`, `Reopened`, `To Do` (0 %), `In Progress` (50 %), `Resolved`, `Done` or `Closed` (100 %), with their ids, in Jira's status order; statuses added or renamed later are not seen until the plugin restarts. It also records the bundled formula columns as `bundled/<id>`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/default-columns",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "When `personal-backlog-columns-changed` is not `true`, the columns are `countbyleaves`, `priority`, then `progressbystatus` if at least two of the recorded statuses exist, `timeinstatus` if `In Progress` exists, then `bundled/14` and `comment`; otherwise the submitted `personal-backlog-columns` in order (none submitted means no view).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate$IssuesStep#initColumnIds"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/view",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "With at least one column the template creates a view named `<structure name> View` (`s.tpl.personal-backlog.view`) and makes it the structure's default view on the structure board. Columns map as follows (ids compared ignoring case): `countbyleaves` an `attribute` column with parameters `{\"attribute\":{\"format\":\"html\",\"id\":\"count\",\"params\":{\"leaves\":true}}}`; `comment` a `comment` column; `summary` the main column; `aggregatetimeoriginalestimate`, `aggregatetimeestimate`, `aggregatetimespent` `field` columns for `timeoriginalestimate`, `timeestimate`, `timespent` with `aggregate` `sum`; a recorded bundled id (exact match, e.g. `bundled/14`) a `formula` column with the saved column's name and `savedColumn` `bundled/<id>`; any other id a `field` column with `field` = that id. The view has no main column unless `summary` is chosen.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#createView",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#addTimeAggregateColumn"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/progress-time-columns",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "`progressbystatus` becomes a `progress` column with `{\"basedOn\":\"status\",\"resolvedComplete\":true,\"includeSelf\":false,\"statuses\":[<recorded status ids>],\"percents\":[<their percents>],\"weightBy\":\"equal\"}`, and is dropped when fewer than two statuses were recorded; `timeinstatus` becomes a `timeinstatus` column with `{\"displayFormat\":{\"type\":\"duration\"},\"statuses\":[\"status:<In Progress id>\"]}`, dropped when `In Progress` was not recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#getProgressByStatusParams",
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate#getTimeInStatusParams"
+   ]
+  },
+  {
+   "key": "e1-module-types/personal-backlog-structure/column-options",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "The column choices offered are the navigable fields available to the current user (excluding custom fields whose type has neither a view nor a column-view template, and the fields `progress` and `aggregateprogress`) labelled by their translated names, plus `countbyleaves`, `comment`, `progressbystatus`, `timeinstatus` and the bundled formula columns (`bundled/<id>`, labelled by column name), sorted by label with plain case-sensitive string comparison.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.template.PersonalBacklogTemplate$IssuesStep#getColumns"
+   ]
+  },
+  {
+   "key": "e1-module-types/remote-gadget-extension/no-widget-config",
+   "module": "remote-gadget-extension",
+   "api": null,
+   "behaviour": "`remote-gadget-extension` (a `structure-core-extension`, complete key `com.almworks.jira.structure:remote-gadget-extension`) contributes no widget configuration and no app support information (both null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.gadget.RemoteGadgetExtension#getConfigurationForWidget",
+    "com.almworks.jira.structure.extension.gadget.RemoteGadgetExtension#getAppSupportInfo"
+   ]
+  },
+  {
+   "key": "e1-module-types/remote-gadget-extension/request-format",
+   "module": "remote-gadget-extension",
+   "api": null,
+   "behaviour": "Its request (the value under its complete key in `extensionRequests`) is a JSON array of windows, each with `forestSpec` (REST forest spec), `rowIndexes` (array of integers: positions in the forest), `attributes` (array of REST attribute specs) and `oldBackendId` (long, default 0). No request, or an empty array, gives no extension data.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.gadget.RemoteGadgetExtension#getRestResponseData",
+    "com.almworks.jira.structure.extension.gadget.RemoteGadgetExtension$AttributesWindow"
+   ]
+  },
+  {
+   "key": "e1-module-types/remote-gadget-extension/subscribe",
+   "module": "remote-gadget-extension",
+   "api": null,
+   "behaviour": "For each window that has a forest spec, a non-empty `attributes` list and a non-empty `rowIndexes`, it creates a new attribute value subscription for that forest and those attributes whose rows are the row ids at the given indexes of the latest forest of that spec; indexes below 0 or not less than the forest size are skipped. Windows lacking any of the three are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.gadget.RemoteGadgetExtension#subscribe",
+    "com.almworks.jira.structure.extension.gadget.RemoteGadgetExtension#convertIndexesToRowIds"
+   ]
+  },
+  {
+   "key": "e1-module-types/remote-gadget-extension/empty-window",
+   "module": "remote-gadget-extension",
+   "api": null,
+   "behaviour": "When none of a window's indexes is inside the forest, a warning is logged and the window gives no subscription in the answer, but the new subscription has already been created and is left unused (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.gadget.RemoteGadgetExtension#subscribe"
+   ]
+  },
+  {
+   "key": "e1-module-types/remote-gadget-extension/response",
+   "module": "remote-gadget-extension",
+   "api": null,
+   "behaviour": "The answer is `{\"subscriptions\":[...],\"mapping\":{<oldBackendId>:<new subscription id>,...}}` where each subscription is in the `attribute-subscription` shape with a values update: values are loaded for up to `structure.attribute.remote-gadget.valuesTimeout` ms (dark feature, default 10000, read once when the module is created, not clamped) before answering, from version zero. When no window produced a subscription the answer is null (no entry in `extensionData`). Two windows with the same `oldBackendId` keep the later mapping.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.gadget.RemoteGadgetExtension#subscribe",
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#createReply"
+   ]
+  },
+  {
+   "key": "e1-module-types/remote-gadget-extension/errors",
+   "module": "remote-gadget-extension",
+   "api": null,
+   "behaviour": "Any failure while subscribing (for example an unknown structure in the forest spec or a forest the user may not see) is logged as `Failed to create subscription` and the extension answers null; a request that cannot be read as an array of windows makes the extension call fail, which is logged and contributes nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.gadget.RemoteGadgetExtension#getRestResponseData",
+    "com.almworks.jira.structure.rest.ExtensionDataRetriever#getExtensionData"
+   ]
+  },
+  {
+   "key": "e1-module-types/simple-calendar-provider/calendars",
+   "module": "simple-calendar-provider",
+   "api": null,
+   "behaviour": "`simple-calendar-provider` offers exactly two calendars, listed in this order: id 0, name `s.ext.calendar.simple.name` (`Standard calendar 24/7`), description `s.ext.calendar.simple.description` (`Calendar that considers all time to be working hours, regardless of date, time, or time zone. This is the default calendar.`); and id 1, name `s.ext.calendar.work.name` (`Standard work calendar 8/5`), description `s.ext.calendar.work.description` (`Calendar that only considers time from 9:00 to 17:00 on working days (Monday-Friday). Uses the default Jira time zone.`). Names and descriptions are in the current user's language at the time they are asked for.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider#getCalendarInfos",
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider$SimpleCalendar",
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider$SimpleWorkCalendar"
+   ]
+  },
+  {
+   "key": "e1-module-types/simple-calendar-provider/get-calendar",
+   "module": "simple-calendar-provider",
+   "api": null,
+   "behaviour": "`getCalendar(0)` and `getCalendar(1)` return those calendars (the same objects every time); any other id returns null. Calendar 0 is also the plugin-wide default calendar.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider#getCalendar",
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider#getDefaultCalendar"
+   ]
+  },
+  {
+   "key": "e1-module-types/simple-calendar-provider/all-time",
+   "module": "simple-calendar-provider",
+   "api": null,
+   "behaviour": "Calendar 0's duration from start to finish is `finish - start` milliseconds; when finish is before start it throws `java.security.InvalidParameterException`. Neither calendar reports itself as time-zone dependent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider$SimpleCalendar#getDuration",
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider$SimpleCalendar#isTimeZoneDependant",
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider$SimpleWorkCalendar#isTimeZoneDependant"
+   ]
+  },
+  {
+   "key": "e1-module-types/simple-calendar-provider/work-hours",
+   "module": "simple-calendar-provider",
+   "api": null,
+   "behaviour": "Calendar 1 counts only the time between 09:00 and 17:00 (8 hours) on Monday to Friday in Jira's default time zone (`TimeZoneManager.getDefaultTimezone()`, asked on each call); Saturdays and Sundays count nothing and there are no holidays. Example: Friday 16:00 to Monday 10:00 is 2 hours; Monday 08:00 to Monday 12:00 is 3 hours; Monday 18:00 to Tuesday 08:00 is 0; a full Monday-to-Friday week is 40 hours. When finish is before start it throws `java.security.InvalidParameterException`; equal instants give 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider$SimpleWorkCalendar#getDuration",
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider$DateTimeIterator"
+   ]
+  },
+  {
+   "key": "e1-module-types/simple-calendar-provider/work-hours-edges",
+   "module": "simple-calendar-provider",
+   "api": null,
+   "behaviour": "For calendar 1 a start before 09:00 counts from 09:00 of that day, a start after 17:00 counts from 09:00 of the next working day, and a start on a weekend counts from Monday 09:00; a finish inside a working window counts up to the finish, a finish outside one counts up to the end of the last window before it. Day boundaries follow the zone's local dates and clock times (on a daylight-saving change day the window is still 09:00 to 17:00 local).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider$SimpleWorkCalendar#getDuration",
+    "com.almworks.jira.structure.extension.calendar.SimpleCalendarProvider$DateTimeIterator"
+   ]
+  }
+ ]
+}

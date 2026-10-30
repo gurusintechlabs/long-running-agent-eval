@@ -448,3 +448,8 @@ Resolved 2026-10-28 (after JC2):
 - Owner 2026-10-29 (JC3): bundled formula columns are tested by the values they compute, never by formula
   text (the original strings carry vendor comments and are not copied); the vendor-report and licence-check
   job keys are not contract, and the replacement runs neither job.
+- JC4 (`docs/phase-JC4-summary.md`) claims the 234 extension modules (module types, attribute loaders, effect
+  providers, effectors, item types, generators, synchronizers, query constraints, export renderers,
+  performance-log providers, templates). The brief's module part says the stored and wire formats these modules
+  define are contract and must be exact: generator, synchronizer and effector parameter keys, attribute ids and
+  params, item type keys and item id forms, persisted i18n keys with their English text.

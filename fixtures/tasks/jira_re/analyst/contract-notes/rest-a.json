@@ -6,7 +6,7 @@
    "errors": "403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
   },
   "GET /rest/structure/1.0/config/fields/forCreate": {
-   "summary": "Returns the Jira create-screen editor HTML for fields, so the client can show inline issue creation. The prospective issue is defined either by a sample issue (its project, issue type and, for sub-tasks, parent are reused, and copyable field values are pre-filled from it) or by an explicit project and issue type; other fields get Jira's defaults. Project, summary and (unless a sub-task) issue type are never rendered. Special case: when no sample is given and `field` lists exactly `project` and `issuetype`, only the project and issue-type pickers are rendered and the reply lists the projects where the caller may create issues and the plugin is enabled. Nothing is created or changed. A field the caller cannot use is still listed but carries a per-field `error` text instead of HTML (field hidden for this issue, made read-only by a third-party scripting app, or rendering failed); requested field ids that are not on the relevant screen get an entry with only an `error`.",
+   "summary": "Returns the Jira create-screen editor HTML for fields, so the client can show inline issue creation. The prospective issue is defined either by a sample issue (its project, issue type and, for sub-tasks, parent are reused, and copyable field values are pre-filled from it) or by an explicit project and issue type; other fields get Jira's defaults. Project, summary and (unless a sub-task) issue type are skipped when field values are filled in, but are rendered like any other field if requested and on the screen. Special case: when no sample is given and `field` lists exactly `project` and `issuetype`, only the project and issue-type pickers are rendered and the reply lists the projects where the caller may create issues and the plugin is enabled. Nothing is created or changed. A field the caller cannot use is still listed but carries a per-field `error` text instead of HTML (field hidden for this issue, made read-only by a third-party scripting app, or rendering failed); requested field ids that are not on the relevant screen get an entry with only an `error`.",
    "params": {
     "sample": "Issue id (numeric) of a sample issue. Optional. If the issue does not exist or the caller cannot browse it, the reply is 200 with a top-level `error` and no fields.",
     "project": "Project id (numeric). Required together with `issuetype` unless `sample` is given; overrides the sample's project.",
@@ -69,7 +69,7 @@
     "withRoles": "Boolean, default false. When true, every project gets `userRoles` and the reply gets `roles`. Note: `userRoles` is the list of ids of all project roles defined in Jira (the same list for every project, not the caller's actual memberships); it is empty for anonymous callers, and `roles` is then omitted."
    },
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestProject$Seq}}; each project's `iconUrl` is the small avatar URL.",
-   "errors": "400 (plain text `invalid permission requested`) for an unsupported permission; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+   "errors": "400 (plain text `invalid permission requested`) for an unsupported permission (Jira's own lookup decides what is supported: it ignores case and accepts key forms such as `BROWSE_PROJECTS` and `createIssue`); 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
   },
   "GET /rest/structure/1.0/config/roles": {
    "summary": "Lists all project roles defined in Jira. Logged-in callers only.",
@@ -121,7 +121,7 @@
     "preferredStructure": "Structure id to show initially if the caller can view it."
    },
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestUIConfig}}.",
-   "errors": "400 (plain text) when no context is given. For `forIssue`: the issue's problem mapped to a status (404 not found or not visible, 403 no permission, 400 plugin not enabled for the project unless an agile board is given, 500 otherwise), plain text. 404 (plain text) when `forProject` is unknown or not browsable. 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+   "errors": "400 (plain text) when no context is given. For `forIssue`: the issue's problem mapped to a status (404 not found or not visible; 500 for an issue with no project, and otherwise), plain text. 404 (plain text) when `forProject` is unknown or not browsable. 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
   },
   "POST /rest/structure/1.0/config/ui": {
    "summary": "Saves the caller's structure-panel preferences (auto-switch mode, auto-collapse, keep structure when navigating) for the project of the given context, then returns the recomputed panel configuration like the GET variant. The auto-switch mode is stored for the issue page when `forIssue` is given, otherwise for the project page. Only keys present in the body are changed; with none present nothing is written. Logged-in callers only.",
@@ -144,7 +144,7 @@
    "errors": "403 (plain text `permission violation`) without the plugin's 'use' permission; 500 (plain text) when Jira cannot list the caller's navigable fields."
   },
   "GET /rest/structure/1.0/config/widget/issueLinkAction": {
-   "summary": "Returns what happens when the caller clicks an issue link in a structure grid: the caller's own preference if set, else the instance default (system property `structure.board.issueLinkAction`), else show details.",
+   "summary": "Returns what happens when the caller clicks an issue link in a structure grid: the caller's own preference if set, else the instance default (Jira application property `structure.board.issueLinkAction`, else the JVM system property of that name, read once at plugin start), else show details.",
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestLinkActionType}}; `type` is `showDetails`, `openIssuePage` or `doNothing`.",
    "errors": "403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
   },
@@ -168,7 +168,7 @@
    "errors": "No error statuses of its own; problems are reported inside `errors`."
   },
   "GET /rest/structure/1.0/gadget/structures": {
-   "summary": "Structure picker for the gadget configuration form. With a non-blank `query`, searches all structures the caller can view by name (matched text highlighted in the HTML label), returning at most 8 items plus a 'N more' footer when there are more than 9 matches. Without a query, suggests up to 8 structures: the caller's recent structures and favorites, balanced 4/4 when both lists are long. This resource is not behind the plugin's common access gate; it checks the 'use' permission itself.",
+   "summary": "Structure picker for the gadget configuration form. With a non-blank `query`, searches all structures the caller can view by name (matched text highlighted in the HTML label), returning every match when there are at most 9, else 8 items plus a 'N more' footer. Without a query, suggests up to 8 structures: the caller's recent structures and favorites, balanced 4/4 when both lists are long. This resource is not behind the plugin's common access gate; it checks the 'use' permission itself.",
    "params": {
     "query": "Optional name search text."
    },
@@ -192,7 +192,7 @@
    "errors": "400 with {{com.almworks.structure.commons.rest.util.ErrorCollection}} listing field errors (keyed by the parameter names above). Error texts are message keys (e.g. `s.g.config.err.no.structureId`, `s.g.config.err.bad.numRows` with the bounds as params), except JQL/S-JQL problems which are already-localized messages. Missing 'use' permission is reported as a `structureId` field error."
   },
   "GET /rest/structure/1.0/gadget/views": {
-   "summary": "View picker for the gadget configuration form. With a non-empty `query`, searches all views the caller can view by name (at most 8 items plus a 'N more' footer above 9 matches). Otherwise suggests up to 8 views from the menu configured for the given structure (or the global default menu) on the gadget page. This resource is not behind the plugin's common access gate; it checks the 'use' permission itself.",
+   "summary": "View picker for the gadget configuration form. With a non-empty `query`, searches all views the caller can view by name (every match when there are at most 9, else 8 items plus a 'N more' footer). Otherwise suggests up to 8 views from the menu configured for the given structure (or the global default menu) on the gadget page. This resource is not behind the plugin's common access gate; it checks the 'use' permission itself.",
    "params": {
     "structureId": "Structure id (text) whose view menu to suggest from; ignored if not viewable.",
     "query": "Optional name search text."
@@ -201,17 +201,17 @@
    "errors": "None of its own."
   },
   "GET /rest/structure/1.0/gadget/widgetConfigs": {
-   "summary": "Returns client tuning for the gadget grid in local (same Jira) and remote (gadget shown in another application) modes: poll interval, minimum cached rows and preload factor, plus node-wandering and retry back-off settings for Data Center. Defaults: local 15000 ms / 20 rows / 2.0; remote 15000 ms / 100 rows / 5.0 on Server and 30000 ms / 500 rows / 10.0 on Data Center; each overridable by system properties `structure.gadget.<local|remote>.<pollInterval|minCachedRows|preloadRowsFactor>`. No permission check.",
+   "summary": "Returns client tuning for the gadget grid in local (same Jira) and remote (gadget shown in another application) modes: poll interval, minimum cached rows and preload factor, plus node-wandering and retry back-off settings for Data Center. Defaults: local 15000 ms / 20 rows / 2.0; remote 15000 ms / 100 rows / 5.0 on Server and 30000 ms / 500 rows / 10.0 on Data Center; each overridable by application or system properties `structure.gadget.<local|remote>.<pollInterval|minCachedRows|preloadRowsFactor>`. No permission check.",
    "response": "200 with {{com.almworks.jira.structure.rest.v1.javax.GadgetResource$WidgetConfigurations}}; `remote` is a {{com.almworks.jira.structure.rest.v1.javax.GadgetResource$RemoteWidgetConfiguration}}.",
    "errors": "None."
   },
   "POST /rest/structure/1.0/perspective/share": {
-   "summary": "Stores a perspective (a snapshot of the structure page state: structure, view, filters, expansion and so on, as opaque JSON) and returns it with a new id, so it can be shared as a link. The id is a random positive 31-bit integer. Requires a logged-in caller who has the 'use' permission while the plugin is licensed. Stored perspectives are deleted automatically after a period without access.",
+   "summary": "Stores a perspective (a snapshot of the structure page state: structure, view, filters, expansion and so on, as opaque JSON) and returns it with a new id, so it can be shared as a link. The id is a random positive 31-bit integer. Requires a logged-in caller who has the 'use' permission. Stored perspectives are deleted automatically after a period without access.",
    "params": {
     "body": "{{com.almworks.jira.structure.rest.v1.data.RestPerspective}} without `id`; `spec` is any JSON value (normally an object) describing the page state."
    },
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestPerspective}} holding the new `id` and the stored `spec` echoed as raw JSON.",
-   "errors": "400 (plain text) for a missing body, a body with an `id`, or an empty `spec`; 403 with {{com.almworks.structure.commons.rest.RestStructureError}} when the caller may not create perspectives (anonymous, unlicensed plugin); 401 for anonymous callers (platform default)."
+   "errors": "400 (plain text) for a missing body, a body with an `id`, or an empty `spec`; 401 for anonymous callers (platform default); 403 without the 'use' permission."
   },
   "POST /rest/structure/1.0/perspective/shareByEmail": {
    "summary": "E-mails a link to a stored perspective to Jira users, with an optional personal message (default text when empty). Side effect: if the perspective shows a structure, the caller is an administrator of that structure and has the 'browse users' permission, each recipient who cannot view that structure is granted view access by a new user rule prepended to the structure's permissions. Also counts the share in usage statistics.",
@@ -227,14 +227,14 @@
    "params": {
     "id": "Perspective id (positive integer)."
    },
-   "response": "200 with the perspective's `spec` JSON value itself (not wrapped in an object).",
+   "response": "200 with a JSON string whose content is the perspective's `spec` as JSON text (double-encoded; the client parses it a second time).",
    "errors": "400 (plain text) for an id below 1; 404 (plain text) when no perspective has that id; 403 (plain text) without the 'use' permission."
   },
   "GET /rest/structure/1.0/sjqlTroubleshooting/check": {
    "summary": "Validates the two arguments of the plugin's `structure()` JQL function for the caller without running it: the structure must exist and be viewable, its automation must not be stopped, and the structure query must parse and validate. Logged-in callers only.",
    "params": {
-    "structure": "Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty means the default structure. A name matching several viewable structures is an error.",
-    "query": "Structure query (S-JQL) text, as the function's second argument; empty means a query matching every row."
+    "structure": "Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty gives the `s.jql.error.unknown-structure` error. A name matching several viewable structures is an error.",
+    "query": "Structure query (S-JQL) text, as the function's second argument; missing means `[]`; an empty text is a parse error."
    },
    "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}} when valid.",
    "errors": "400 with a JSON array of message strings (all errors sorted alphabetically, then all warnings sorted). 401 for anonymous callers; 403 (plain text) without the 'use' permission."
@@ -242,8 +242,8 @@
   "GET /rest/structure/1.0/sjqlTroubleshooting/logs": {
    "summary": "Runs the `structure()` JQL function arguments with maximum logging and streams the captured trace log as a ZIP download (`Content-Disposition: attachment; filename=\"S-JQL_Troubleshooting.zip\"`) containing one entry `S-JQL_Troubleshooting.log`. While it runs, trace logging of the plugin's query subsystem is captured into the archive; if the arguments are invalid nothing is executed and the log entry stays empty (the messages go to the server log instead). Logged-in callers only; no administrator check. Writes start/finish warnings to the server log.",
    "params": {
-    "structure": "Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty means the default structure. A name matching several viewable structures is an error.",
-    "query": "Structure query (S-JQL) text, as the function's second argument; empty means a query matching every row.",
+    "structure": "Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty gives the `s.jql.error.unknown-structure` error. A name matching several viewable structures is an error.",
+    "query": "Structure query (S-JQL) text, as the function's second argument; missing means `[]`; an empty text is a parse error.",
     "includeRelOutput": "Boolean, default false: also capture the step-by-step relation evaluation output (very verbose).",
     "messagePattern": "Optional log line layout pattern (log4j pattern syntax) for the captured lines; default layout when omitted."
    },
@@ -261,7 +261,7 @@
    "errors": "403 (plain text `permission violation`) for non-administrators."
   },
   "POST /rest/structure/1.0/statistics/record": {
-   "summary": "Adds client-side usage counters to the plugin's local usage statistics for the given time: each entry of `stats` is added as a total count, the caller is counted as a unique user, and also as an active user if any key is one of the interactive actions (e.g. `expandAll`, `view.switch`, `layout.switch`, `search.toggle`). Any counter name is accepted. Silently does nothing for anonymous callers or when `stats` is empty or `timestamp` is missing.",
+   "summary": "Adds client-side usage counters to the plugin's local usage statistics for the given time: each entry of `stats` is added as a total count, the caller is counted as a unique user, and also as an active user if any key is one of the interactive actions (e.g. `expandAll`, `view.switch`, `layout.switch`, `search.toggle`). Any counter name is accepted except those that collide with the entries the call adds itself (`userCount`, or `activeUser` together with an interactive action): those give 400 `Invalid request data` and record nothing. Silently does nothing for anonymous callers or when `stats` is empty or `timestamp` is missing.",
    "params": {
     "body": "{{com.almworks.jira.structure.rest.v1.data.RestStatistics}}."
    },
@@ -272,7 +272,7 @@
    "summary": "Searches views (saved grid column layouts) the caller can access at the requested level, optionally restricted to given ids and/or a name pattern.",
    "params": {
     "ids": "Comma-separated view ids; non-numeric or non-positive entries are skipped; ids the caller cannot access are silently left out.",
-    "name": "Name search text (word-prefix match, same rules as the pickers); ignored if it contains nothing searchable.",
+    "name": "Name search text: a case-insensitive literal substring anywhere in the name (`ann` matches `Planning`); ignored if it contains nothing searchable.",
     "permission": "Minimum permission level the caller must have on each view, case-insensitive: `none`, `view`, `edit`, `automate`, `admin` (`edit_generators` is a deprecated alias). Levels at or below `view` mean `view`. Default `view`.",
     "withPermissions": "Boolean, default false: include each view's permission rules (only for views the caller administers).",
     "withOwner": "Boolean, default false: include the owner as a user object when the caller is the owner, a Jira administrator or has 'browse users'; otherwise only `hasOwner` is set."
@@ -283,16 +283,16 @@
   "POST /rest/structure/1.0/view": {
    "summary": "Creates a new view. The caller must be allowed to create views (plugin setting) and, to give it sharing rules, to share views. The caller becomes the owner. Returns the created view with permissions and owner included.",
    "params": {
-    "body": "{{com.almworks.jira.structure.rest.v1.data.RestView}} without `id`; `name` required (non-blank after trimming); `description`, `spec`, `permissions` optional."
+    "body": "{{com.almworks.jira.structure.rest.v1.data.RestView}} without `id`; `name` required (non-blank after trimming); `spec` required (missing gives 400 `INVALID_PARAMETER`); `description`, `permissions` optional."
    },
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestView}}.",
-   "errors": "400 (plain text) for a missing body, a body with an `id`, or a blank name; 400 with {{com.almworks.structure.commons.rest.RestStructureError}} for invalid columns or permission rules; 403 with {{com.almworks.structure.commons.rest.RestStructureError}} when the caller may not create or share views or the plugin license does not allow changes; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+   "errors": "400 (plain text) for a missing body, a body with an `id`, or a blank name; 400 with {{com.almworks.structure.commons.rest.RestStructureError}} for invalid columns or permission rules; 403 with {{com.almworks.structure.commons.rest.RestStructureError}} when the caller may not create or share views; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
   },
   "GET /rest/structure/1.0/view/default": {
    "summary": "Returns the view that is preferred (default) for a structure on a page, taken from the structure's view menu, or the global default menu when the structure has none.",
    "params": {
     "forStructure": "Structure id. Omitted: use the global default view settings. Not viewable: no default.",
-    "forPage": "Page id: `structure`, `structure-with-details`, `issue`, `project`, `component`, `version`, `navigator`, `gadget`, `greenhopper` (agile board). Omitted: no page restriction."
+    "forPage": "Page id: `structure`, `structure-with-details`, `issue`, `project`, `component`, `version`, `navigator`, `gadget`, `greenhopper` (agile board). Omitted behaves exactly like `structure`."
    },
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestView}} (no permissions/owner) or {{com.almworks.structure.commons.rest.RestEmpty}} when there is no preferred view.",
    "errors": "400 with the JSON string `unknown page` for an unknown `forPage`; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
@@ -301,7 +301,7 @@
    "summary": "Returns the views shown in the view menu of a structure on a page (structure's own menu, or the global default menu when the structure has none), keeping only views the caller can view. The preferred view, if any, comes first.",
    "params": {
     "forStructure": "Structure id; omitted uses the global default menu; a structure the caller cannot view gives an empty menu.",
-    "forPage": "Page id as for the default view; omitted means the menu for no specific page."
+    "forPage": "Page id as for the default view; omitted behaves exactly like `structure`."
    },
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestView$Seq}} where `preferred` lists the ids of views that are the default on that page.",
    "errors": "400 with the JSON string `unknown page` for an unknown page id; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
@@ -322,7 +322,7 @@
     "id": "View id (positive)."
    },
    "response": "200 with {{com.almworks.structure.commons.rest.RestEmpty}}.",
-   "errors": "400 (no body) for a non-positive id; 404 with {{com.almworks.structure.commons.rest.RestStructureError}} (no message) when the view does not exist or is not viewable; 403 with {{com.almworks.structure.commons.rest.RestStructureError}} when viewable but not administrable or the license does not allow changes; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+   "errors": "400 (no body) for a non-positive id; 404 with {{com.almworks.structure.commons.rest.RestStructureError}} (no message) when the view does not exist or is not viewable; 403 with {{com.almworks.structure.commons.rest.RestStructureError}} when viewable but not administrable; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
   },
   "GET /rest/structure/1.0/view/{id}/associations": {
    "summary": "Lists the structures whose view menu includes this view (only structures the caller can view) and whether the view is in the global default view menu.",
@@ -348,7 +348,7 @@
     "body": "Any JSON object (content ignored). Its only purpose is to force a JSON request body, which protects the call against cross-site form posts."
    },
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestView}} including permissions and owner.",
-   "errors": "403/404 with {{com.almworks.structure.commons.rest.RestStructureError}} when the view is not administrable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+   "errors": "404 `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` with {{com.almworks.structure.commons.rest.RestStructureError}} when the view is not administrable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
   },
   "POST /rest/structure/1.0/view/{id}/update": {
    "summary": "Updates a view's name, description, owner, permissions and/or specification. Requires administer permission on the view. Only keys present (non-null) in the body are changed. An owner given by user name alone must resolve to an existing user.",
@@ -357,7 +357,7 @@
     "body": "{{com.almworks.jira.structure.rest.v1.data.RestView}}; `id`, if given, must equal the path id."
    },
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestView}} including permissions and owner.",
-   "errors": "400 (plain text) for a missing body, a mismatching `id`, or an unknown owner name; 400 with {{com.almworks.structure.commons.rest.RestStructureError}} for invalid columns/rules; 403/404 with {{com.almworks.structure.commons.rest.RestStructureError}} when the view is not administrable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+   "errors": "400 (plain text) for a missing body, a mismatching `id`, or an unknown owner name; 400 with {{com.almworks.structure.commons.rest.RestStructureError}} for invalid columns/rules; 404 `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` with {{com.almworks.structure.commons.rest.RestStructureError}} when the view is not administrable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
   },
   "POST /rest/structure/1.0/view/{id}/updateSpec": {
    "summary": "Replaces only the view's specification (columns, display modes, pins). Requires edit permission on the view (not administer).",
@@ -366,7 +366,7 @@
     "body": "{{com.almworks.jira.structure.rest.v1.data.RestViewSpecification}}."
    },
    "response": "200 with {{com.almworks.jira.structure.rest.v1.data.RestView}} including permissions and owner.",
-   "errors": "400 (plain text) for a missing body; 400 with {{com.almworks.structure.commons.rest.RestStructureError}} for invalid columns; 403/404 with {{com.almworks.structure.commons.rest.RestStructureError}} when the view is not editable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
+   "errors": "400 (plain text) for a missing body; 400 with {{com.almworks.structure.commons.rest.RestStructureError}} for invalid columns; 404 `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` with {{com.almworks.structure.commons.rest.RestStructureError}} when the view is not editable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous."
   },
   "POST /rest/cfd/1.0/gadget/meta": {
    "summary": "Validates a predictive-CFD gadget configuration and returns what the gadget needs to render: the current user and the scope and training structures (if viewable by the caller). When the feature is disabled, only a general error is returned. The predictive cumulative-flow (CFD) feature can be switched off by the system property `structure.pcfd.enabled=false` (on by default). These endpoints are not behind the plugin's common access gate.",
@@ -623,7 +623,7 @@
     "forCreate": "True for create-screen editors; absent for edit.",
     "project": "Project id used for creation.",
     "issueType": "Issue type id used for creation.",
-    "fields": "Map from Jira field id to its editor; absent when a top-level `error` is set.",
+    "fields": "Map from Jira field id to its editor; absent when a top-level `error` is set, except an empty object on the no-renderer path.",
     "error": "Localized reason why no editors could be produced (bad or invisible issue, no screen); absent on success.",
     "canChangeOriginalEstimate": "False when time has been logged and Jira's legacy time-tracking mode forbids changing the original estimate.",
     "structuredProjects": "For the project/type picker case only: ids of projects where the caller can create issues and the plugin is enabled; absent when the plugin is enabled for all projects."
@@ -715,7 +715,7 @@
    "summary": "Target of a make-default-view call.",
    "fields": {
     "structureId": "Structure id whose view settings change (0 when omitted, which normally fails the structure permission check).",
-    "pageId": "Page id (`structure`, `issue`, `project`, `gadget`, ...); absent means no specific page."
+    "pageId": "Page id (`structure`, `issue`, `project`, `gadget`, ...); required unless the view already is the structure board default."
    }
   },
   "com.almworks.jira.structure.rest.v1.data.RestPerspective": {
@@ -723,7 +723,7 @@
    "summary": "A stored, shareable snapshot of the structure page state.",
    "fields": {
     "id": "Perspective id: random positive integer below 2^31; absent in a share request.",
-    "spec": "The page state: any JSON value, stored and returned verbatim (not as a string). The plugin itself reads only `primary.forestSpec.structureId` (the structure shown, used for e-mail sharing) and the view specifications under `primary.viewSpec` and `secondary.viewSpec`."
+    "spec": "The page state: any JSON value, stored and returned verbatim, not as a string, by the share call; `GET /perspective/{id}` returns it as a string. The plugin itself reads only `primary.forestSpec.structureId` (the structure shown, used for e-mail sharing) and the view specifications under `primary.viewSpec` and `secondary.viewSpec`."
    }
   },
   "com.almworks.jira.structure.rest.v1.data.RestPerspectiveEmailRequest": {
@@ -795,13 +795,13 @@
    "summary": "Computed configuration of the structure panel on a Jira page.",
    "fields": {
     "autoSwitch": "Auto-switch mode of the panel: `off` (keep the most recent structure), `withIssue` (switch to a structure containing the issue; default) or `default` (show the default structure).",
-    "autoCollapse": "Issue pages only: whether the panel starts collapsed (default true).",
-    "keepStructureWhenNavigating": "Issue pages only: whether the navigation hint is honoured (default true).",
+    "autoCollapse": "Issue pages, and agile board pages with an issue, only: whether the panel starts collapsed (default true).",
+    "keepStructureWhenNavigating": "Issue pages, and agile board pages with an issue, only: whether the navigation hint is honoured (default true).",
     "defaultStructure": "The default structure for the project (falls back to the global default when the project's one is archived); absent if none or not viewable.",
     "initialStructure": "Structure to show first; absent when none applies.",
     "userConfigurable": "True for logged-in callers (who may save preferences).",
     "projectAdmin": "Project pages only: whether the caller administers the project.",
-    "issueMissingFromInitialStructure": "Issue pages only: true when the issue is not in the initial structure (or there is none).",
+    "issueMissingFromInitialStructure": "Issue pages, and agile board pages with an issue, only: true when the issue is not in the initial structure (or there is none).",
     "singleStructure": "True when the caller can see exactly one structure (it is then the initial one); absent otherwise."
    }
   },
@@ -895,7 +895,7 @@
     "extensions": "Per companion-app key, the client settings that app supplies; absent when none.",
     "exportLinks": "Export menu entries; absent when none.",
     "externalGenericItemTypes": "Item types contributed by other apps (hidden ones excluded), sorted by weight then title.",
-    "restAsyncBackoff": "Delays between re-polls of long-running requests (from system property `structure.rest.async.backoff`, comma-separated); absent when not configured.",
+    "restAsyncBackoff": "Delays between re-polls of long-running requests (from the application or system property `structure.rest.async.backoff`, comma-separated); absent when not configured.",
     "globalError": "Localized warning shown on every grid (Jira index inconsistent); absent when fine.",
     "hideHelp": "True when the welcome/help content is switched off.",
     "hideHelpAdminTips": "True when help is on but no help content is installed.",
@@ -969,7 +969,7 @@
    "fields": {
     "local": "Settings when the gadget runs in this Jira.",
     "remote": "Settings when the gadget runs on another server; also has `allowNodeWandering`.",
-    "retryBackoff": "Data Center only: retry delays (from system property `structure.gadget.dc.retryBackoff`, comma-separated integers); absent otherwise or if unparseable."
+    "retryBackoff": "Data Center only: retry delays (from the application or system property `structure.gadget.dc.retryBackoff`, comma-separated integers); absent otherwise or if unparseable."
    }
   },
   "com.almworks.jira.structure.rest.v1.javax.GadgetResource$WidgetConfiguration": {
@@ -988,7 +988,7 @@
     "pollInterval": "Milliseconds between update polls.",
     "minCachedRows": "Minimum rows to keep loaded.",
     "preloadRowsFactor": "Multiple of the visible rows to preload.",
-    "allowNodeWandering": "Whether successive requests may be served by different Data Center nodes (default true; system property `structure.gadget.remote.allowNodeWandering`)."
+    "allowNodeWandering": "Whether successive requests may be served by different Data Center nodes (default true; application or system property `structure.gadget.remote.allowNodeWandering`)."
    }
   },
   "com.almworks.jira.structure.rest.v1.data.RestProject$Seq": {
@@ -1027,7 +1027,7 @@
   },
   "com.almworks.jira.structure.rest.v2.data.RestTransformItem": {
    "name": "quick-transform-entry",
-   "summary": "An entry of a structure's quick transformations list: either a transformation or a group (by `key`). Entries without `key` are dropped. Ids must be unique across the list including group members.",
+   "summary": "An entry of a structure's quick transformations list: either a transformation or a group (by `key`). An entry without `key` gives 500. Ids must be unique across the list including group members.",
    "fields": {
     "key": "`group` for a group, otherwise the transformation type key.",
     "quick": "Button settings."
@@ -1046,7 +1046,7 @@
    "name": "extensible-async-request",
    "summary": "Common part of requests that may run asynchronously and may carry data for companion apps.",
    "fields": {
-    "jobId": "Absent on the first call. If the server cannot answer within its timeout (default 3 s) it replies 200 with only `jobId`; the client repeats the identical request with that `jobId` to collect the result.",
+    "jobId": "Absent on the first call. If the server cannot answer within its timeout (default 3 s) it replies 200 with only `jobId`; the client repeats the request with that `jobId` to collect the result; in a poll, `subscriptions` is read from the repeat's own body, validated and answered, and a ticket reply drops that call's subscription updates.",
     "extensionRequests": "Map from companion-app key to that app's request payload; each app's reply is returned under the same key in the response's extension data."
    }
   },
@@ -1120,5 +1120,5 @@
    }
   }
  },
- "conventions": "#### Authentication and access\n- Paths: module `rest-v1` is served under `/rest/structure/1.0`, module `rest-cfd` under `/rest/cfd/1.0` (Jira 9.x).\n- Authentication is Jira's usual (session cookie, basic auth, tokens). An endpoint without an anonymous marker requires a logged-in user; anonymous calls get 401 from the platform. Endpoints marked anonymous-allowed carry both platform annotations for anonymous access (classic anonymous access and anonymous site access), so they also answer anonymous callers; what an anonymous caller then sees depends on the plugin's own checks.\n- Common access gate (all `rest-v1` and `rest-v2` resources except the gadget resource `/gadget/*`; not applied to `rest-cfd`). Before the method runs: (1) if the query string has `loggedIn=true` and the caller is anonymous, the reply is 401 with no body; (2) if the method or its resource is marked administrator-only, the caller must be a Jira administrator (or system administrator where so marked), else 403 with plain-text body `permission violation`; (3) otherwise the caller must hold the plugin's 'use' application permission (configured by the Jira admin; may be granted to anonymous users), else 403 `permission violation`, unless the method is explicitly exempt.\n- Administrator-only endpoints in these modules: `GET /config/license`, `GET /config/licenses`, `PUT /statistics/enableSending`, `PUT /statistics/dismissOffer`. None of them requires websudo; the only websudo-protected resource of the plugin is the dark-features resource of `rest-v2`.\n- XSRF: the platform's standard protection applies to mutating methods (POST, PUT, DELETE): requests with form or plain-text content types are rejected unless they carry `X-Atlassian-Token: no-check`; JSON requests pass. No endpoint opts out. Some POSTs take a dummy JSON body only to force a JSON content type.\n- No CORS opt-in.\n\n#### Error responses\nErrors come in two body formats:\n- Plain text (`Content-Type: text/plain`): the message(s), several joined by newlines, or an empty body. Used for most explicit validation failures (400), permission failures (403 `permission violation`), not-found (404), and server errors (500, body = exception message).\n- Structured error object, {{com.almworks.structure.commons.rest.RestStructureError}}, as JSON, for errors raised by the plugin's domain layer.\n\nFor `rest-v1` (and `rest-v2`) an exception mapper translates uncaught exceptions:\n- unparseable request JSON: 400, error object with `error` = `Cannot parse request JSON` plus the parser's message;\n- plugin stopped or a background job failure: 503, plain text `service unavailable`;\n- an explicit 'error response' raised by the code: exactly that response (status, headers, body);\n- invalid input (illegal argument, invalid data): 400, error object with `error` = `Invalid request data` and `message`;\n- forest lock timeout: 500, plain text;\n- a domain error: error object with `code`, `error` (the error name), `message`, `localizedMessage` and, when known, `structureId`, `viewId`, `rowId`, `itemId`, `itemDescription`; status from the error's category: not found 404, no permission 403, invalid input 400, anything else 500;\n- anything else: 500, plain text with the exception message (and an error in the server log).\n\nNote that the plugin reports 'does not exist' and 'not visible to you' with the same 404 so as not to reveal existence.\n\n#### The plugin's own error codes\nBesides the public codes of `StructureErrors` (Part 2, `API.md`), the plugin raises its own domain errors with codes 6000–6099. Their `code`, `error` (name) and category are part of the contract: they reach clients in the structure-error object above and Java callers through `StructureException`. The name is the exact wire string.\n\n| code | `error` | category | raised when |\n|---|---|---|---|\n| 6001 | `JIRA_DATA_ACCESS_EXCEPTION` | `INTERNAL` | reading Jira data failed |\n| 6002 | `SEARCH_ERROR` | `INTERNAL` | a Jira search failed |\n| 6003 | `INVALID_JQL` | `INVALID_INPUT` | a JQL text does not parse or validate |\n| 6004 | `INACCESSIBLE_FILTER` | `NOT_FOUND` | a saved filter does not exist or the user may not see it |\n| 6005 | `INVALID_SJQL` | `INVALID_INPUT` | an S-JQL (structure query) text does not parse or validate |\n| 6006 | `PERMISSION_RULE_APPLICATION_FORMS_CYCLE` | `INVALID_INPUT` | structure permission rules that apply other structures' rules form a cycle |\n| 6007 | `APPLY_RULE_NOT_APPLICABLE` | `INVALID_INPUT` | a permission rule applies a structure whose rules cannot be applied |\n| 6008 | `ACTING_USER_NOT_FOUND` | `NO_PERMISSION` | the user a forest source or job should act as no longer exists |\n| 6009 | `CAPABILITY_NOT_SUPPORTED_BY_MODULE` | `GENERAL` | an extension module does not support the requested operation |\n| 6010 | `GROUP_NOT_EXISTS_OR_INACCESSIBLE` | `NOT_FOUND` | a group named in permission rules does not exist |\n| 6011 | `PROJECT_NOT_EXISTS_OR_INACCESSIBLE` | `NOT_FOUND` | a project named in permission rules does not exist |\n| 6012 | `PROJECT_ROLE_NOT_EXISTS_OR_INACCESSIBLE` | `NOT_FOUND` | a project role named in permission rules does not exist |\n| 6013 | `USER_NOT_EXISTS_OR_INACCESIBLE` | `NOT_FOUND` | a user named in permission rules does not exist (the name is spelled this way, with one S in INACCESIBLE) |\n| 6014 | `CONCURRENT_UPDATE_FAILED` | `INTERNAL` | a change could not be saved after repeated concurrent changes |\n| 6015 | `INVALID_EXPR` | `INVALID_INPUT` | a formula (expression) does not parse or validate |\n| 6016 | `ATTRIBUTE_LOADER_PROBLEM` | `INTERNAL` | an attribute could not be loaded |\n| 6017 | `ENTITY_NOT_EXISTS_OR_INACCESSIBLE` | `NOT_FOUND` | an object that is neither a structure, view nor item (for example an effector process) does not exist or the user may not see it |\n\n`rest-cfd` has no such mapper: its failures surface as the platform's generic error reply (normally 500).\n\n#### Caching and other headers\n- Responses carry `Cache-Control: no-cache, no-store` unless the endpoint itself set `Cache-Control` or an `ETag` (applies to all gated resources and the gadget resource; `rest-cfd` sets it only on its validate call).\n- On Data Center, the polling and attribute-subscription resources of `rest-v2` add a cookie `X-Structure-DC-Meta` = URL-encoded `<node id>|<retry count>` (retry count = live nodes times a multiplier, at least 1), unless switched off by the system property `structure.dcRestInterceptor.disabled`.\n\n#### Rate limiting\nOnly the structure search endpoints of `rest-v2` are rate limited: one request per user per configured interval (anonymous callers share one bucket); a faster request gets 429 with `Retry-After: <seconds>` and a localized plain-text message. Nothing in `rest-v1` or `rest-cfd` is rate limited.\n\n#### Content types and conventions\n- Requests and responses are JSON (`application/json`, UTF-8) unless stated; the gadget resource also accepts form-encoded requests; the S-JQL logs endpoint streams `application/zip`.\n- Many replies use the acknowledgement object `{\"empty\": true}` ({{com.almworks.structure.commons.rest.RestEmpty}}) instead of an empty body.\n- Optional values are usually omitted or null when not applicable; clients must treat absent and null alike.\n- Ids: structure, view, row, issue and project ids are JSON integers; Jira issue type, status and constant ids are strings. Times are epoch milliseconds unless stated.\n- Long-running `rest-v2` requests use the asynchronous job protocol described with {{com.almworks.jira.structure.rest2g.data.RestExtensibleRequest}}.\n"
+ "conventions": "#### Authentication and access\n- Paths: module `rest-v1` is served under `/rest/structure/1.0`, module `rest-cfd` under `/rest/cfd/1.0` (Jira 9.x).\n- Authentication is Jira's usual (session cookie, basic auth, tokens). An endpoint without an anonymous marker requires a logged-in user; anonymous calls get 401 from the platform. Endpoints marked anonymous-allowed carry both platform annotations for anonymous access (classic anonymous access and anonymous site access), so they also answer anonymous callers; what an anonymous caller then sees depends on the plugin's own checks.\n- Common access gate (all `rest-v1` and `rest-v2` resources except the gadget resource `/gadget/*`; not applied to `rest-cfd`). Before the method runs: (1) if the query string has `loggedIn=true` and the caller is anonymous, the reply is 401 with no body; (2) if the method or its resource is marked administrator-only, the caller must be a Jira administrator (or system administrator where so marked), else 403 with plain-text body `permission violation`; (3) otherwise the caller must hold the plugin's 'use' application permission (configured by the Jira admin; may be granted to anonymous users), else 403 `permission violation`, unless the method is explicitly exempt.\n- Administrator-only endpoints in these modules: in `rest-v1`, `GET /config/license`, `GET /config/licenses`, `PUT /statistics/enableSending`, `PUT /statistics/dismissOffer`; in `rest-v2`, the whole `/attribute-sensitivity`, `/configuration` and `/dark-features` resources, and the whole `/cloudmigration` resource for system administrators only. None of them requires websudo; the only websudo-protected resource of the plugin is the dark-features resource of `rest-v2`.\n- XSRF: the platform's standard protection applies to mutating methods (POST, PUT, DELETE): requests with form or plain-text content types are rejected unless they carry `X-Atlassian-Token: no-check`; JSON requests pass. No endpoint opts out. Some POSTs take a dummy JSON body only to force a JSON content type.\n- No CORS opt-in.\n\n#### Error responses\nErrors come in two body formats:\n- Plain text (`Content-Type: text/plain`): the message(s), several joined by newlines, or an empty body. Used for most explicit validation failures (400), permission failures (403 `permission violation`), not-found (404), and server errors (500, body = exception message).\n- Structured error object, {{com.almworks.structure.commons.rest.RestStructureError}}, as JSON, for errors raised by the plugin's domain layer.\n\nFor `rest-v1` (and `rest-v2`) an exception mapper translates uncaught exceptions:\n- unparseable request JSON: 400, error object with `error` = `Cannot parse request JSON` plus the parser's message;\n- plugin stopped or a background job failure: 503, plain text `service unavailable`;\n- an explicit 'error response' raised by the code: exactly that response (status, headers, body);\n- invalid input (illegal argument, invalid data): 400, error object with `error` = `Invalid request data` and `message`;\n- forest lock timeout: 500, plain text;\n- a domain error: error object with `code`, `error` (the error name with its code, as `<NAME>[<code>]`, for example `INVALID_JQL[6003]`), `message`, `localizedMessage` `rowId` (0 when no row is concerned) and, when known, `structureId`, `viewId`, `itemId`, `itemDescription`; status from the error's category: not found 404, no permission 403, invalid input 400, anything else 500;\n- anything else: 500, plain text with the exception message (and an error in the server log).\n\nNote that the plugin reports 'does not exist' and 'not visible to you' with the same 404 so as not to reveal existence.\n\n#### The plugin's own error codes\nBesides the public codes of `StructureErrors` (Part 2, `API.md`), the plugin raises its own domain errors with codes 6000–6099. Their `code`, `error` (name) and category are part of the contract: they reach clients in the structure-error object above and Java callers through `StructureException`. The table gives the name; on the wire `error` carries the code as well, as `<name>[<code>]` (for example `INVALID_JQL[6003]`).\n\n| code | `error` | category | raised when |\n|---|---|---|---|\n| 6001 | `JIRA_DATA_ACCESS_EXCEPTION` | `INTERNAL` | reading Jira data failed |\n| 6002 | `SEARCH_ERROR` | `INTERNAL` | a Jira search failed |\n| 6003 | `INVALID_JQL` | `INVALID_INPUT` | a JQL text does not parse or validate |\n| 6004 | `INACCESSIBLE_FILTER` | `NOT_FOUND` | a saved filter does not exist or the user may not see it |\n| 6005 | `INVALID_SJQL` | `INVALID_INPUT` | an S-JQL (structure query) text does not parse or validate |\n| 6006 | `PERMISSION_RULE_APPLICATION_FORMS_CYCLE` | `INVALID_INPUT` | structure permission rules that apply other structures' rules form a cycle |\n| 6007 | `APPLY_RULE_NOT_APPLICABLE` | `INVALID_INPUT` | a permission rule applies a structure whose rules cannot be applied |\n| 6008 | `ACTING_USER_NOT_FOUND` | `NO_PERMISSION` | the user a forest source or job should act as no longer exists |\n| 6009 | `CAPABILITY_NOT_SUPPORTED_BY_MODULE` | `GENERAL` | an extension module does not support the requested operation |\n| 6010 | `GROUP_NOT_EXISTS_OR_INACCESSIBLE` | `NOT_FOUND` | a group named in permission rules does not exist |\n| 6011 | `PROJECT_NOT_EXISTS_OR_INACCESSIBLE` | `NOT_FOUND` | a project named in permission rules does not exist |\n| 6012 | `PROJECT_ROLE_NOT_EXISTS_OR_INACCESSIBLE` | `NOT_FOUND` | a project role named in permission rules does not exist |\n| 6013 | `USER_NOT_EXISTS_OR_INACCESIBLE` | `NOT_FOUND` | a user named in permission rules does not exist (the name is spelled this way, with one S in INACCESIBLE) |\n| 6014 | `CONCURRENT_UPDATE_FAILED` | `INTERNAL` | a change could not be saved after repeated concurrent changes |\n| 6015 | `INVALID_EXPR` | `INVALID_INPUT` | a formula (expression) does not parse or validate |\n| 6016 | `ATTRIBUTE_LOADER_PROBLEM` | `INTERNAL` | an attribute could not be loaded |\n| 6017 | `ENTITY_NOT_EXISTS_OR_INACCESSIBLE` | `NOT_FOUND` | an object that is neither a structure, view nor item (for example an effector process) does not exist or the user may not see it |\n\n`rest-cfd` has no such mapper: its failures surface as the platform's generic error reply (normally 500).\n\n#### Caching and other headers\n- Responses carry `Cache-Control: no-cache, no-store` unless the endpoint itself set `Cache-Control` or an `ETag` (applies to all gated resources and the gadget resource; `rest-cfd` sets it only on its validate call).\n- On Data Center, the polling and attribute-subscription resources of `rest-v2` add a cookie `X-Structure-DC-Meta` = URL-encoded `<node id>|<retry count>` (retry count = live nodes times a multiplier, at least 1), unless switched off by the system property `structure.dcRestInterceptor.disabled`.\n\n#### Rate limiting\nOnly the structure search endpoints of `rest-v2` are rate limited: one request per user per configured interval (anonymous callers share one bucket); a faster request gets 429 with `Retry-After: <seconds>` and a localized plain-text message. Nothing in `rest-v1` or `rest-cfd` is rate limited.\n\n#### Content types and conventions\n- Requests and responses are JSON (`application/json`, UTF-8) unless stated; the gadget resource also accepts form-encoded requests; the S-JQL logs endpoint streams `application/zip`.\n- Many replies use the acknowledgement object `{\"empty\": true}` ({{com.almworks.structure.commons.rest.RestEmpty}}) instead of an empty body.\n- Optional values are usually omitted or null when not applicable; clients must treat absent and null alike.\n- Ids: structure, view, row, issue and project ids are JSON integers; Jira issue type, status and constant ids are strings. Times are epoch milliseconds unless stated.\n- Long-running `rest-v2` requests use the asynchronous job protocol described with {{com.almworks.jira.structure.rest2g.data.RestExtensibleRequest}}.\n"
 }

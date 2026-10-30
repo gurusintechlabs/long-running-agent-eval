@@ -3,7 +3,7 @@
   "GET /rest/structure/2.0/author-picker": {
    "summary": "Search box backend for picking 'authors' (users, groups and project roles), used by worklog-style column settings. Returns up to three result groups in this order: users, groups, project roles. Users come from Jira's user search (inactive users included, email may match); groups are the groups the caller may see (all groups for Jira admins or when the instance-wide setting that exposes all groups is on, otherwise the caller's own groups; for anonymous callers all groups only if anonymous holds the Browse Users global permission, else none); roles are all project roles and are omitted for anonymous callers. Read-only.",
    "params": {
-    "query": "Text to match, case-insensitive, as a literal substring (no wildcards). Users match on username, display name or email; groups and roles on name. Empty or omitted: no filtering.",
+    "query": "Text to match, case-insensitive, as a literal substring (no wildcards). For users this filters what Jira's user search returns (limit + 1 asked), so a user Jira does not return never appears. Users match on username, display name or email; groups and roles on name. Empty or omitted: no filtering.",
     "noRoles": "true to leave out the project-role group. Default false.",
     "noUsers": "true to leave out the user group. Default false.",
     "limit": "Maximum items per group. Missing, zero or negative means 10."
@@ -157,7 +157,7 @@
    "params": {
     "date": "The date text in the caller's date-picker format (as configured in Jira for the logged-in user)."
    },
-   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestDateValidationResponse}}. An unparseable or missing date is not an HTTP error: `isValid` is false and `error` holds the localized parser message.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestDateValidationResponse}}. An unparseable date is not an HTTP error: `isValid` is false and `error` holds the localized parser message.",
    "errors": "403 when the caller may not use the app."
   },
   "POST /rest/structure/2.0/expr/validate": {
@@ -175,13 +175,13 @@
     "query": "Case-insensitive literal substring of the group name. Blank or omitted: all visible groups.",
     "maxResults": "Maximum items; used only when positive and lower than the instance limit (default 20, adjustable by an instance property)."
    },
-   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestSearchResult}} holding no group when nothing matches, else one group labelled with the localized word 'Groups'. Matches are ordered by name length (shortest first). Item `value`, `id` and `label` are the group name; `html` is the HTML-escaped name with the matched part wrapped in `<b>`. `footer` is a localized 'Showing N of M matching groups' text only when results were cut.",
-   "errors": "403 with no body when not logged in; 403 when the caller may not use the app."
+   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestSearchResult}} holding no group when nothing matches, else one group labelled with the localized word 'Groups'. With a non-blank query, matches are ordered by name length (shortest first); with a blank query they keep the group list's order and have no highlighting. Item `value`, `id` and `label` are the group name; `html` is the HTML-escaped name with the matched part wrapped in `<b>`. `footer` is a localized 'Showing N of M matching groups' text only when results were cut.",
+   "errors": "401 from the platform when not logged in; 403 when the caller may not use the app."
   },
   "GET /rest/structure/2.0/info-popup": {
    "summary": "Data for the app's 'about' popup: app version, license, update availability, the Jira cluster node id, and the same for four companion add-ons (Gantt, Pages, Deliver, Testy). IMPORTANT: the original asks the Atlassian Marketplace (an external server) whether a newer version of the app and of each installed companion is available (results cached for a long time; failures count as 'no update'). The replacement must not contact the Marketplace; it reports `false` for every update flag.",
    "params": {},
-   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestInfoPopup}}. License objects are null for anonymous callers. For the app, the license shown is the effective license if it is a Marketplace license or 'disabled'; otherwise the bundle license (null when the bundle license is disabled). Companions: one entry each for plugin keys `com.almworks.structure.gantt`, `com.almworks.structure.pages`, `com.almworks.structure.deliver`, `com.almworks.testy`, in that order, always present even when not installed (then `version` is null and `updateAvailable` false).",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestInfoPopup}}. License objects are null for anonymous callers. For the app, the fixed licence state of SPEC section 1.1 is shown (`unlicensed` false). Companions: one entry each for plugin keys `com.almworks.structure.gantt`, `com.almworks.structure.pages`, `com.almworks.structure.deliver`, `com.almworks.testy`, in that order, always present even when not installed (then `version` is null and `updateAvailable` false).",
    "errors": "403 when the caller may not use the app."
   },
   "GET /rest/structure/2.0/issue-field": {
@@ -206,7 +206,7 @@
     "body": "A {{com.almworks.jira.structure.rest.v2.data.RestFieldOptionsRequest}}; `fieldId` must be non-blank and `fieldValues` non-empty."
    },
    "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestFieldOptionsResponse}} holding a single group (empty label, `total` = number of options returned). Options follow the order of `fieldValues`; an id that cannot be resolved (or is not visible) still yields an option with that id and the placeholder label `option_<id>`. The 'no value' id `special:EMPTY`, if requested and the field has such an option, is moved to the end.",
-   "errors": "400 text/plain when `fieldId` is blank or `fieldValues` is missing or empty. 403 when the caller may not use the app."
+   "errors": "500 for a JSON `null` body. 400 text/plain when `fieldId` is blank or `fieldValues` is missing or empty. 403 when the caller may not use the app."
   },
   "GET /rest/structure/2.0/label-picker": {
    "summary": "Returns Jira's label suggestions for the caller, either for the system Labels field or for one labels-type custom field. Read-only.",
@@ -331,7 +331,7 @@
    "errors": "403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (or the generic access 403) when the caller may not use the app."
   },
   "PUT /rest/structure/2.0/saved-column/{columnSource}/{id}": {
-   "summary": "Replaces all properties of a stored saved column (name, description, type and parameters; absent fields become null, absent parameters become an empty object). The caller must own the column (user column) or hold the 'manage global saved columns' app permission (global column). Persisted in the SAVED_COLUMN table.",
+   "summary": "Replaces all properties of a stored saved column (name, description, type and parameters; `name` is checked as when saving a new column, other absent fields become null, absent parameters become an empty object). The caller must own the column (user column) or hold the 'manage global saved columns' app permission (global column). Persisted in the SAVED_COLUMN table.",
    "params": {
     "columnSource": "`stored` (the bundled source cannot be changed).",
     "id": "Saved column id (integer).",
@@ -368,7 +368,7 @@
     "body": "Any JSON object (for example `{}`); ignored, present only so the request is a non-simple POST."
    },
    "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
-   "errors": "400 text/plain (localized messages joined by '. ') when the source is unknown or bundled, the column does not exist, is already global, belongs to another user, the target is not `global`, or the caller lacks the permission. 401 when not logged in."
+   "errors": "400 text/plain (localized messages joined by '. ') (an empty body for the bundled source) when the source is unknown or bundled, the column does not exist, is already global, belongs to another user, the target is not `global`, or the caller lacks the permission. 401 when not logged in."
   },
   "POST /rest/structure/2.0/saved-column/{columnSource}/{id}/updateParameters": {
    "summary": "Replaces only the parameters of a stored saved column; name, description and type stay. A missing `parameters` clears them to an empty object. Same permission rules as PUT.",
@@ -390,7 +390,7 @@
    "errors": "404 with no body when the source or list is unknown. 403 when the caller may not use the app."
   },
   "POST /rest/structure/2.0/saved-column/{columnSource}/{listKey}": {
-   "summary": "Saves a new column into a list: into `user` as a personal column of the caller, or into `global` as a shared column (requires the 'manage global saved columns' app permission). No validation of name, type or parameters. Persisted in the SAVED_COLUMN table.",
+   "summary": "Saves a new column into a list: into `user` as a personal column of the caller, or into `global` as a shared column (requires the 'manage global saved columns' app permission). `name` is mandatory and stored trimmed: blank gives 400 `Column name cannot be blank`, over 190 characters gives 400. Type and parameters are not validated. Persisted in the SAVED_COLUMN table.",
    "params": {
     "columnSource": "`stored`.",
     "listKey": "`user` or `global`.",
@@ -408,7 +408,7 @@
    "errors": "401 when not logged in; 403 when the caller may not use the app."
   },
   "GET /rest/structure/2.0/tempo/accounts": {
-   "summary": "Searches Tempo accounts through the Tempo Accounts add-on installed in the same Jira (an in-process call, no external server). Open and closed accounts are included; archived accounts are included unless an instance property says to skip them. Read-only.",
+   "summary": "Searches Tempo accounts through the Tempo Accounts add-on installed in the same Jira (an in-process call, no external server). Open and closed accounts are included; archived accounts are left out unless the property `structure.tempo.showArchivedAccounts` is true (default false). Read-only.",
    "params": {
     "query": "Search text, passed to Tempo's account search.",
     "limit": "Maximum number of accounts, passed to Tempo; omitted means Tempo's default.",
@@ -473,7 +473,7 @@
     "label": "Plain display text.",
     "title": "Optional tooltip or secondary text; null when not used.",
     "html": "Display HTML with the matched part of the search text highlighted; already escaped.",
-    "entity": "Optional full object for the item; null for the endpoints in this group.",
+    "entity": "Optional full object for the item; null except for the gadget pickers.",
     "icon": "Icon or avatar URL, or null.",
     "id": "Always equal to `value`.",
     "params": "Optional extra string attributes (absent when there are none)."
@@ -483,7 +483,7 @@
    "name": "picker-search-result",
    "summary": "Result of a search-box query: a list of titled groups of items.",
    "fields": {
-    "query": "Echo of the search text; null for the endpoints in this group.",
+    "query": "Echo of the search text; null for the endpoints in this group except the gadget pickers.",
     "groups": "Groups of results in display order, each a {{com.almworks.jira.structure.rest.v1.data.RestSearchGroup}}; empty array when nothing matched."
    }
   },
@@ -491,7 +491,7 @@
    "name": "about-license-summary",
    "summary": "Short license description for the about popup.",
    "fields": {
-    "licenseSEN": "Support entitlement number (serial) of the license; null when unlicensed.",
+    "licenseSEN": "Support entitlement number (serial) of the license; null when unlicensed, and always null in the replacement (SPEC.md 1.1).",
     "unlicensed": "true when there is no usable license (license disabled); then `licenseSEN` is null."
    }
   },
@@ -802,7 +802,7 @@
    "name": "macro-filter-search-result",
    "summary": "Saved filters found for the Confluence macro editor.",
    "fields": {
-    "savedfilters": "Found saved filters (at most 10); null when the caller may not use the app.",
+    "savedfilters": "Found saved filters (at most 10) (the access gate answers 403 first for a caller who may not use the app).",
     "error": "Localized or technical error text when the app is unavailable to the caller or the search failed; otherwise null."
    }
   },

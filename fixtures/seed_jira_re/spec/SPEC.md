@@ -49,6 +49,23 @@ on licence grounds. Where the public API, REST or the UI must report a licence s
 modules keep their keys and types (they are contract) but do no licence work. Wherever this spec mentions an
 unlicensed, expired, blocked or read-only licence, that state never occurs in the replacement.
 
+The fixed state has these exact values, for the plugin and every extension (product owner decision, 2026-10-30):
+
+| where | value |
+|---|---|
+| [`license-info`](#shape-license-info) `type` | `commercial` |
+| `licensee`, `serial` | empty strings |
+| `unlimitedUsers` | `true` |
+| `maxUsers` | `0` |
+| `serverLocked`, `marketplaceLicense` | `false` |
+| `source` | `none` |
+| `licensedServers`, `licenseExpiration`, `maintenanceExpiration` | absent |
+| [`about-license-summary`](#shape-about-license-summary) `licenseSEN` | null |
+| `about-license-summary` `unlicensed` | `false` |
+
+`LicenseData` in the public API reports the same: `StructureLicenseType.COMMERCIAL`, `LicenseSource.NONE`, an
+empty licensee and serial, serial number 0.
+
 **OSGi exports.** Other plugins compile against the public Java API (Part 2) and import it from this bundle.
 The replacement exports exactly these packages:
 - every package of the public API (`com.almworks.jira.structure.api` and its subpackages, listed in Part 2),
@@ -704,7 +721,7 @@ user preferences. Section 1.6 lists those uses.
 - Paths: module `rest-v1` is served under `/rest/structure/1.0`, module `rest-cfd` under `/rest/cfd/1.0` (Jira 9.x).
 - Authentication is Jira's usual (session cookie, basic auth, tokens). An endpoint without an anonymous marker requires a logged-in user; anonymous calls get 401 from the platform. Endpoints marked anonymous-allowed carry both platform annotations for anonymous access (classic anonymous access and anonymous site access), so they also answer anonymous callers; what an anonymous caller then sees depends on the plugin's own checks.
 - Common access gate (all `rest-v1` and `rest-v2` resources except the gadget resource `/gadget/*`; not applied to `rest-cfd`). Before the method runs: (1) if the query string has `loggedIn=true` and the caller is anonymous, the reply is 401 with no body; (2) if the method or its resource is marked administrator-only, the caller must be a Jira administrator (or system administrator where so marked), else 403 with plain-text body `permission violation`; (3) otherwise the caller must hold the plugin's 'use' application permission (configured by the Jira admin; may be granted to anonymous users), else 403 `permission violation`, unless the method is explicitly exempt.
-- Administrator-only endpoints in these modules: `GET /config/license`, `GET /config/licenses`, `PUT /statistics/enableSending`, `PUT /statistics/dismissOffer`. None of them requires websudo; the only websudo-protected resource of the plugin is the dark-features resource of `rest-v2`.
+- Administrator-only endpoints in these modules: in `rest-v1`, `GET /config/license`, `GET /config/licenses`, `PUT /statistics/enableSending`, `PUT /statistics/dismissOffer`; in `rest-v2`, the whole `/attribute-sensitivity`, `/configuration` and `/dark-features` resources, and the whole `/cloudmigration` resource for system administrators only. None of them requires websudo; the only websudo-protected resource of the plugin is the dark-features resource of `rest-v2`.
 - XSRF: the platform's standard protection applies to mutating methods (POST, PUT, DELETE): requests with form or plain-text content types are rejected unless they carry `X-Atlassian-Token: no-check`; JSON requests pass. No endpoint opts out. Some POSTs take a dummy JSON body only to force a JSON content type.
 - No CORS opt-in.
 
@@ -719,13 +736,13 @@ For `rest-v1` (and `rest-v2`) an exception mapper translates uncaught exceptions
 - an explicit 'error response' raised by the code: exactly that response (status, headers, body);
 - invalid input (illegal argument, invalid data): 400, error object with `error` = `Invalid request data` and `message`;
 - forest lock timeout: 500, plain text;
-- a domain error: error object with `code`, `error` (the error name), `message`, `localizedMessage` and, when known, `structureId`, `viewId`, `rowId`, `itemId`, `itemDescription`; status from the error's category: not found 404, no permission 403, invalid input 400, anything else 500;
+- a domain error: error object with `code`, `error` (the error name with its code, as `<NAME>[<code>]`, for example `INVALID_JQL[6003]`), `message`, `localizedMessage` `rowId` (0 when no row is concerned) and, when known, `structureId`, `viewId`, `itemId`, `itemDescription`; status from the error's category: not found 404, no permission 403, invalid input 400, anything else 500;
 - anything else: 500, plain text with the exception message (and an error in the server log).
 
 Note that the plugin reports 'does not exist' and 'not visible to you' with the same 404 so as not to reveal existence.
 
 #### The plugin's own error codes
-Besides the public codes of `StructureErrors` (Part 2, `API.md`), the plugin raises its own domain errors with codes 6000–6099. Their `code`, `error` (name) and category are part of the contract: they reach clients in the structure-error object above and Java callers through `StructureException`. The name is the exact wire string.
+Besides the public codes of `StructureErrors` (Part 2, `API.md`), the plugin raises its own domain errors with codes 6000–6099. Their `code`, `error` (name) and category are part of the contract: they reach clients in the structure-error object above and Java callers through `StructureException`. The table gives the name; on the wire `error` carries the code as well, as `<name>[<code>]` (for example `INVALID_JQL[6003]`).
 
 | code | `error` | category | raised when |
 |---|---|---|---|
@@ -790,7 +807,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 | `issuetype` | query | string |  | Issue type id (string). Required together with `project` unless `sample` is given; overrides the sample's type. |
 | `field` | query | array<string> |  | Repeatable; Jira field ids to render (e.g. `assignee`, `customfield_10010`, `status`). Omitted or empty: every field on the create screen except issue links, time logged and attachments. |
 
-Returns the Jira create-screen editor HTML for fields, so the client can show inline issue creation. The prospective issue is defined either by a sample issue (its project, issue type and, for sub-tasks, parent are reused, and copyable field values are pre-filled from it) or by an explicit project and issue type; other fields get Jira's defaults. Project, summary and (unless a sub-task) issue type are never rendered. Special case: when no sample is given and `field` lists exactly `project` and `issuetype`, only the project and issue-type pickers are rendered and the reply lists the projects where the caller may create issues and the plugin is enabled. Nothing is created or changed. A field the caller cannot use is still listed but carries a per-field `error` text instead of HTML (field hidden for this issue, made read-only by a third-party scripting app, or rendering failed); requested field ids that are not on the relevant screen get an entry with only an `error`.
+Returns the Jira create-screen editor HTML for fields, so the client can show inline issue creation. The prospective issue is defined either by a sample issue (its project, issue type and, for sub-tasks, parent are reused, and copyable field values are pre-filled from it) or by an explicit project and issue type; other fields get Jira's defaults. Project, summary and (unless a sub-task) issue type are skipped when field values are filled in, but are rendered like any other field if requested and on the screen. Special case: when no sample is given and `field` lists exactly `project` and `issuetype`, only the project and issue-type pickers are rendered and the reply lists the projects where the caller may create issues and the plugin is enabled. Nothing is created or changed. A field the caller cannot use is still listed but carries a per-field `error` text instead of HTML (field hidden for this issue, made read-only by a third-party scripting app, or rendering failed); requested field ids that are not on the relevant screen get an entry with only an `error`.
 
 **Response.** 200 with [`issue-field-editors`](#shape-issue-field-editors) where `forCreate` is true and `fields` holds `createHtml` per field id.
 
@@ -889,7 +906,7 @@ Lists the projects in which the plugin is enabled and on which the caller has th
 
 **Response.** 200 with [`project-list`](#shape-project-list); each project's `iconUrl` is the small avatar URL.
 
-**Errors.** 400 (plain text `invalid permission requested`) for an unsupported permission; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 (plain text `invalid permission requested`) for an unsupported permission (Jira's own lookup decides what is supported: it ignores case and accepts key forms such as `BROWSE_PROJECTS` and `createIssue`); 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/1.0/config/roles`
 
@@ -976,7 +993,7 @@ Computes the configuration of the structure panel embedded in a Jira issue page,
 
 **Response.** 200 with [`panel-configuration`](#shape-panel-configuration).
 
-**Errors.** 400 (plain text) when no context is given. For `forIssue`: the issue's problem mapped to a status (404 not found or not visible, 403 no permission, 400 plugin not enabled for the project unless an agile board is given, 500 otherwise), plain text. 404 (plain text) when `forProject` is unknown or not browsable. 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 (plain text) when no context is given. For `forIssue`: the issue's problem mapped to a status (404 not found or not visible; 500 for an issue with no project, and otherwise), plain text. 404 (plain text) when `forProject` is unknown or not browsable. 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/1.0/config/ui`
 
@@ -1019,7 +1036,7 @@ Returns the bootstrap configuration of the structure grid client for the caller:
 
 Access: anonymous users allowed. Consumes: `application/json`. Produces: `application/json`.
 
-Returns what happens when the caller clicks an issue link in a structure grid: the caller's own preference if set, else the instance default (system property `structure.board.issueLinkAction`), else show details.
+Returns what happens when the caller clicks an issue link in a structure grid: the caller's own preference if set, else the instance default (Jira application property `structure.board.issueLinkAction`, else the JVM system property of that name, read once at plugin start), else show details.
 
 **Response.** 200 with [`issue-link-click-action`](#shape-issue-link-click-action); `type` is `showDetails`, `openIssuePage` or `doNothing`.
 
@@ -1064,7 +1081,7 @@ Access: anonymous users allowed. Consumes: `application/json`, `application/x-ww
 |---|---|---|---|---|
 | `query` | query | string |  | Optional name search text. |
 
-Structure picker for the gadget configuration form. With a non-blank `query`, searches all structures the caller can view by name (matched text highlighted in the HTML label), returning at most 8 items plus a 'N more' footer when there are more than 9 matches. Without a query, suggests up to 8 structures: the caller's recent structures and favorites, balanced 4/4 when both lists are long. This resource is not behind the plugin's common access gate; it checks the 'use' permission itself.
+Structure picker for the gadget configuration form. With a non-blank `query`, searches all structures the caller can view by name (matched text highlighted in the HTML label), returning every match when there are at most 9, else 8 items plus a 'N more' footer. Without a query, suggests up to 8 structures: the caller's recent structures and favorites, balanced 4/4 when both lists are long. This resource is not behind the plugin's common access gate; it checks the 'use' permission itself.
 
 **Response.** 200 with [`picker-search-result`](#shape-picker-search-result) (one group per category; each item's `entity` is a [`structure-summary`](#shape-structure-summary)). When the caller lacks the 'use' permission: 200 with [`validation-errors`](#shape-validation-errors) holding the key `s.g.structure-unavailable`.
 
@@ -1101,7 +1118,7 @@ Access: anonymous users allowed. Consumes: `application/json`, `application/x-ww
 | `structureId` | query | string |  | Structure id (text) whose view menu to suggest from; ignored if not viewable. |
 | `query` | query | string |  | Optional name search text. |
 
-View picker for the gadget configuration form. With a non-empty `query`, searches all views the caller can view by name (at most 8 items plus a 'N more' footer above 9 matches). Otherwise suggests up to 8 views from the menu configured for the given structure (or the global default menu) on the gadget page. This resource is not behind the plugin's common access gate; it checks the 'use' permission itself.
+View picker for the gadget configuration form. With a non-empty `query`, searches all views the caller can view by name (every match when there are at most 9, else 8 items plus a 'N more' footer). Otherwise suggests up to 8 views from the menu configured for the given structure (or the global default menu) on the gadget page. This resource is not behind the plugin's common access gate; it checks the 'use' permission itself.
 
 **Response.** 200 with [`picker-search-result`](#shape-picker-search-result) (each item's `entity` is a [`grid-view`](#shape-grid-view)). Without the 'use' permission: 200 with [`validation-errors`](#shape-validation-errors) holding `s.g.structure-unavailable`.
 
@@ -1111,7 +1128,7 @@ View picker for the gadget configuration form. With a non-empty `query`, searche
 
 Access: anonymous users allowed. Consumes: `application/json`, `application/x-www-form-urlencoded`. Produces: `application/json`.
 
-Returns client tuning for the gadget grid in local (same Jira) and remote (gadget shown in another application) modes: poll interval, minimum cached rows and preload factor, plus node-wandering and retry back-off settings for Data Center. Defaults: local 15000 ms / 20 rows / 2.0; remote 15000 ms / 100 rows / 5.0 on Server and 30000 ms / 500 rows / 10.0 on Data Center; each overridable by system properties `structure.gadget.<local|remote>.<pollInterval|minCachedRows|preloadRowsFactor>`. No permission check.
+Returns client tuning for the gadget grid in local (same Jira) and remote (gadget shown in another application) modes: poll interval, minimum cached rows and preload factor, plus node-wandering and retry back-off settings for Data Center. Defaults: local 15000 ms / 20 rows / 2.0; remote 15000 ms / 100 rows / 5.0 on Server and 30000 ms / 500 rows / 10.0 on Data Center; each overridable by application or system properties `structure.gadget.<local|remote>.<pollInterval|minCachedRows|preloadRowsFactor>`. No permission check.
 
 **Response.** 200 with [`gadget-grid-tuning`](#shape-gadget-grid-tuning); `remote` is a [`gadget-remote-grid-tuning`](#shape-gadget-remote-grid-tuning).
 
@@ -1125,11 +1142,11 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 |---|---|---|---|---|
 | (body) | body | [`shared-perspective`](#shape-shared-perspective) |  | [`shared-perspective`](#shape-shared-perspective) without `id`; `spec` is any JSON value (normally an object) describing the page state. |
 
-Stores a perspective (a snapshot of the structure page state: structure, view, filters, expansion and so on, as opaque JSON) and returns it with a new id, so it can be shared as a link. The id is a random positive 31-bit integer. Requires a logged-in caller who has the 'use' permission while the plugin is licensed. Stored perspectives are deleted automatically after a period without access.
+Stores a perspective (a snapshot of the structure page state: structure, view, filters, expansion and so on, as opaque JSON) and returns it with a new id, so it can be shared as a link. The id is a random positive 31-bit integer. Requires a logged-in caller who has the 'use' permission. Stored perspectives are deleted automatically after a period without access.
 
 **Response.** 200 with [`shared-perspective`](#shape-shared-perspective) holding the new `id` and the stored `spec` echoed as raw JSON.
 
-**Errors.** 400 (plain text) for a missing body, a body with an `id`, or an empty `spec`; 403 with [`structure-error`](#shape-structure-error) when the caller may not create perspectives (anonymous, unlicensed plugin); 401 for anonymous callers (platform default).
+**Errors.** 400 (plain text) for a missing body, a body with an `id`, or an empty `spec`; 401 for anonymous callers (platform default); 403 without the 'use' permission.
 
 #### `POST /rest/structure/1.0/perspective/shareByEmail`
 
@@ -1157,7 +1174,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Returns the stored page-state JSON of a perspective. Any caller with the 'use' permission (anonymous included when granted it) can read any perspective by id; there is no owner check. Reading refreshes the perspective's last-used time (protecting it from cleanup) and counts an access and an active user in usage statistics. Saved-column references inside the stored view specifications are refreshed to current definitions before returning.
 
-**Response.** 200 with the perspective's `spec` JSON value itself (not wrapped in an object).
+**Response.** 200 with a JSON string whose content is the perspective's `spec` as JSON text (double-encoded; the client parses it a second time).
 
 **Errors.** 400 (plain text) for an id below 1; 404 (plain text) when no perspective has that id; 403 (plain text) without the 'use' permission.
 
@@ -1167,8 +1184,8 @@ Access: logged-in user. Consumes: any. Produces: `application/json`.
 
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
-| `structure` | query | string |  | Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty means the default structure. A name matching several viewable structures is an error. |
-| `query` | query | string |  | Structure query (S-JQL) text, as the function's second argument; empty means a query matching every row. |
+| `structure` | query | string |  | Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty gives the `s.jql.error.unknown-structure` error. A name matching several viewable structures is an error. |
+| `query` | query | string |  | Structure query (S-JQL) text, as the function's second argument; missing means `[]`; an empty text is a parse error. |
 
 Validates the two arguments of the plugin's `structure()` JQL function for the caller without running it: the structure must exist and be viewable, its automation must not be stopped, and the structure query must parse and validate. Logged-in callers only.
 
@@ -1182,8 +1199,8 @@ Access: logged-in user. Consumes: any. Produces: `application/zip`.
 
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
-| `structure` | query | string |  | Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty means the default structure. A name matching several viewable structures is an error. |
-| `query` | query | string |  | Structure query (S-JQL) text, as the function's second argument; empty means a query matching every row. |
+| `structure` | query | string |  | Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty gives the `s.jql.error.unknown-structure` error. A name matching several viewable structures is an error. |
+| `query` | query | string |  | Structure query (S-JQL) text, as the function's second argument; missing means `[]`; an empty text is a parse error. |
 | `includeRelOutput` | query | boolean |  | Boolean, default false: also capture the step-by-step relation evaluation output (very verbose). |
 | `messagePattern` | query | string |  | Optional log line layout pattern (log4j pattern syntax) for the captured lines; default layout when omitted. |
 
@@ -1221,7 +1238,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: any.
 |---|---|---|---|---|
 | (body) | body | [`usage-counters`](#shape-usage-counters) |  | [`usage-counters`](#shape-usage-counters). |
 
-Adds client-side usage counters to the plugin's local usage statistics for the given time: each entry of `stats` is added as a total count, the caller is counted as a unique user, and also as an active user if any key is one of the interactive actions (e.g. `expandAll`, `view.switch`, `layout.switch`, `search.toggle`). Any counter name is accepted. Silently does nothing for anonymous callers or when `stats` is empty or `timestamp` is missing.
+Adds client-side usage counters to the plugin's local usage statistics for the given time: each entry of `stats` is added as a total count, the caller is counted as a unique user, and also as an active user if any key is one of the interactive actions (e.g. `expandAll`, `view.switch`, `layout.switch`, `search.toggle`). Any counter name is accepted except those that collide with the entries the call adds itself (`userCount`, or `activeUser` together with an interactive action): those give 400 `Invalid request data` and record nothing. Silently does nothing for anonymous callers or when `stats` is empty or `timestamp` is missing.
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok) in all accepted cases.
 
@@ -1234,7 +1251,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
 | `ids` | query | string |  | Comma-separated view ids; non-numeric or non-positive entries are skipped; ids the caller cannot access are silently left out. |
-| `name` | query | string |  | Name search text (word-prefix match, same rules as the pickers); ignored if it contains nothing searchable. |
+| `name` | query | string |  | Name search text: a case-insensitive literal substring anywhere in the name (`ann` matches `Planning`); ignored if it contains nothing searchable. |
 | `permission` | query | string |  | Minimum permission level the caller must have on each view, case-insensitive: `none`, `view`, `edit`, `automate`, `admin` (`edit_generators` is a deprecated alias). Levels at or below `view` mean `view`. Default `view`. |
 | `withPermissions` | query | boolean |  | Boolean, default false: include each view's permission rules (only for views the caller administers). |
 | `withOwner` | query | boolean |  | Boolean, default false: include the owner as a user object when the caller is the owner, a Jira administrator or has 'browse users'; otherwise only `hasOwner` is set. |
@@ -1251,13 +1268,13 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
-| (body) | body | [`grid-view`](#shape-grid-view) |  | [`grid-view`](#shape-grid-view) without `id`; `name` required (non-blank after trimming); `description`, `spec`, `permissions` optional. |
+| (body) | body | [`grid-view`](#shape-grid-view) |  | [`grid-view`](#shape-grid-view) without `id`; `name` required (non-blank after trimming); `spec` required (missing gives 400 `INVALID_PARAMETER`); `description`, `permissions` optional. |
 
 Creates a new view. The caller must be allowed to create views (plugin setting) and, to give it sharing rules, to share views. The caller becomes the owner. Returns the created view with permissions and owner included.
 
 **Response.** 200 with [`grid-view`](#shape-grid-view).
 
-**Errors.** 400 (plain text) for a missing body, a body with an `id`, or a blank name; 400 with [`structure-error`](#shape-structure-error) for invalid columns or permission rules; 403 with [`structure-error`](#shape-structure-error) when the caller may not create or share views or the plugin license does not allow changes; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 (plain text) for a missing body, a body with an `id`, or a blank name; 400 with [`structure-error`](#shape-structure-error) for invalid columns or permission rules; 403 with [`structure-error`](#shape-structure-error) when the caller may not create or share views; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/1.0/view/default`
 
@@ -1266,7 +1283,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
 | `forStructure` | query | integer |  | Structure id. Omitted: use the global default view settings. Not viewable: no default. |
-| `forPage` | query | string |  | Page id: `structure`, `structure-with-details`, `issue`, `project`, `component`, `version`, `navigator`, `gadget`, `greenhopper` (agile board). Omitted: no page restriction. |
+| `forPage` | query | string |  | Page id: `structure`, `structure-with-details`, `issue`, `project`, `component`, `version`, `navigator`, `gadget`, `greenhopper` (agile board). Omitted behaves exactly like `structure`. |
 
 Returns the view that is preferred (default) for a structure on a page, taken from the structure's view menu, or the global default menu when the structure has none.
 
@@ -1281,7 +1298,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
 | `forStructure` | query | integer |  | Structure id; omitted uses the global default menu; a structure the caller cannot view gives an empty menu. |
-| `forPage` | query | string |  | Page id as for the default view; omitted means the menu for no specific page. |
+| `forPage` | query | string |  | Page id as for the default view; omitted behaves exactly like `structure`. |
 
 Returns the views shown in the view menu of a structure on a page (structure's own menu, or the global default menu when the structure has none), keeping only views the caller can view. The preferred view, if any, comes first.
 
@@ -1317,7 +1334,7 @@ Deletes a view and its associations with structures. Requires administer permiss
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok).
 
-**Errors.** 400 (no body) for a non-positive id; 404 with [`structure-error`](#shape-structure-error) (no message) when the view does not exist or is not viewable; 403 with [`structure-error`](#shape-structure-error) when viewable but not administrable or the license does not allow changes; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 (no body) for a non-positive id; 404 with [`structure-error`](#shape-structure-error) (no message) when the view does not exist or is not viewable; 403 with [`structure-error`](#shape-structure-error) when viewable but not administrable; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/1.0/view/{id}/associations`
 
@@ -1361,7 +1378,7 @@ Makes the view visible to everyone by adding an 'anyone can view' rule to its pe
 
 **Response.** 200 with [`grid-view`](#shape-grid-view) including permissions and owner.
 
-**Errors.** 403/404 with [`structure-error`](#shape-structure-error) when the view is not administrable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` with [`structure-error`](#shape-structure-error) when the view is not administrable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/1.0/view/{id}/update`
 
@@ -1376,7 +1393,7 @@ Updates a view's name, description, owner, permissions and/or specification. Req
 
 **Response.** 200 with [`grid-view`](#shape-grid-view) including permissions and owner.
 
-**Errors.** 400 (plain text) for a missing body, a mismatching `id`, or an unknown owner name; 400 with [`structure-error`](#shape-structure-error) for invalid columns/rules; 403/404 with [`structure-error`](#shape-structure-error) when the view is not administrable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 (plain text) for a missing body, a mismatching `id`, or an unknown owner name; 400 with [`structure-error`](#shape-structure-error) for invalid columns/rules; 404 `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` with [`structure-error`](#shape-structure-error) when the view is not administrable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/1.0/view/{id}/updateSpec`
 
@@ -1391,7 +1408,7 @@ Replaces only the view's specification (columns, display modes, pins). Requires 
 
 **Response.** 200 with [`grid-view`](#shape-grid-view) including permissions and owner.
 
-**Errors.** 400 (plain text) for a missing body; 400 with [`structure-error`](#shape-structure-error) for invalid columns; 403/404 with [`structure-error`](#shape-structure-error) when the view is not editable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 (plain text) for a missing body; 400 with [`structure-error`](#shape-structure-error) for invalid columns; 404 `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` with [`structure-error`](#shape-structure-error) when the view is not editable or does not exist; 403 (plain text) when the caller lacks the plugin's 'use' permission (enforced by the common access gate, see conventions); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 ### Module `rest-v2`
 
@@ -1415,9 +1432,9 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 
 Replaces the attribute sensitivity settings (mode and the list of non-sensitive attributes). Takes effect for subsequent value calculations. Jira administrators only.
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`).
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** 400 with no body when the body is missing; 400 text/plain when the mode code is not 0, 1 or 2 or an attribute spec has an unknown format (message names the problem); 401 anonymous; 403 `permission violation` for non-administrators.
+**Errors.** 400 with no body when the body is missing; 400 text/plain when the mode code is not 0, 1 or 2 (a missing `sensitivityMode` means 0, `STANDARD`) or an attribute spec has an unknown format (message names the problem); 401 anonymous; 403 `permission violation` for non-administrators.
 
 #### `POST /rest/structure/2.0/attribute-sensitivity/validate`
 
@@ -1429,9 +1446,9 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 
 Checks whether a single attribute spec is acceptable for the sensitivity settings, without storing anything. Jira administrators only.
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`) when the spec parses and its `format` is a known value format.
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`) when the spec parses and its `format` is a known value format.
 
-**Errors.** 400 text/plain when the body is empty (`attribute spec is empty`-style message) or the spec cannot be parsed / has an unknown format (message gives the reason); 401 anonymous; 403 `permission violation` for non-administrators.
+**Errors.** 400 text/plain when the body is empty (`specification is empty`) or the spec cannot be parsed or has an unknown format (message gives the reason; an unparsable body or a literal `null` gives 400 with an empty text); 401 anonymous; 403 `permission violation` for non-administrators.
 
 #### `POST /rest/structure/2.0/attribute/subscription`
 
@@ -1441,7 +1458,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 |---|---|---|---|---|
 | `valuesUpdate` | query | boolean |  | When `true`, the reply includes `valuesUpdate` with attribute values; otherwise only the subscription id and window are returned. |
 | `valuesTimeout` | query | integer |  | Milliseconds to wait for value loading before answering (only with `valuesUpdate=true`). Default 1000 (configurable), clamped to 0..60000. Values not loaded in time are reported later with `stillLoading`. |
-| (body) | body | [`attribute-subscription-window`](#shape-attribute-subscription-window) |  | [`attribute-subscription-window`](#shape-attribute-subscription-window): `forestSpec`, `rows` and `attributes` are all required for a new subscription. |
+| (body) | body | [`attribute-subscription-window`](#shape-attribute-subscription-window) |  | [`attribute-subscription-window`](#shape-attribute-subscription-window): only `forestSpec` is required for a new subscription; missing `rows` or `attributes` mean empty lists. |
 
 Creates an attribute-value subscription owned by the caller for a window (a forest, a set of its rows and a set of attributes) and optionally loads values right away. Subscriptions live in server memory on the node that created them, are private to their creator, expire after a period without use and are capped in number (10000 by default; oldest unused are dropped). Anonymous callers may subscribe. When clustered, the response sets a cookie `X-Structure-DC-Meta` = percent-encoded `<node id>|<retry count>` so the client can stick to the node.
 
@@ -1466,7 +1483,7 @@ Returns the subscription's current window and, with `valuesUpdate=true`, the val
 
 **Response.** 200 with a [`attribute-subscription`](#shape-attribute-subscription).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `PUT /rest/structure/2.0/attribute/subscription/{id}`
 
@@ -1497,9 +1514,9 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Drops a subscription of the caller and stops its value loading.
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`).
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/attribute/subscription/{id}/patch`
 
@@ -1526,7 +1543,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
-| `query` | query | string |  | Text to match, case-insensitive, as a literal substring (no wildcards). Users match on username, display name or email; groups and roles on name. Empty or omitted: no filtering. |
+| `query` | query | string |  | Text to match, case-insensitive, as a literal substring (no wildcards). For users this filters what Jira's user search returns (limit + 1 asked), so a user Jira does not return never appears. Users match on username, display name or email; groups and roles on name. Empty or omitted: no filtering. |
 | `noRoles` | query | boolean |  | true to leave out the project-role group. Default false. |
 | `noUsers` | query | boolean |  | true to leave out the user group. Default false. |
 | `limit` | query | integer |  | Maximum items per group. Missing, zero or negative means 10. |
@@ -1750,7 +1767,7 @@ Suggests agile boards visible to the caller (item value = board id, label and ti
 
 **Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding at most one group per category (no group when nothing matches).
 
-**Errors.** 403 with no body for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/create-structure/projects`
 
@@ -1765,7 +1782,7 @@ Suggests Jira projects that are enabled for Structure and browseable by the call
 
 **Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding at most one group per category (no group when nothing matches).
 
-**Errors.** 403 with no body for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/create-structure/share-with`
 
@@ -1780,7 +1797,7 @@ Suggests permission subjects for sharing a new structure: a `private` choice (it
 
 **Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding at most one group per category (no group when nothing matches). Groups appear in the order private, roles, groups.
 
-**Errors.** 403 with no body for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/create-structure/versions`
 
@@ -1796,7 +1813,7 @@ Suggests unarchived versions of the given projects (item value = version id, lab
 
 **Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding at most one group per category (no group when nothing matches).
 
-**Errors.** 400 when a project id is not a number. 403 with no body for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 when a project id is not a number. 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/dark-features`
 
@@ -1860,7 +1877,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Checks whether a date typed by the user is valid in the caller's Jira date-picker format, and converts it to ISO form. Read-only.
 
-**Response.** 200 with a [`date-check-result`](#shape-date-check-result). An unparseable or missing date is not an HTTP error: `isValid` is false and `error` holds the localized parser message.
+**Response.** 200 with a [`date-check-result`](#shape-date-check-result). An unparseable date is not an HTTP error: `isValid` is false and `error` holds the localized parser message.
 
 **Errors.** 403 when the caller may not use the app.
 
@@ -1878,7 +1895,7 @@ Re-applies effect batches that were undone with the undo call; same contract as 
 
 **Response.** 200 with a [`effect-undo-redo-response`](#shape-effect-undo-redo-response); `successfulActions` is always 1, failures go into `updateError`.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec or effect ids are missing or the forest does not support redo. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec or effect ids are missing or the forest source is not a transforming one; a forest that accepts the call but not the operation (a plain or clipboard forest) gives `UNSUPPORTED_FOREST_SOURCE_OPERATION` in `updateError` with status 200. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effect/undo`
 
@@ -1894,7 +1911,7 @@ Reverts the given batches of effects that earlier grid actions caused in Jira (f
 
 **Response.** 200 with a [`effect-undo-redo-response`](#shape-effect-undo-redo-response). A failed undo is reported inside the body (`updateError`), not by status; `successfulActions` is always 1.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec or effect ids are missing or the forest does not support undo. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec or effect ids are missing or the forest source is not a transforming one; a forest that accepts the call but not the operation (a plain or clipboard forest) gives `UNSUPPORTED_FOREST_SOURCE_OPERATION` in `updateError` with status 200. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/acknowledge`
 
@@ -1906,7 +1923,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Marks finished effector processes as acknowledged by the user, so they stop being reported as background processes in polls. Ids that cannot be acknowledged (unknown, not the caller's, unfinished) are skipped silently.
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`).
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
 **Errors.** 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
@@ -1922,7 +1939,7 @@ Lists effector processes (runs of effectors that write to Jira) for the audit vi
 
 **Response.** 200 with a [`effector-page-response`](#shape-effector-page-response) whose `items` are [`effector-process`](#shape-effector-process); `pagination.total` = number of matching processes, `errors` = 0.
 
-**Errors.** 404 with no body for anonymous callers. 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 when `startAt` is beyond the end of the list. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with no body for anonymous callers. 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 with `error` = `Invalid request data` when `startAt` is beyond the end of the list. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/cancel`
 
@@ -1935,7 +1952,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Requests cancellation of an effector process (its calculation or application stops at the next opportunity). Does not wait.
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`).
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
 **Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 500 with a [`structure-error`](#shape-structure-error) when the process's progress handle is gone. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
@@ -1952,7 +1969,7 @@ If the process is pending, calculating, calculated, queued or in progress, reque
 
 **Response.** 200 with a [`effector-process`](#shape-effector-process) (state after the wait).
 
-**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 500 when the process handle is gone. A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/preview`
 
@@ -1967,7 +1984,7 @@ Returns a page of the effects a calculated process would apply (its preview), wi
 
 **Response.** 200 with a [`effector-page-response`](#shape-effector-page-response) whose `items` are [`effect-record`](#shape-effect-record) (with `index` = position in the preview); `pagination.total` = number of previewed effects, `pagination.errors` = number of warning or unresolvable effects.
 
-**Errors.** 404 text/plain `No preview found` when the process has no preview. A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 when `startAt` is beyond the end of the list. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 text/plain `No preview found` when the process has no preview. A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 with `error` = `Invalid request data` when `startAt` is beyond the end of the list. Paging is checked before access to the process, so a stranger with a bad `startAt` gets 400, not 404. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/records`
 
@@ -1982,7 +1999,7 @@ Returns a page of the effects a process actually applied (its audit records), ea
 
 **Response.** 200 with a [`effector-page-response`](#shape-effector-page-response) whose `items` are [`effect-record`](#shape-effect-record); `pagination.total` = number of (filtered) records, `errors` = 0.
 
-**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 when `startAt` is beyond the end of the list. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 with `error` = `Invalid request data` when `startAt` is beyond the end of the list. Paging is checked before access to the process, so a stranger with a bad `startAt` gets 400, not 404. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/resume`
 
@@ -2056,7 +2073,7 @@ Returns the current content of a forest (a structure, a past version of one, a q
 
 **Response.** 200 with a [`forest-snapshot`](#shape-forest-snapshot) echoing the spec.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. A missing or unparsable `s` gives 400 with `error` = `Invalid request data` and `message` = `Forest spec is required`. Malformed JSON in a POST body gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/forest/latest`
 
@@ -2082,7 +2099,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Applies a list of editing actions (add, copy, move, remove rows) to a forest in order, as the grid does on drag-and-drop, paste and delete. Each action may be accepted, refused with an error, or answered with a question (e.g. which generator should handle the change) that the client resolves by resending the remaining actions with the chosen value in the action's `parameters`. Processing stops at the first action that fails or asks a question. Effects in Jira caused by generators (field changes, links...) are reported for undo. A cut-and-paste between forests is an `add` with `cutFrom`: the removal from the source is first tried without changes, then the add is applied, then the removal; if the removal then fails, the add is undone where possible. When the cut went through the clipboard, the caller's clipboard is cleared after success. Usage counters are recorded. Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only [`async-job-ticket`](#shape-async-job-ticket) (`{"jobId": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a [`structure-error`](#shape-structure-error) (code 4603); a `jobId` of another kind of job gives 400.
 
-**Request.** `spec` (the forest to edit) and `version` (the version the client's coordinates refer to) are required, `actions` is the ordered list. If the forest's version signature changed since `version` and an action refers to transient rows (odd positive row ids, which only exist in generated content), that action fails with a signature-mismatch error (code 5006) instead of being applied.
+**Request.** `spec` (the forest to edit) and `version` (the version the client's coordinates refer to) are required, `actions` is the ordered list. If the forest's version signature changed since `version` and an action refers to transient rows (odd positive row ids, which only exist in generated content), that action is not applied and the reply is 200 with `updateError` and the `forestUpdates` that resynchronize the client. With an empty `add` or `copy` fragment the same case gives 500 (plain text).
 
 **Response.** 200 with a [`forest-update-response`](#shape-forest-update-response). Refusals and questions are reported in `updateError` with status 200.
 
@@ -2126,7 +2143,7 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 
 Stops generation of the given forests: running generations are cancelled and the forest is kept as is (marked stopped in its health status) until resumed. Logged on the server.
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`).
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
 **Errors.** 404 with a [`structure-error`](#shape-structure-error) when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
@@ -2140,7 +2157,7 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 
 Like stop, but only takes effect for a forest whose generation is currently running (used when a generation takes too long).
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`).
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
 **Errors.** 404 with a [`structure-error`](#shape-structure-error) when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
@@ -2153,9 +2170,9 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 | `itemType` | path | string |  | Full item type key; only `com.almworks.jira.structure:type-planning-task` yields fields. |
 | `projectId` | path | integer |  | Jira project id whose issue types are offered; 0 = no project restriction. |
 
-Returns the field descriptors needed to create a planning task: `project` and `issuetype`, both required, visible and editable, with their option sources (issue types limited to the given project). For any other item type returns an empty object.
+Returns the field descriptors needed to create a planning task: `project` and `issuetype`, both required, visible and editable, with their option sources (issue types limited to the given project). For any other item type returns `{"empty": true}`.
 
-**Response.** 200 with a JSON object mapping field id (`project`, `issuetype`) to a [`generic-item-field`](#shape-generic-item-field); `{}` for other item types.
+**Response.** 200 with a JSON object mapping field id (`project`, `issuetype`) to a [`generic-item-field`](#shape-generic-item-field); `{"empty": true}` for other item types.
 
 **Errors.** 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
@@ -2181,7 +2198,7 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
 | `itemType` | path | string |  | Must be `com.almworks.jira.structure:type-planning-task`. |
-| (body) | body | map<string, any> |  | JSON object of new-item values: `summary` (text; `*` is assumed when absent) and `params` (object with `project` and `issuetype` ids as numbers or numeric strings, plus other field values). |
+| (body) | body | map<string, any> |  | JSON object of new-item values: `summary` (text; `*` is assumed when absent) and `params` (object with `project` and `issuetype` ids as numbers or numeric strings in int range (longer or fractional numbers count as missing), plus other field values). |
 
 Validates the values of a planning task that is about to be created and returns a preview of the item with defaults filled in: when the project is missing or not browseable the first browseable project is used; when the issue type is missing or unknown the project's first non-sub-task issue type (by name) is used. Nothing is stored.
 
@@ -2200,9 +2217,9 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 
 Search box backend for picking Jira groups (used in sharing and permission dialogs). Searches the groups the caller may see: all groups for Jira admins or when the instance-wide setting that exposes all groups is on, otherwise only the caller's own groups. Requires a logged-in user. Read-only.
 
-**Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding no group when nothing matches, else one group labelled with the localized word 'Groups'. Matches are ordered by name length (shortest first). Item `value`, `id` and `label` are the group name; `html` is the HTML-escaped name with the matched part wrapped in `<b>`. `footer` is a localized 'Showing N of M matching groups' text only when results were cut.
+**Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding no group when nothing matches, else one group labelled with the localized word 'Groups'. With a non-blank query, matches are ordered by name length (shortest first); with a blank query they keep the group list's order and have no highlighting. Item `value`, `id` and `label` are the group name; `html` is the HTML-escaped name with the matched part wrapped in `<b>`. `footer` is a localized 'Showing N of M matching groups' text only when results were cut.
 
-**Errors.** 403 with no body when not logged in; 403 when the caller may not use the app.
+**Errors.** 401 from the platform when not logged in; 403 when the caller may not use the app.
 
 #### `GET /rest/structure/2.0/history/{id}/version/{v}`
 
@@ -2227,8 +2244,8 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 |---|---|---|---|---|
 | `id` | path | integer |  | Structure id. |
 | `minVersion` | query | integer |  | Accepted but ignored. |
-| `maxVersion` | query | integer |  | Start the listing at this version (going back); omitted = from the latest. |
-| `maxCount` | query | integer |  | Maximum number of versions; omitted = no limit. Combined with `withVersion`, the listing continues past `maxCount` until `withVersion` is reached. |
+| `maxVersion` | query | integer |  | List versions strictly below this one (going back); omitted = from the latest. |
+| `maxCount` | query | integer |  | Maximum number of versions; omitted = no limit. It caps the listing even when `withVersion` is given. |
 | `withVersion` | query | integer |  | Keep listing until a version less than or equal to this one has been included. |
 
 Lists the change history of a structure, newest first, one entry per stored version with who/what changed it and a short description of each change (no forest content).
@@ -2243,7 +2260,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Data for the app's 'about' popup: app version, license, update availability, the Jira cluster node id, and the same for four companion add-ons (Gantt, Pages, Deliver, Testy). IMPORTANT: the original asks the Atlassian Marketplace (an external server) whether a newer version of the app and of each installed companion is available (results cached for a long time; failures count as 'no update'). The replacement must not contact the Marketplace; it reports `false` for every update flag.
 
-**Response.** 200 with a [`about-popup-data`](#shape-about-popup-data). License objects are null for anonymous callers. For the app, the license shown is the effective license if it is a Marketplace license or 'disabled'; otherwise the bundle license (null when the bundle license is disabled). Companions: one entry each for plugin keys `com.almworks.structure.gantt`, `com.almworks.structure.pages`, `com.almworks.structure.deliver`, `com.almworks.testy`, in that order, always present even when not installed (then `version` is null and `updateAvailable` false).
+**Response.** 200 with a [`about-popup-data`](#shape-about-popup-data). License objects are null for anonymous callers. For the app, the fixed licence state of SPEC section 1.1 is shown (`unlicensed` false). Companions: one entry each for plugin keys `com.almworks.structure.gantt`, `com.almworks.structure.pages`, `com.almworks.structure.deliver`, `com.almworks.testy`, in that order, always present even when not installed (then `version` is null and `updateAvailable` false).
 
 **Errors.** 403 when the caller may not use the app.
 
@@ -2285,7 +2302,7 @@ Resolves known option ids of one supported issue field into displayable options 
 
 **Response.** 200 with a [`issue-field-option-list`](#shape-issue-field-option-list) holding a single group (empty label, `total` = number of options returned). Options follow the order of `fieldValues`; an id that cannot be resolved (or is not visible) still yields an option with that id and the placeholder label `option_<id>`. The 'no value' id `special:EMPTY`, if requested and the field has such an option, is moved to the end.
 
-**Errors.** 400 text/plain when `fieldId` is blank or `fieldValues` is missing or empty. 403 when the caller may not use the app.
+**Errors.** 500 for a JSON `null` body. 400 text/plain when `fieldId` is blank or `fieldValues` is missing or empty. 403 when the caller may not use the app.
 
 #### `GET /rest/structure/2.0/issue/{issueId}/actions-and-operations`
 
@@ -2404,7 +2421,7 @@ Access: anonymous users allowed. Consumes: any. Produces: `application/json`.
 
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
-| `id` | query | integer |  | Structure id. Required. |
+| `id` | query | integer |  | Structure id. Without it the id is 0, which gives 404. |
 
 Returns the management table row for a single structure (to refresh one row).
 
@@ -2587,13 +2604,13 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 |---|---|---|---|---|
 | (body) | body | [`poll-request`](#shape-poll-request) |  | [`poll-request`](#shape-poll-request). |
 
-The grid's periodic poll. In one call it returns: for each watched forest, the changes since the client's version (or the whole forest); the list of items changed since the client's items version; extension data; the caller's running or unacknowledged effector processes; and, for attribute subscriptions, value updates. Subscription value loading is started first; after the forest part is computed the server waits up to about 1 s in total (configurable) for values before answering. When clustered, sets the cookie `X-Structure-DC-Meta` (see attribute subscriptions). Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only [`async-job-ticket`](#shape-async-job-ticket) (`{"jobId": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a [`structure-error`](#shape-structure-error) (code 4603); a `jobId` of another kind of job gives 400.
+The grid's periodic poll. In one call it returns: for each watched forest, the changes since the client's version (or the whole forest); the list of items changed since the client's items version; extension data; the caller's running or unacknowledged effector processes; and, for attribute subscriptions, value updates. Subscription value loading is started first; after the forest part is computed the server waits up to about 1 s in total (configurable) for values before answering. When clustered, sets the cookie `X-Structure-DC-Meta` (see attribute subscriptions). Runs as a server job: when the result is not ready within the asynchronous wait (3 s by default, configurable) the call answers 200 with only [`async-job-ticket`](#shape-async-job-ticket) (`{"jobId": n}`) instead; the client repeats the call with that `jobId` in the body (other fields are then ignored, except `subscriptions`, which is read from each repeat's own body; a ticket reply drops that call's subscription updates) until the real response arrives. An unknown or finished-and-collected `jobId` gives 404 with a [`structure-error`](#shape-structure-error) (code 4603); a `jobId` of another kind of job gives 400.
 
 **Request.** All parts are optional. Each forest entry needs `spec` and `version`; version `{signature: 0, version: -1}` asks for an initial load, which may first return a cached snapshot flagged `needsUpdate`. At most 20 subscription entries (configurable), each with `id` and `version`.
 
 **Response.** 200 with a [`poll-response`](#shape-poll-response). Forest entries whose spec is invalid are silently left out of `forestUpdates`; a forest that cannot be read is reported with `error` in its update; an unknown subscription is reported with `error` in its subscription update.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when more subscriptions than the limit are sent or a subscription entry lacks `id` or `version`. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 500 for a null body or a forest entry or `items` without `version`. 400 with a [`structure-error`](#shape-structure-error) when more subscriptions than the limit are sent or a subscription entry lacks `id` or `version`. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/process/{id}/cancel`
 
@@ -2608,7 +2625,7 @@ Requests cancellation of a background process (any long-running Structure operat
 
 **Response.** 200 with a [`background-process-info`](#shape-background-process-info).
 
-**Errors.** 403 text/plain `permission violation` when the caller may not use Structure; 404 text/plain when the process does not exist or is not visible to the caller (a process is visible to the user who started it, and every process to Jira administrators).
+**Errors.** 403 text/plain `permission violation` when the caller may not use Structure; 404 text/plain when the process does not exist or is not visible to the caller (a process with no owner, or whose owner no longer exists, is visible to everyone; otherwise it is visible to the user who started it, and every process to Jira administrators).
 
 #### `GET /rest/structure/2.0/process/{id}/info`
 
@@ -2622,7 +2639,7 @@ Returns the display state of a background process: localized name, status, curre
 
 **Response.** 200 with a [`background-process-info`](#shape-background-process-info).
 
-**Errors.** 403 text/plain `permission violation` when the caller may not use Structure; 404 text/plain when the process does not exist or is not visible to the caller (a process is visible to the user who started it, and every process to Jira administrators).
+**Errors.** 403 text/plain `permission violation` when the caller may not use Structure; 404 text/plain when the process does not exist or is not visible to the caller (a process with no owner, or whose owner no longer exists, is visible to everyone; otherwise it is visible to the user who started it, and every process to Jira administrators).
 
 #### `GET /rest/structure/2.0/projects-picker`
 
@@ -2675,7 +2692,7 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 | `id` | path | integer |  | Saved column id (integer). |
 | (body) | body | [`saved-column-input`](#shape-saved-column-input) |  | A [`saved-column-input`](#shape-saved-column-input). |
 
-Replaces all properties of a stored saved column (name, description, type and parameters; absent fields become null, absent parameters become an empty object). The caller must own the column (user column) or hold the 'manage global saved columns' app permission (global column). Persisted in the SAVED_COLUMN table.
+Replaces all properties of a stored saved column (name, description, type and parameters; `name` is checked as when saving a new column, other absent fields become null, absent parameters become an empty object). The caller must own the column (user column) or hold the 'manage global saved columns' app permission (global column). Persisted in the SAVED_COLUMN table.
 
 **Response.** 200 with a [`empty-ok`](#shape-empty-ok).
 
@@ -2727,7 +2744,7 @@ Moves a user's own saved column into the global list (it loses its owner and bec
 
 **Response.** 200 with a [`empty-ok`](#shape-empty-ok).
 
-**Errors.** 400 text/plain (localized messages joined by '. ') when the source is unknown or bundled, the column does not exist, is already global, belongs to another user, the target is not `global`, or the caller lacks the permission. 401 when not logged in.
+**Errors.** 400 text/plain (localized messages joined by '. ') (an empty body for the bundled source) when the source is unknown or bundled, the column does not exist, is already global, belongs to another user, the target is not `global`, or the caller lacks the permission. 401 when not logged in.
 
 #### `POST /rest/structure/2.0/saved-column/{columnSource}/{id}/updateParameters`
 
@@ -2770,7 +2787,7 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 | `listKey` | path | string |  | `user` or `global`. |
 | (body) | body | [`saved-column-input`](#shape-saved-column-input) |  | A [`saved-column-input`](#shape-saved-column-input) with the column's name, description, type and parameters. |
 
-Saves a new column into a list: into `user` as a personal column of the caller, or into `global` as a shared column (requires the 'manage global saved columns' app permission). No validation of name, type or parameters. Persisted in the SAVED_COLUMN table.
+Saves a new column into a list: into `user` as a personal column of the caller, or into `global` as a shared column (requires the 'manage global saved columns' app permission). `name` is mandatory and stored trimmed: blank gives 400 `Column name cannot be blank`, over 190 characters gives 400. Type and parameters are not validated. Persisted in the SAVED_COLUMN table.
 
 **Response.** 200 with the new [`saved-column`](#shape-saved-column).
 
@@ -2785,7 +2802,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 | `name` | query | string |  | Case-insensitive substring of the structure name; blank = all. |
 | `limit` | query | integer |  | Page size, default 10, capped at 100 (configurable). |
 | `page` | query | integer |  | 1-based page number; omitted = first page. |
-| `permission` | query | string |  | Minimum permission level name (`NONE`, `VIEW`, `EDIT`, `AUTOMATE`, `ADMIN`, case-insensitive); levels below `VIEW` mean `VIEW`; default `VIEW`. |
+| `permission` | query | string |  | Minimum permission level name (`NONE`, `VIEW`, `EDIT`, `AUTOMATE`, `ADMIN`, and the deprecated `EDIT_GENERATORS`, case-insensitive); levels below `VIEW` mean `VIEW`; default `VIEW`. |
 | `withPermissions` | query | boolean |  | Include each structure's permission rules in the result. |
 | `withOwner` | query | boolean |  | Include each structure's owner (only when the caller may browse users or is the owner). |
 | `archived` | query | boolean |  | When `true`, archived structures are included. |
@@ -2837,7 +2854,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Records that the caller opened a structure, moving it to the front of the caller's recent structures. No permission check on the structure; a missing id does nothing.
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`).
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
 **Errors.** 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
@@ -2865,9 +2882,9 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 |---|---|---|---|---|
 | `id` | path | integer |  | Structure id. |
 
-Deletes a structure together with its forest, change history and index entries. Requires administer permission on the structure and a writable licence.
+Deletes a structure together with its forest, change history and index entries. Requires administer permission on the structure.
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`).
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
 **Errors.** 400 when the id is missing or not positive; 404 with a [`structure-error`](#shape-structure-error) when the structure is not viewable; 403 with a [`structure-error`](#shape-structure-error) when the caller can view but not administer it. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
@@ -2939,7 +2956,7 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 
 Replaces the structure's quick transformations. Requires administer permission on the structure.
 
-**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{}`).
+**Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
 **Errors.** 403 text/plain when the structure does not exist or the caller cannot administer it; 400 with a [`structure-error`](#shape-structure-error) when the body is missing, unparsable or has duplicate ids. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
@@ -2996,7 +3013,7 @@ Access: anonymous users allowed. Consumes: any. Produces: `application/json`.
 | `limit` | query | integer |  | Maximum number of accounts, passed to Tempo; omitted means Tempo's default. |
 | `ids` | query | string |  | Comma-separated numeric account ids to restrict the search to. Omitted: no restriction. |
 
-Searches Tempo accounts through the Tempo Accounts add-on installed in the same Jira (an in-process call, no external server). Open and closed accounts are included; archived accounts are included unless an instance property says to skip them. Read-only.
+Searches Tempo accounts through the Tempo Accounts add-on installed in the same Jira (an in-process call, no external server). Open and closed accounts are included; archived accounts are left out unless the property `structure.tempo.showArchivedAccounts` is true (default false). Read-only.
 
 **Response.** 200 with a JSON object: `options`, array of [`tempo-account-option`](#shape-tempo-account-option), and `total`, the total number of matching accounts reported by Tempo. When Tempo Accounts is absent or fails: `options` empty and `total` 0.
 
@@ -3174,7 +3191,7 @@ Short license description for the about popup.
 
 | key | JSON type | meaning |
 |---|---|---|
-| `licenseSEN` | string | Support entitlement number (serial) of the license; null when unlicensed. |
+| `licenseSEN` | string | Support entitlement number (serial) of the license; null when unlicensed, and always null in the replacement (SPEC.md 1.1). |
 | `unlicensed` | boolean | true when there is no usable license (license disabled); then `licenseSEN` is null. |
 
 <a id="shape-about-popup-data"></a>
@@ -3602,7 +3619,7 @@ Request to create (or pick) an item and insert it as a row.
 | `under` | integer | Parent row; 0 = top level. |
 | `after` | integer | Preceding sibling; 0 = none. |
 | `before` | integer | Following sibling; 0 = none. |
-| `parameters` | map<string, any> | Answers to earlier questions, e.g. `{"0:CreateAnyway": true}`; null = none. |
+| `parameters` | map<string, any> | Answers to earlier questions, e.g. `{"0:CreateAnyway": true}`; required: null gives 500, except when the signature rule has already failed. |
 
 <a id="shape-create-item-response"></a>
 
@@ -3899,7 +3916,7 @@ Common part of requests that may run asynchronously and may carry data for compa
 
 | key | JSON type | meaning |
 |---|---|---|
-| `jobId` | integer | Absent on the first call. If the server cannot answer within its timeout (default 3 s) it replies 200 with only `jobId`; the client repeats the identical request with that `jobId` to collect the result. |
+| `jobId` | integer | Absent on the first call. If the server cannot answer within its timeout (default 3 s) it replies 200 with only `jobId`; the client repeats the request with that `jobId` to collect the result; in a poll, `subscriptions` is read from the repeat's own body, validated and answered, and a ticket reply drops that call's subscription updates. |
 | `extensionRequests` | map<string, any> | Map from companion-app key to that app's request payload; each app's reply is returned under the same key in the response's extension data. |
 
 <a id="shape-field-error"></a>
@@ -4087,7 +4104,7 @@ Changes of one forest from a client version to the current version; either a ful
 | `fromVersion` | [`data-version`](#shape-data-version) | The version the client had (echoed). |
 | `version` | [`data-version`](#shape-data-version) | The new version; the client stores it. Absent when the forest could not be read. |
 | `formula` | string | Present for a full update (client must replace its forest). Forest encoding: rows in depth-first order separated by `,`; each row is `<rowId>:<depth>:<item>`, followed by `:<semantics>` only when the row's semantics number is positive. Depth 0 is a top-level row; a row's parent is the nearest earlier row whose depth is one less. `<item>` is the decimal issue id for an issue; for any other item it is `<t>/<n>` (numeric item id) or `<t>//<s>` (string item id percent-encoded like the browser function encodeURIComponent), where `<t>` is a decimal item-type number to be looked up in the response's `itemTypes` map. Empty string = empty forest. |
-| `updates` | string | Present for an incremental update: changes separated by `\|`, applied in order. `a.<under>.<after>.<forest>` inserts the encoded sub-forest under row `under` (0 = top level) after sibling `after` (0 = first position), depths relative to the insertion point; `m.<under>.<after>.<rows>` moves the comma-separated rows (with their sub-trees) there; `r.<rows>` removes the comma-separated rows; `o.<under>.<rows>` reorders the children of `under` into the given order. Neither present = no change. |
+| `updates` | string | Present for an incremental update: changes separated by `\|`, applied in order. `a.<under>.<after>.<forest>` inserts the encoded sub-forest under row `under` (0 = top level) after sibling `after` (0 = first position), depths relative to the insertion point; `m.<under>.<after>.<rows>` moves the comma-separated rows (with their sub-trees) there; `r.<rows>` removes the comma-separated rows; `o.<under>.<rows>` reorders the children of `under` into the given order. An unchanged forest has `updates` = `""`. |
 | `healthStatus` | [`forest-health`](#shape-forest-health) | Generation health of the forest; absent when the forest could not be read. |
 | `error` | [`structure-error`](#shape-structure-error) | Present when the forest could not be read (e.g. no access). |
 | `needsUpdate` | boolean | True when this is an initial-load snapshot that may be stale; the client should poll again from `version`. Absent otherwise. |
@@ -4121,7 +4138,7 @@ Result of a forest update.
 | `oldRowIds` | array<integer> | Row ids that were replaced (e.g. temporary ids of new rows), parallel to `newRowIds`; absent when none. |
 | `newRowIds` | array<integer> | The ids that replaced the corresponding `oldRowIds`. |
 | `effects` | array<[`applied-effect-batch`](#shape-applied-effect-batch)> | Effect batches applied in Jira by this request. |
-| `undoEffects` | array<integer> | Batch ids of the last successful action's effects, to pass to effect undo. |
+| `undoEffects` | array<integer> | Batch ids of the effects of the last action attempted (emptied at the start of each action, so empty when that action failed), to pass to effect undo. |
 | `problems` | array<[`effect-problem`](#shape-effect-problem)> | Effects that could not be applied. |
 | `extensionData` | map<string, any> | Map from core-extension key to extension-specific data returned for the request's `extensionRequests`; absent or null when no extension answered. |
 
@@ -4204,7 +4221,7 @@ Client tuning for the gadget grid.
 |---|---|---|
 | `local` | [`gadget-grid-mode-tuning`](#shape-gadget-grid-mode-tuning) | Settings when the gadget runs in this Jira. |
 | `remote` | [`gadget-grid-mode-tuning`](#shape-gadget-grid-mode-tuning) | Settings when the gadget runs on another server; also has `allowNodeWandering`. |
-| `retryBackoff` | array<integer> | Data Center only: retry delays (from system property `structure.gadget.dc.retryBackoff`, comma-separated integers); absent otherwise or if unparseable. |
+| `retryBackoff` | array<integer> | Data Center only: retry delays (from the application or system property `structure.gadget.dc.retryBackoff`, comma-separated integers); absent otherwise or if unparseable. |
 
 <a id="shape-gadget-remote-grid-tuning"></a>
 
@@ -4217,7 +4234,7 @@ Grid tuning for the remote gadget mode.
 | `pollInterval` | integer | Milliseconds between update polls. |
 | `minCachedRows` | integer | Minimum rows to keep loaded. |
 | `preloadRowsFactor` | number | Multiple of the visible rows to preload. |
-| `allowNodeWandering` | boolean | Whether successive requests may be served by different Data Center nodes (default true; system property `structure.gadget.remote.allowNodeWandering`). |
+| `allowNodeWandering` | boolean | Whether successive requests may be served by different Data Center nodes (default true; application or system property `structure.gadget.remote.allowNodeWandering`). |
 
 <a id="shape-generation-control-request"></a>
 
@@ -4365,7 +4382,7 @@ Bootstrap data for the structure grid client.
 | `extensions` | map<string, map<string, any>> | Per companion-app key, the client settings that app supplies; absent when none. |
 | `exportLinks` | array<[`export-menu-link`](#shape-export-menu-link)> | Export menu entries; absent when none. |
 | `externalGenericItemTypes` | array<[`third-party-item-type`](#shape-third-party-item-type)> | Item types contributed by other apps (hidden ones excluded), sorted by weight then title. |
-| `restAsyncBackoff` | array<integer> | Delays between re-polls of long-running requests (from system property `structure.rest.async.backoff`, comma-separated); absent when not configured. |
+| `restAsyncBackoff` | array<integer> | Delays between re-polls of long-running requests (from the application or system property `structure.rest.async.backoff`, comma-separated); absent when not configured. |
 | `globalError` | string | Localized warning shown on every grid (Jira index inconsistent); absent when fine. |
 | `hideHelp` | boolean | True when the welcome/help content is switched off. |
 | `hideHelpAdminTips` | boolean | True when help is on but no help content is installed. |
@@ -4478,7 +4495,7 @@ Editor HTML for fields of an existing or prospective issue.
 | `forCreate` | boolean | True for create-screen editors; absent for edit. |
 | `project` | integer | Project id used for creation. |
 | `issueType` | string | Issue type id used for creation. |
-| `fields` | map<string, [`issue-field-editor`](#shape-issue-field-editor)> | Map from Jira field id to its editor; absent when a top-level `error` is set. |
+| `fields` | map<string, [`issue-field-editor`](#shape-issue-field-editor)> | Map from Jira field id to its editor; absent when a top-level `error` is set, except an empty object on the no-renderer path. |
 | `error` | string | Localized reason why no editors could be produced (bad or invisible issue, no screen); absent on success. |
 | `canChangeOriginalEstimate` | boolean | False when time has been logged and Jira's legacy time-tracking mode forbids changing the original estimate. |
 | `structuredProjects` | array<integer> | For the project/type picker case only: ids of projects where the caller can create issues and the plugin is enabled; absent when the plugin is enabled for all projects. |
@@ -4770,7 +4787,7 @@ Saved filters found for the Confluence macro editor.
 
 | key | JSON type | meaning |
 |---|---|---|
-| `savedfilters` | array<[`macro-choice`](#shape-macro-choice)> | Found saved filters (at most 10); null when the caller may not use the app. |
+| `savedfilters` | array<[`macro-choice`](#shape-macro-choice)> | Found saved filters (at most 10) (the access gate answers 403 first for a caller who may not use the app). |
 | `error` | string | Localized or technical error text when the app is unavailable to the caller or the search failed; otherwise null. |
 
 <a id="shape-macro-supported-features"></a>
@@ -4792,7 +4809,7 @@ Target of a make-default-view call.
 | key | JSON type | meaning |
 |---|---|---|
 | `structureId` | integer | Structure id whose view settings change (0 when omitted, which normally fails the structure permission check). |
-| `pageId` | string | Page id (`structure`, `issue`, `project`, `gadget`, ...); absent means no specific page. |
+| `pageId` | string | Page id (`structure`, `issue`, `project`, `gadget`, ...); required unless the view already is the structure board default. |
 
 <a id="shape-managed-structure-page-details"></a>
 
@@ -4955,13 +4972,13 @@ Computed configuration of the structure panel on a Jira page.
 | key | JSON type | meaning |
 |---|---|---|
 | `autoSwitch` | string | Auto-switch mode of the panel: `off` (keep the most recent structure), `withIssue` (switch to a structure containing the issue; default) or `default` (show the default structure). |
-| `autoCollapse` | boolean | Issue pages only: whether the panel starts collapsed (default true). |
-| `keepStructureWhenNavigating` | boolean | Issue pages only: whether the navigation hint is honoured (default true). |
+| `autoCollapse` | boolean | Issue pages, and agile board pages with an issue, only: whether the panel starts collapsed (default true). |
+| `keepStructureWhenNavigating` | boolean | Issue pages, and agile board pages with an issue, only: whether the navigation hint is honoured (default true). |
 | `defaultStructure` | [`structure-summary`](#shape-structure-summary) | The default structure for the project (falls back to the global default when the project's one is archived); absent if none or not viewable. |
 | `initialStructure` | [`structure-summary`](#shape-structure-summary) | Structure to show first; absent when none applies. |
 | `userConfigurable` | boolean | True for logged-in callers (who may save preferences). |
 | `projectAdmin` | boolean | Project pages only: whether the caller administers the project. |
-| `issueMissingFromInitialStructure` | boolean | Issue pages only: true when the issue is not in the initial structure (or there is none). |
+| `issueMissingFromInitialStructure` | boolean | Issue pages, and agile board pages with an issue, only: true when the issue is not in the initial structure (or there is none). |
 | `singleStructure` | boolean | True when the caller can see exactly one structure (it is then the initial one); absent otherwise. |
 
 <a id="shape-panel-preferences"></a>
@@ -5066,7 +5083,7 @@ One entry of a search-box result list (user, group, role or project picker).
 | `label` | string | Plain display text. |
 | `title` | string | Optional tooltip or secondary text; null when not used. |
 | `html` | string | Display HTML with the matched part of the search text highlighted; already escaped. |
-| `entity` | any | Optional full object for the item; null for the endpoints in this group. |
+| `entity` | any | Optional full object for the item; null except for the gadget pickers. |
 | `icon` | string | Icon or avatar URL, or null. |
 | `id` | string | Always equal to `value`. |
 | `params` | map<string, string> | Optional extra string attributes (absent when there are none). |
@@ -5079,7 +5096,7 @@ Result of a search-box query: a list of titled groups of items.
 
 | key | JSON type | meaning |
 |---|---|---|
-| `query` | string | Echo of the search text; null for the endpoints in this group. |
+| `query` | string | Echo of the search text; null for the endpoints in this group except the gadget pickers. |
 | `groups` | array<[`picker-result-group`](#shape-picker-result-group)> | Groups of results in display order, each a [`picker-result-group`](#shape-picker-result-group); empty array when nothing matched. |
 
 <a id="shape-poll-request"></a>
@@ -5198,7 +5215,7 @@ How a quick transformation appears.
 
 #### Shape `quick-transform-entry`
 
-An entry of a structure's quick transformations list: either a transformation or a group (by `key`). Entries without `key` are dropped. Ids must be unique across the list including group members.
+An entry of a structure's quick transformations list: either a transformation or a group (by `key`). An entry without `key` gives 500. Ids must be unique across the list including group members.
 
 | key | JSON type | meaning |
 |---|---|---|
@@ -5379,7 +5396,7 @@ A stored, shareable snapshot of the structure page state.
 | key | JSON type | meaning |
 |---|---|---|
 | `id` | integer | Perspective id: random positive integer below 2^31; absent in a share request. |
-| `spec` | any | The page state: any JSON value, stored and returned verbatim (not as a string). The plugin itself reads only `primary.forestSpec.structureId` (the structure shown, used for e-mail sharing) and the view specifications under `primary.viewSpec` and `secondary.viewSpec`. |
+| `spec` | any | The page state: any JSON value, stored and returned verbatim, not as a string, by the share call; `GET /perspective/{id}` returns it as a string. The plugin itself reads only `primary.forestSpec.structureId` (the structure shown, used for e-mail sharing) and the view specifications under `primary.viewSpec` and `secondary.viewSpec`. |
 
 <a id="shape-structure-copy-progress"></a>
 
@@ -5415,7 +5432,7 @@ Error details returned by Structure as a JSON body.
 | `error` | string | Error name with code, e.g. `INVALID_PARAMETER[2400]`, or a short text for generic errors (`Invalid request data`, `Permission violation`). |
 | `structureId` | integer | Structure the error is about; absent when none. |
 | `viewId` | integer | View the error is about; absent when none. |
-| `rowId` | integer | Row the error is about. |
+| `rowId` | integer | Row the error is about; 0 when none. |
 | `itemId` | string | Full item id the error is about; absent when none. |
 | `itemDescription` | string | Display text of that item. |
 | `message` | string | Technical message. |
@@ -5716,11 +5733,11 @@ Display data of a Jira user.
 
 | key | JSON type | meaning |
 |---|---|---|
-| `name` | string | Username (or a localized 'anonymous' text when unknown). |
+| `name` | string | Username (or a localized 'anonymous' text when unknown; empty for an anonymous caller in `gadget/meta`). |
 | `userKey` | string | User key (empty string for anonymous). |
 | `displayName` | string | Display name; marked as inactive for deactivated users. |
-| `profileUrl` | string | Absolute URL `<base>/secure/ViewProfile.jspa?name=<username>`; absent for unknown users. |
-| `avatarUrl` | string | Avatar image URL. |
+| `profileUrl` | string | Absolute URL `<base>/secure/ViewProfile.jspa?name=<username>`; absent for unknown users; empty for everyone in `gadget/meta`. |
+| `avatarUrl` | string | Avatar image URL; empty in `gadget/meta`. |
 
 <a id="shape-validation-errors"></a>
 
@@ -5823,39 +5840,42 @@ A workflow transition leading into a status.
 `/secure/<alias>.jspa`, and a command as `/secure/<alias>!<command>.jspa`. Users bookmark them, Jira links to
 them (section 1.1) and other modules' web items point at them, so every alias and command is kept. Admin pages
 are also reachable under `/secure/admin/<alias>.jspa`. The aliases and commands are listed under
-`contract.actions` of `ww-structure` in `inventory.json`. What each page shows and does is described in the
-claims.
+`contract.actions` of `ww-structure` in `inventory.json`, including commands the descriptor does not declare:
+webwork runs `!x` through a public `doX()` method. Every alias has `!default`, and `!apply`, which is where its
+forms submit. What each page shows and does is described in the claims.
 
 **Servlet `excel-export`** at `/plugins/servlet/structure/excel` (the module's URL pattern is
 `/structure/excel*`). `GET` and `POST` behave the same. It exports a structure as an Excel workbook.
 | request parameter | meaning |
 |---|---|
-| `forestSpec` | required: the forest to export, as the JSON of a [`forest-spec`](#shape-forest-spec) (a public API type); missing or unreadable is a 500 |
-| `viewId` | the saved view whose columns to use (a number); or |
-| `viewSpec` | a view specification (JSON, see the view shapes), used when there is no `viewId` |
-| `expand` | the expansion state of the rows, as the board sends it |
-| `clientFilter` | the rows to keep, as the board's quick-filter state |
-| `xlsx` | `true` for an `.xlsx` (Office Open XML) workbook; otherwise a legacy `.xls` |
+| `forestSpec` | required: the forest to export, as the JSON of a [`forest-spec`](#shape-forest-spec) (a public API type); missing, unreadable or rejected as a spec is a 500 |
+| `viewId` | the saved view whose columns to use (a number); a missing or forbidden view falls back to the default columns (`issuekey` and the main column), and `viewSpec` is then not tried; or |
+| `viewSpec` | a view specification (JSON, see the view shapes), used when there is no `viewId`; an unreadable or invalid one gives the same default columns |
+| `expand` | the expansion state of the rows (format in the `excel-export` claims) |
+| `clientFilter` | the rows to keep (format in the `excel-export` claims) |
+| `xlsx` | `true` (trimmed, any case) for an `.xlsx` (Office Open XML) workbook; otherwise a legacy `.xls` |
 | `s` | the structure id, used only in error reports |
 
 Success: `200` with `Content-Type` `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (xlsx)
 or `application/vnd.ms-excel` (xls), and `Content-Disposition: attachment; filename="structure.xlsx";
 filename*=UTF-8''<name>` (`.xls` for the legacy format). `<name>` is URL-encoded and built as follows:
 - take the forest's display name and keep letters and digits;
-- turn each run of other characters into one `_`, and stop once 20 characters are written;
+- drop any other characters at the start, turn each later run of them into one `_`, and stop once 20 characters are written;
 - end with `_` unless it already does; if nothing was kept, use `structure_`;
-- append the forest's time as `yyMMdd_HHmm` and the extension.
+- append the forest's time as `yyMMdd_HHmm` in the JVM's default time zone, and the extension.
 
-For example, "Q3 plan: team A" at 14:05 on 2026-10-28 gives `Q3_plan_team_A_261028_1405.xlsx`. Failures: `400` for
-invalid input, `403` without permission, `404` when the structure or view does not exist, `503` when an
-automation step failed, `500` otherwise; the body is the error message.
+For example, "Q3 plan: team A" at 14:05 on 2026-10-28 gives `Q3_plan_team_A_261028_1405.xlsx`. Failures go through `sendError(status, message)`, so the body is the container's error page, and the message can be null: `400` for
+invalid input, `403` without permission, `404` when the structure does not exist, `503` when an
+automation step failed, `500` otherwise.
 
 **Servlet filters.** Each keeps its key, location, weight and URL patterns (`inventory.json`). What they do:
 - `end-of-life-decorator`, `stats-offer-decorator`, `plugin-manager-helper`: add a banner or helper resource
   to some pages (claims). With no Marketplace licensing (section 1.1), the licence banners never show.
 - `issue-change-interceptor`, `bulk-change-interceptor`, `tempo-internal-issues-interceptor`: watch Jira and
   other apps' requests that change issues without the usual events, so the plugin can refresh its data
-  (claims). They never change the request or the response, except the bulk-change one, as its claims say.
+  (claims). They never change the content of the request or the response, except the bulk-change one, which
+  also changes session attributes, as its claims say. `issue-change-interceptor` wraps the request for epic
+  add and remove `PUT`s, passing everything through and keeping a copy of the first 102,400 bytes or characters.
 - `security-filter` and `partitioned-cookie-header-filter`: let the external gadget page be embedded in an
   application linked to Jira (claims).
 
@@ -6348,9 +6368,9 @@ have a class with exactly that name, implementing both Jira's condition and vali
 arguments are stored as strings:
 | argument | value |
 |---|---|
-| `runAsLead` | `true`: evaluate as the project lead; `false`: as the user below |
+| `runAsLead` | `true`: run as the project lead; `false`: as the user below. The run-as user covers structure access, reading the forest and validating the query; matching runs as the user doing the transition (claims) |
 | `runAsUserName`, `runAsUserKey` | only when `runAsLead` is `false`: the user's name and Jira user key |
-| `structureType` | `default` (the default structure), `manual` (the structure in `structureId`), or the older `containing`, read as `default` |
+| `structureType` | `default` (the project's default structure, else the global one), `manual` (the structure in `structureId`), or the older `containing`, read as `default` |
 | `structureId` | only when `structureType` is `manual`: a structure id |
 | `queryString` | the S-JQL query the issue must match |
 | `queryDesc` | validator only: the reason shown when the transition is blocked |
@@ -6495,7 +6515,7 @@ The shared caches are named `com.almworks.structure.<name>`, for example `forest
   - Further string args:
     - `runAsLead`: `true`/`false`.
     - `runAsUserName` and `runAsUserKey`: present when `runAsLead` is false.
-    - `structureType`: `default` (the project's default structure) or `manual`. The legacy value `containing` is read as `default`.
+    - `structureType`: `default` (the project's default structure, else the global one) or `manual`. The legacy value `containing` is read as `default`.
     - `structureId`: decimal, present when `structureType` is `manual`.
     - `queryString`: S-JQL.
     - `queryDesc`: validator only, the message shown when the issue is blocked.
@@ -6542,7 +6562,7 @@ The root is `<structure-backup version="5.0">`. Child sections appear in the ord
    - `forest version="V"`: the latest forest version number, with the row tree nested inside (see "Row elements");
    - `manualAdjustments` (optional; see below).
 4. `histories` (only when history is included): one `<history structure="SID">` per structure whose forest version is > 0, holding `<entry>` elements in version order (see "History").
-5. `structureFields` (present only if some backed-up generic item uses custom fields): one or more `<fieldInfo type="FIELD-TYPE-KEY">`, each holding
+5. `structureFields` (present only if some backed-up generic item has a field value to resolve, a custom field or a system field such as `assignee`, `project` or `priority`, so a `<fieldInfo>` may have no `<field>`): one or more `<fieldInfo type="FIELD-TYPE-KEY">`, each holding
    - `<field id="FIELD-ID" name="FIELD NAME">` with an optional `<properties>` child (the field type's own serialized properties string);
    - `<value><serializedValue>S</serializedValue><resolutionValue>R</resolutionValue></value>`, one per distinct value used. S is the value exactly as stored inside the generic item's parameters JSON. R is the human-readable option name it stands for (for option-based field types: the option's display name). R is used to re-resolve S on a different instance.
 6. `synchronizers`: one `<synchronizer id="SYNC-ID" structureId="SID">` per sync instance whose owner still exists. Children:
@@ -6697,7 +6717,7 @@ History entries restore with their original versions. After history is read, eac
 
 #### Migrate-from-backup (import into a live instance)
 
-This reads the same file format from the import directory but does not wipe tables. Selected structures, with their views, columns, notes and the rest, are created alongside existing data where ids may change; items are re-resolved by key or name (behaviour detail not fully traced). Afterwards the old → new perspective id mapping is reported.
+This reads the same file format from the import directory but does not wipe tables. Selected structures, with their views, columns, notes and the rest, are created alongside existing data where ids may change; replacing an existing id deletes that structure, and items are re-resolved by key or name (the `ww-structure` claims for `StructureMigrate` give the rules). Perspectives are not migrated: the reported old → new perspective id mapping is always empty. The legacy formats `0.4` and `2.3` are refused here, though restore accepts them.
 
 #### Cloud migration export (data sent off-instance)
 

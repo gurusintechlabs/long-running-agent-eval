@@ -1,0 +1,2018 @@
+{
+ "claims": [
+  {
+   "key": "w1-pages-structures/ww-structure/common/stopped-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Every page in this group first asks `StructurePluginHelper.isStructureLocked()`. When it answers true, the page does nothing else and shows the 'not ready' page, titled `str.+stopped+.title` (\"Structure Isn't Ready\") with `str.+stopped+.description.html`. The same page results when the work fails with a `StructureStoppedException` as the root cause (the error message then is `Structure plugin is not ready`). This holds for `/secure/StructureBoard.jspa`, `/secure/ManageStructure.jspa` and all others; the only exception is that `StructureHelp` commands check for an administrator before the lock (see their claims).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#run",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#checkStopped"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/disabled-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The 'not permitted' page has the title `s.structure.op.disabled` ('Operation Not Permitted') and the text `str.+disabled+.description.html`; it is what a page's 'disabled' outcome shows. A 'security breach' outcome shows Jira's standard security-breach page (`/secure/views/securitybreach.jsp`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#run"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/error-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A page's 'error' outcome shows a page titled `common.words.error` that lists the action's error messages (one each, HTML-escaped) under the note `str.error.description.html`. It adds a Back link to the action's return URL when one is set, and a login link to `/login.jsp?os_destination=<this page's URL, encoded>` when the user is anonymous. Field errors are not listed on it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#run"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/uncaught-structure-exception",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A `StructureException` that escapes a page's work (one the page does not handle itself) gives the error page with the exception's localized message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#run"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/submit-needs-apply-command",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Changes are made only through the `!apply` command of a page (`/secure/DeleteStructure!apply.jspa`, `/secure/StructureArchive!apply.jspa`, `/secure/EditStructure!apply.jspa`, `/secure/StructureCopy!apply.jspa`, `/secure/StructureViews!apply.jspa`, `/secure/StructureImport!apply.jspa`, `/secure/StructureExport!apply.jspa`, `/secure/CreateStructure!apply.jspa`), which runs Jira's XSRF check on `atl_token`. A request that asks for the change without `!apply` (plain alias, or `!default`, which behaves like the plain alias except that it skips validation) gets the security-breach page and changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#doApply",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#doExecute",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#doDefault",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#requireXsrfChecked"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/execute-flag",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In this group a boolean request parameter is true only when its single value equals `true`, ignoring case; a missing or other value is false. Pages `DeleteStructure`, `StructureArchive`, `StructureViews`, `StructureCopy`, `StructureImport` and `StructureExport` decide between 'show the form' and 'do it' by the parameter `execute`; `EditStructure` uses `confirm`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#getBoolean",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#isExecuted"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/numeric-parameters",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A numeric request parameter read with a default (for example `default-<page>-view`, `targetProject`, `stepId`) that is missing or not a number counts as 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#getLong",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#getInt"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/return-url",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A page's fixed redirect target is only a default: when the request has Jira's `returnUrl` parameter, that value is used instead. In Jira inline-dialog mode (`inline=true`) a finished page does not redirect: it answers 200 with header `X-Atlassian-Dialog-Control` set to `DONE` for 'finished' answers, or `redirect:<context path + URL>` for 'finished with a redirect' answers. Outside a dialog both are ordinary redirects to the URL.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#setDefaultReturnUrl",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#getRedirect",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#returnInlineCompleteOrRedirect"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/manage-default-return",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The default return URL of the pages for a selected structure is `/secure/ManageStructure.jspa?view=recent`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureActionSupport#setManageStructureAsReturnUrl"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/selected-structure-load",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`DeleteStructure`, `StructureArchive`, `StructureViews` (with a structure), `StructureImport` and `StructureExport` take the structure id from parameter `id`. A missing, zero or negative id redirects to the default return URL. Otherwise the structure is read with `StructureManager.getStructure(id, ADMIN)`. If that fails: a non-administrator who can still view the structure gets the error page with `s.manage.edit.noaccess` ('You don't have Control permissions on structure <id>'); everyone else, a Jira administrator included, gets `s.manage.edit.notfound` ('Structure with id <id> does not exist or you don't have permissions to view it.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#initAction",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#loadStructure"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/user-formatting",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Where these pages show a user, the text is the user name, followed by ` (<display name>) ` when the display name is not empty and differs from it, HTML-escaped. A user that the viewer may not see is shown as `s.manage.user.someone` ('someone'); a viewer may see a user who is themselves, or when they are a Jira administrator or have the global `USER_PICKER` permission. A null user or empty name shows nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureActionSupport#formatUser",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#canSeeUser"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/common/subject-text",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A permission subject is shown as: `s.permissions.subject.anyone` for `Anyone`; `s.permissions.subject.user` with the user's name for `JiraUser`; `s.permissions.subject.group` with the group name for `JiraGroup`; `s.permissions.subject.role.anyproj` with the role name when a `ProjectRole` has project id 0, else `s.permissions.subject.role` with project and role names, `?` standing for an unknown project or role. Names are HTML-escaped. A null subject shows nothing, and any other subject shows `?`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getSubjectTextHtml"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/board/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureBoard.jspa` accepts GET only. When `StructurePluginHelper.isStructureAvailableToCurrentUser()` is false, a logged-in user gets the 'not permitted' page and an anonymous user the security-breach page. Otherwise the page is shown, also to anonymous users.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBoard#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/board/resources",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When it shows the board, `/secure/StructureBoard.jspa` asks `StructurePluginHelper` to include the widget's web resources and the issue keyboard shortcuts (`requireWidgetResource()`, `requireIssueShortcuts()`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBoard#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/board/view-parameter",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Parameter `view` of `/secure/StructureBoard.jspa` is a saved view id. It is passed to the page as the initial view only when `StructureViewManager.isAccessible(view, VIEW)` is true; an inaccessible or unknown view is ignored silently and the board still opens.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBoard#setView"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/board/current-structure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureBoard.jspa` presents as current structure the answer of recents-manager's 'most recent accessible structure' for the current user, or none. Parameter `s` and the URL fragment are not read on the server; the page's script handles them.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBoard#getCurrentStructureId"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/board/create-issue-flag",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureBoard.jspa` tells the page whether a newly created issue is added to the open structure: the dark feature `structure.feature.createIssueAddsToBoardStructure`, default true, read when the page object is created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBoard"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/board/issue-operations",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureBoard.jspa` and `/secure/StructureExternalGadget.jspa` present Jira's issue operation links: for each section Jira returns for location `opsbar-operations` for the current user, all links of that section, ignoring their conditions, computed with context parameter `issueId` = the literal `{0}` (a placeholder the page fills in).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBoard#getIssueOperations",
+    "com.almworks.jira.structure.util.Util#getIssueOperations"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructurePrintable.jspa` accepts GET and POST. Its parameters are `forestSpec` (JSON of a `forest-spec`), `viewId` (number, default 0), `viewSpec` (JSON view specification), `expand` (the board's expansion state) and `clientFilter` (the board's quick-filter state). No XSRF token is needed and nothing is changed except the usage statistic below.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructurePrintable#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructurePrintable.jspa` gives the security-breach page when `isStructureAvailableToCurrentUser()` is false. A missing or unreadable `forestSpec` gives the error page with `s.error.forest.inaccessible` ('The requested structure is not accessible, sorry!').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructurePrintable#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/prepare-failure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When preparing the export fails with a `StructureException`, `/secure/StructurePrintable.jspa` shows the error page with `s.printable.error.config`: 'Printable page could not be displayed (error code: <numeric error code>, <localized message>)'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructurePrintable#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/success-effects",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After a successful preparation `/secure/StructurePrintable.jspa` records the unique-user statistic `activeUser` (asynchronously) and requires web resource `com.almworks.jira.structure:printable-rc` and resource context `structure.printable`. Its `<head>` carries the rendered required resources directly, and the page has no Jira decorator.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructurePrintable#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/page-data",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructurePrintable.jspa` presents: as title `ForestService.getDisplayName(spec)`; as icon the absolute URL of `structure-icon.png` of `com.almworks.jira.structure:printable-rc`; the Jira version; and the indent per depth, from 0 to the deepest row's depth, as `<depth × 3>.5em` (depth 0 is `0.5em`, depth 2 is `6.5em`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructurePrintable#getPadding",
+    "com.almworks.jira.structure.webwork.StructurePrintable#getDepths",
+    "com.almworks.jira.structure.webwork.StructurePrintable#getTitle"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/view-selection",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The columns of `/secure/StructurePrintable.jspa` come from the saved view `viewId` when it is not 0 and accessible at `VIEW`, and a missing or inaccessible `viewId` goes straight to the default view without trying `viewSpec`; with no `viewId`, from `viewSpec` when it is not empty and readable; else from a default view of the `issuekey` field column followed by the main column. An inaccessible view or a bad `viewSpec` falls through silently.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#getViewSpecification"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/columns-order",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Columns with key `handle` or `actions` are never printed. In view column display mode 2, pinned columns come first in pin order and the others follow in view order; in any other mode columns keep view order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#getColumnsToExport"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/renderer-lookup",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For each column of the printable page, export renderer providers are asked in this order, and the first set that gives a renderer wins: (column key, `printable`), (column key, any format), (any key, `printable`), (any key, any format). A column with no renderer, or whose provider fails with `StructureProviderException`, is left out (a warning is logged). A provider that throws anything else is ignored for the rest of the export. A renderer that throws while preparing is dropped, one that throws later prints nothing from then on, and the page itself still succeeds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#prepareExportRenderers",
+    "com.almworks.jira.structure.export.ForestExporter#getColumnRendererSafe",
+    "com.almworks.jira.structure.export.ForestExporter#configureColumnSafe",
+    "com.almworks.jira.structure.export.ForestExporter#renderCellSafe"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/client-filter",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`clientFilter` of `/secure/StructurePrintable.jspa` is a sign followed by a dot-separated list of delta-encoded row ids (each number is added to the previous one). Sign `+` keeps only those rows, `-` removes them. `+` alone keeps no row, `-` alone or an empty value filters nothing. A value with another first character, or an unparsable number, is ignored with a warning, so nothing is filtered. Example: `+5.2.3` keeps rows 5, 7 and 10.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#parseClientFilter"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/expand-state",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`expand` of `/secure/StructurePrintable.jspa` is a dot-separated list: a number sets the default expanded depth (not below the minimum level, which is 1 when the forest spec has a title row, else 0), `++` expands everything, `--` sets the minimum level, `+<row>` and `-<row>` expand or collapse a row. A row counts as expanded when the default level exceeds its depth, unless it is listed the other way. Empty means all expanded. Malformed items are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ExpandState#parse",
+    "com.almworks.jira.structure.export.ExpandState#isExpanded"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/rows",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructurePrintable.jspa` prints the forest rows in order, after removing rows rejected by the client filter, automation rows (generators and effectors) and rows that no longer exist. A collapsed row is printed but its subtree is skipped. At most the first 20000 rows after filtering are used; the rest are dropped silently. Rows the user may not see stay in place, but every attribute value of such a row is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#prepareForest",
+    "com.almworks.jira.structure.export.printable.PrintableExporter#getMaximumRows",
+    "com.almworks.jira.structure.export.printable.PrintableExporter#isSkipCollapsed",
+    "com.almworks.jira.structure.export.ForestExporter$RowIterator#findNextIndex",
+    "com.almworks.jira.structure.export.ForestExporter$InaccessibleExportRow#get"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/locked-forest",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "If reading the forest times out on its lock, the printable page keeps retrying. After 120 s of accumulated waiting (dark feature `structure.export.trySnapshotTimeout`) it uses the last generated forest if there is one, and warns with `s.export.forest-outdated`. After 600 s (dark feature `structure.export.forestLockTimeout`) it fails with error `AUTOMATION_FAILED` and message `s.export.error.forest-lock-timeout` for that many seconds, which shows as the configuration error page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#prepareForest",
+    "com.almworks.jira.structure.export.ForestExporter#forestLockTimeout"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/consistency-warning",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Attribute values for the printable page are first read consistently with the forest (dark feature `structure.export.tryConsistentAttributes`, default true). If that fails, they are read normally and the page shows `s.export.inconsistent` ('The exported information may be inconsistent due to concurrent changes in Jira or Structure during the export.'). Columns whose parameter `forestSpec` is `unfiltered` read their values from the forest spec without its trailing filter and sort transformations.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter$ExporterContext#calculateAttributes",
+    "com.almworks.jira.structure.export.ForestExporter$ExporterContext#calculateAttributesForSpec",
+    "com.almworks.jira.structure.export.ForestExporter#isAfterFiltering"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/cell-numbers",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On the printable page a number cell is formatted in the export context's locale with no grouping; with a rounding of N decimals set on the column it shows exactly N decimals, rounded half up. `setRounding` with a negative value throws `IllegalArgumentException`. Null shows an empty cell.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.printable.PrintableExporter$HtmlColumn#configureFormat",
+    "com.almworks.jira.structure.export.printable.PrintableExporter$HtmlColumn#setRounding",
+    "com.almworks.jira.structure.export.printable.PrintableExporter$HtmlColumn$HtmlCell#setNumber"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/cell-percentage",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A percentage cell with style `PERCENT_TEXT` shows the value as locale percent text. With any other style it shows a bar plus percent text, both with the value clamped to 0..1, the bar's length being value × 10 em. Null shows an empty cell.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.printable.PrintableExporter$HtmlColumn$HtmlCell#setPercentage"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/cell-dates-durations",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On the printable page a date cell uses Jira's user `DATE` style and a date-time cell Jira's user `COMPLETE` style. A duration (seconds) is formatted by format-helper for the current user, or as calendar time when the column asks for that. Null shows an empty cell.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.printable.PrintableExporter$HtmlColumn$HtmlCell#setDate",
+    "com.almworks.jira.structure.export.printable.PrintableExporter$HtmlColumn$HtmlCell#setDatetime",
+    "com.almworks.jira.structure.export.printable.PrintableExporter$HtmlColumn$HtmlCell#setDuration"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/cell-hyperlink",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A hyperlink cell with a null URL is empty. With a URL that `java.net.URL` rejects, it shows the text only. Otherwise it is a link to the URL with the text, or the URL when the text is null. Text and URL are HTML-escaped. `setText` escapes and `setHtml` does not.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.printable.PrintableExporter$HtmlColumn$HtmlCell#setHyperlink"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/printable/row-depth-classes",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Each printed data row has the CSS class `d<depth>`, plus any row classes its cells added, in order and without repeats. A cell's content is wrapped so that it does not break lines unless its column is multiline.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.printable.PrintableExporter#getDataRowHtml",
+    "com.almworks.jira.structure.export.printable.PrintableExporter$HtmlColumn#getDataCellHtml"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/timetracking/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureTimeTrackingSection.jspa` accepts GET only and reads `structureId`, `rowId`, `issueId` and `jobId` (numbers, default 0). It returns a fragment, with no Jira decorator, for the issue page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/timetracking/job-flow",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Without `jobId`, `/secure/StructureTimeTrackingSection.jspa` runs the calculation as a job on job-manager's `attribute` executor and waits for it up to the REST async timeout (dark feature `structure.rest.async.timeout`, see structure-async-request-handler). With `jobId` it starts nothing and waits for that job. If the job finishes in time, the job is cancelled in job-manager and the data is shown. If not, the fragment carries only the job id, so the client can ask again.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/timetracking/job-failures",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureTimeTrackingSection.jspa` answers an empty fragment (job id 0, no data) when the job cannot be submitted (the job id then stays 0), when `jobId` is unknown, when the job failed, or when the job's result is of another type. An interrupted wait leaves the job id in place and restores the thread's interrupt flag. None of these is an error page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/timetracking/input-checks",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The calculation of `/secure/StructureTimeTrackingSection.jspa` gives empty data when `structureId` <= 0, `rowId` < 0, both `rowId` and `issueId` are 0, or Jira's option `jira.option.timetracking` is off. These are checked before access. When `StructureManager.isAccessible(structureId, VIEW)` is false, it gives the security-breach page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#action0"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/timetracking/row-issue-resolve",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `rowId` not 0, `/secure/StructureTimeTrackingSection.jspa` takes the issue from that row (an existing row whose item is an issue, else empty data) and ignores `issueId`. With `rowId` 0 it uses `issueId` and then finds the first row, in forest order of the unsecured structure, that holds the issue; no such row, or a forest error, gives empty data.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#action0",
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#extractIssueIdFromRowId",
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#extractRowIdFromIssueId"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/timetracking/issue-checks",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureTimeTrackingSection.jspa` gives empty data when the issue does not exist, or when `StructurePluginHelper.getIssueError(issue, false, true)` reports a problem (no access, or Structure not enabled for the project).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#action0"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/timetracking/values",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureTimeTrackingSection.jspa` reads `CoreAttributeSpecs.TOTAL_ORIGINAL_ESTIMATE`, `TOTAL_REMAINING_ESTIMATE` and `TOTAL_TIME_SPENT` for the row from the unsecured structure forest (null = 0), and divides each by 1000 (integer) to get seconds. When none of the three is above 0 it gives empty data. Otherwise it builds Jira's time-tracking graph (`Style.SHORT`) from an aggregate bean of those three values with sub-task count 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#action0"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/timetracking/log-work-link",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureTimeTrackingSection.jspa` offers the 'log work' link (`/secure/CreateWorklog!default.jspa?id=<issue id>`) only when there is data, the user has the issue permission `WORK_ISSUE` (Jira legacy id 20) on the issue, and `IssueManager.isEditable(issue)` is true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#action0",
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#showAction"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/timetracking/backoff-and-delay",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When the async backoff is overridden, the fragment of `/secure/StructureTimeTrackingSection.jspa` carries the list as comma-separated numbers. The JVM long property `structure.testing.rest.async.forceDelay` (ms, default 0) adds that delay before the calculation, after the access check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#getRestAsyncBackoff",
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection#getForcedDelay"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/ViewStructureShortcuts.jspa` accepts GET only, is open to anyone (no Structure access check) and lists keyboard shortcuts as 8 groups of lines; each line is a label and one or more shortcuts. Group and line labels are the i18n keys `str.help.shortcuts.+<key>` (for example `str.help.shortcuts.+section.navigation`). Parameter `mac` (boolean, default false) selects the Mac keys. The title is `str.help.shortcuts.title`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/group-good-to-know",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Group `section.good-to-know`, lines in order (PC keys; Mac in brackets): create = enter; editing = tab or mouse double-click; move-item = ctrl+arrows (ctrl+command+arrows); drag-anywhere = shift+mouse drag; pasteUnder = ctrl+shift+v (command+shift+v); search = ctrl+alt+/; hide-resolved = r,r; pin = ctrl+.; run-all-effectors = e,e.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#buildGroups"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/group-handling",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Group `section.handling`, lines in order: switch-structure = s,s; automation = ~; single-grid = ctrl+alt+1; double-grid = ctrl+alt+2; grid-details = o; switch-panel = \\; switch-view = v,v; add-column = ctrl+shift+| (Mac command+|); switch-to-query = ctrl+alt+'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#buildGroups"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/group-navigation",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Group `section.navigation`, lines in order: up = up; down = down; expand = right; collapse = left; expand-all = plus,plus; collapse-all = -,-; expand-level = alt+plus; collapse-level = alt+-.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#buildGroups"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/group-search",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Group `section.search`, lines in order: search-change-type = ctrl+alt+/; close-search = esc; toggle-filter = ctrl+alt+;; next-matching = ctrl+alt+]; prev-matching = ctrl+alt+[; focus-grid = enter; quick-transform = q,q; hide-resolved = r,r.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#buildGroups"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/group-changing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Group `section.changing`, lines in order (PC; Mac in brackets): moveup = ctrl+up (ctrl+command+up); movedown = ctrl+down (ctrl+command+down); indent = ctrl+right (ctrl+command+right); outdent = ctrl+left (ctrl+command+left); dnd = shift+mouse drag; remove = delete; cut = ctrl+x (command+x); copy = ctrl+c (command+c); paste = ctrl+v (command+v); pasteUnder = ctrl+shift+v (command+shift+v); undo = ctrl+z (command+z); redo = ctrl+shift+z (command+shift+z).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#buildGroups"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/group-edit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Group `section.edit`, lines in order: create = enter; createUnder = shift+enter, and on PC only also insert; createAbove = alt+enter; editing = tab or mouse double-click; edit.save = enter or ctrl+enter; edit.cancel = esc; edit.next = tab or ctrl+alt+right; edit.prev = ctrl+alt+left; edit.nextItem = ctrl+alt+down; edit.prevItem = ctrl+alt+up; edit.switchToDialog = alt+enter.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#buildGroups"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/group-select",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Group `section.select`, lines in order: select = space; select-all = ctrl+a (Mac command+a); select-subitems = shift+right; unselect-subitems = shift+left; select-down = shift+down; select-up = shift+up.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#buildGroups"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/group-jira",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Group `section.jira`, lines in order: jira.operations = .; jira.edit = e; jira.assign = a; jira.comment = m; jira.labels = l; jira.dropdown = alt+down.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#buildGroups"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/key-parts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A shortcut text splits on `+` into modifiers and a final part; the final part splits on `,` into keys pressed one after the other (`r,r` is two presses of r, shown as separate keys). A key with the prefix `mouse:` is marked as a mouse action and shown without the prefix.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#createShortcut",
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts#createButton"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/shortcuts/key-names",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Key names are shown as follows, ignoring case. Both systems: up, down, left, right are the arrows `&#x2191;`, `&#x2193;`, `&#x2190;`, `&#x2192;` (these are marked as arrows); `plus` is `+`; `comma` is `,`. Mac: ctrl `&#x2303;`, shift `&#x21e7;`, alt `&#x2325;`, command `&#x2318;`, del `delete`; other names stay as written. PC: del `Delete`, esc `Escape`; any other name of two or more letters or hyphens gets a capital first letter and lower case for the rest (`enter` is `Enter`, `double-click` is `Double-click`, `ctrl` is `Ctrl`); single characters stay as written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts$Replacements#replace"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/manage/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/ManageStructure.jspa` accepts GET only. It gives the security-breach page when `isStructureAvailableToCurrentUser()` is false; otherwise it shows the page (also to anonymous users). The page content comes from the script, using REST; the server passes one JSON object to it. Parameter `view` (for example `view=recent`) is not read on the server.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/manage/extra-json",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The JSON object of `/secure/ManageStructure.jspa` has these keys: `addonLogos`, a map from plugin name to product icon URL, one entry per integration-details provider (later duplicates of a name overwrite earlier ones); `myUserKey`, the current user's key, left out for anonymous; `maySearchUsers`, whether the user has global `USER_PICKER`; `licensed`, always true; `mayApplyBasicAdminRights`, always true; `mayApplyAllAdminRights`, true for a logged-in user; `mayCreateNew`, `StructurePluginHelper.isCreateStructureAllowed(user)`; `mayManageSynchronizers` and `mayImExPort`, both `isSynchronizationAllowed(user)`; `showSynchronizers`, the answer of sync-hide-helper's 'enabled or installed' check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructure#collectExtra",
+    "com.almworks.jira.structure.rest.StructureManagementExtra"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/manage/json-escaping",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In the JSON text of `/secure/ManageStructure.jspa` every `</` is written as `<\\/`, so that it cannot end the script element.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructure#getJson"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/EditStructure.jspa` accepts GET and POST. It checks in this order: an anonymous user gets the outcome `login`, for which the page has no view, so Jira shows its error page rather than a login prompt (as the original does); `isStructureAvailableToCurrentUser()` false gives the security-breach page; then the structure is loaded.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/load-new",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/EditStructure.jspa` with `id` missing or 0 is the 'new structure' form. It needs `isCreateStructureAllowed(user)`, else the error page with `s.manage.create.noaccess` ('You don't have permissions to create new structures'). An unsaved structure owned by the current user is used, and nothing is stored until the form is applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#loadStructure",
+    "com.almworks.jira.structure.webwork.EditStructure#isNew"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/load-existing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/EditStructure.jspa` with `id` not 0, negative ids included, needs the `ADMIN` level. Failure gives `s.manage.edit.noaccess` or `s.manage.edit.notfound` as for the other selected-structure pages. Unlike them, a negative id is not redirected, it gives the not-found error. An archived structure is not refused by the page itself.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#initAction",
+    "com.almworks.jira.structure.webwork.EditStructure#loadStructure"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/return-parameter",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/EditStructure.jspa` uses request parameter `return` as its default return URL when present; else `/secure/ManageStructure.jspa?view=recent`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#initAction"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/form-values-existing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The form of `/secure/EditStructure.jspa` for an existing structure holds: `name`, `description`; `permissions`, a JSON array of `PermissionRule.toEncodedString()` strings; a JSON map of user key to display name (empty for a missing user) for every user in the `SetLevel` rules; `editRequiresParentPermission`, from `isEditRequiresParentIssuePermission()`; `favorite`, from `StructureFavoriteManager.isFavorite`; `generationTimeLimit` of the structure; `allowManualAdjustments`, whether adjustments are on for the structure; `descriptionShown`, structure property `showDescription` parsed as boolean (default false).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#readStructureData",
+    "com.almworks.jira.structure.webwork.EditStructure#encodePermissions",
+    "com.almworks.jira.structure.webwork.EditStructure#encodeUsers"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/form-values-new",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The 'new structure' form of `/secure/EditStructure.jspa` starts with `favorite` true, the global generation time limit, `allowManualAdjustments` from the default for new structures, and `descriptionShown` false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#readStructureData"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/page-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/EditStructure.jspa` also presents: the generation time limit's minimum (5 s) and hard limit; whether the manual-adjustment feature is on; the levels `VIEW`, `EDIT`, `AUTOMATE`, `ADMIN` in that order with names `s.permission.level.<serial>`; the user's projects (`getProjectsForCurrentUser()`), the available roles, and whether the user may pick users (global `USER_PICKER`); for a saved structure, the number of synchronizers installed on it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#getLevels",
+    "com.almworks.jira.structure.webwork.EditStructure#getGenerationTimeMinimumLimit",
+    "com.almworks.jira.structure.webwork.EditStructure#getSynchronizersCount"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/just-copied-params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/EditStructure.jspa` reads `justCopied`, `justCloned`, `syncCopyError` (booleans) and `issueCloneErrors` (number) only to show a notice after a copy: `s.manage.edit.justcopied` or `s.manage.edit.justcloned`, a synchronizer message (`s.manage.edit.copied.synchronizers.error` or `s.manage.edit.copied.synchronizers`), and `s.manage.edit.copied.clone.error` with the count when it is above 0.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#setJustCopied",
+    "com.almworks.jira.structure.webwork.EditStructure#setIssueCloneErrors"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/inheritable-structures",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/EditStructure.jspa` offers for 'apply structure' rules the structures the user can administer (`getAllStructures(ADMIN)`). When editing a saved structure it leaves out every structure that reaches the edited one by following `PermissionRule.ApplyStructure` rules (or is that structure); a referenced structure that cannot be read is skipped in that walk.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#getInheritableStructures",
+    "com.almworks.jira.structure.webwork.EditStructure#isInheritanceCycle"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/owner-field",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The owner is editable on `/secure/EditStructure.jspa` when the user is a Jira administrator, or has global `USER_PICKER` and either has `ADMIN` on the structure or is its owner. The field shows the owner's user name, or `s.manage.user.someone` when the user may not see it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#canManageOwner",
+    "com.almworks.jira.structure.webwork.EditStructure#formatOwner"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/apply-order",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/EditStructure!apply.jspa` with `confirm=true` updates the structure, in this order: XSRF check (failure: security breach); name validation; name, description, permission rules, parent-permission flag and owner are set; `saveChanges()`; favorite, generation time limit, manual adjustments and the `showDescription` property are stored; the structure is marked recent for the user. Without `confirm=true`, even on `!apply`, the form is shown and nothing changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#action",
+    "com.almworks.jira.structure.webwork.EditStructure#updateStructure",
+    "com.almworks.jira.structure.webwork.EditStructure#writeStructureData"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/name-validation",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The structure name is trimmed for validation. A blank name gives the field error on `name` `s.manage.edit.noname` ('Please enter a name for your structure'). A trimmed length above 190 gives `s.manage.edit.too-long-name` ('The name should be 190 characters or less'). On either error `/secure/EditStructure!apply.jspa` shows the form again and stores nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.StructureNameValidator#validate",
+    "com.almworks.jira.structure.webwork.EditStructure#doValidation"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/trim-values",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On apply, name and description are stored trimmed; a missing description is stored as the empty string.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#writeStructureData",
+    "com.almworks.jira.structure.util.Util#ntrim"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/permissions-decode",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`permissions` on apply is a JSON array of encoded rules. Missing or empty gives no rules. A string that is not a valid rule gives the error page `s.manage.perm.error` ('Illegal permission required: <parse message>') and nothing is saved. Text that is not valid JSON at all also gives no rules, so saving silently removes all the structure's rules (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#decodePermissions"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/owner-change",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When the user may edit the owner, `newOwner` (a user name) changes the owner only when it names an existing Jira user other than the current owner. Empty or unknown names leave the owner unchanged, with no error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#changeStructureOwner",
+    "com.almworks.jira.structure.webwork.EditStructure#getUser"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/checkbox-absence",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On apply, the booleans `favorite`, `editRequiresParentPermission`, `allowManualAdjustments` and `descriptionShown` take false when the parameter is absent, so a request that omits them turns them off.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#writeStructureProperties"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/generation-limit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On apply, `generationTimeLimit` (seconds) is written only when it differs from the structure's current limit; the change is logged as a warning naming the user. A value below 5 s or above the hard limit, or a missing parameter (0), throws `IllegalArgumentException` from generation-manager's store, after the structure was already saved, and Jira shows its error page (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#writeStructureProperties",
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#setGenerationTimeLimit"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/save-errors",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A `StructureException` during apply gives the error page: with error `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`, `s.manage.perm.error.nostructure` ('Referenced structure [<id>] does not exist or you don't have Control permissions on it.'); otherwise `s.manage.edit.error` ('There was problem updating structure database: <localized message>').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#getUserText"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/edit/after-save",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After a successful `/secure/EditStructure!apply.jspa`, a non-empty parameter `openStructure` sets the default return URL to `/secure/StructureBoard.jspa?s=<id>`, replacing the one from `return`. The page then finishes with its return URL.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.EditStructure#maybeOpenStructure",
+    "com.almworks.jira.structure.webwork.EditStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/CreateStructure.jspa` accepts GET and POST. `isStructureAvailableToCurrentUser()` false gives the security-breach page. Without `__templateKey` it shows the template chooser (see new-structure-template); nothing is checked about the right to create until the final step, so a user who may not create can walk through the steps.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/parameters",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/CreateStructure.jspa` reads: `__templateKey`, the template's complete key; `__step`, the step being submitted; `__back`, `true` to go back; `__params`, JSON of all step values so far; `__prevTemplateKey`; `__structurePage`; `__welcomeScreen`; `__lastBaseTemplateStep`. Every other request parameter except `atl_token`, `decorator` and `inline` is a field of the submitted step.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#restoreParams",
+    "com.almworks.jira.structure.webwork.CreateStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/params-map",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The wizard's parameters map starts from `__params` (empty when missing). `__welcomeScreen`, `__structurePage`, `__templateKey` and `__lastBaseTemplateStep` are stored in it at top level with their raw values. The fields of the request are stored in it under the current step key, replacing what that step held. The whole map is written back as JSON for the next request.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#restoreParams"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/bad-params-json",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A non-empty `__params` that is not a JSON object fails with an unhandled `NullPointerException`, shown as Jira's error page.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#restoreParams"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/first-step",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `__templateKey` and no `__step`, the wizard does not validate: it shows the template's `getInitialStep()`, with title from the step's `getTitleI18nKey()`, button `common.words.next`, and the fields of this request stored under the initial step's key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/step-validate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `__step` and `__back` not true, the wizard calls `validateStep(allParams, context)` of the step. If errors were added it shows the same step again, with the errors, and passes back the original `__params` value unchanged (the rejected input is not kept in it). Otherwise it asks `getNextStep(allParams, FORWARD, context)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/step-back",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `__back=true` the wizard skips validation and asks `getNextStep(allParams, BACK, context)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/next-step-routing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The wizard acts on the next step key: `__start` shows the template chooser with the parameters kept; `__create` creates the structure; any other key shows that step. `__end` marks the final step: the template's `getCreateButtonTextKey()` is the button, the form then posts to `/secure/CreateStructure!apply.jspa`, and the step just left is remembered as the last template step.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#action",
+    "com.almworks.jira.structure.webwork.CreateStructure#getNextButtonKey"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/general-step-is-default-end",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A template without a custom final step gets the wizard's own general step as `__end`, titled `s.tpl.step.general.title` ('Structure Details'), with fields `name`, `description`, `roles`, `roles-selection`, `projects` and `projects-selection`. A template with a custom final step supplies its own `__end`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#getStepByKey",
+    "com.almworks.jira.structure.webwork.CreateStructure$GeneralStep"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/general-step-back",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Going back from the general step returns to `__lastBaseTemplateStep`, or the chooser when that is missing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure$GeneralStep#getNextStep",
+    "com.almworks.jira.structure.webwork.CreateStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/general-step-validate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The general step validates `name` with the rules of `/secure/EditStructure.jspa` (messages `s.manage.edit.noname`, `s.manage.edit.too-long-name`, field `name`). When `roles` is a role id, not a group and not `private.nobody`, an empty `projects` gives field error `projects` `s.tpl.step.general.no-projects` ('Please specify at least one project').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure$GeneralStep#validateStep"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/general-roles-format",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`roles` of the general step is one of: the name of a group in `getAvailableGroupsForCurrentUser()`; the literal `private.nobody`; or a numeric project role id. `projects` is comma-separated numeric project ids. Any other text fails with an unhandled `NumberFormatException`, shown as Jira's error page.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#withGroupOrRole",
+    "com.almworks.jira.structure.webwork.CreateStructure$GeneralStep#getProjects"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/general-defaults",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On first display the general step's share-with selection is the `Nobody` entry (id `private.nobody`, label `s.tpl.step.general.share.private`); after that `roles-selection` and `projects-selection` are shown back as submitted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure$GeneralStep#getInitialShareWithSubjectSelection"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/create-checks",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Creating runs only through `/secure/CreateStructure!apply.jspa`: without it the XSRF check gives the security-breach page. Next, `isCreateStructureAllowed(user)` false gives the error page `s.manage.create.noaccess`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#createNewStructure"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/create-permissions",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For a template without a custom final step the new structure gets the current user as owner, the trimmed name and description, and `isEditRequiresParentIssuePermission` false. `roles` being a group gives one rule `SetLevel(JiraGroup(group), EDIT)`. A role id gives one `SetLevel(ProjectRole(project, role), EDIT)` per project, in order. `private.nobody` or no `roles` gives no rules. It is saved before the template runs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#createNewStructure"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/create-template-then-save",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The wizard calls `template.configureNewStructure(structure, allParams)`, also for a custom final step, where the structure is not saved yet. If the structure still has id 0 afterwards it is saved.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#createNewStructure"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/create-after-effects",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After creating, the wizard marks the structure as a favorite and as recent for the user; adds 1 to the total-count statistics `templateFinished` and `templateFinished.<template key>`; and, when manual adjustments are on for new structures, turns them on for the structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#createNewStructure"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/create-finish",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After creating, when `template.shouldRedirectForNewStructure()` is false and `__structurePage` is true, the wizard finishes the dialog and sets response header `X-Wizard-Structure-Id` to the new id. Otherwise it finishes with an inline redirect to `template.prepareNewStructureUrl(structure)`, unless `returnUrl` was given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#createNewStructure"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/create-errors",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A `StructureTemplateException` from a template gives the error page with its message. A `StructureException` while creating gives `s.manage.edit.error` with the localized message. A structure saved before the failure stays.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#createNewStructure",
+    "com.almworks.jira.structure.webwork.CreateStructure#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/create/page-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Each step page of the wizard presents: step key, step title, `__params`, `__templateKey`, `__structurePage`, `__welcomeScreen` and the rendered step fragment. The fragment gets the Velocity values `context` (add errors, escape, translate, read errors), `step` and `_action` plus Jira's default values. On a welcome-screen wizard (`__welcomeScreen=true`) the initial step has no way back to the chooser.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure#createPartialParams",
+    "com.almworks.jira.structure.webwork.CreateStructure#renderVelocityPartial",
+    "com.almworks.jira.structure.webwork.CreateStructure#isInitialStep"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/routing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureCopy.jspa` accepts GET and POST and first requires `isStructureAvailableToCurrentUser()` (else the security-breach page). With `processId` <= 0, `id` > 0 and `execute` not true it shows the copy form. With neither a process nor a structure id and no `execute`, it redirects to the default return URL `/secure/ManageStructure.jspa?view=recent`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/form-access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The copy form of `/secure/StructureCopy.jspa` needs `isCreateStructureAllowed(user)`, else the error page `s.manage.create.noaccess`, and then the `VIEW` level on the structure (`id`): failure gives `s.manage.edit.noaccess` or `s.manage.edit.notfound`. Only `VIEW` is needed, unlike the other selected-structure pages, and an archived structure may be copied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#checkCreateStructurePermission",
+    "com.almworks.jira.structure.webwork.StructureCopy#getRequiredStructurePermissionLevel",
+    "com.almworks.jira.structure.webwork.StructureCopy#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/form-facts-structure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The copy form presents: structure name, id, description, owner; a note `s.manage.copy.permissions.cannot-copy` when permissions cannot be copied; the installed synchronizers, only when the user may manage synchronization on the structure (`ADMIN` access and `isSynchronizationAllowed`); `copyQuickTransforms` when structure property `quick-transforms` is set; `copyNotes` when the structure has any note item property; whether generation is stopped (generation-manager reports the unsecured structure spec blocked), which disables the `replaceAll` choice.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#getActiveSynchronizers",
+    "com.almworks.jira.structure.webwork.StructureCopy#hasQuickTransforms",
+    "com.almworks.jira.structure.webwork.StructureCopy#hasNotesData",
+    "com.almworks.jira.structure.webwork.StructureCopy#isGenerationStopped"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/form-facts-clone",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The copy form's cloning section is shown with the user's global `BULK_CHANGE` and presents: `targetProject` choices, which are the projects enabled for Structure and visible to the user where the user has `CREATE_ISSUES`; the link types of Jira, each in both directions as `<type id>:outward` and `<type id>:inward`, with the system clone link type preselected; and each clone option only when possibly allowed: links need linking enabled and `LINK_ISSUES` in some such project; comments need `ADD_COMMENTS`; attachments need attachments enabled and `CREATE_ATTACHMENTS`; sub-tasks need sub-tasks enabled; watchers need watching enabled and `MANAGE_WATCHERS`; turning mail off needs Jira `ADMINISTER` or `ADMINISTER_PROJECTS` in some such project.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#getAvailableTargetProjects",
+    "com.almworks.jira.structure.webwork.StructureCopy#canPossiblyLinkIssues",
+    "com.almworks.jira.structure.webwork.StructureCopy#canPossiblyComment",
+    "com.almworks.jira.structure.webwork.StructureCopy#canPossiblyAttach",
+    "com.almworks.jira.structure.webwork.StructureCopy#canPossiblyCreateSubtasks",
+    "com.almworks.jira.structure.webwork.StructureCopy#canPossiblyEditWatchers",
+    "com.almworks.jira.structure.webwork.StructureCopy#canPossiblyDisableMailNotifications",
+    "com.almworks.jira.structure.webwork.StructureCopy#isSystemCloneLinkType"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/permission-status",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Whether a copy keeps the permission rules is decided on the server, with no parameter. A structure with no rules: no copy and no warning. A user whose effective permission (not the Jira-administrator shortcut) lacks `ADMIN`: no copy, with a warning. Rules that fail structure-manager's validation for a new structure: no copy, with a warning. Otherwise the rules are copied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#getPermissionStatus"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/stats-skeleton",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The copy form shows statistics of the skeleton forest secured for the current user: rows; distinct items (a row showing an item already counted is not counted again; loop markers are not items); issues; generators, by inserters, extenders, groupers, sorters and filters; effectors. The list of generator kinds uses `s.manage.copy.stats.<kind>`, joined by `s.manage.copy.stats.generators.sep` inside `s.manage.copy.stats.generators.list`, and is empty when all five are 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#getItemStats",
+    "com.almworks.jira.structure.webwork.StructureCopy#getGeneratorTypeList",
+    "com.almworks.jira.structure.webwork.StructureCopy#getSkeletonStats"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/stats-generated",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Statistics of the generated forest are computed only with `visibleStats=true`: otherwise they are 'unknown' (rows = -1, shown as `s.manage.copy.stats.not-calculated`). They use the structure's forest, unsecured by user; generator items do not count as rows or items. A forest whose generation is stopped also gives 'unknown'; a `StructureException` gives all zeros, with a warning in the log.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#getGeneratedStats",
+    "com.almworks.jira.structure.webwork.StructureCopy#getItemStats",
+    "com.almworks.jira.structure.webwork.StructureCopy$ItemStats#unknown"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/submit-order",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A new copy starts through `/secure/StructureCopy!apply.jspa` with `execute=true` and `id`, checked in this order: XSRF (failure: security breach); `isCreateStructureAllowed` (`s.manage.create.noaccess`); `VIEW` on the structure; `generatorMode`; for `cloneIssues=true`, Jira's global `BULK_CHANGE` (`s.issue-cloner.error.no-bulk-change-permission`); for `copySynchronizers=true`, management of synchronization (else the security-breach page).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/generator-mode",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`generatorMode` is `copy` (also when blank or missing), `replaceInserters`, `replaceInsertersExtenders`, `replaceAll` or `skip`. Any other value gives the error page `Incorrect generatorMode value \"<value>\"`. `replaceInserters` and `replaceInsertersExtenders` are accepted as names, but starting the copy then fails with `INVALID_PARAMETER` and message `not implemented yet` on the error page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#getGeneratorMode",
+    "com.almworks.jira.structure.webwork.StructureCopy#getForestSpec"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/source-forest",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The copied forest is the current forest secured for the user. Modes `copy` and `skip` use the skeleton; `replaceAll` uses the generated forest. Mode `copy` keeps every row; `skip` and `replaceAll` remove each generator row with its whole subtree. When the forest's health is stopped, the copy does not start: error `AUTOMATION_FAILED`, message `s.manage.copy.error.stopped` ('Cannot copy structure #<id> because automation was paused for this structure.'), on the error page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#getSourceForest",
+    "com.almworks.jira.structure.webwork.StructureCopy#getForestFilter",
+    "com.almworks.jira.structure.webwork.StructureCopy#createProcess"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/options",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Other options on submit: `keepSynchronizersOwner=true` is honoured only for a Jira administrator, and then copies keep their original owners; otherwise copied synchronizers belong to the current user. `copyQuickTransforms` and `copyNotes` are booleans, default false. Manual adjustments are copied exactly in generator mode `copy`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action",
+    "com.almworks.jira.structure.webwork.StructureCopy#createProcess"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/clone-params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `cloneIssues=true` the issue-cloner parameters come from: `targetProject` (0 = the same project), `summaryPrefix`, `summarySuffix`, `labels`, `cloneComments`, `cloneAttachments`, `cloneLinks`, `cloneSubTasks`, `cloneWatchers`, `sendMail`; generators are cloned exactly in mode `copy`. A link back is requested only with `linkBack=true` and `link` matching `<digits>:outward` or `<digits>:inward`; otherwise there is no link (type 0).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#createClonerParams",
+    "com.almworks.jira.structure.webwork.StructureCopy#getLinkTypeIdAndDirection"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/process-state",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A started copy is stored with stateful-manager (so it is owned by the starting user, and lost on restart). The request then waits up to 3000 ms for the job's first stage to end and finishes with a redirect to `/secure/StructureCopy.jspa?processId=<id>`. If the job cannot be submitted, the state is removed and the error page shows the job error's message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action",
+    "com.almworks.jira.structure.webwork.StructureCopy#setStatusAsReturnUrl"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/process-missing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureCopy.jspa?processId=N` for a process that does not exist or is not the user's: with `progress=true` it answers the progress fragment saying 'refresh'; otherwise it redirects to the default return URL.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/progress-fragment",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureCopy.jspa?processId=N&progress=true` answers a fragment, changing nothing: while the status is queued or running, the activity text, the percent complete (never below 0) and `s.process.progress.percent-complete`; in any other status the single word `refresh`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action",
+    "com.almworks.jira.structure.webwork.StructureCopy#getPercentComplete",
+    "com.almworks.jira.structure.webwork.StructureCopy#getActivity"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/status-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureCopy.jspa?processId=N` without `execute` loads the process's source structure at `VIEW` (failure as on the form) and shows the status: in progress, the activity and percent; a finished clone stage, `s.manage.copy.status.cloned-with-errors.title` when any message is an error, else `s.manage.copy.status.cloned-with-warnings.title`; otherwise `s.manage.copy.status.+<status>+.title` and `.description` for status `success` or `failed`. Messages follow, each with its exception text if any.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action",
+    "com.almworks.jira.structure.copy.CopyStatus"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/message-format",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A copy message is shown with `s.manage.copy.+error+` or `s.manage.copy.+warning+` by severity, plus suffix `.field` (arguments issue, field, text) when it has a field and an issue, or `.issue` (issue, text) when it has only an issue. For example: 'Problem cloning issue DEMO-1: <text>'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#formatMessage"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/failed-removes-state",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When the process's status is failed, the first request that sees it removes the stored process, but still shows the messages. A later request finds no process and redirects.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/finished-redirect",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When the step is the structure copy and the status is success, the next request for the process removes it and finishes with a redirect to `/secure/EditStructure.jspa?id=<copy>&justCopied=true&syncCopyError=<bool>&issueCloneErrors=<n>` (`justCloned=true` instead when issues were cloned). `syncCopyError` is true when fewer synchronizers were copied than the source has.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action",
+    "com.almworks.jira.structure.copy.StructureCopyProcess#hasCopySynchronizersErrors"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/continue",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After a stage stopped with warnings, the user continues through `/secure/StructureCopy!apply.jspa` with `execute=true`, `processId` and `stepId`. The process proceeds only when its status is success and `stepId` equals the current step's number (`INITIAL` 1, `VALIDATE_INPUT` 2, `VALIDATE_ISSUES` 3, `CLONE_ISSUES` 4, `COPY_STRUCTURE` 5), so a repeated submit does nothing. Either way it finishes with a redirect to the status URL.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#action",
+    "com.almworks.jira.structure.copy.CopyStep"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/stages",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With cloning and a non-empty forest the process runs: validate input, validate issues, clone issues (see issue-cloner), copy structure, all in one job. It stops after a stage whenever that stage produced messages: with status success if the result is successful, else failed. Progress has 1000 units: 50, 100, 800 and 50. Without cloning, or with an empty forest, only the structure copy runs (50 units).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.StructureCopyProcess#proceed",
+    "com.almworks.jira.structure.copy.CopyJob#doJob",
+    "com.almworks.jira.structure.copy.CopyJob#checkResult",
+    "com.almworks.jira.structure.copy.CopyJob#cloneIssues"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/job-failure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Any `Exception`, `LinkageError` or `OutOfMemoryError` in a stage makes the status failed and adds an error message: the exception's localized message for a `FOREST_SOURCE_ACTION_FAILED` error; otherwise `s.manage.copy.internal-error` with the message, or the class name when the message is blank, keeping the exception. A stage that sees the cancel request also ends as failed, with no message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.CopyJob#doJob",
+    "com.almworks.jira.structure.copy.CopyJob#addError",
+    "com.almworks.jira.structure.copy.CopyJob#checkNotCancelled"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/full-copy-order",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The structure copy does, in order: `StructureManager.copyStructureWithoutForest(source, user, copy permissions)`; name set to `s.structure.copyof` ('Copy of <name> (<date> <time>)') in the user's language; the source's description; save; forest; manual adjustments; synchronizers; structure properties; item properties; view settings. If the structure-level save or forest step fails, the job fails. A failure in adjustments, properties or view settings only logs a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.CopyJob#copyStructure",
+    "com.almworks.jira.structure.copy.StructureCopyProcess#copyStructure",
+    "com.almworks.jira.structure.copy.StructureCopyProcess#getStructureName"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/forest-copy",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Without cloning, the forest is added as it is to the copy's skeleton forest (`ForestAction.Add` at the top). With cloning, each row of an issue, or a loop marker of an issue, gets a new row for the cloned issue with the original's semantics; other rows are reused as they are. The action runs on `ForestSpec.skeleton(copy id)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.ForestCopier#prepare",
+    "com.almworks.jira.structure.copy.ForestCopier#save"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/failed-clone-folder",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A row whose issue has no clone adds the error message `Cannot find cloned issue ID for <issue id>`, and in the copy becomes a folder named `Failed clone of <issue key>` (the id instead of a key if the issue cannot be read, with the message `Cannot find issue <id>`) at the same depth. Each such folder counts in `issueCloneErrors`. A folder that cannot be created drops the row, with the message `Error on creating folder item`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.ForestCopier#prepare",
+    "com.almworks.jira.structure.copy.ForestCopier#replaceFailuresWithFolders",
+    "com.almworks.jira.structure.copy.ForestCopier#createFailedFolder",
+    "com.almworks.jira.structure.copy.ForestCopier#getIssueKey"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/copy-properties",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "All structure properties of the source (`StructurePropertyService`) are copied to the copy, except that `quick-transforms` is copied only with `copyQuickTransforms`. In that value, each entry's `quick.id` becomes `<new structure id>-<part after the first hyphen>`, also for the entries in `transforms` of an entry with `key` = `group`. If it cannot be processed the value is copied unchanged, with a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.StructureCopyProcess#copyStructureProperties",
+    "com.almworks.jira.structure.copy.StructureCopyProcess#replaceStructureIds",
+    "com.almworks.jira.structure.copy.StructureCopyProcess#replaceStructureId"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/copy-item-properties",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Item properties of the source structure are copied to the copy, without note properties unless `copyNotes`. The item is mapped to its copy: the source structure to the new structure, an item whose row was copied to the copied row's item, and any other item stays the same.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.StructureCopyProcess#copyStructureItemProperties"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/copy-synchronizers",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `copySynchronizers`, each synchronizer installed on the source is installed on the copy with the same parameters, owned by the chosen owner. A synchronizer whose module is missing, or whose install fails with `StructureSynchronizerException`, is skipped with a warning and counts toward `syncCopyError`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.StructureCopyProcess#copySynchronizers"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/copy-views",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The source's view settings are copied only when they are defined (`ViewSettings.isDefined()`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.StructureCopyProcess#copyViewSettings"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/copy-adjustments",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Manual adjustments of the source are copied by translating their row references to the matching position in the copy's skeleton forest and their issue references to the clones (or to the failed-clone folder). An adjustment that refers to a row with no match is dropped. Items owned by the source structure inside added fragments become owned by the copy.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.copy.StructureCopyProcess#copyManualAdjustments",
+    "com.almworks.jira.structure.copy.AdjustmentCopier#copy",
+    "com.almworks.jira.structure.copy.AdjustmentCopier#migrateRowIdentity",
+    "com.almworks.jira.structure.copy.AdjustmentCopier#migrateRowSpec"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/cancel",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureCopy.jspa?processId=N&cancel=true` works on GET, with no XSRF token, and ends in a redirect (or the error page, if the partial copy fails with its message). A queued process is cancelled and removed, and the user goes to the default return URL. A running step before cloning, likewise. A running structure copy cannot be cancelled: back to the status URL. While cloning, the job is told to stop, waiting up to 5 s, then cancelled in job-manager, waiting up to 5 s more; if it stopped or a partial result exists, a partial copy is made; if not, the process stays and the user returns to the status URL.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureCopy#cancelProcess",
+    "com.almworks.jira.structure.copy.StructureCopyProcess#cancel"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/partial-copy",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A partial copy after a cancelled clone has the name `s.structure.partial-copyof` ('[Cancelled Cloning Result] Partial copy of <name> (<date> <time>)'), no description, the copied forest with rows for issues already cloned, and at the top level, after the rest, any cloned issue with no row. The process is removed and the user is sent to `/secure/StructureBoard.jspa?s=<id>`. Nothing else (synchronizers, properties, views, adjustments) is copied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.copy.StructureCopyProcess#createPartialStructure",
+    "com.almworks.jira.structure.copy.ForestCopier#addUnstructuredIssues",
+    "com.almworks.jira.structure.webwork.StructureCopy#cancelProcess"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/copy/cancel-after-warnings",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Cancelling a process that is not running, such as at the warnings stop after issues were already cloned, only removes it: no partial structure is made and the cloned issues are left in Jira (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.copy.StructureCopyProcess#cancel",
+    "com.almworks.jira.structure.webwork.StructureCopy#cancelProcess"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/delete/get",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/DeleteStructure.jspa` accepts GET and POST and requires `isStructureAvailableToCurrentUser()` (else security breach) and `ADMIN` on structure `id`. Without `execute=true` it shows the confirmation page: id, name, description, owner, and the row count of the unsecured skeleton forest (0 when the forest cannot be read), and changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.DeleteStructure#action",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#getUnsecuredSkeletonRowCount"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/delete/apply",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/DeleteStructure!apply.jspa` with `execute=true` calls `StructureManager.deleteStructure(id)` and finishes with the return URL, default `/secure/ManageStructure.jspa?view=recent`. A `StructureException` gives the error page `s.manage.delete.error` ('There was problem deleting structure: <message>').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.DeleteStructure#action",
+    "com.almworks.jira.structure.webwork.DeleteStructure#deleteStructure"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/archive/get",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureArchive.jspa` accepts GET and POST and requires `isStructureAvailableToCurrentUser()` (else security breach) and `ADMIN` on structure `id`. Without `execute=true` it shows the confirmation page: id, name, description, owner, and a warning `s.manage.archive.synchronizers.html` when any installed synchronizer has autosync on.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureArchivingActionSupport#action",
+    "com.almworks.jira.structure.webwork.StructureArchive#actionArchive",
+    "com.almworks.jira.structure.webwork.StructureArchivingActionSupport#hasEnabledSynchronizers"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/archive/apply",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureArchive!apply.jspa` with `execute=true` sets the structure archived and saves it, then disables all its synchronizers, and finishes with the return URL. An already archived structure goes through the same steps. A `StructureException` gives the error page: `s.manage.perm.error.nostructure` for `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`, otherwise `s.manage.edit.error`; the synchronizers are then left alone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureArchive#actionArchive",
+    "com.almworks.jira.structure.webwork.StructureArchivingActionSupport#changeArchivedState",
+    "com.almworks.jira.structure.webwork.StructureArchivingActionSupport#getUserText"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/views/global-vs-structure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureViews.jspa` accepts GET and POST. With `id` missing or 0 it edits the global default views: only a Jira administrator may (else security breach, without the Structure-available check), and its default return URL is `/secure/admin/StructureDefaults.jspa`. With another `id` it edits that structure's settings: it needs `isStructureAvailableToCurrentUser()` and `ADMIN` on the structure, and the default return URL is the manage page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureViews#action",
+    "com.almworks.jira.structure.webwork.StructureViews#initGlobalActions",
+    "com.almworks.jira.structure.webwork.StructureViews#isGlobal"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/views/get-data",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The form of `/secure/StructureViews.jspa` presents: the global default settings; all views the user can see at `VIEW` (split into public, shared and private lists), marking those with duplicate names; the pages with a menu (`ViewSettings.ALL_PAGES`) and the pages with a default view (`ViewSettings.PAGES_WITH_DEFAULT_VIEW`); and for a structure, its name and its settings, customized when they are defined. A failure reading the structure's settings adds `s.manage.views.error.structure-settings-fail`, and the form still shows.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureViews#readGlobalData",
+    "com.almworks.jira.structure.webwork.StructureViews#readStructureData",
+    "com.almworks.jira.structure.webwork.StructureViews#isCustomized"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/views/added-view",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`addedView` (view id) on the form adds that view, not on any menu, to the shown list (global defaults or the structure's settings, whichever is edited), only when it is above 0, there are no errors, and it is accessible at `VIEW`. It is not saved until the form is applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureViews#addAddedView"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/views/view-owner-and-missing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A view's owner is shown by user name when the viewer may see that user, `s.manage.user.noowner` when there is no owner, else `s.manage.user.someone`. A view in the settings that the user cannot access shows `s.manage.views.inaccessible.label` and `.description`, and stays in the list.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureViews#formatViewOwner",
+    "com.almworks.jira.structure.webwork.StructureViews#getViewInfoById"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/views/apply-params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureViews!apply.jspa` with `execute=true` builds settings from: `useDefault` (`true` for a structure means settings are undefined, so the global defaults apply, and all other parameters are ignored; ignored for the global page); `view-sequence`, comma-separated view ids in display order, empty for a defined empty list; `v<viewId>-<pageId>-menu`, boolean, for each page in `ViewSettings.ALL_PAGES`; `default-<pageId>-view`, a view id, for each page with a default view, 0 or missing for none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureViews#createViewSettingsFromParameters",
+    "com.almworks.jira.structure.webwork.StructureViews#getDefaultPagesForView"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/views/apply-validate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On apply, a `view-sequence` entry that is not a positive number shows the form again with `s.views.manage.error.badid`, with the id shown as the parsed number, so 0 for text ('invalid view ID 0'). A default view not in `view-sequence` gives the error page `s.manage.views.error.default-not-in-list`. Nothing is stored in either case.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureViews#validateViewIds",
+    "com.almworks.jira.structure.webwork.StructureViews#getDefaultViews"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/views/apply-store",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On apply, the structure is first marked recent for the user (not on the global page). The settings are then stored with `StructureViewManager.setDefaultViewSettings` or `setViewSettings(id, settings)`, and the page finishes with the return URL. A `StructureException` gives the error page `s.manage.views.error.save` with the message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureViews#action",
+    "com.almworks.jira.structure.webwork.StructureViews#applyChanges"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/searchdata/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureSearchData.jspa` accepts GET only. When `isStructureAvailableToCurrentUser()` is false, a logged-in user gets the 'not permitted' page and an anonymous user gets the same page through the `login` outcome.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSearchData#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/searchdata/content",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureSearchData.jspa` returns, with no decorator, three JSON texts for the JQL editor, from Jira's `AutoCompleteJsonGenerator`: visible field names and visible function names for the current user and locale, and the JQL reserved words.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSearchData#getVisibleFieldNamesJson",
+    "com.almworks.jira.structure.webwork.StructureSearchData#getVisibleFunctionNamesJson",
+    "com.almworks.jira.structure.webwork.StructureSearchData#getJqlReservedWordsJson"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/bulkchange/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureBulkChange.jspa` accepts GET and POST. `isStructureAvailableToCurrentUser()` false gives the security-breach page, and so does a user without Jira's global `BULK_CHANGE` permission.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBulkChange#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/bulkchange/issues-param",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`issues` of `/secure/StructureBulkChange.jspa` holds issue ids separated by white space; entries that are not positive numbers are skipped. When it is missing, empty, has no valid id, or none of the ids is an existing issue, the error page shows Jira's text `bulk.edit.you.must.select.at.least.one.issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBulkChange#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/bulkchange/limit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When Jira's property `jira.bulk.edit.limit.issue.count` is a number >= 0 and the issues exceed it, `/secure/StructureBulkChange.jspa` shows the error page with Jira's `bulk.edit.limit.issue.count.error` and the limit. Other values mean no limit.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBulkChange#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/bulkchange/session-bean",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On success `/secure/StructureBulkChange.jspa` stores in the HTTP session, under `jira.bulkeditbean`, a Jira bulk edit bean holding the issues in order, the JQL query `issue in (<ids>)` as search request, current step 2 and, when `homeUrl` is not blank, that URL as the place to return to. It then redirects to `/secure/BulkChooseOperation!default.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBulkChange#action",
+    "com.almworks.jira.structure.bulkedit.StructureBulkEditBean"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/export/flow",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureExport.jspa` accepts GET and POST, and checks in this order: anonymous gets security breach; `isStructureAvailableToCurrentUser()` false gets security breach; `ADMIN` on structure `id` (the usual errors and redirect); `isSynchronizationAllowed(user)` false gets security breach. Without `synctype` it shows the list of synchronizers to pick from.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureImportExport#action",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#requireSynchronizationAllowed"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/export/start",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureExport!apply.jspa` with `execute=true` and `synctype` marks the structure recent, builds the parameters, creates a process handle named `s.manage.export.jobname` ('Exporting from Structure') with buttons to `StructureBoard.jspa?s=<id>` (`s.manage.op.open-structure`) and `ManageStructure.jspa?view=recent` (`s.manage.title.singular`), starts `StructureSyncManager.resyncOnce(module, params, id, user, handle id)` and redirects to `/secure/StructureProcessStatus.jspa?processId=<handle id>`. A `StructureSynchronizerException` shows the form again with `s.manage.export.error` ('Could not start export, sorry! Error: <message>').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureImportExport#action",
+    "com.almworks.jira.structure.webwork.StructureImportExport#createDisplayParameters",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getRedirectToProcess"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/import/flow",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureImport.jspa` accepts GET and POST, and checks in this order: anonymous gets security breach; `isStructureAvailableToCurrentUser()` false gets security breach; `ADMIN` on structure `id` (the usual errors and redirect); `isSynchronizationAllowed(user)` false gets security breach. Without `synctype` it shows the list of synchronizers to pick from.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureImportExport#action",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#requireSynchronizationAllowed"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/import/start",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureImport!apply.jspa` with `execute=true` and `synctype` marks the structure recent, builds the parameters, creates a process handle named `s.manage.import.jobname` ('Importing into Structure') with buttons to `StructureBoard.jspa?s=<id>` (`s.manage.op.open-structure`) and `ManageStructure.jspa?view=recent` (`s.manage.title.singular`), starts `StructureSyncManager.resyncOnce(module, params, id, user, handle id)` and redirects to `/secure/StructureProcessStatus.jspa?processId=<handle id>`. A `StructureSynchronizerException` shows the form again with `s.manage.import.error` ('Could not start import, sorry! Error: <message>').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureImportExport#action",
+    "com.almworks.jira.structure.webwork.StructureImportExport#createDisplayParameters",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getRedirectToProcess"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/import/archived",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureImport.jspa` on an archived structure gives the error page `s.manage.perm.error.archived` ('The operation is disabled for archived structures.'), after the permission checks. `/secure/StructureExport.jspa` has no such check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureImport#checkRequirements",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#requireStructureUnarchived"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/importexport/descriptors",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureImport.jspa` and `/secure/StructureExport.jspa` list the enabled `structure-synchronizer` modules whose object can be loaded and `isAvailable()` is true, sorted by the module's order value, each by complete key, label and description.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#getSyncDescriptors",
+    "com.almworks.jira.structure.webwork.StructureImportExport#isModuleSuitableForAction"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/importexport/bad-synctype",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A `synctype` that is not in that list shows the pick-a-synchronizer page with field error `synctype` `s.manage.sync.new.badtype` ('Please select a valid synchronization type').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#initDescriptor"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/importexport/form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With a valid `synctype` and without `execute=true`, the page shows the synchronizer's parameter form with default values (`addDefaultFormParameters`), the structure's name and the current user. When the synchronizer cannot be loaded, the form area shows `s.manage.addsync.descriptor-problem`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureImportExport#action",
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#getDescriptorForm"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/importexport/params-errors",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On apply, parameters come from `StructureSynchronizer.buildParametersFromForm(request parameters, this page)`. An exception there is logged and treated as a null result. A null result with no errors adds `s.manage.addsync.error.noparam` ('Could not configure the synchronizer.'). Any errors show the form again and no process is created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#createParams"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/importexport/process-id-check",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A process handle id <= 0 gives the error page `s.sync.error.scheduling` ('Error scheduling synchronization: processId = <id>').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getRedirectToProcess"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/gadget/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureExternalGadget.jspa` accepts GET and POST and is reachable without Jira's site access (it may be embedded elsewhere). It checks in this order. Structure unavailable to the user (`isStructureAvailableToUser`): a logged-in user gets the gadget's unavailable page, an anonymous user the login page. `forcelogin=true`: the login page. No `VIEW` on structure `s`, where a missing or unparsable `s` also fails: logged-in, the unavailable page; anonymous, the login page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureExternalGadget#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/gadget/success",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When allowed, `/secure/StructureExternalGadget.jspa` requires web resource `com.almworks.jira.structure:macro-resources` and resource context `structure.widget`, and shows the page with the structure widget, the issue operations, and whether login is offered (`isLoginAllowed`: the user is not authenticated).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureExternalGadget#action",
+    "com.almworks.jira.structure.webwork.StructureExternalGadget#requireMacroResources",
+    "com.almworks.jira.structure.webwork.StructureExternalGadget#isLoginAllowed"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/gadget/unavailable-messages",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The gadget's unavailable page has the title `common.words.error` with the listed messages when there are error messages, else `s.macro.error.title.unavailable`. Its text is: `s.macro.error.plugin.unavailable` when Structure is unavailable to the user; `s.macro.error.structure.deleted` when no structure with id `s` exists; else `s.macro.error.structure.unavailable`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureExternalGadget#isGlobalPermissionMissing",
+    "com.almworks.jira.structure.webwork.StructureExternalGadget#isStructureDeleted"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/gadget/login-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The login outcome of `/secure/StructureExternalGadget.jspa` renders the full Jira login page for the request through the plugin's login-page renderer, in place of the gadget.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureExternalGadget#renderLoginPage"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/welcome/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureWelcome.jspa` accepts GET only and has no Structure-availability check: anyone, anonymous included, sees it (unless the plugin is locked, as on all pages). Each view adds 1 to the total-count statistic `openWelcome`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureWelcome#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/welcome/help-section",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureWelcome.jspa` shows the administrator's help content (help-content-manager: title, content rendered with Jira's `atlassian-wiki-renderer`, contacts) except when there is none or the user is anonymous.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureWelcome#isHelpHidden",
+    "com.almworks.jira.structure.webwork.StructureWelcome#getHelpContentHtml",
+    "com.almworks.jira.structure.webwork.StructureWelcome#getHelpContacts"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/welcome/facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureWelcome.jspa` also presents: `isCreateStructureAllowed(user)`; whether the user has recent structures (recents-manager); the user's avatar URL (from rest-user-builder, also for anonymous); the licence state, which is always licensed; and the image base, the absolute static URL of resource `img` of `com.almworks.jira.structure:welcome`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureWelcome#isCreateStructureAllowed",
+    "com.almworks.jira.structure.webwork.StructureWelcome#isRecentStructuresEmpty",
+    "com.almworks.jira.structure.webwork.StructureWelcome#getAvatarUrl",
+    "com.almworks.jira.structure.webwork.StructureWelcome#isLicensed",
+    "com.almworks.jira.structure.webwork.StructureWelcome#getImagePath"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/welcome/other-apps",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureWelcome.jspa` reports other apps as installed when Jira's plugin accessor knows the plugin and its state is not `UNINSTALLED` (a disabled one counts): `com.almworks.structure.gantt`, `com.almworks.structure.pages`, `com.almworks.jira.colors.colors-plugin`, `com.almworks.testy`, `com.almworks.structure.deliver`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureWelcome#isPluginInstalled",
+    "com.almworks.jira.structure.webwork.StructureWelcome#isGanttInstalled",
+    "com.almworks.jira.structure.webwork.StructureWelcome#isPagesInstalled",
+    "com.almworks.jira.structure.webwork.StructureWelcome#isColorsInstalled",
+    "com.almworks.jira.structure.webwork.StructureWelcome#isTestyInstalled",
+    "com.almworks.jira.structure.webwork.StructureWelcome#isDeliverInstalled"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/welcome/gantt-link",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureWelcome.jspa` offers to create a Gantt structure (`/secure/CreateStructure.jspa?__templateKey=com.almworks.structure.gantt:new-gantt&__welcomeScreen=true`) only when the user may create structures and `com.almworks.structure.gantt` is enabled. With Gantt absent or disabled, no link is offered. The personal backlog entry uses `__templateKey=com.almworks.jira.structure:personal-backlog-structure&__welcomeScreen=true`, when the user may create structures.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureWelcome#isGanttLicensed"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/admin-gate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Every command of `StructureHelp` needs Jira's global `ADMINISTER` permission, checked first: others get the security-breach page, even while the plugin is locked. After that the usual lock check applies, and an administrator gets the 'not ready' page while the plugin is locked. All are also reachable under `/secure/admin/`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#runCheckingAdmin",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#checkAdmin"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/methods",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!view.jspa`, `StructureHelp!edit.jspa` and `StructureHelp!showPreview.jspa` accept GET only. `StructureHelp!clear.jspa`, `StructureHelp!savePreview.jspa`, `StructureHelp!save.jspa` and `StructureHelp!cancel.jspa` accept POST only and require Jira's XSRF token. Jira itself refuses other methods.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#doView",
+    "com.almworks.jira.structure.webwork.StructureHelp#doEdit",
+    "com.almworks.jira.structure.webwork.StructureHelp#doShowPreview",
+    "com.almworks.jira.structure.webwork.StructureHelp#doClear",
+    "com.almworks.jira.structure.webwork.StructureHelp#doSavePreview",
+    "com.almworks.jira.structure.webwork.StructureHelp#doSave",
+    "com.almworks.jira.structure.webwork.StructureHelp#doCancel"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/view",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!view.jspa` redirects to `StructureHelp!showPreview.jspa` when the session holds a preview. Otherwise it shows the saved help content (help-content-manager): rendered title, content and contacts; or, when there is none, a 'fill in' state with `s.admin.help.previewText`. It never shows licence warnings, and the edit and clear controls are always active.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#doView",
+    "com.almworks.jira.structure.webwork.StructureHelp#isHelpEmpty"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/edit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!edit.jspa` shows the form with `title`, `content` (wiki text) and `contacts`, filled from the session's preview if any, else from the saved content. The contacts are also given to the page as a JSON list of contact details (`[]` when empty).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#doEdit",
+    "com.almworks.jira.structure.webwork.StructureHelp#getContactsJson",
+    "com.almworks.jira.structure.webwork.StructureHelp#getContentText"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/content-params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`title`, `content` and `contacts` are read from the request (missing = empty, not trimmed). `contacts` is comma-separated user keys; empty means no contact list (null `contactKeys`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#getHelpContentFromParams"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/validation",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!save.jspa` and `StructureHelp!savePreview.jspa` require a `title` and a `content` that are not blank: field errors `title` `s.admin.help.noTitle` ('Please enter a title') and `contentText` `s.admin.help.noContent` ('Please enter some content'). Nothing is stored on error. These commands have no form page to return to, so the user sees the error page, on which field errors are not listed (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#doValidation",
+    "com.almworks.jira.structure.webwork.StructureHelp#doSave",
+    "com.almworks.jira.structure.webwork.StructureHelp#doSavePreview"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/save",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!save.jspa` stores the content through help-content-manager (property `welcomeScreen.help`), clears the session preview and redirects to `StructureHelp!view.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#doSave"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/save-preview",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!savePreview.jspa` stores the content as JSON (`title`, `content`, `contactKeys`) in the HTTP session under `structure.help.preview`, not in the database, and redirects to `StructureHelp!showPreview.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#doSavePreview",
+    "com.almworks.jira.structure.webwork.StructureHelp#saveHelpContentPreview"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/show-preview",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!showPreview.jspa` shows the session's preview (rendered title, content, contacts) with a way to continue editing, apply or cancel. With no preview in the session it redirects to `StructureHelp!view.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#doShowPreview"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/clear",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!clear.jspa` removes the saved content (help-content-manager), removes the session preview and redirects to `StructureHelp!view.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#doClear"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/cancel",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!cancel.jspa` removes only the session preview, leaves the saved content alone, and redirects to `StructureHelp!view.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#doCancel"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/no-command",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureHelp!default.jspa` redirects to `StructureHelp!view.jspa`. Plain `/secure/StructureHelp.jspa` does so only when `title` and `content` are present; without them validation fails and, with no page for that outcome, Jira shows its error page (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelp#action",
+    "com.almworks.jira.structure.webwork.StructureHelp#doValidation"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/help/dialog",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureHelpDialog.jspa` accepts GET only and has no access check besides the lock: anyone sees it. It returns a dialog fragment with the saved help content (title, content rendered with `atlassian-wiki-renderer`, or HTML-escaped when that renderer is missing, and contacts); with no content, the text `sw.widget.act.help.tips.empty`. It does not look at the session preview.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureHelpDialog#action",
+    "com.almworks.jira.structure.webwork.StructureHelpDialog#getContentHtml",
+    "com.almworks.jira.structure.webwork.StructureHelpDialog#isHelpEmpty"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/setup/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureSetupGuide.jspa` (also `/secure/StructureSetupGuide.jspa`) accepts GET only and needs Jira's global `ADMINISTER`, else the security-breach page. It changes nothing. Parameter `update=true`, used by Jira's post-update link, is not read. It is the plugin's `post.install.url` and `post.update.url` target.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSetupGuide#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/setup/licence-step",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The setup guide's licence step always shows as done (`s.admin.setupguide.license.installed`), and the 'required' heading depends only on the projects step. It never offers to install or update a licence and contacts nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSetupGuide#isLicenseInstalled",
+    "com.almworks.jira.structure.webwork.StructureAdminActionSupport#isLicensed"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/setup/projects-step",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The setup guide's projects step is done when `StructureConfiguration.isEnabledForAllProjects()` is true or `getPickedProjects()` is not empty, and it then shows the count of `getCurrentlyEnabledProjects()`. Otherwise it points to `StructureAdmin!editProjects.jspa?returnUrl=/secure/admin/StructureSetupGuide.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSetupGuide#isAnyProjectEnabled",
+    "com.almworks.jira.structure.webwork.StructureSetupGuide#getEnabledProjectsCount"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/setup/links",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The setup guide links to `StructureAdmin!editAppPermission.jspa?permission=use` and `?permission=createStructure`, each with `returnUrl=/secure/admin/StructureSetupGuide.jspa`, and to `StructureDefaults.jspa`. For a system administrator it also links to `StructureMaintenance.jspa` and shows the statistics section.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSetupGuide#action"
+   ]
+  },
+  {
+   "key": "w1-pages-structures/ww-structure/setup/statistics",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The setup guide's statistics section shows the stored opt-in value (statistics-manager): enabled or not. No statistics are sent either way.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSetupGuide#isStatisticsSendingEnabled"
+   ]
+  }
+ ]
+}

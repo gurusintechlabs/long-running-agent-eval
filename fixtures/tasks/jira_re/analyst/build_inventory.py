@@ -32,7 +32,7 @@ TASK = HERE.parent
 sys.path.insert(0, str(TASK / "hidden"))
 sys.path.insert(0, str(HERE))
 
-from _contract import applies  # noqa: E402,F401  (shared with build_contract and check_spec)
+from _contract import _ancestry, applies, jar_classes  # noqa: E402,F401  (shared with build_contract and check_spec)
 from _support import NON_MODULES, reference  # noqa: E402
 from check_spec import CAMEL, SEED_SPEC, _internal_simple_names, contract_classes, internal_libs  # noqa: E402
 
@@ -43,7 +43,17 @@ TEXT_CHILDREN = {"url-pattern": "url_patterns", "context": "contexts", "dependen
                  "interface": "exports", "fname": "fname", "valid-customfield-type": "valid_customfield_types"}
 
 
-def contract_of(el: ET.Element, labels: dict[str, str], hidden) -> dict:
+def action_commands(classes: dict[str, bytes], name: str) -> list[str]:
+    """Webwork runs `<alias>!x.jspa` through any public no-argument `doX()` returning a String, whether or not
+    the descriptor declares a `<command>` and wherever in the class hierarchy it sits. `doExecute` is the plain
+    URL, not a command."""
+    found = {m.name[2].lower() + m.name[3:] for raw in _ancestry(classes, name) for m in raw.methods
+             if m.access & 0x0001 and m.descriptor == "()Ljava/lang/String;"
+             and re.fullmatch(r"do[A-Z]\w*", m.name) and m.name != "doExecute"}
+    return sorted(found)
+
+
+def contract_of(el: ET.Element, labels: dict[str, str], hidden, classes: dict[str, bytes] | None = None) -> dict:
     """The externally visible parts of one module declaration; ``hidden(value)`` drops internal names."""
     c: dict = {}
     for a, v in el.attrib.items():
@@ -62,9 +72,12 @@ def contract_of(el: ET.Element, labels: dict[str, str], hidden) -> dict:
             k = child.get("key")
             if k in labels:
                 c["label"] = labels[k]
-    actions = [{"alias": a.get("alias"),
-                "commands": [cmd.get("name") for cmd in a.findall("command") if cmd.get("name")]}
-               for a in el.iter("action") if a.get("alias")]
+    actions = []
+    for a in el.iter("action"):
+        if a.get("alias"):
+            declared = [cmd.get("name") for cmd in a.findall("command") if cmd.get("name")]
+            found = action_commands(classes or {}, a.get("name"))
+            actions.append({"alias": a.get("alias"), "commands": declared + [c for c in found if c not in declared]})
     if actions:
         c["actions"] = actions
     if el.findall("restrict"):
@@ -76,6 +89,7 @@ def build(jar: Path, notes: dict, contract: set[str], jira: str, labels: dict[st
           libs: list[str] = ()) -> dict:
     ref = reference(jar, libs)
     internal = _internal_simple_names(ref.all_classes, contract)
+    classes = jar_classes(jar, libs)
 
     def hidden(v: str) -> bool:
         return (any(ref.resolve(n) for n in re.findall(r"[\w$.]+", v) if "." in n and n not in contract)
@@ -104,7 +118,7 @@ def build(jar: Path, notes: dict, contract: set[str], jira: str, labels: dict[st
         modules.append({
             "key": m.key, "type": m.element, "name": None if name is None or hidden(name) else name, "class": cls,
             "group": n.get("group"), "purpose": n.get("purpose"), "related": n.get("related", []),
-            "confidence": n.get("confidence"), "contract": {**contract_of(el, labels, hidden), **n.get("contract", {})},
+            "confidence": n.get("confidence"), "contract": {**contract_of(el, labels, hidden, classes), **n.get("contract", {})},
         })
     return {
         "plugin": {"key": root.get("key"), "name": root.get("name"),

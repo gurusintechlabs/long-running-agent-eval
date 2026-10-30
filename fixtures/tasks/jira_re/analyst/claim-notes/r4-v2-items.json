@@ -1,0 +1,1333 @@
+{
+ "claims": [
+  {
+   "key": "r4-v2-items/rest-v2/item-create-pre-job-checks",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: on a first call (no `jobId`) the forest spec is converted on the request thread, before any job starts. `forest.spec` absent gives 400 with `error` = `Invalid request data` and `message` = `Forest spec is required`; an invalid spec gives the same 400 with the spec's own reason; `forest` itself absent gives 500 plain text (a null pointer failure). A missing body gives 500 plain text as well. On a repeat call with `jobId` none of this is looked at: only the job's result is waited for.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createItem",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async",
+    "com.almworks.jira.structure.api.forest.ForestSpec#fromRest"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-job-executor",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: the work runs on the `generator` executor of `job-manager`; a `StructureException` raised in the job reaches the client with the status of its category, and any other runtime failure in the job as 500 plain text with the exception message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createItem",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async",
+    "com.almworks.structure.commons.rest.RestExceptionMapper#toResponse"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-forest-actionable",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: the forest source is obtained from `ForestService.getForestSource` first (its `StructureException` is passed on). When `ForestSource.isActionable()` is false the request fails with `StructureErrors.UNSUPPORTED_FOREST_SOURCE_OPERATION` and the message `Forest source does not accept actions`: nothing is created and no `createItem` counter moves (only the unique-user counter `activeUser`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createItem0"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-usage-counters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: for each request that gets past the actionable check, `statistics-manager` counts `createItem` (total and active user), plus `createItem.inline` when `item.itemId` is blank. After the attempt exactly one result family is counted: `createItem.errors.item` when `formErrors` or `fieldErrors` is set; else `createItem.errors.forest` when `updateError` has an error; else `createItem.interaction` when `updateError` has questions; else `createItem.success`, plus `createItem.success.effects` when any applied effect of any batch is external. Unique-user counter `activeUser` is counted once per request.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#statRequest",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#statResponse",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createItem0"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-signature-rule",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: the request's position is usable when the signature of the forest source's latest version equals `forest.version.signature`, or when none of `under`, `after`, `before` is a transient (generated) row id. Otherwise (a transient position from another forest generation) the row is not inserted: see the signature mismatch answers. `forest.version` absent gives 500 plain text (null pointer) before anything is created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createAndInsertItem",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#hasTransientCoordinates"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-null-position-defaults",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: `rowId`, `semantics`, `under`, `after` and `before` absent or null count as 0. The insertion is a `ForestAction.Add` of a one-row fragment at depth 0 holding the row `rowId` with the item, at (`under`, `after`, `before`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createAdd",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createAndInsertItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-parameters-null",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: `parameters` absent or null makes the trial insertion fail with a null pointer failure, so the call answers 500 plain text and creates nothing (as the original does); the client always sends an object. The exception is a request whose signature rule failed: no trial is applied then, and the null does no harm. An empty object is the normal 'no answers' form.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#dryRun",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createAndInsertItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-trial-parameters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: the trial insertion calls `ForestSource.apply` with a copy of `parameters` plus `dryRun` = true and `newItem` = true; the request's `parameters` map is not changed. `dryRun` makes the forest source change nothing. `newItem` tells the generators `inserter-jql`, `inserter-text`, `agile-board` and `extender-subtasks` that the row is a brand-new item, so they still handle the action when action handling is otherwise switched off for them (`disableActions`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#dryRun",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#newItem",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#isConsumingNewItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-existing-item-parse",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: a non-blank `item.itemId` means an existing item and `item.type` and `item.values` are ignored. It is parsed with `ItemIdentity.parse`; a parse failure gives `StructureErrors.INVALID_PARAMETER` with the parser's message (400). A blank or absent `itemId` (whitespace counts as blank) means a new item. `item` absent gives 500 plain text (null pointer).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createAndInsertItem",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#statRequest"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-existing-item-trial-ignored",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: for an existing item the trial insertion is run but its answer is thrown away: a question or refusal from it is not returned, and the real insertion is attempted anyway (what it says then is what the client sees). The only use of the trial here is to learn which extenders would handle the row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createAndInsertItem",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#dryRun"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-type-resolution",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: for a new item, `item.type` blank or absent gives `StructureErrors.INVALID_PARAMETER` `Item type is required`. The type is looked up among the enabled item types by complete module key; not found gives `StructureErrors.UNAVAILABLE_MODULE` `Item type <type> is not found`; a type that is not a `CreatableItemType` gives error 6009 `CAPABILITY_NOT_SUPPORTED_BY_MODULE` `Item type <type> does not support item creation`; any other exception or `LinkageError` while looking it up gives `StructureErrors.MODULE_ERROR` with the exception's message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#getCreatableItemType"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-dummy-row",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: for a new item, `CreatableItemType.createDummyRow(rowId, semantics, values, errors)` is called first, and nothing is stored by this step. When it reports errors or returns null with errors, the response carries `formErrors` and `fieldErrors` (both set, either may be empty), `itemId` absent and `successfulActions` 0. When it returns null without errors the call fails with `StructureErrors.CREATE_ITEM_FAILED` `Item type <type> did not create dummy row`. A `StructureException` passes through; any other exception or `LinkageError` becomes `StructureErrors.MODULE_ERROR`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createDummyRow",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#errorResponse"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-create-anyway",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: when `parameters` has `0:CreateAnyway` true (boolean true, or text `true` in any case with surrounding spaces, or a one-element list of those) the trial insertion is skipped for a new item and the item is created whatever the forest would say. Any other value means the trial is run.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createAndInsertItem",
+    "com.almworks.jira.structure.api.util.StructureUtil#getSingleParameterBoolean"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-trial-question",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: when the trial insertion raises a question (`StructureInteractionException`), nothing is created and the response carries the questions in `updateError.interactions`, one per interaction parameter (id, row, message, values with `value`, `iconHtml`, `message` = explanation, `possible`), each with `itemCount` 1 and the row's `itemDescription` and `itemUrl`. The exception: when a possible value of the `0:PrimaryGenerator` question names (by a positive row id) a generator row of `inserter-jql`, `inserter-text`, `agile-board` or `extender-subtasks`, the question is dropped and creation goes on.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#dryRun",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#setInteractions",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#isConflictWithNewItemConsumer",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#getGeneratorDrivers"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-trial-refusal-question",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: when the trial insertion is refused with a `StructureException` and the type is not a `StructureOwnedItemType`, nothing is created and `updateError.interactions` holds exactly one question: `parameter` `0:CreateAnyway`, `row` = the exception's row, `message` = text of `s.ext.gen.create.dry-run-error` (English `It will be impossible to add it to the structure because of the automation installed: <reason>`) with the exception's localized message, `itemCount` 1, `itemDescription`, `itemUrl`, and one value: `value` true, `iconHtml` null, `message` = text of `s.ext.gen.create.anyway` (`Create anyway`), `possible` true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#setDryRunAddQuestion",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#dryRun"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-trial-refusal-owned",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: when the trial insertion is refused and the type is a `StructureOwnedItemType` (an item that makes no sense outside the structure) the item is not created and no question is offered: `updateError.error` carries the error with its message wrapped in the text of `s.ext.gen.create.dry-run-error` and `itemCount` 1, `itemDescription`, `itemUrl`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#setAddError",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#dryRun"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-trial-signature",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: for a new item whose position fails the signature rule, no trial is applied: the outcome is treated as a refusal with `StructureErrors.SIGNATURE_MISMATCH` for the row, the wrapping text being `s.ext.gen.create.dry-run-error-signature` (`It will be impossible to add it to the structure because the structure has been re-generated.`). So it is the `0:CreateAnyway` question, or the error for a `StructureOwnedItemType`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#dryRun",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#setDryRunAddQuestion"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-display-text",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: the `itemDescription` and `itemUrl` of questions and errors come from the attribute service for the one-row fragment (`CoreAttributeSpecs.DISPLAYABLE_TEXT` and `CoreAttributeSpecs.URL`). An empty or missing text falls back to the item identity's string form; the URL may be null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#getItemDisplayable"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-note-keys",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: before creating, keys of `item.values` that start with `itemproperty.` and whose rest names a property `item-property-editors` has an editor for (`notes`, an existing `dc_note_<n>`) are removed from the values, at the top level and in every nested JSON object (not inside arrays); the item type never sees them. Keys with that prefix and no editor stay in the values. `item.values` absent gives 500 plain text (null pointer) after the trial insertion.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#extractItemPropertiesRecursively",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#extractItemProperties"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-create-item",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: the item is created by `CreatableItemType.createItem(values, errors)` with the values after note keys are removed. When errors were reported, or the result is null with errors, the response has `formErrors` and `fieldErrors` and nothing is inserted, also when an item id was returned. Null without errors gives `StructureErrors.CREATE_ITEM_FAILED` `Item type <type> did not create an item`. A `StructureException` passes through; any other exception or `LinkageError` becomes `StructureErrors.MODULE_ERROR`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createItem",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#errorResponse"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-note-values",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: after a successful creation each extracted note value that is a string is stored for the new item in the structure of the request's forest spec, through `item-property-editors`. Errors from those edits are not reported: the response stays a success and the note is simply not set (as the original does). A non-string, non-null value is skipped with a warning in the log. A null value fails with a null pointer failure, giving 500 plain text after the item was created and not inserted (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#updateProperties",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createAndInsertItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-find-generated-row",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: after the item exists (new or existing) the server looks for a generated row of it, before inserting. For a new item the forest update is taken since the latest version seen before creation; for an existing item since the client's `forest.version`. Only an incremental update is searched: its `ForestChange.Add` changes in order, their rows in order. The first row that has a transient id, the same item, semantics equal to the request's (or the request's being 0), and whose add parent has the same static ancestor as `under` is taken. A full (non-incremental) update finds nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#searchForGeneratedRow",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#findNewRow"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-static-ancestor",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: the static ancestor of a row is found on its path from the row itself up to the root: the nearest row which, followed back through `TransientRow.getOriginalId` to its original row, has creator 0 (was not made by a generator). It is 0 when `under` is 0, when the row is not in the forest, or when no row on the path qualifies.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#findStaticUnder",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#getOriginalRow"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-extender-needs-insert",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: a found row is ignored (and a normal insertion is made) when extenders were noted as handling the add and the row was not made by one of them. Those extenders are the ones the trial insertion reported as having handled an add, copy or move, or that appeared as possible values of a `0:PrimaryGenerator` question. The row's maker is read by following it back through `TransientRow` originals; the last creator seen counts, and creator 0 means 'needs insert'. With no such extenders the found row is always used. If the chain cannot be followed (`MissingRowException`) the found row is used, with a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#extenderNeedsInsert",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#fillHandlingExtendersFromSuccess",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#fillHandlingExtendersFromInteraction"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-reuse-generated-row",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: when a generated row is used, nothing is inserted: `successfulActions` is 1, `itemId` the item, `oldRowIds` [`rowId`] and `newRowIds` [the found row]. `effects` and `problems` are absent unless the row was moved.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#searchForGeneratedRow"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-move-generated-row",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: a used generated row is moved to (`under`, `after`, `before`) with `ForestSource.apply` and the request's `parameters` when its parent or preceding sibling differs from `under` or `after`, the signature rule holds, and it did not land under another root (that is, unless `under` is itself static and the row's parent differs from it). A row id replacement for it is reported in `newRowIds`; `effects` and `problems` are then set. A failed move (any `StructureException`, questions included) is swallowed: the answer is still a success with the row where it is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#searchForGeneratedRow"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-insert-success",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: without a usable generated row, the row is added with `ForestSource.apply` and the request's `parameters` (the item's real row, id `rowId`). On success `successfulActions` is 1, `itemId` the item's string form, `oldRowIds`/`newRowIds` the keys and values of the action's row id replacements (both absent when it reports none), and `effects` and `problems` the action's batches and problems (empty lists when none).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#insertRow",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#setEffects"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-insert-signature",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: when the signature rule fails at the real insertion (an existing item, or a new item created with `0:CreateAnyway`), no action is applied: `successfulActions` 0, `itemId` set, and `updateError.error` is `StructureErrors.SIGNATURE_MISMATCH` for `rowId`, localized `s.error.forest.signature-mismatch`, wrapped in the text of `s.ext.gen.create.add-error-signature` (`It was impossible to add it to the structure because the structure has been re-generated.`), with `itemCount` 1, `itemDescription`, `itemUrl`. A created item stays created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#insertRow",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#setAddError"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-insert-refused",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: when the real insertion raises a question the response has `updateError.interactions` with `itemId` set and `successfulActions` 0, and the client may resend with the answers. When it is refused with a `StructureException`, `updateError.error` wraps the message in the text of `s.ext.gen.create.add-error` (`It was impossible to add it to the structure because of the automation installed: <reason>`) with `itemCount` 1, `itemDescription`, `itemUrl`; `itemId` is set and a created item stays created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#insertRow",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#setAddError",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#setInteractions"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-response-tail",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: every answer that reaches the end, including `formErrors` answers, questions and refusals, also carries `forestUpdates` (one `forest-update`, from the request's `forest.version` for its spec), `itemsUpdate` (from `items.version`), `itemTypes` and `extensionData` (each installed extension's answer to its entry of `extensionRequests`; an extension that throws is skipped; absent when none answers). `undoEffects` is never filled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createItem0",
+    "com.almworks.jira.structure.rest.ExtensionDataRetriever#getExtensionData"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-create-items-missing",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/create`: `items` or `items.version` absent is noticed only after the item was created and inserted: the call then answers 500 plain text (null pointer) although the change was made (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#createItem0"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-update-pre-job-checks",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/update`: on a first call `forest.spec` absent gives 400 `Invalid request data` `Forest spec is required`, an invalid spec the same 400 with its reason, and `forest` absent or a JSON `null` body 500 plain text, all on the request thread. The work runs on the `generator` executor of `job-manager`. With `jobId` these are not looked at.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#updateItem",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-update-id-checks",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/update`: `item.itemId` blank or absent gives `StructureErrors.INVALID_PARAMETER` `Item ID is required`; one that does not parse gives `StructureErrors.INVALID_PARAMETER` with the parser's message; an item identity whose type has no enabled item type gives `StructureErrors.INVALID_PARAMETER` `Item type <type> is not found`. All are raised (400), nothing is changed, and only the counter `updateItem` moves. `item` absent gives 500 plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#updateItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-update-notes-first",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/update`: keys of `item.values` that start with `itemproperty.` and whose rest has an editor in `item-property-editors` are removed from the values and applied first, in the structure of the request's forest spec. Unlike creation only top-level keys are looked at. String values are stored; a non-string non-null value is skipped with a warning; keys with no editor stay in the values for the item type. Edit errors go into the same collection as the item type's errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#updateItem",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#extractItemProperties",
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#updateProperties"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-update-values",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/update`: when values remain after the note keys, the type must be an `UpdatableItemType`, else the call fails with `StructureErrors.INVALID_PARAMETER` `Item type <type> does not support item updates` (notes already written stay written). `UpdatableItemType.updateItem(id, values, errors)` then runs even if a note edit reported an error. When no values remain the type is not asked, so note-only updates work on any type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#updateItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-update-failures",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/update`: a `StructureException` from the update passes through. Any other exception or `LinkageError` becomes `StructureErrors.MODULE_ERROR` for that item with the exception's message (500). This includes `item.values` absent and a null note value: both are null pointer failures inside that guarded part, so the answer is that error rather than 500 plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#updateItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-update-response",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/update`: `success` is false and `formErrors` and `fieldErrors` are set (both, either may be empty) when any error was reported; otherwise `success` is true and those two are absent. `successfulActions` is always 1, also on failure. `itemsUpdate` comes from `items.version`, `forestUpdates` holds one update from `forest.version`, and `itemTypes` and `extensionData` are as for item creation. `items`, `items.version` or `forest.version` absent is noticed after the update was made: 500 plain text (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#updateItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-update-counters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/item/update`: `statistics-manager` counts `updateItem` (total and active user) for every request reaching the job, then `updateItem.errors` or `updateItem.success`. Unique-user counter `activeUser` is counted only when the update ran without raising.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ItemResource#updateItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-pre-job-checks",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` and `POST /rest/structure/2.0/effect/redo`: on a first call `forest` or `forest.spec` absent gives 400 with `error` `Invalid request data` and `message` `Forest spec is required`, on the request thread; an invalid spec gives the same 400 with its reason. The work runs on the `generator` executor of `job-manager`. A JSON `null` body gives 500 plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectResource#undoOrRedo",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-ids-required",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` and `POST /rest/structure/2.0/effect/redo`: `effectIds` absent or empty gives 400 `Invalid request data` `Effect IDs are required`, raised before the forest source is obtained. A forest source of a kind with no undo support gives 400 `Invalid request data` `This forest does not support undo/redo`, before any counter moves.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectResource#undoOrRedo0"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-non-transforming-source",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` and `POST /rest/structure/2.0/effect/redo`: the forests a client can name normally arrive wrapped by the security layer, which does support the call; if the forest under it cannot undo (a clipboard or other plain forest) the failure is `StructureErrors.UNSUPPORTED_FOREST_SOURCE_OPERATION` `Source forest does not support undo/redo: ...`, reported in `updateError` with status 200, not as the 400 above.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SecuredForestSource#applyUndoRedo",
+    "com.almworks.jira.structure.rest.v2.javax.EffectResource#undoOrRedo0"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-unknown-batch",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` and `POST /rest/structure/2.0/effect/redo`: every id is loaded through `effect-service` before anything is done. If any batch is gone (expired or unknown), nothing is undone or redone and the answer is a success: `effects` empty, `problems` one entry with row 0 and the text of `s.ext.gen.undo.effect-not-found` (`This action can no longer be undone.`) or `s.ext.gen.redo.effect-not-found` (`This action can no longer be redone.`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GeneratingForestSource#applyUndoRedo"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-order",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` handles the batches in reverse of `effectIds` and each batch's effects in reverse, using each effect's inverse (none means nothing is done for it); `POST /rest/structure/2.0/effect/redo` handles them in the given order with the original effects. The `effects` and `problems` of the response follow the order of `effectIds` in both cases, with effects in the batch's forward order.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.ActionContext#applyUndoRedo"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-already-in-state",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` of a batch that is already undone and `POST /rest/structure/2.0/effect/redo` of one that is not undone change nothing: the response has an entry in `effects` for that batch id with an empty effect list, and no problem.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.ActionContext#applyUndoRedo"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-blocked-and-failed",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` and `POST /rest/structure/2.0/effect/redo`: an effect that is blocked when prepared, or whose application throws, adds a `problems` entry (generator row and explanation or localized exception message) and is left out of the batch's applied list; the other effects of the batch still run, and the batch counts as undone or redone. An applied effect keeps its generator row, external flag and explanation.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.ActionContext#applyUndoRedo"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-row-replacements",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` and `POST /rest/structure/2.0/effect/redo`: `oldRowIds` and `newRowIds` are the keys and values of the action's row id replacements, both absent when it reports none. Rows that the original action replaced are put back only when the request's forest has the same spec and the same version signature as when the batch was recorded.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectResource#undoOrRedo0",
+    "com.almworks.jira.structure.forest.gfs.ActionContext#applyUndoRedo"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-failure-reporting",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` and `POST /rest/structure/2.0/effect/redo`: a `StructureException` from the undo or redo is put in `updateError.error` with status 200, with `effects` and `problems` empty lists and `successfulActions` still 1. An interaction exception is not expected there: with assertions enabled (as the tests run) it throws `AssertionError`; with them disabled it is reported as that error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectResource#undoOrRedo0"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-optional-updates",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` and `POST /rest/structure/2.0/effect/redo`: `forestUpdates` holds one update only when `forest.version` was given, and `itemsUpdate` only when `items` was given; `items` given without a `version` gives 500 plain text after the action was done (as the original does). `itemTypes` and `extensionData` are always answered as for item creation.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectResource#undoOrRedo0"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/effect-counters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effect/undo` and `POST /rest/structure/2.0/effect/redo`: `statistics-manager` counts unique user `activeUser`, `undoRedo` (total and active user) and then `undoRedo.errors` when `updateError` is set, else `undoRedo.success`, plus `undoRedo.success.effects` when any applied effect is external. Undo and redo share these counters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectResource#statRequest",
+    "com.almworks.jira.structure.rest.v2.javax.EffectResource#statResponse"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/value-spec-conversion",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/value`: on a first call the forest specs of all entries are converted on the request thread, so one entry with a missing or invalid `forestSpec` fails the whole request with 400 `Invalid request data` (`Forest spec is required` when missing), even if that entry has no rows. `requests` absent gives 500 plain text (null pointer, in the job) although the spec calls it required; an empty list gives `responses` empty, `itemTypes` empty and `itemsVersion` {0,0}.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getData",
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getData0"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/value-job",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/value`: the work runs on the `attribute` executor of `job-manager`. The job carries a copy of Jira's Velocity request context built from the current request and the absolute base URL, set on the job's thread, so values rendered there (links, HTML) use the caller's base URL.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getData"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/value-empty-entry",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/value`: an entry with `rows` or `attributes` absent or empty answers only its `forestSpec`, echoed as sent; nothing is computed for it and it does not affect `itemsVersion`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getData"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/value-inaccessible-rows",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/value`: rows are filtered in two steps. Rows unknown to `RowManager`, and rows whose item is not an issue and resolves to nothing, are dropped first; then rows `ForestAccessCache.getInvisibleRows` reports for the current user (`StructureAuth`). Neither gets a value. `rows` holds the remaining rows in request order, and `inaccessibleRows` the dropped rows (the first group, then the second; order within a group is not defined), absent when none. An issue row is not resolved in the first step.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getMissingItemRows",
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getDeniedRows",
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getData"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/value-columns",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/value`: attribute specs are converted by `RestAttributeSpec.fromRestCollection` (unknown formats dropped), and values come from `StructureAttributeService.getAttributeValues` for the forest spec, in non-strict mode, for the remaining rows. `data` has one `row-values-attribute-column` per kept spec in request order: `attribute` normalized by `RestAttributeSpec.toRest`, `values` one per entry of `rows` (null when none), `trails` an empty list, `trailMode` null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getData",
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#buildRowData"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/value-versions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/value`: `forestVersion` of an entry is the forest version reported with its values. `itemsVersion` of the response is the items version of the first computed entry, replaced by a later entry's only when the two are comparable and the later one is older; {0,0} when nothing was computed. `itemTypes` is always an empty object.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getData",
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getData0"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/value-all-denied",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/value`: when every row of an entry is inaccessible the entry still answers with `rows` empty, `data` with one column per kept attribute (empty `values`), `inaccessibleRows`, and the attribute service is still asked (with no rows).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.RowValueResource#getData"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-status",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/effectorProcess/{processId}/status`: the process is read with `EffectorProcessManager.getProcess` (error 6017 for an unknown id or a caller who is neither its owner nor a Jira administrator). When its process handle is gone it fails with `StructureErrors.GENERIC_ERROR` `Cannot find process handle #<handle id>` (500). Otherwise `effector-process-progress`: the stored status, the handle's percent complete and cancelled flag.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#getStatus"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-cancel",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/cancel`: delegates to `EffectorProcessManager.cancel` and answers `empty-ok` (`{\"empty\": true}`) at once, for a process in any status, finished ones included; the access rule and missing-handle error are the manager's (a 500 `structure-error` with `Failed to cancel process #<id>. Cannot find process handle #<handle id>`). A JSON body is needed only to make it a JSON POST.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#cancel",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#cancel"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-cancel-and-wait",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/cancelAndWait`: reads the process (error 6017 as for status). In status `PENDING`, `CALCULATING`, `CALCULATED`, `QUEUED` or `IN_PROGRESS` it requests cancellation, sleeps 500 ms, reads the process again and answers it, so the answer may still show the old status. In any other status it answers the process at once without changing it. A gone handle in a cancellable status gives 500 `structure-error` as for cancel. An interrupt during the sleep ends the sleep and keeps the thread's interrupt flag.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#cancelAndWait",
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#updateProcess",
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#shortSleep"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-resume",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/resume`: reads the process (error 6017 as for status). In status `APPLY_INTERRUPTED` it calls `EffectorProcessManager.resumeInterrupted`, sleeps 500 ms, and answers the process read again; a failed resume gives 500 `structure-error`. In any other status it answers the process at once without changing it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#resume",
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#updateProcess"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-undo",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/undo`: calls `EffectorProcessManager.startUndoProcess` for all records of the process and answers the new process id as a bare JSON number. Any `StructureException` is answered directly as a `structure-error` with the status of its category; checks and their order are the manager's.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#undo",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#startUndoProcess"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-paging-validation",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/list`, `POST /rest/structure/2.0/effectorProcess/{processId}/records` and `POST /rest/structure/2.0/effectorProcess/{processId}/preview`: the paging values are checked before anything else, including access to the process. `startAt` below 0 gives 400 plain text `'startAt' cannot be negative`; `maxResults` below -1 gives 400 plain text `invalid 'maxResults' value`. A JSON `null` body gives 500 plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#validateRequest"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-paging-page",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/list`, `POST /rest/structure/2.0/effectorProcess/{processId}/records` and `POST /rest/structure/2.0/effectorProcess/{processId}/preview`: the page is the elements from `startAt` up to `startAt` + `maxResults`, cut at the end of the list; `maxResults` 0 gives an empty page; `startAt` equal to the list size gives an empty page; `startAt` beyond it gives 400 `Invalid request data` (an illegal range), not plain text. `maxResults` -1 means all, but only with `startAt` 0: with `startAt` above 0 the end overflows and the call answers that same 400 (as the original does). `pagination` echoes `startAt` and `maxResults`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#getPage",
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#createPaginationResponse",
+    "com.almworks.structure.commons.rest.RestExceptionMapper#toResponse"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-list-access",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/list`: after the paging check, an anonymous caller (or a user without a key) gets 404 with no body. A non-administrator's `params.user` is overwritten with the caller's key. An administrator's `user` is a user key; absent or unknown means no user filter. `params` absent counts as empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#getProcesses"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-list-filters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/list`: `status` must be an exact `effector-process-status` name, anything else means no status filter; `structure` is read as a long, anything unparsable means no structure filter. The result is `EffectorProcessManager.findProcesses` (newest first), `pagination.total` their count, `errors` 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#findProcesses",
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#getStatus",
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#getProcesses"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-records",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/records`: after the paging check the records come from `EffectorProcessManager.getEffectRecords` (error 6017 for no access), are filtered, then paged; `pagination.total` is the filtered count, `errors` 0. `params` absent or without `itemKey` means no filter.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#findRecords",
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#filterRecords"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-records-item-key",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/records`: an `itemKey` with `-` after its first character is an issue key: it is trimmed and upper-cased, looked up with `IssueManager.getIssueObject`, and no such issue gives an empty list. Otherwise, after trimming, `MEMO:<n>` selects `CoreIdentities.memo(n)` and `PT:<n>` `CoreIdentities.planningTask(n)`, exact upper-case words and n a positive number with no leading zero. Anything else gives an empty list; a number too big for a long gives 400 `Invalid request data` (as the original does). A record is kept when its affected items contain the item.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#filterRecords",
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#filterRecordsByItemId"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-preview",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/preview`: after the paging check, `getProcess` (error 6017), then no `EffectorProcess.getEffectorPreview` gives 404 plain text `No preview found`. Otherwise a page of the preview effects; `pagination.total` is the number of all preview effects and `errors` counts, over all of them and not only the page, those that are warnings or whose effect provider is not installed. `params` is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#findPreview",
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#countErrors"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-acknowledge",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/acknowledge`: each non-null id is passed to `EffectorProcessManager.acknowledgeFinished`; a `StructureException` for one id is logged as a warning and the next id is tried. A JSON `null` body does nothing. The answer is always `empty-ok` (`{\"empty\": true}`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.EffectorProcessResource#acknowledgeMany"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/record-preview-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/preview`: each `effect-record` has `processId`, `index` = `startAt` plus its position in the page, `timestamp` 0, no `undo`, and `isError` true when the effect resolves to an error response (absent otherwise). An effect whose provider is not installed resolves to an error with the text of `s.ext.effect.unavailable-effect-provider` (`Cannot display a description, because the app that initiated the effect is not available`) and no affected items.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.EffectRecordsSerializer#createRestPreviewRecords",
+    "com.almworks.jira.structure.rest.v2.EffectRecordsSerializer#resolve"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/record-preview-text",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/preview`: the `effect` text of a non-error effect whose provider supplies its own HTML description is that HTML, unescaped (the description given to the provider has any pending item references resolved first when the provider also supports conflicts). For every other effect, and every error, `effect` is the description in the current user's language, HTML-escaped.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.EffectRecordsSerializer#createRestPreviewRecords"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/record-applied-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/records`: each `effect-record` has `effect` = the stored message in the current user's language, HTML-escaped; `processId`, `timestamp` and `index` (the record's preview index) as stored. An error record has `isError` true and no `undo`. Otherwise `undo` is the HTML-escaped description of the stored undo effect as its provider resolves it (null when there is none; the unavailable-provider text when its provider is gone).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.EffectRecordsSerializer#createRestRecord",
+    "com.almworks.jira.structure.rest.v2.EffectRecordsSerializer#createUndo"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/record-affected-items",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/{processId}/records` and `POST /rest/structure/2.0/effectorProcess/{processId}/preview`: `affectedItems` lists each affected item with `itemId` (string form), `description` and `url`. The description is the `CoreAttributeSpecs.KEY` value for issues, memos and planning tasks, and `CoreAttributeSpecs.DISPLAYABLE_TEXT` for other items; the URL comes from the URL attribute. Both are read through the attribute service in one batch per kind for the items of the page, and either may be null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.EffectRecordsSerializer#createRestDescriptions",
+    "com.almworks.jira.structure.rest.v2.EffectRecordsSerializer#loadItemDescriptions",
+    "com.almworks.jira.structure.rest.v2.EffectRecordsSerializer#load"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-shape-basics",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/list`: in each `effector-process`, `started` and `finished` are formatted with Jira's date-time formatter for the logged-in user in complete style, and are the empty string when the time is unknown. `user` is null when no user has `userKey` any more, else built by `rest-user-builder` for the current user. `revertedProcessId` is as stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.EffectorProcessSerializer#createRestProcesses",
+    "com.almworks.jira.structure.rest.v2.EffectorProcessSerializer#getUser",
+    "com.almworks.jira.structure.rest.v2.EffectorProcessSerializer#formatDate"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-shape-status",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/list`: `status` of an `effector-process` never fails: when the process handle is gone it holds the stored status, `percentComplete` 0 and `canceled` false, with a warning in the log. This differs from the status endpoint, which fails in that case.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.EffectorProcessSerializer#getStatus"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-shape-structure",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/list`: `structure` of an `effector-process` is taken from the process's stored structure id, or else from the structure of its one-off forest spec, and is null when neither exists. When `StructureManager.getStructure(id, VIEW)` fails for the caller it is {id, name null}, so the id is shown even for a deleted or hidden structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.EffectorProcessSerializer#getStructure"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/process-shape-effectors",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/effectorProcess/list`: `effectors` has one entry per stored effector instance, in stored order, with the instance id and its summary as `name` (empty text when no summary). A one-off run has one entry with `id` null and the summary of its module and parameters. A process with neither, such as an undo process, has an empty list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.EffectorProcessSerializer#getEffectors",
+    "com.almworks.jira.structure.rest.v2.EffectorProcessSerializer#getEffectorInfo",
+    "com.almworks.jira.structure.effector.EffectorUIUtil#getEffectorName"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/expr-missing",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/expr/validate`: the counter `exprLanguage` (total and active user) moves first. `expr` absent gives 400 plain text `no expr`. A JSON `null` body gives 500 plain text. An empty string is analysed like any other text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ExprResource#validate"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/expr-parse-failure",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/expr/validate`: analysis is by `expr-parser`. `valid` and `resolved` are its answers. On a parse failure `errorIndex` and `expectedTokens` are set; `expectedTokens` lists the parser's tokens, then `identifier` when a name would fit, then `literal` when a literal would fit (in that order). Without a parse failure both are absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ExprResource#validate"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/expr-variables",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/expr/validate`: `definedVariables` entries are compared in `expr-parser`'s canonical name form; absent means an empty list. A variable declared in the formula is `resolved` true with `declaration` set when its declaration range is known; a free variable is `resolved` true only when its canonical name is in that list, and has no `declaration`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ExprResource#validate",
+    "com.almworks.jira.structure.rest.v2.javax.ExprResource#collectCanonicalNames"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/expr-errors-once",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/expr/validate`: each validation problem appears once. Usage ranges of variables, then of functions, then of aggregations take their error first; a declaration range takes one next; whatever is left is listed in `errors` (no defined order), localized for the current user. `comments` never carry an error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ExprResource#validate",
+    "com.almworks.jira.structure.rest.v2.javax.ExprResource#createReport"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/expr-functions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/expr/validate`: entries of `functions` and `aggregations` have `resolved` as the analysis says, and `description` (localized) and `documentationUrl` only when the language knows the function or aggregation.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ExprResource#validate"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/expr-counters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/expr/validate`: after a valid request `statistics-manager` counts `exprLanguage.valid` or `exprLanguage.invalid`; for each used function with at least one non-empty range, `exprLanguage.fun.resolved.<name>` or `exprLanguage.fun.unresolved.<name>`; and for a complexity above 0, the value in the distribution `exprLanguage.complexity` with bounds 10, 50, 100, 1000. These count totals only.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ExprResource#statReply"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/macro-settings-ping",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/macro/settings`: `ping=true` answers exactly `{\"structureInstalled\": true}` to anyone, before any check of the user; the other parameters are ignored. The method is exempt from the 'use' permission part of the access gate, so a caller without it gets 200, not 403. `loggedIn=true` from an anonymous caller still gives 401.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.MacroResource#settings"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/macro-settings-unavailable",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/macro/settings`: when the current user may not use the app, the answer is 200 with `error` = text of `s.macro.error.plugin.unavailable` (`Structure plugin is not available to the current user. Contact the administrator to change the setting.`), `supportedOptions` and null lists.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.MacroResource#settings"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/macro-settings-lists",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/macro/settings`: `structures` are `StructureManager.getAllStructures(VIEW)` and `views` `StructureViewManager.getViews(VIEW)`, in the order they return, each as a `macro-choice` with the id as a decimal string `key` and the name as `value`. `supportedOptions.oneSavedFilter` is always true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.MacroResource#settings",
+    "com.almworks.jira.structure.rest.v2.javax.MacroResource$RestEntity#create"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/macro-settings-one-filter",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/macro/settings`: with `oneSavedFilter=true`, `savedfilters` holds the filter `SearchRequestManager.getSearchRequestById(user, savedFilterId)` returns, or is empty when the id is absent or it returns null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.MacroResource#settings"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/macro-settings-all-filters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/macro/settings`: without `oneSavedFilter=true`, `savedfilters` holds every filter from `SearchRequestManager.getAllIndexableSharedEntities()` for which `ShareManager.isSharedWith(user, filter)` is true, in that order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.MacroResource#settings"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/macro-settings-failure",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/macro/settings`: a `RuntimeException` while reading is logged and its localized message goes to `error`, with status 200; lists filled before the failure stay, later ones stay null (`savedfilters` keeps what was added).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.MacroResource#settings"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/macro-search-filters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/macro/search-filters`: searches `SearchRequestManager.search` as the current user with name = `query`, in `TextSearchMode.WILDCARD`, page 0, width 10, giving `macro-choice` entries in the order found. A missing `query` puts no name in the search. A `RuntimeException` is logged and its localized message goes to `error` with status 200, keeping what was found. The method's own 'app unavailable' answer cannot be reached in practice, as the access gate already answers 403.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.MacroResource#searchFilters"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/query-sanitize",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/query/validate`: leading and trailing horizontal white space, including Unicode spaces such as the no-break space, is removed from `q` first; line breaks are not (`various-query-parser` still treats a whitespace-only text as empty). `q` absent passes null on.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.QueryResource#validate",
+    "com.almworks.jira.structure.extension.JQLUtil#sanitizeJQL"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/query-result",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/query/validate`: `q` and `type` go to `various-query-parser`, and the parsed query is validated. Validation with errors gives `errors` = the message set's error messages; warnings alone count as valid (`errors` null). A `StructureException` from parsing or validation gives `errors` with its one localized message, status 200. So empty text gives `Query should not be empty` and an unknown type `Unknown query type`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.QueryResource#validate"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/note-create",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/note`: `structureId` 0 or absent gives 400 plain text = text of `s.w.notes.note.create-denied.no-structure` (`Note can only be created inside a structure`), before the name is looked at. Otherwise `note-manager` creates the note (its name and permission errors reach the client as `structure-error`), and the answer is its `note-record`. A JSON `null` body gives 500 plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#create"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/note-default-id",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/note/{noteId}` and `PUT /rest/structure/2.0/note/{noteId}/archive`: the exact id `notes` (case-sensitive) gives 400 plain text = text of `s.w.notes.note.edit-denied.default` (`Cannot edit default note`) or `s.w.notes.note.archive-denied.default` (`Cannot archive default note`), before the body is read by the note manager.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#edit",
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#archive"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/note-rename",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/note/{noteId}`: `note-manager` renames the note, then the note is read again and answered as a `note-record`. If it has vanished by then the answer is 404 plain text with the text of `s.w.notes.note.not-found` (`Note <id> cannot be found`). A JSON `null` body gives 500 plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#edit",
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#getStoredNoteResponse"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/note-archive",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/note/{noteId}/archive`: `note-manager` archives the note, then it is read again and answered as a `note-record` with `archived` true and `editAllowedResponse` not allowed; the same 404 plain text applies if it has vanished. No body is needed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#archive",
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#getStoredNoteResponse"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/note-get",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/note/{noteId}`: `notes` answers the built-in note: id `notes`, name = text of `s.w.notes.note.default` (`Notes (Default)`), not archived, `editAllowedResponse` not allowed with the reason `Cannot edit default note`. Other ids go to `note-manager`: a bad id format gives 400 `structure-error`, no such note 404 plain text `Note <id as given> cannot be found`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#get",
+    "com.almworks.jira.structure.itemproperty.note.Notes#getDefaultNote"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/note-record-permission",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/note/{noteId}`: `editAllowedResponse` of a `note-record` is: for an archived note, not allowed with the text of `s.w.notes.note.edit-denied.archived` (`Cannot edit archived note`); otherwise the answer of the note's permission scheme (`permission-scheme-manager`) for edit by the current user, with its reason; for a scheme text that cannot be decoded, not allowed with a null reason. `name` of an archived note uses `s.w.notes.note.archived-name` (`<name> (Archived)`) in the current user's language.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.data.RestNoteEditAllowedResponse#fromNote",
+    "com.almworks.jira.structure.rest.v2.data.RestNote#fromNote"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/note-search",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/note/search`: groups, order, limit and `hasMore` are those of `note-searcher` for `name`, `structureId` (absent = 0) and `limit`. `name` absent fails with a null pointer failure (500 plain text). Each hit has `name` plain (never with the archived suffix, as archived notes are not found) and `editAllowedResponse` as for a `note-record`; `title` of a group as given by the searcher.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#search",
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#convertToRestSearchGroup"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/note-search-html",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/note/search`: `html` of a hit is the note name HTML-escaped, with the first occurrence of `name` (trimmed, literal, ignoring case in Unicode) wrapped in `<span class=\"s-match\">` and `</span>`; the text before, inside and after the span is escaped piece by piece. An empty or whitespace-only `name`, or no occurrence, gives just the escaped name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.NoteResource#search",
+    "com.almworks.jira.structure.util.NameSearcher#wrapMatchHtml"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/info-popup-basics",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/info-popup`: `structureVersion` is the plugin's version, `jiraClusterNodeId` Jira's `ClusterManager.getNodeId()`, `structureUpdateAvailable` false and each companion's `updateAvailable` false; no call leaves the server (SPEC.md 1.8).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.InfoPopupResource#getInfoPopup"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/info-popup-companions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/info-popup`: `plugins` always has four entries in this order. `com.almworks.structure.gantt`, name `Structure.Gantt`, links `https://tempo.io/docs/structure/gantt-guide`, `https://tempo.io/docs/structure/ganttdoc`, `http://alm.works/gantt-demo`. `com.almworks.structure.pages`, name `Structure.Pages`, links `https://tempo.io/docs/structure/pages-guide`, `https://tempo.io/docs/structure/pagesdoc`, `http://alm.works/pages-demo`. `com.almworks.structure.deliver`, name `Structure.Deliver`, links `https://tempo.io/docs/structure/deliverdocs` twice and `tryIt` null. `com.almworks.testy`, name `Structure.Testy`, links `https://tempo.io/docs/structure/testy-guide`, `https://tempo.io/docs/structure/testydoc`, `http://alm.works/testy-demo`. Links are in the order `gettingStarted`, `documentation`, `tryIt`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.InfoPopupResource$PluginDetails",
+    "com.almworks.jira.structure.rest.v2.javax.InfoPopupResource#createRestPluginDetails"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/info-popup-companion-version",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/info-popup`: a companion's `version` comes from `PluginAccessor.getEnabledPlugin(key)`; a plugin that is disabled or not installed has `version` null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.InfoPopupResource#getInfoPopup"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/info-popup-licence",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/info-popup`: for an anonymous caller `structureLicenseInfo` and every companion's `licenseInfo` are null. For a logged-in caller `structureLicenseInfo` is the fixed licensed answer: `unlicensed` false and `licenseSEN` null (SPEC.md 1.1); no licence is read. A companion's `licenseInfo` is the same fixed answer when the companion's core extension is registered with the app, under `com.almworks.structure.gantt:gantt-extension`, `com.almworks.structure.pages:pages-extension` or `com.almworks.structure.deliver:deliver-extension`, and null otherwise; for `com.almworks.testy` it is always null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.InfoPopupResource#getStructureLicenseInfo",
+    "com.almworks.jira.structure.rest.v2.javax.InfoPopupResource#getStructureExtensionLicenseInfo",
+    "com.almworks.jira.structure.rest.v2.javax.InfoPopupResource#getStructureExtension"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-details-access",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/genericItem/details/{itemType}/{id}`: an unknown item type, or one that is not a `GenericItemType`, gives 400 plain text `item type is not supported`. When `GenericItemType.accessItem` gives null, or `isVisible` is false for the current user, it fails with `StructureErrors.ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE` for that item with the message `<item id> is not found or not accessible` (404).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#accessItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-details-response",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/genericItem/details/{itemType}/{id}`: `fields` has one `generic-item-field` per field of `structure-field-manager`, in its order, with `required`, `visible` and `editable` from this item's field configuration, and the option source of that configuration when there is one. `editable` of the response stays null. The field view comes from `generic-item-field-accessor-manager`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getDetails",
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#fieldToRest",
+    "com.almworks.jira.structure.rest.v2.data.RestStructureField#from"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-item-summary",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/genericItem/details/{itemType}/{id}`: `summary` is the summary field's value as the details editor shows it, after validation with the item's configuration, converted to text. A value that fails validation reads as null and then gives the literal text `null` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getDetailsItem",
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getItemDetailsValue"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-item-description",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/genericItem/details/{itemType}/{id}`: `description` and `descriptionHtml` are set only when the description field is visible in the item's configuration and has a value. `descriptionHtml` is Jira's `atlassian-wiki-renderer` output with no issue context, or the description HTML-escaped when that renderer is missing or gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getDetailsItem",
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#renderWikiMarkup"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-item-params",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/genericItem/details/{itemType}/{id}`: `params` gets one entry per key of the item's stored `fields` map that `structure-field-manager` knows and that is visible in the configuration, the value being the field's details editor value. A field using the `atlassian-wiki-renderer` also gets `<field id>Html` with the rendered text (or the HTML-escaped text). Unknown or hidden keys are left out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getDetailsItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-item-color-icon",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/genericItem/details/{itemType}/{id}`: `params` also gets `color` and `iconClass` copied from the item's parameters whenever those keys exist there, whatever the field configuration says.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getDetailsItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-creation-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/genericItem/creationFields/{itemType}/{projectId}`: for `com.almworks.jira.structure:type-planning-task` the answer maps `project` and `issuetype`, in that order, to `generic-item-field` values with `visible`, `editable` and `required` all true. Their option sources are looked up with the security check skipped and no caching; the `issuetype` source is limited to `projectId` when it is not 0 and keeps its usual filters (sub-tasks excluded).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getCreationFields",
+    "com.almworks.jira.structure.optionsource.OptionSourceService#getOptionSource"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-creation-fields-other",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/genericItem/creationFields/{itemType}/{projectId}`: for any other item type, known or not, the answer is 200 `empty-ok` (`{\"empty\": true}`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getCreationFields",
+    "com.almworks.structure.commons.rest.RestEmpty"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-validate-type",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/genericItem/{itemType}/validate`: an item type other than `com.almworks.jira.structure:type-planning-task` gives `StructureErrors.INVALID_PARAMETER` `Item type <type> is not supported` (400). If that type is not installed the message is `Item type <type> is not found`. A JSON `null` body gives 500 plain text.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#validateNewItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-validate-no-params",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/genericItem/{itemType}/validate`: when `params` is absent or not a JSON object the answer is just `fieldErrors` `{}`, with `item` and `fields` absent; no project is looked at.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#validateNewItem",
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#adjustNewItemValues"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-validate-ids",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/genericItem/{itemType}/validate`: `params.project` and `params.issuetype` are read as a JSON integer in int range, or as text holding one. Anything else (a fractional number, a number beyond int range, other text, null) counts as missing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#parseIntOrDefault"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-validate-project",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/genericItem/{itemType}/validate`: projects are those of `ProjectService.getAllProjectsForAction(user, VIEW_PROJECT)`. An invalid outcome or an empty list gives `StructureErrors.INVALID_PARAMETER` with the text of `s.w.planning-task.no-project` (`No projects found`). The project with the given id is used; if there is none, the first in that list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getProjectOrDefault",
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#adjustNewItemValues"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-validate-issue-type",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/genericItem/{itemType}/validate`: issue types are `IssueTypeSchemeManager.getNonSubTaskIssueTypesForProject(project)` sorted by name. The one with the given id is used, else the first. With no issue types, `fieldErrors.issuetype` = text of `s.w.planning-task.project.no-issue-types` (`No issue type found for project <project key>`), and the preview is built with issue type -1.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#getIssueTypeOrDefault",
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#adjustNewItemValues"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-validate-preview",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/genericItem/{itemType}/validate`: the values are completed with the chosen `project` and `issuetype` (as integers) and `summary` `*` when the key is absent, then read into an unsaved item by the item type, which stores nothing. Its field errors join `fieldErrors`. `fields` are built as in the details answer, for that unsaved item.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#validateNewItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/generic-validate-summary",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/genericItem/{itemType}/validate`: `item.summary` of the preview is the request's `summary` when it is a JSON string, else null. The `*` used for an absent summary is never shown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenericItemResource#retainSummaryForDummyItem"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/wiki-render",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/wiki-markup/render`: each value is rendered by Jira's renderer of type `atlassian-wiki-renderer`, looked up once when the resource is created, with no issue context. When there is no such renderer or it gives null, the value is HTML-escaped. Keys keep their order; an empty object gives an empty object.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.WikiRenderingResource#render"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/wiki-render-access",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/wiki-markup/render`: the method has no anonymous marker, so an anonymous caller gets 401 from the platform; the common access gate applies as to other `rest-v2` resources. A JSON `null` body gives 500 plain text. Values given as JSON numbers or booleans are read as text by the JSON mapper.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.WikiRenderingResource#render"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-forest-text-format",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`rest-v2` reads the `forest` text of a `forest/update` add action as comma-separated entries `<row id>:<depth>:<item>[:<semantics>]`. Semantics absent means 0, and fields beyond the fourth are ignored. Null or blank text gives the empty item forest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ItemDeserializer#deserializeItemForest"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-forest-text-item",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`rest-v2`, reading an entry of a forest text: `<item>` is URL-decoded as UTF-8. With no `/` it must be a number and means that issue id; with a `/` it is parsed by `ItemIdentity.parse`. Undecodable text is used as it is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ItemDeserializer#parseItemId",
+    "com.almworks.jira.structure.api.util.StructureUtil#decodeURL"
+   ]
+  },
+  {
+   "key": "r4-v2-items/rest-v2/item-forest-text-errors",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`rest-v2`, reading a forest text: an entry with fewer than 3 fields, or a non-numeric row id, depth, semantics or bare item number, raises an invalid-data error `cannot parse forest: <entry>`, and a bad identity `cannot parse item identity <item>` (both 400 `Invalid request data`). A forest that is not well formed (for example a repeated row or a depth jump) raises an invalid-data error with the forest's own diagnostic text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ItemDeserializer#deserializeItemForest"
+   ]
+  }
+ ]
+}

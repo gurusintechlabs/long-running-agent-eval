@@ -1,0 +1,342 @@
+{
+ "claims": [
+  {
+   "key": "i2-ao-allowlists/ao/namespace-and-prefix",
+   "module": "ao",
+   "api": null,
+   "behaviour": "The plugin descriptor has exactly one `ao` element, with key `ao` and namespace `com.almworks.jira.structure`. That namespace is what makes Active Objects use the table prefix `AO_8BAD1B_` (the last six hex digits of the namespace's MD5, `7f218d86d83be3046b5516c4528bad1b`, upper-cased), so with the same namespace a replacement sees the tables the original left in the database, and with any other it sees none of them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.StructureBootstrapAO"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/ao/entities-match-tables-exactly",
+   "module": "ao",
+   "api": null,
+   "behaviour": "The `ao` element lists 39 `entity` children, one for each table in SPEC §1.5 and no more: reading the descriptor and each entity's explicit table name gives exactly those 39 names, each entity with its own table, and nothing else. No entity relies on Active Objects deriving a table name from the entity's class name, so renaming an entity type does not move its table.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.StructureBootstrapAO",
+    "com.almworks.jira.structure.db.GenericItemHistoryRecordAO",
+    "com.almworks.jira.structure.db.StructureAO"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/ao/no-declared-upgrade-tasks",
+   "module": "ao",
+   "api": null,
+   "behaviour": "The `ao` element has only `entity` children: it declares no Active Objects upgrade task, so the module writes no model version of its own. On plugin start, Active Objects only compares the declared entities with the database: a missing table or column is created, and rows the original wrote are left in place. The module itself runs no data migration.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.db.StructureBootstrapAO"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/ao/no-behaviour-beyond-schema",
+   "module": "ao",
+   "api": null,
+   "behaviour": "The module's whole job is to declare the schema: it does no reads or writes of its own. All access to these tables goes through the modules that use Active Objects (`ao-helper`, `structure-database-provider`, `ao-initializer` and the stores built on them), and it is those modules' claims that say when tables are first used and what happens before Active Objects is ready.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.db.StructureBootstrapAO"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/create-structure-allowlist/pages-served",
+   "module": "create-structure-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves the create-structure wizard (alias `CreateStructure` and its template-choice and step pages). What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure",
+    "com.almworks.jira.structure.webwork.CreateStructure$TemplateDescriptorInfo",
+    "com.almworks.jira.structure.webwork.CreateStructure$TemplateContextImpl#addError",
+    "com.almworks.jira.structure.webwork.CreateStructure$GeneralStep",
+    "com.almworks.jira.structure.extension.template.AgileTemplate$EpicsStep"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/create-structure-allowlist/values-read",
+   "module": "create-structure-allowlist",
+   "api": null,
+   "behaviour": "Those pages read: the available structure templates and, for each, its complete key, label, description and icon path; which template is chosen and whether a template is enabled; the current step, its title and its already rendered partial HTML; the encoded wizard parameters; whether this is the first step, the welcome screen, a back request or the finish step; the next-button text and the last base step; encoded text and translated text for the step templates; and the field values of each step: name, description, sharing and project selections, assigned/reporter/watching choices and columns of the personal backlog, project and version selections and group-by fields of the backlog, board selection, rank sorting, and the update-issues and update-epics choices of the agile template. One listed method records a field error on the wizard request rather than reading a value; no shipped template calls it, and it stores nothing beyond that request.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.CreateStructure",
+    "com.almworks.jira.structure.webwork.CreateStructure$TemplateDescriptorInfo",
+    "com.almworks.jira.structure.webwork.CreateStructure$TemplateContextImpl#addError",
+    "com.almworks.jira.structure.webwork.CreateStructure$GeneralStep",
+    "com.almworks.jira.structure.extension.template.AgileTemplate$EpicsStep"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-board-allowlist/pages-served",
+   "module": "structure-board-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves the Structure Board page (alias `StructureBoard`), the printable export (alias `StructurePrintable`), the search-data page (alias `StructureSearchData`), the cache-clearing page (alias `ClearStructureCaches`) and the keyboard shortcuts page (alias `ViewStructureShortcuts`). What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBoard",
+    "com.almworks.jira.structure.webwork.StructurePrintable",
+    "com.almworks.jira.structure.export.printable.PrintableExporter#getDataRowHtml",
+    "com.almworks.jira.structure.export.ForestExporter$RowIterator#next",
+    "com.almworks.jira.structure.webwork.StructureSearchData",
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts$ShortcutGroup"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-board-allowlist/values-read",
+   "module": "structure-board-allowlist",
+   "api": null,
+   "behaviour": "Those pages read: the board's view, current structure id, whether a created issue is added to the board's structure, and the issue operations; for the printable page its title, logo path, required resources, the list of depths, the padding for a depth, the Jira version, the outdated-forest and inconsistent-data flags with their warnings, the header row HTML, the rows in export order and each data row's HTML; the visible JQL field and function names and the reserved words, as JSON; the fixed licensed answer on the cache page; and the shortcut groups with each line's name key and its keys (modifiers, stroke, whether it is an arrow or a mouse action). Going through the export rows and rendering a header or data row changes only that export's state for the current request; nothing is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBoard",
+    "com.almworks.jira.structure.webwork.StructurePrintable",
+    "com.almworks.jira.structure.export.printable.PrintableExporter#getDataRowHtml",
+    "com.almworks.jira.structure.export.ForestExporter$RowIterator#next",
+    "com.almworks.jira.structure.webwork.StructureSearchData",
+    "com.almworks.jira.structure.webwork.ViewStructureShortcuts$ShortcutGroup"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-generators-allowlist/pages-served",
+   "module": "structure-generators-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves the generator edit dialog (alias `StructureGeneratorEdit`) and the form fragment of each generator module rendered inside it. What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkTypeOption",
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#getAllRapidViews",
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter#getAllStructures",
+    "com.almworks.structure.commons.issuelink.LinkDirection"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-generators-allowlist/values-read",
+   "module": "structure-generators-allowlist",
+   "api": null,
+   "behaviour": "Those pages read: the dialog width, title, generator id, module key, whether it is a transformation or quick transformation and the quick transformation's name, the run-as user, a timestamp, whether the generator is configurable, and the rendered form; and, for the forms, the sub-task types, the fields a field filter or grouper supports, the rank fields, the Agile boards (id and name), the link types with their directions (id, name, outward, inward, any, and which direction a value is) and the hidden link types, and the structures available to a sub-structure inserter. No listed method changes state.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkTypeOption",
+    "com.almworks.jira.structure.extension.generator.inserter.AgileInserter#getAllRapidViews",
+    "com.almworks.jira.structure.forest.gfs.SubStructureInserter#getAllStructures",
+    "com.almworks.structure.commons.issuelink.LinkDirection"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-effectors-allowlist/pages-served",
+   "module": "structure-effectors-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves the effector edit dialog (alias `StructureEffectorEdit`) with the form fragment of each effector module, the effector process pages for start, preview, progress and result (alias `StructureEffectorProcess`), the effector audit page (alias `StructureEffectorAudit`) and the processes list (alias `StructureProcesses`). What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess$ApplyTotals",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit",
+    "com.almworks.jira.structure.webwork.StructureProcesses",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-effectors-allowlist/values-read",
+   "module": "structure-effectors-allowlist",
+   "api": null,
+   "behaviour": "Those pages read: the dialog's width, title, description, effector id, name, structure id and module key, whether it is configurable and executable, whether its name is generated, its summary template and rendered form; the fields an attribute-to-field effector supports, whether a field holds several values and its filtering format; the resolutions for a status roll-up; the process, its id, status, status HTML and label class, its applied and failed totals, calculation error, whether preview is available, and its run parameters; the audit's process name, user, start and finish times, status, interrupted flag and count of successful records; and the effector statuses with structure id and name on the processes list. No listed method changes state.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess$ApplyTotals",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit",
+    "com.almworks.jira.structure.webwork.StructureProcesses",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/manage-structures-allowlist/pages-served",
+   "module": "manage-structures-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves Manage Structures (alias `ManageStructure`) and the pages that act on a selected structure: edit and details with permissions (alias `EditStructure`), archive (alias `StructureArchive`), delete (alias `DeleteStructure`), remove adjustments (alias `StructureRemoveAdjustments`), views management (alias `StructureViews`) and copy (alias `StructureCopy`). What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureActionSupport",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#getUnsecuredSkeletonRowCount",
+    "com.almworks.jira.structure.webwork.EditStructure",
+    "com.almworks.jira.structure.webwork.StructureViews",
+    "com.almworks.jira.structure.webwork.StructureCopy#getSkeletonStats",
+    "com.almworks.jira.structure.webwork.StructureCopy$ItemStats",
+    "com.almworks.jira.structure.copy.CopyStatus"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/manage-structures-allowlist/values-read",
+   "module": "manage-structures-allowlist",
+   "api": null,
+   "behaviour": "Those pages read: authentication and bulk-change permission; permission level names and subjects; synchronizer instance descriptions; the selected structure's id, name, description, owner, archived flag and unsecured row count; the page's JSON and the product logos; the edit page's state (new, just copied or cloned), inheritable structures, projects, roles, permission levels and rules, adjustments setting, generation time limits and favourite flag; synchronizers present on a structure; adjustment counts and why adjustments cannot be removed; the view lists, default and custom view settings, page list and view info; and the copy page's permission status, active synchronizers, row and item statistics by generator type, target projects and link types, what cloning may do, and its progress (status, activity, percent, process id, step, messages and errors). Listed methods change no stored data: at most they remember a computed count or statistic for the request.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureActionSupport",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#getUnsecuredSkeletonRowCount",
+    "com.almworks.jira.structure.webwork.EditStructure",
+    "com.almworks.jira.structure.webwork.StructureViews",
+    "com.almworks.jira.structure.webwork.StructureCopy#getSkeletonStats",
+    "com.almworks.jira.structure.webwork.StructureCopy$ItemStats",
+    "com.almworks.jira.structure.copy.CopyStatus"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-sync-allowlist/pages-served",
+   "module": "structure-sync-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves the synchronizer pages: list (alias `StructureSync`), create, edit (alias `StructureSyncEdit`), delete (alias `StructureSyncDelete`), resync (alias `StructureResync`), import (alias `StructureImport`), export (alias `StructureExport`), and the form fragment of each synchronizer module. What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport",
+    "com.almworks.jira.structure.webwork.StructureSyncEdit",
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#getSyncDescriptors",
+    "com.almworks.jira.structure.webwork.StructureResync#getPossibleEffects",
+    "com.almworks.jira.structure.util.velocity.SyncInstanceInfo",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-sync-allowlist/values-read",
+   "module": "structure-sync-allowlist",
+   "api": null,
+   "behaviour": "Those pages read: the structure's info, id and name; the synchronizer instance's id, user key, synchronizer, description, details and whether it is available, enabled and editable; the installed and active synchronizers; the available synchronizer types with complete key, label, description and rules, the selected one and its form; the edit flags (ask on cancel, was enabled, keep owner, validated for another user, cancelled); the resync flags and possible effects; and, for the forms, link types and hidden link types, Agile boards and eligible projects and rank fields, epic-link availability, status transition values and resolutions, and sub-task types. No listed method changes state.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport",
+    "com.almworks.jira.structure.webwork.StructureSyncEdit",
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#getSyncDescriptors",
+    "com.almworks.jira.structure.webwork.StructureResync#getPossibleEffects",
+    "com.almworks.jira.structure.util.velocity.SyncInstanceInfo",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-admin-allowlist/pages-served",
+   "module": "structure-admin-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves the administration pages: configuration (alias `StructureAdmin`), defaults (alias `StructureDefaults`), backup (alias `StructureBackup`), restore (alias `StructureRestore`), migrate preview (alias `StructureMigrate`), maintenance (alias `StructureMaintenance`), licence details (alias `StructureLicenseDetails`), support (alias `StructureSupport`), the help editor (alias `StructureHelp`), the audit logs (alias `SyncAuditLogView`, alias `PerformanceAuditLogView`), attribute troubleshooting and sensitivity (alias `StructureAttributeTroubleshooting`, alias `StructureAttributeSensitivity`), the AO support page (alias `StructureAOSupport`), project settings (alias `StructureProjectSettings`) and the setup guide (alias `StructureSetupGuide`). What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup",
+    "com.almworks.jira.structure.webwork.StructureMigrate",
+    "com.almworks.jira.structure.backup.MigratePreview",
+    "com.almworks.jira.structure.webwork.StructureRestore",
+    "com.almworks.jira.structure.webwork.StructureDefaults",
+    "com.almworks.jira.structure.webwork.StructureMaintenance",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#isUndoing",
+    "com.almworks.jira.structure.webwork.StructureAttributeSensitivity#includeCalendarResource"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-admin-allowlist/values-read",
+   "module": "structure-admin-allowlist",
+   "api": null,
+   "behaviour": "Those pages read: backup options and extensions, file names and safe paths; the migrate and restore previews (each structure's id, name, description, overwrite target, archived flag, owner and project and permission resolution, item count, what it holds) with their invalid items, synchronizers and problems; configured projects and app permissions, with their labels, links and subjects; default structures, views and auto-switch settings, and generation time limits; the help content and contacts; the maintenance schedule, last and next runs, the running process and JVM time zone; project settings; setup-guide state; the statistics report and its line count; the audit filter fields, action groups and their formatted details; and the troubleshooting dumps. Licence-related values give the fixed answer only (licensed, valid, not expiring). One listed method adds the calendar web resource to the page being rendered, which is the only effect beyond reading; another remembers per request whether a synchronizer is an undoing one. Nothing is stored.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup",
+    "com.almworks.jira.structure.webwork.StructureMigrate",
+    "com.almworks.jira.structure.backup.MigratePreview",
+    "com.almworks.jira.structure.webwork.StructureRestore",
+    "com.almworks.jira.structure.webwork.StructureDefaults",
+    "com.almworks.jira.structure.webwork.StructureMaintenance",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#isUndoing",
+    "com.almworks.jira.structure.webwork.StructureAttributeSensitivity#includeCalendarResource"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-welcome-allowlist/pages-served",
+   "module": "structure-welcome-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves the welcome page (alias `StructureWelcome`) and the help dialog (alias `StructureHelpDialog`). What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureWelcome",
+    "com.almworks.jira.structure.webwork.StructureHelpDialog",
+    "com.almworks.jira.structure.welcome.HelpContentManager$Contact"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-welcome-allowlist/values-read",
+   "module": "structure-welcome-allowlist",
+   "api": null,
+   "behaviour": "Those pages read: image paths; whether help is hidden or empty; the help title, content HTML and contacts (name, key, display name, avatar URL, profile URL); the fixed licensed answer; whether the user may create a structure and whether the recent list is empty; which companion apps are installed; and the avatar URL. No listed method changes state.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureWelcome",
+    "com.almworks.jira.structure.webwork.StructureHelpDialog",
+    "com.almworks.jira.structure.welcome.HelpContentManager$Contact"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-general-allowlist/pages-served",
+   "module": "structure-general-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves every Structure page, with the shared calls: page helpers, formatting of users and permission subjects, requiring of page resources, and the shared info objects for structures, users, fields and views. What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#hasError",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#requireResource",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#requireResourcesForContext",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireWidgetResource",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireIssueShortcuts",
+    "com.almworks.jira.structure.util.velocity.StructureInfo",
+    "com.almworks.jira.structure.util.velocity.ApplicationUserInfo"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-general-allowlist/values-read",
+   "module": "structure-general-allowlist",
+   "api": null,
+   "behaviour": "These pages read: the static resource prefix, the self link, plain and encoded; whether the user is logged in and an admin, the user key and name; whether a synchronizer is enabled or installed; the cluster flag; error state per field; structure info (id, name, description, archived flag, owner); user info (key, name, display name, active flag); custom field and field info; rendered text and HTML; a permission level's serial, a page's id, an app permission's key and an auto-switch strategy's code; view settings and associated views; the plugin version, encoded and abbreviated text; and the fake field's details used to render the structure field. The methods that require page resources, shortcuts or a resource context change the resources of the page being rendered, and no other state. Each entry has the form `fully.qualified.Class#method(param.Type other.Type)`, with parameter types separated by a space and arrays in JVM form (`[Ljava.lang.String;`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#hasError",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#requireResource",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#requireResourcesForContext",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireWidgetResource",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireIssueShortcuts",
+    "com.almworks.jira.structure.util.velocity.StructureInfo",
+    "com.almworks.jira.structure.util.velocity.ApplicationUserInfo"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-misc-allowlist/pages-served",
+   "module": "structure-misc-allowlist",
+   "api": null,
+   "behaviour": "The module is a `velocity-allowlist` that serves the remaining pages: the issue page's time tracking section (alias `StructureTimeTrackingSection`), the external gadget and its login page (alias `StructureExternalGadget`), cloud migration configurations (alias `StructureMigrationConfigurations`), the structure field's options, the project tab's links, background process status (alias `StructureProcessStatus`), the workflow checker forms and the JQL troubleshooting section of the support page. What must hold: every method that those pages' Velocity templates, and the fragments they include, call on a plugin object is listed in some allowlist of the plugin, so that each template renders fully under Jira's restricted Velocity engine; and a method that no allowlist lists stays uncallable from a template. A page's data reaches the template only through listed methods.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection",
+    "com.almworks.structure.commons.web.LoginPage",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations",
+    "com.almworks.jira.structure.webwork.StructureProcessStatus",
+    "com.almworks.jira.structure.optionsource.OptionSourceVelocityDelegate",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#formatOwner"
+   ]
+  },
+  {
+   "key": "i2-ao-allowlists/structure-misc-allowlist/values-read",
+   "module": "structure-misc-allowlist",
+   "api": null,
+   "behaviour": "Those pages read: the REST back-off override and values, the job id, whether there is data and whether the log action applies, with the issue id for it; the login page's context path, error message and which of captcha, remember-me, forgot-password, admin form and one-time-password input it shows, public mode and the authentication resource; whether login is allowed, a global permission is missing or the structure was deleted, with the rendered login page and issue operations; migration configurations and their ids, names, status, structures, creator, run time, extensions and draft and ready flags; the structure field's name translation and id; each option's id, label, icon and selectability; the process name, activity, buttons, percent complete, process id, finished flag and state text; and a formatted owner. No listed method changes state.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureTimeTrackingSection",
+    "com.almworks.structure.commons.web.LoginPage",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations",
+    "com.almworks.jira.structure.webwork.StructureProcessStatus",
+    "com.almworks.jira.structure.optionsource.OptionSourceVelocityDelegate",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#formatOwner"
+   ]
+  }
+ ]
+}

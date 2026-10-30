@@ -1,0 +1,722 @@
+{
+ "claims": [
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-projects-get",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/configuration/projects`: for a Jira administrator it answers with `enabledForAllProjects` = structure-configuration's `isEnabledForAllProjects()` and `pickedProjectIds` = the ids of its `getPickedProjectIds()` in stored order, whatever the flag says. Nothing is written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#getProjects"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-projects-put-empty",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/configuration/projects`: a null body, or a body with both `enabledForAllProjects` and `pickedProjectIds` absent, answers 400 text/plain `empty request` and changes nothing. An empty `pickedProjectIds` array is a value, not an absence: it clears the picked list and answers `{\"empty\": true}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#updateProjects",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#checkNotEmpty"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-projects-put-order",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/configuration/projects`: the flag is written first (`setEnabledForAllProjects`), then the ids are checked in array order and the first bad one stops the call: a null id gives 400 text/plain `project ID is null`, an id for which Jira `ProjectManager.getProjectObj` returns null gives 400 text/plain `project <id> does not exist`. So a request with a valid flag and a bad id keeps the flag change and leaves the picked list unchanged. Valid ids are stored with `setPickedProjectIds` in first-seen order with duplicates removed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#updateProjects",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#validateProjects",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#validateProject"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-projects-add",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/configuration/projects/add`: a missing or empty array answers 400 text/plain `empty request`. Ids are checked as for the PUT (same messages, first bad id stops the call, nothing stored). New ids are appended after the current picked ids, keeping their order; `setPickedProjectIds` is called only when at least one id was new, and the answer is `{\"updated\": true}`, otherwise `{\"updated\": false}`. The all-projects flag is not touched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#addPickedProjectIds"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-projects-remove",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/configuration/projects/remove`: a missing or empty array answers 400 text/plain `empty request`; a null id answers 400 `project ID is null`; ids of projects that no longer exist are accepted, so stale ids can be removed. `setPickedProjectIds` is called with the remaining ids in their old order only when something was removed; the answer is `{\"updated\": true}` or `{\"updated\": false}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#removePickedProjectIds",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#validateProject"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-permissions-get-all",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/configuration/permissions`: answers one entry per permission of `CoreAppPermissions.ALL`, in that order, each with structure-configuration's `isAllowedForAnyone` and `getPermissionSubjects` (subjects in stored order; each written with only the id fields of its type; an `anyone` subject has only `subject`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#getPermissions",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#getRestPermission",
+    "com.almworks.structure.commons.rest.data.RestPermissionSubject#fromSubject"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-permissions-get-one",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/configuration/permissions/{key}`: an unknown key (matched exactly, case-sensitive, through `CoreAppPermissions.byKey`) answers 400 text/plain `invalid permission, valid permissions: [use, createStructure, synchronization, automation, configureGenerators, configureEffectors, executeEffectors, executeEffectorsOnQueries, manageGlobalSavedColumns]`. A known key answers the same object as that key's entry in the full list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#getPermission",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#getAppPermission"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-permissions-put-all-atomic",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/configuration/permissions`: a missing or empty object answers 400 text/plain `empty request`. Entries are validated in the JSON object's order and the first failure answers its 400 with nothing stored. Only after every entry passed are the changes applied, in entry order, for each entry first `setAllowedForAnyone` (when given) and then `setPermissionSubjects` (when given). Success answers `{\"empty\": true}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#updatePermissions",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#updatePermission"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-permissions-put-one",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/configuration/permissions/{key}`: the key is checked first (400 `invalid permission, ...` as for the GET), then the body: a null body or one with both `allowedForAnyone` and `subjects` absent answers 400 text/plain `empty request for permission '<key>'`; the same message applies to a null or empty entry of the bulk PUT. An empty `subjects` array is a value: it clears the list. `allowedForAnyone` false is a value too. Validation finishes before anything is written; success answers `{\"empty\": true}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#updatePermission"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-permissions-subject-errors",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "Subject checks of `PUT /rest/structure/2.0/configuration/permissions`, `PUT /rest/structure/2.0/configuration/permissions/{key}` and `POST /rest/structure/2.0/configuration/permissions/{key}/add`, in array order, first failure wins, each 400 text/plain: a null subject gives `null subject for permission '<key>'`; otherwise `invalid subject for permission '<key>': <reason>`, where reason is `Cannot parse rule: expected subject`, `Cannot parse rule: expected groupId` (type group), `Cannot parse rule: expected projectId` then `...expected roleId` (type projectRole; a missing `projectId` fails, 0 must be sent explicitly), `Cannot parse rule: expected userKey` (type user), `Unknown subject. Known values for subject: group,projectRole,user,anyone`, `group '<name>' does not exist` (Jira `UserManager.getGroup` null), `only groups and project roles are allowed` (well-formed `user` or `anyone`), `role <id> does not exist` (`ProjectRoleManager.getProjectRole`), `project <id> does not exist` (non-zero `projectId`, `ProjectManager.getProjectObj` null; role is checked before project).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#validateSubjects",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#validateSubject",
+    "com.almworks.structure.commons.rest.data.RestPermissionSubject#toSubject",
+    "com.almworks.structure.commons.rest.data.RestPermissionSubject#mandatory",
+    "com.almworks.structure.commons.rest.data.TransferFormat#throwUnknownValue"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-permissions-subject-type-case",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "In the bodies of `PUT /rest/structure/2.0/configuration/permissions` and its add and remove calls, the `subject` type is recognised ignoring case (`GROUP`, `projectrole`), and fields not belonging to the type are ignored. Subjects are written back in canonical form.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestPermissionSubject#toSubject",
+    "com.almworks.structure.commons.rest.data.RestPermissionSubject#fromSubject"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-permissions-add",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/configuration/permissions/{key}/add`: the body is checked first (missing or empty array: 400 `empty request`), then the key, then the subjects. New subjects are appended to the current list, equal ones ignored (within the body too); `setPermissionSubjects` is called only when the list grew. Answer: `{\"updated\": true}` or `{\"updated\": false}`. `allowedForAnyone` is not touched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#addPermissionSubjects"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-permissions-remove",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/configuration/permissions/{key}/remove`: same order of checks as add (body, key, subjects). Subjects only have to be well-formed (same `null subject` and `invalid subject` messages for parse failures); any of the four types is accepted and groups, roles and projects are not looked up, so entries of deleted groups can be removed. `setPermissionSubjects` is called only when something was removed. Answer: `{\"updated\": true}` or `{\"updated\": false}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#removePermissionSubjects",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource#validateSubjects"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/config-admin-gate",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "Every `/rest/structure/2.0/configuration/...` call goes through the common gate's administrator check before the method runs (403 `permission violation` for a logged-in non-administrator, body not read), with no websudo requirement and no `use` permission needed beyond that check.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-query",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker`: the text is matched literally and ignoring case (Unicode-aware), trimmed first. With `query` null or empty nothing is filtered; a query of spaces only is treated by the local filter as an empty pattern and also keeps everything (except that users are still searched with the raw text).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#getUserEntities"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-users",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker` user group: asks Jira `UserSearchService.findUsers(context, query, params)` with the raw `query`, empty query allowed, inactive users included, e-mail matching on and a maximum of limit + 1 results; then keeps users whose username, display name or email contains the trimmed text (a null email does not match) and cuts to limit. A user Jira does not return is never shown, even if it would match as a substring. `footer` is set when more users remained than were shown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#getUserEntities",
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#addSearchGroup"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-emails",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker`: emails are shown when `UserSearchService.canShowEmailAddresses` says so for the caller; the user html is built from `<display name> - <email> (<username>)` then, otherwise from `<display name> (<username>)`. `label` is always the display name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#getUserEntities",
+    "com.almworks.jira.structure.util.Util#userLabel"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-groups",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker` group group: there is no switch to turn it off. Logged in: `StructurePluginHelper.getAvailableGroupsForCurrentUser()`. Anonymous: every group of Jira `GroupManager.getAllGroups()` when `GlobalPermissionManager` grants USER_PICKER to null, else none. Filtered by name, sorted by case-sensitive plain string order of the name, cut to limit.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#getAvailableGroups",
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#getGroupsForAnonymousUser",
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#addSearchGroup"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-roles",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker` role group: left out when `noRoles` is true or the caller is anonymous; otherwise `StructurePluginHelper.getAvailableRoles()` filtered by name, sorted by case-sensitive plain string order of the name, cut to limit.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#getUserEntities",
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#addSearchGroup"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-html-highlight",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker` item `html`: only the first match in the text is wrapped, and everything is HTML-escaped: `<span>` + escaped text before + `<span class=\"s-match\">` + escaped match + `</span>` + escaped rest + `</span>`. With an empty query the empty pattern matches at position 0, so html is `<span><span class=\"s-match\"></span>Name</span>`. `title`, `entity` and `icon` are null and `id` equals `value`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#item",
+    "com.almworks.jira.structure.util.Util#highlightHtml",
+    "com.almworks.jira.structure.util.NameSearcher#wrapMatch"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-group-texts",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker` labels and footer: `sw.column.worklogged.select.users.label` (`Users`), `sw.column.worklogged.select.groups.label` (`Groups`), `sw.column.worklogged.select.roles.label` (`Project roles`), and for all three the footer `s.w.user-picker.more` (`There are more results. Try refining search.`), set when the filtered count exceeds the shown count. A group with no items is left out entirely.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#addSearchGroup"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-role-lookup",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker/project-role/{key}`: a key that parses as a long asks Jira `ProjectRoleManager.getProjectRole(long)` only (a role whose name is numeric cannot be found by name); any other key, including a number too big for a long, asks `getProjectRole(String)`. A null answer gives 400 with the `Invalid request data` error object and message `No project role for id or name`. No permission beyond the common gate is checked; anonymous callers who pass the gate may look up roles.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#getRole",
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#parseRole"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-users-order-of-checks",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker/users`: Browse Users (Jira global USER_PICKER for the current user, null when anonymous) is checked first, so without it even an empty `keys` answers 403 with no body. An empty or absent `keys` answers `[]`; a blank-only one too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#getUsers"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/author-picker-users-entries",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/author-picker/users`: `keys` is split on commas without trimming; blank pieces are skipped; a repeated key gives a repeated entry. Each key is resolved as given. For a known user the avatar URL carries the key unencoded and one `ts` shared by the whole reply; the inactive name form is `s.ext.it.user.summary.inactive` (`{0} (Inactive)`) in the caller's locale. An unknown key's avatar URL is `<base url>/secure/useravatar?avatarId=<Jira anonymous avatar id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AuthorPickerResource#getUsers",
+    "com.almworks.structure.commons.util.CommonUtil#getAnonymousAvatarUrl"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/options-list",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/options-picker/list`: `spec` is parsed as JSON into the option source description; asks option-source-service for a source for the current user with its normal security checks and no collection caching. Answers all options sorted by the source's order; each option's `value` is the id's string form, `group` the source's group message key (untranslated), `icon` its icon, `html` null. No limit applies.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#list",
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#getOptionResponse",
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#getRestOptionList",
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource$RestOption#create"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/options-empty-ok-fallback",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/options-picker/list`, `GET /rest/structure/2.0/options-picker/search` and `GET /rest/structure/2.0/options-picker/suggestions`: `spec` absent, empty, invalid JSON, JSON of the wrong type, or with properties other than `sourceKey`, `projectId` and `filters` (parse failure, logged as a warning), and a source that is missing or not selectable, all answer 200 `{\"empty\": true}`, not an array.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#getOptionResponse",
+    "com.almworks.jira.structure.api.util.StructureUtil#fromJson"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/options-limit",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/options-picker/search` and `GET /rest/structure/2.0/options-picker/suggestions`: N is the smaller of the source's threshold (dark feature `structure.options.search.threshold`, default 50) and the page size (dark feature `structure.options.portion.size`, default 10).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#getLimit",
+    "com.almworks.jira.structure.optionsource.impl.AbstractOptionSource"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/options-search",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/options-picker/search`: `query` null or blank (spaces too) gives the suggestions answer with no ids, so `html` is null. Otherwise, for the user source, `UserSearchService`-backed search gets the raw query and N; for other sources every option whose label contains the trimmed text, literally and ignoring case, is taken. Results are sorted in the source's order and then cut to N, with `html` = `<span>` + escaped label with the first match in `<span class=\"s-match\">` + `</span>`. A user the search returns whose label lacks the text still appears, with html having no match span.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#search",
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#searchRestOptions",
+    "com.almworks.jira.structure.util.Util#highlightHtml"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/options-suggestions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/options-picker/suggestions`: takes the source's suggestions first; if there are fewer than N and the source is not users, adds all its options; removes duplicate ids keeping the first; cuts to N. Then adds, beyond N, each `ids` entry not already there for which the source's lookup by id finds an option (unknown or invalid ids are dropped). The whole list is sorted in the source's order, `html` null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#suggestions",
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#getSuggestions"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/options-suggestions-ids-parsing",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/options-picker/suggestions`: `ids` is parsed as a JSON array; absent, empty, invalid JSON or not an array means none. Each element is compared as a string: a number by its text, a nested array or list by its first element, and null elements (or empty lists) are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#suggestions",
+    "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource#getSuggestions",
+    "com.almworks.jira.structure.api.util.StructureUtil#getSingleString"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/projects-picker-scope",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/projects-picker`: 'all' is Jira `ProjectService.getAllProjectsForAction(user, VIEW_PROJECT)` (an invalid outcome means none); 'recent' is `UserProjectHistoryManager.getProjectHistoryWithPermissionChecks(VIEW_PROJECT, user)`. Both keep projects for which structure-configuration's `isProjectEnabled` holds and whose name or key contains the trimmed `query` literally ignoring case, sorted by name with the caller's collator. Blank `query` keeps all enabled ones.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#getProjectsList",
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#getAllVisibleProjects",
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#getRecentProjects",
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#filterProjectNameOrKeyByQuery",
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#getProjectNameSorter"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/projects-picker-limits",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/projects-picker` limit L: with `applyLimit` false, the number of matching 'all' projects; else `maxResults` capped at 20, 20 when missing or not positive. The recent group, present when recent matches exist, shows up to L. The all group has its limit reduced by the full number of matching recent projects, not the number shown; recent projects are removed from it by id. Example: L = 5 with 7 recent matches gives only a recent group with 5 items and footer 5 of 7.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#findProjects",
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#chooseResultsLimit",
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#searchProjects"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/projects-picker-items",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/projects-picker` texts: group labels `s.manage.edit.select.projects.recent.label` (`Recent Projects`) and `s.manage.edit.select.projects.all.label` (`All Projects`), footer `s.manage.edit.select.projects.footer` (`Showing {0} of {1} matching projects`) with shown and matching counts. An item's html is the text of `s.manage.edit.select.projects.html` (`{0} ({1})`), escaped, with the first match over that whole text in `<b>`; a blank query gives no `<b>`. `icon` is Jira `AvatarService.getProjectAvatarURL(project, SMALL)`; `title` and `entity` are null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#createProjectGroup",
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#createProjectItem",
+    "com.almworks.jira.structure.rest.v2.javax.ProjectPickerResource#createHTMLFromProject"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/group-picker-search",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/group-picker`: the groups are `StructurePluginHelper.getAvailableGroupsForCurrentUser()`. The trimmed `query` matches as a literal substring ignoring case. With a non-blank query the matches are ordered by name length, shortest first, ties in the order of that list; with a blank query the list's order is kept, nothing sorted, and html is only the escaped name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GroupPickerResource#findGroups",
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchGroups",
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchItems",
+    "com.almworks.jira.structure.util.NameSearcher#weightMatch"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/group-picker-limit",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/group-picker`: the instance limit is dark feature `structure.create.namesSearch.resultLimit` (20 when unset, zero or negative), read once when the searching component is created. `maxResults` lowers it only when positive and below it. When more match than the limit, `footer` is `s.manage.edit.select.groups.footer` (`Showing {0} of {1} matching groups`); otherwise there is no footer. The group label is `s.manage.edit.select.groups.label`. Nothing matching gives `groups` empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchItems",
+    "com.almworks.jira.structure.util.Util#subjectSearchResultLimit"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/group-picker-anonymous",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/group-picker`: the resource has no anonymous marker, so the platform refuses an anonymous call with 401 before the method runs. The method's own check, for the case it is reached with no user (`StructurePluginHelper.isAuthenticated()` false), answers 403 with no body.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GroupPickerResource#findGroups"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/label-picker",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/label-picker`: without `customFieldId` it answers Jira `LabelManager.getSuggestedLabels(user, null, query)`; with it, `getSuggestedLabels(user, null, customFieldId, query)`. The user is the current `StructureAuth` user, the issue id always null, `query` passed unchanged (null when omitted), and Jira's order is kept. The id's field is not checked to be a labels field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.LabelPickerResource#findLabels"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/issue-field-list",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/issue-field`: lists field-value-options' supported fields, sorted with Jira's `Field` natural order (by name). `id` is the field id; `label` is the translation of the field's name key when `I18nHelper.isKeyDefined` says it is defined, else `getName()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.IssueFieldsResource#getSupportFields",
+    "com.almworks.jira.structure.rest.v2.javax.IssueFieldsResource#createRestSupportedIssueField"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/issue-field-options-get",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/issue-field/options`: a blank `fieldId` (missing or spaces) answers 400 text/plain `fieldId should not be blank`. A null `query` becomes empty; a null, zero or negative `limit` means no limit. The rest is field-value-options' search, wrapped as `{\"groups\": [...]}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.IssueFieldsResource#getOptions"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/issue-field-options-post",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/issue-field/options`: a blank `fieldId`, or a null or empty `fieldValues`, answers 400 text/plain `fieldId or fieldValues should not be blank`. A JSON `null` body is not checked and ends as the mapper's 500. The rest is field-value-options' id resolution.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.IssueFieldsResource#getOptions"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/dark-features-list",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/dark-features`: keys come from Jira `ApplicationProperties.getStringsWithPrefix` for each of the four prefixes plus `System.getProperties()` names with that prefix; protected keys are dropped; a failure reading application properties (logged) or their absence leaves the JVM keys. Sorted by plain string order, no duplicates. A key stored with an empty value counts as unset: its `value` falls to the JVM property (or null) and `removable` is false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.DarkFeaturesResource#list",
+    "com.almworks.jira.structure.rest.v2.javax.DarkFeaturesResource#createResponse",
+    "com.almworks.jira.structure.darkfeature.DarkFeaturesHelper#listKeys"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/dark-features-protected-keys",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "Protected keys for `GET /rest/structure/2.0/dark-features` and its POST, PUT and DELETE: full match of `com.almworks.structure` + optional `.<letters, digits, _, +, ->` + `.license` + optional `.<anything>`; full match of `com.almworks.atlas-yourkit` + optional `.<anything>`; keys starting with `com.almworks.jira.structure.config.`; keys ending in `:build`. So `com.almworks.structure.license` and `com.almworks.structure.foo.license.x` are protected and `com.almworks.structure.foo.bar.license` is not.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.darkfeature.DarkFeaturesHelper#isSystemKey"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/dark-features-key-check",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/dark-features`, `PUT /rest/structure/2.0/dark-features` and `DELETE /rest/structure/2.0/dark-features` check the key the same way, untrimmed and case-sensitive: blank or null answers 400 text/plain `str.admin.dark.error.empty` (`Please enter a valid key.`); a wrong prefix or a protected key answers 400 text/plain `str.admin.dark.error.wrong.prefix` (`Please enter a valid key for the Structure suite.`). A key with leading spaces therefore fails on prefix.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.DarkFeaturesResource#checkKey",
+    "com.almworks.jira.structure.darkfeature.DarkFeaturesHelper#hasFeaturePrefix"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/dark-features-post-readonly",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/dark-features`: for a valid key answers its state as in the list, also when the key is set nowhere (`value` null, `removable` false). Nothing is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.DarkFeaturesResource#addKey",
+    "com.almworks.jira.structure.rest.v2.javax.DarkFeaturesResource#createResponse"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/dark-features-put",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/dark-features`: a null body answers 400 with no message. A valid key goes to Jira `ApplicationProperties.setString(key, value)` as sent, including a null or empty value; an empty value then behaves as unset. Failures, and application properties being unavailable, are logged and the call still answers 204. The JVM system properties are never changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.DarkFeaturesResource#update",
+    "com.almworks.jira.structure.darkfeature.DarkFeaturesHelper#setValue"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/dark-features-delete",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`DELETE /rest/structure/2.0/dark-features`: a valid key gets `ApplicationProperties.setString(key, null)` with write failures only logged, then the answer is the current JVM system property of that key as text/plain with 200, or 204 with no body when there is none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.DarkFeaturesResource#delete",
+    "com.almworks.jira.structure.darkfeature.DarkFeaturesHelper#setValue"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/dark-features-admin-websudo",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/dark-features` and its POST, PUT and DELETE are the only resource marked both administrator-only and websudo-required at resource level: a logged-in non-administrator gets 403 `permission violation` from the common gate; no websudo session gets the platform's own refusal. Which of the two comes first for a non-administrator without websudo depends on the platform and is not determined here.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.DarkFeaturesResource"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/date-validate",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/date/validate`: the text is parsed by Jira's `DateTimeFormatter` for the logged-in user (`forLoggedInUser()`) with style `DATE_PICKER`; on success `isValid` true, `resultDate` the same date formatted with style `ISO_8601_DATE`, `error` null. An `IllegalArgumentException` from the parser gives 200 with `isValid` false, `resultDate` null and `error` its localized message. Empty text is parsed like any other and fails that way.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.DateResource#validate"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/date-validate-other-exceptions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/date/validate`: only `IllegalArgumentException` is turned into `isValid` false; any other exception from Jira's parser reaches the mapper as a 500. A missing `date` passes null to the parser, so its answer is whatever Jira does with null.",
+   "confidence": "low",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.DateResource#validate"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/calendar-list",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/calendar/list`: walks extension-service's calendar providers: the built-in provider first (simple-calendar-provider), then the others by plain string order of module key. Each provider's calendars come in the provider's order, with `id` = `<provider complete module key>/<calendar id>`, and `name` and `description` as the calendar reports them. There is no anonymous access; `use` is checked by the gate.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CalendarResource#getList",
+    "com.almworks.jira.structure.rest.v2.javax.CalendarResource#forCalendarInfo",
+    "com.almworks.jira.structure.extension.calendar.CalendarFullId#toString"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/automation-list",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/automation`: lists extension-service's generator and effector descriptors in the descriptors' order. A module is left out when its descriptor's module cannot be resolved, resolves to the wrong type, or its `isAvailable()` is false. Generators and effectors are not sorted. `generatorConfigurationAllowed` and `effectorConfigurationAllowed` are `StructurePluginHelper.isAllowed` for `CoreAppPermissions.CONFIGURE_GENERATORS` and `CONFIGURE_EFFECTORS` with the `StructureAuth` user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AutomationResource#getAutomations",
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#fromDescriptor",
+    "com.almworks.jira.structure.rest.v2.data.RestEffector#fromDescriptor",
+    "com.almworks.jira.structure.lifecycle.ExtensionUtils#getDescriptorBridgeModuleSafe"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/automation-generator-entry",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/automation` generator entry: `type` is the first of `StructureGenerator.Inserter`, `.Grouper`, `.Extender`, `.Sorter`, `.Filter` the module implements; a module implementing none fails the whole call with an `IllegalArgumentException`, so 400 `Invalid request data`. `notConfigurable` is true when the module's class carries `NotConfigurable`. `label` null becomes empty. `presets` is absent unless the module is a `ConfigurableGenerator` returning non-null presets. `module` is the complete key and `group` the descriptor's group.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#fromDescriptor"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/automation-preset-disable-updates",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/automation` presets: each preset has `label` (null becomes empty), `description`, and `params` as a JSON-encoded string of its parameters. When dark feature `structure.generator.defaults.disableUpdates` is true (read per call), `disableActions: true` is added to every preset's parameters; a preset that already has that key then fails the call, as a map with a duplicate key cannot be built (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#fromDescriptor",
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator#withDisabledUpdates",
+    "com.almworks.jira.structure.rest.v2.data.RestStructureGenerator$RestPreset#fromGeneratorPreset"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/automation-effector-entry",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/automation` effector entry: `module` complete key; `label`, `icon` (icon span class) and `title` (dialog title) from the descriptor, each null replaced by empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.data.RestEffector#fromDescriptor"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/tempo-ids-parsing",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/tempo/accounts`, `GET /rest/structure/2.0/tempo/teams` and `GET /rest/structure/2.0/tempo/roles`: blank or missing `ids` means no restriction; otherwise it is split on commas without trimming, and `1, 2` keeps the space. Teams and roles parse each piece as an integer, so a space or a non-number empties the result with `total` 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.TempoResource#searchTeams",
+    "com.almworks.jira.structure.rest.v2.javax.TempoResource#searchRoles",
+    "com.almworks.structure.commons.tempo.TempoIntegration#searchTeams",
+    "com.almworks.structure.commons.tempo.TempoIntegration#searchRoles"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/tempo-accounts",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/tempo/accounts`: passes `query` and `limit` unchanged (null when omitted) to tempo-integration's account search, whose rules apply, including that archived accounts are left out unless dark feature `structure.tempo.showArchivedAccounts` is true. `status` is the localized text of the account's status (`s.tempo.accounts.status.open`, `.closed`, `.archived`). Pieces of `ids` go into Tempo's query as strings, unchecked. Absent Tempo Accounts or a failure gives `options` empty and `total` 0, status 200.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.TempoResource#searchAccounts",
+    "com.almworks.structure.commons.tempo.TempoIntegration#searchAccounts",
+    "com.almworks.jira.structure.rest.v2.data.RestTempoAccount#fromTempoAccount"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/tempo-negative-limit",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/tempo/teams` and `GET /rest/structure/2.0/tempo/roles`: a negative `limit` with at least one match fails inside the search and answers `options` empty and `total` 0 (as the original does); the limit rules of tempo-integration otherwise apply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#searchTeams",
+    "com.almworks.structure.commons.tempo.TempoIntegration#searchRoles",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getSearchLimit"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-v2/tempo-teams-roles",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/tempo/teams` and `GET /rest/structure/2.0/tempo/roles` answer tempo-integration's team and role searches as `{\"options\": [...], \"total\": n}`, each option with only `id` and `name`, 200 even when Tempo Teams is absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.TempoResource#searchTeams",
+    "com.almworks.jira.structure.rest.v2.javax.TempoResource#searchRoles"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-cfd/no-gate-no-mapper",
+   "module": "rest-cfd",
+   "api": null,
+   "behaviour": "The resources of `rest-cfd` have no common access gate, no `use` check and no exception mapper: `POST /rest/cfd/1.0/gadget/meta`, `GET /rest/cfd/1.0/gadget/status`, `GET /rest/cfd/1.0/gadget/validate` and `POST /rest/cfd/1.0/simulation/cfd` all accept anonymous callers. `loggedIn=true` in the query has no effect here.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.rest.javax.CfdGadgetResource",
+    "com.almworks.cfd.rest.javax.SimulationResource",
+    "com.almworks.cfd.rest.javax.AbstractCfdResource"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-cfd/meta",
+   "module": "rest-cfd",
+   "api": null,
+   "behaviour": "`POST /rest/cfd/1.0/gadget/meta`: answers cfd-meta-maker's result with status 200 whatever validation finds, and sets no `Cache-Control` of its own. A JSON `null` body or unparseable JSON gets the platform's generic error.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.rest.javax.CfdGadgetResource#getMeta",
+    "com.almworks.cfd.rest.MetaMaker#getMeta"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-cfd/status",
+   "module": "rest-cfd",
+   "api": null,
+   "behaviour": "`GET /rest/cfd/1.0/gadget/status`: answers `{\"enabled\": <bool>}` from cfd-meta-maker for any caller, with no `Cache-Control` of its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.javax.CfdGadgetResource#getStatus",
+    "com.almworks.cfd.rest.MetaMaker#getStatus"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-cfd/validate-parsing",
+   "module": "rest-cfd",
+   "api": null,
+   "behaviour": "`GET /rest/cfd/1.0/gadget/validate`: runs the same checks as `POST /rest/cfd/1.0/gadget/meta`. Each of the four attribute spec parameters is parsed as JSON into an attribute spec; absent, empty or unparseable text (logged as a warning) counts as absent. So a garbled `teamAttributeSpec` gives the field error `teamAttributeSpec`, and a garbled `whenAppearedAttributeSpec` gives no error at all. `adjustments` cannot be sent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.javax.CfdGadgetResource#validate",
+    "com.almworks.cfd.rest.MetaMaker#validate",
+    "com.almworks.cfd.rest.MetaMaker#fromJson"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-cfd/validate-reply",
+   "module": "rest-cfd",
+   "api": null,
+   "behaviour": "`GET /rest/cfd/1.0/gadget/validate`: with no errors answers 200 `{\"empty\": true}`; with any, 400 and the `validation-errors` object as JSON. With the feature off that object has one general message and no field errors. Both carry `Cache-Control: no-cache, no-store`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.cfd.rest.javax.CfdGadgetResource#validate",
+    "com.almworks.cfd.rest.javax.AbstractCfdResource#ok",
+    "com.almworks.cfd.rest.javax.AbstractCfdResource#badRequestWithEntity",
+    "com.almworks.structure.commons.rest.RestEmpty"
+   ]
+  },
+  {
+   "key": "r6-v2-config-cfd/rest-cfd/simulation",
+   "module": "rest-cfd",
+   "api": null,
+   "behaviour": "`POST /rest/cfd/1.0/simulation/cfd`: answers cfd-simulator's result as JSON with status 200 and no `Cache-Control` of its own. All its refusals (feature off, missing input) reach the caller as the platform's generic error, since the checked errors it raises are not web exceptions and nothing maps them.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.cfd.rest.javax.SimulationResource#simulateCFD",
+    "com.almworks.cfd.rest.Simulator#simulateCFD",
+    "com.almworks.structure.commons.rest.ErrorResponseException"
+   ]
+  }
+ ]
+}

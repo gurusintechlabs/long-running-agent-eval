@@ -7,9 +7,10 @@ CLASSES is a directory of class files or a jar; SOURCES the decompiled tree for 
 `.kt`). For every top-level class, the exceptions its bytecode constructs and throws (`new T … invokespecial
 T.<init>; athrow`, inner classes and lambdas included) are counted by simple name and compared with the
 `throw` statements in its source. A class whose bytecode throws more of a type than its source shows is
-printed: the decompiled error path there is not to be trusted, so read it with `javap -c -p`. Rethrows,
-exceptions built by a helper method, assertions and compiler-made throws (pattern switches, Kotlin `when`)
-are not counted. JC1 found four such drops in the public API (docs/phase-JC1-summary.md).
+printed: the decompiled error path there is not to be trusted, so read it with `javap -c -p`. Exceptions
+built by a method call (`throw Errors.X.withMessage(...)`, JC5) are counted the same way, by the method's
+name, as `name()`. Rethrows, assertions and compiler-made throws (pattern switches, Kotlin `when` and
+intrinsics) are not counted. JC1 found four such drops in the public API (docs/phase-JC1-summary.md).
 """
 from __future__ import annotations
 
@@ -30,6 +31,7 @@ _HEADER = re.compile(r"^(?:[a-z]+ )*(?:class|interface|enum|@interface|record) (
 _INSN = re.compile(r"^\s*\d+: (\w+)(.*)$")
 _NEW = re.compile(r"// class ([\w/$]+)")
 _INIT = re.compile(r'// Method ([\w/$]+)\."<init>"')
+_CALL = re.compile(r"// (?:Interface)?Method (?:([\w/$]+)\.)?\"?([\w$<>]+)\"?:")
 _SRC_THROW = re.compile(r"\bthrow\s+(?:new\s+)?((?:[\w$]+\.)*[A-Z][\w$]*)\s*\(")
 
 
@@ -51,22 +53,31 @@ def bytecode_throws(javap: str) -> dict[str, Counter]:
     cls = None
     pending: list[str] = []
     last = None                              # the type constructed by the previous instruction, if any
+    called = None                            # the method whose result is on the stack, if any
     for line in javap.splitlines():
         h = _HEADER.match(line)
         if h:
-            cls, pending, last = _top(h.group(1)), [], None
+            cls, pending, last, called = _top(h.group(1)), [], None, None
             continue
         m = _INSN.match(line)
         if not m or cls is None:
             continue
         op, rest = m.groups()
         built, last = last, None
+        result, called = called, None
+        if op == "checkcast":
+            called = result
+        elif op.startswith("invoke") and (c := _CALL.search(rest)) and c.group(2) != "<init>":
+            synthetic = (c.group(1) or "").startswith("kotlin/") or c.group(2).startswith("access$")
+            called = None if synthetic else c.group(2)
         if op == "new" and (n := _NEW.search(rest)):
             pending.append(n.group(1))
         elif op == "invokespecial" and (i := _INIT.search(rest)) and pending and pending[-1] == i.group(1):
             last = pending.pop()
         elif op == "athrow" and built and built not in SYNTHETIC:
             out[cls][built.rsplit("/", 1)[-1]] += 1
+        elif op == "athrow" and result:
+            out[cls][result + "()"] += 1
     return {k: v for k, v in out.items() if v}
 
 
@@ -87,7 +98,11 @@ def compare(found: dict[str, Counter], sources: Path) -> list[Missing]:
     out = []
     for cls in sorted(found):
         p = _source(sources, cls)
-        have = source_throws(p.read_text(errors="replace")) if p else Counter()
+        text = p.read_text(errors="replace") if p else ""
+        have = source_throws(text)
+        for t in found[cls]:
+            if t.endswith("()"):
+                have[t] = len(re.findall(r"\bthrow\b[^;{}]{0,300}?\b" + re.escape(t[:-2]) + r"\s*\(", text))
         want = Counter()
         for t, n in found[cls].items():
             want[t.rsplit("$", 1)[-1]] += n

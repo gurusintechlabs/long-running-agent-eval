@@ -74,9 +74,10 @@ public final class com.acme.Other {
 
 def test_bytecode_throws_counts_constructed_throws_per_top_level_class():
     got = st.bytecode_throws(JAVAP)
-    # the rethrow (aload; athrow), the exceptions built by helpers (static, or private through invokespecial)
-    # and the assertion are not counted
-    assert got == {"com.acme.Gate": Counter({"IllegalArgumentException": 1, "IllegalStateException": 2}),
+    # the rethrow (aload; athrow) and the assertion are not counted; exceptions built by helpers (static, or
+    # private through invokespecial) count by the helper's name
+    assert got == {"com.acme.Gate": Counter({"IllegalArgumentException": 1, "IllegalStateException": 2,
+                                             "fail()": 1, "error()": 1}),
                    "com.acme.Other": Counter({"Other$Oops": 1})}
 
 
@@ -92,7 +93,8 @@ def test_source_throws_reads_java_and_kotlin_forms():
 def test_compare_reports_throws_missing_from_the_source(tmp_path):
     src = tmp_path / "src" / "com" / "acme"
     src.mkdir(parents=True)
-    (src / "Gate.java").write_text('throw new IllegalArgumentException("x"); throw new IllegalStateException();')
+    (src / "Gate.java").write_text('throw new IllegalArgumentException("x"); throw new IllegalStateException();'
+                                   ' throw fail(); throw error(b);')
     (src / "Other.java").write_text("throw new Other.Oops();")
     got = st.compare(st.bytecode_throws(JAVAP), tmp_path / "src")
     assert got == [st.Missing("com.acme.Gate", "IllegalStateException", 2, 1)]
@@ -108,3 +110,44 @@ def test_synthetic_throws_are_ignored():
     text = JAVAP.replace("java/lang/IllegalArgumentException", "java/lang/MatchException")
     assert "IllegalArgumentException" not in st.bytecode_throws(text)["com.acme.Gate"]
     assert "MatchException" not in st.bytecode_throws(text)["com.acme.Gate"]
+
+
+FACTORY_JAVAP = """\
+public class com.acme.Res {
+  private java.lang.Object find(java.lang.String);
+    Code:
+       0: getstatic     #1                  // Field com/acme/Errors.BAD:Lcom/acme/Errors;
+       3: ldc           #2                  // String no such source
+       5: invokevirtual #3                  // Method com/acme/Errors.withMessage:(Ljava/lang/String;)Lcom/acme/Failure;
+       8: athrow
+  private void rethrow(java.lang.Exception);
+    Code:
+       0: aload_1
+       1: athrow
+  private void viaAccessor();
+    Code:
+       0: invokestatic  #6                  // Method com/acme/Res.access$500:()Ljava/lang/RuntimeException;
+       3: athrow
+  private void kotlinCheck();
+    Code:
+       0: invokestatic  #4                  // Method kotlin/jvm/internal/Intrinsics.throwNpe:()Ljava/lang/Object;
+       3: checkcast     #5                  // class java/lang/RuntimeException
+       6: athrow
+}
+"""
+
+
+def test_bytecode_throws_counts_exceptions_built_by_a_method_call():
+    """`throw Errors.BAD.withMessage(...)`: nothing is constructed here, and the decompiler drops these too.
+    A plain rethrow, a compiler's `access$n` accessor and Kotlin's own intrinsics are not counted."""
+    assert st.bytecode_throws(FACTORY_JAVAP)["com.acme.Res"] == Counter({"withMessage()": 1})
+
+
+def test_a_dropped_factory_throw_is_reported_and_a_visible_one_is_not(tmp_path):
+    src = tmp_path / "src" / "com" / "acme"
+    src.mkdir(parents=True)
+    (src / "Res.java").write_text("class Res { Object find(String s) { return null; } }")
+    got = st.compare(st.bytecode_throws(FACTORY_JAVAP), tmp_path / "src")
+    assert [(m.cls, m.exception, m.bytecode, m.source) for m in got] == [("com.acme.Res", "withMessage()", 1, 0)]
+    (src / "Res.java").write_text('class Res { Object find(String s) {\n  throw Errors.BAD\n    .withMessage("no"); } }')
+    assert st.compare(st.bytecode_throws(FACTORY_JAVAP), tmp_path / "src") == []

@@ -1,0 +1,1030 @@
+{
+ "claims": [
+  {
+   "key": "f1-filters-excel/end-of-life-decorator/scope-and-fixed-answer",
+   "module": "end-of-life-decorator",
+   "api": null,
+   "behaviour": "The `servlet-filter` `end-of-life-decorator` (location `before-decoration`, weight 200) is declared on `/secure/Dashboard.jspa`, `/secure/AdminSummary.jspa`, `/secure/admin/*`, `/secure/StructureAdmin*` and `/secure/StructureBoard.jspa`. Licensing being fixed as licensed, valid and not expiring, it never adds the `end-of-life` web resource to any page, for any user, including Jira administrators and for bundled extension apps.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.EndOfLifeDecorator"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/end-of-life-decorator/pass-through",
+   "module": "end-of-life-decorator",
+   "api": null,
+   "behaviour": "For every request on its URL patterns the filter calls the filter chain exactly once with the same request and response objects, and changes no header, cookie or session attribute. A request or response that is not HTTP is passed on the same way.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.EndOfLifeDecorator",
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/stats-offer-decorator/scope",
+   "module": "stats-offer-decorator",
+   "api": null,
+   "behaviour": "The `servlet-filter` `stats-offer-decorator` (location `before-decoration`, weight 200) acts on `/secure/AdminSummary.jspa`, `/secure/admin/*` and `/secure/StructureAdmin*`, for any HTTP method. It does its work before calling the chain and does nothing after it; the request and response objects go down the chain unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.EnableStatisticsOfferDecorator",
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/stats-offer-decorator/sysadmin-only",
+   "module": "stats-offer-decorator",
+   "api": null,
+   "behaviour": "Only a Jira system administrator is considered: it asks Jira's `GlobalPermissionManager.hasPermission(GlobalPermissionKey.SYSTEM_ADMIN, user)` for the current `StructureAuth` user (null when anonymous). A user with only `GlobalPermissionKey.ADMINISTER`, or anyone else the check refuses, gets no resource and `statistics-manager` is not consulted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.EnableStatisticsOfferDecorator#doBefore"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/stats-offer-decorator/adds-offer-resource",
+   "module": "stats-offer-decorator",
+   "api": null,
+   "behaviour": "For a system administrator it asks `statistics-manager` whether to show the offer to that user (the rule is claimed for `statistics-manager`: not yet enabled, not dismissed, enough users). If yes it requires the web resource `com.almworks.jira.structure:stats-offer` on the page (through the page resource manager, as `StructurePluginHelper.requireResource` does); if no it adds nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.EnableStatisticsOfferDecorator#doBefore"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/stats-offer-decorator/failures-never-break",
+   "module": "stats-offer-decorator",
+   "api": null,
+   "behaviour": "When the permission check, the offer check or adding the resource throws, the failure is swallowed and the chain still runs. Exception to this: `ThreadDeath` and any `VirtualMachineError` (such as `OutOfMemoryError`) are rethrown and do reach the caller. A failure whose root cause is `StructureStoppedException` is not logged at all. Any other failure is logged at error level, except that a failure with the same class name and message as the last one logged at error level, less than 3,600,000 ms (1 hour) ago, is logged at info level; each filter instance remembers its own last failure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#handleThrowable",
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#shouldBeLoggedAsError",
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#getThrowableSignature",
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#doBeforeSafe"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/stats-offer-decorator/non-http-pass-through",
+   "module": "stats-offer-decorator",
+   "api": null,
+   "behaviour": "A request or response that is not an `HttpServletRequest`/`HttpServletResponse` is passed down the chain with no check made and no resource added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/plugin-manager-helper/scope-and-fixed-answer",
+   "module": "plugin-manager-helper",
+   "api": null,
+   "behaviour": "The `servlet-filter` `plugin-manager-helper` (location `before-decoration`, weight 200) is declared on `/plugins/servlet/upm` and `/plugins/servlet/upm*`. There being no vendor-provided licence to explain in the plugin manager, it never adds the `plugin-manager-helper-rc` web resource, for any user or any bundled extension app.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.PluginManagerHelper"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/plugin-manager-helper/pass-through",
+   "module": "plugin-manager-helper",
+   "api": null,
+   "behaviour": "For every request on its URL patterns the filter calls the chain exactly once with the same request and response objects and changes no header, cookie or session attribute. A request or response that is not HTTP is passed on the same way.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.PluginManagerHelper",
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/scope-and-purpose",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "The `servlet-filter` `issue-change-interceptor` (location `before-decoration`, weight 200) is declared on `/secure/MoveIssueLink.jspa`, `/secure/VoteOrWatchIssue.jspa`, `/rest/api/2/issue/*/watchers`, `/rest/api/1.0/issues/*/watchers`, `/secure/SetRank.jspa`, `/secure/Rank.jspa`, `/secure/PageRank.jspa`, `/rest/greenhopper/1.0/epics/*` and `/rest/api/2/issue/*/subtask/move`. Those requests change issues without Jira's usual issue events, so around each one it works out the affected issues before the chain and reports them to `IssueEventBridge.reportChanges(ids, type)` (module `event-bridge`) after the chain. The response is never touched, and the request's content is not changed (see the claim on the epic body capture).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/rank-requests",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "A request whose URI ends with `Rank.jspa` (`/secure/SetRank.jspa`, `/secure/Rank.jspa`, `/secure/PageRank.jspa`), with any HTTP method, reports `JiraChangeType.GH_RANK_UPDATED` for the issues given by its `id` and `issueKeys` parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/move-issue-link",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "A request whose URI ends with `MoveIssueLink.jspa`, with any HTTP method, reports `JiraChangeType.SUBTASKS_REORDERED` for the issues given by its `id` and `issueKeys` parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/vote-watch",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "A request whose URI ends with `VoteOrWatchIssue.jspa` or with `watchers`, with any HTTP method (a read-only GET of a watcher list included), reports `JiraChangeType.ISSUE_UPDATED` for the issues given by its `id` and `issueKeys` parameters, plus the numeric id taken from a URI containing `/issues/<digits>/watchers` when that id is greater than 0 and fits a long.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#doHttpFilter",
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#addWatchers"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/rest-v2-watchers-url-not-matched",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "For `/rest/api/2/issue/<id>/watchers` the id in the URI is not picked up, because only the plural form `/issues/<digits>/watchers` is recognised (as the original does): such a request reports an issue only when it also carries an `id` or `issueKeys` parameter. A key instead of digits in the URL (`/rest/api/1.0/issues/ABC-1/watchers`) is not picked up either.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#addWatchers"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/id-parameter",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "The `id` parameter counts when it parses with `Long.parseLong` (no trimming) and is greater than 0. Missing, unparseable, zero or negative values are ignored. The value is reported as given: the filter does not check that such an issue exists or that the user may see it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#addId"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/issue-keys-parameter",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "The `issueKeys` parameter is a comma-separated list. Each part is trimmed, empty parts are skipped, and each key is resolved with Jira's `IssueManager.getIssueObject(key)`, without a permission check. A key with no issue (or an issue with a null id) is skipped. A key lookup that throws an `Exception` is logged as a warning and only that key is skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#addKeys",
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#addIssueByKey"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/epic-add-remove",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "A `PUT` (exact, upper case) whose URI contains `/rest/greenhopper/1.0/epics/` and ends with `/add` or `/remove` reports `JiraChangeType.ISSUE_UPDATED` for the issues named in the JSON body's `issueKeys` array, resolved after the chain ran, as for the `issueKeys` parameter. The `id` and `issueKeys` request parameters are not read for it. Any other method or ending under `epics/` reports no issue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#doHttpFilter",
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#addKeysFromJson"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/epic-body-capture-transparent",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "For an epic add or remove the chain receives a request wrapper instead of the original request. Its content is the same: everything the downstream code reads through `getInputStream()` or `getReader()` (single reads, array reads, `readLine`) comes back unchanged and is only copied aside; `available`, `close`, `mark`, `reset`, `skip`, `markSupported`, `ready`, `isFinished`, `isReady` and `setReadListener` act on the real stream or reader, and every other request method behaves as on the original request. Repeated calls to `getInputStream()` return the same stream object, likewise `getReader()`. This is the only request or response object the filter ever replaces.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.CapturingRequestWrapper",
+    "com.almworks.jira.structure.util.servlet.javax.CapturingRequestWrapper#getInputStream",
+    "com.almworks.jira.structure.util.servlet.javax.CapturingRequestWrapper#getReader",
+    "com.almworks.jira.structure.util.servlet.javax.CapturingRequestWrapper$CapturingInputStream",
+    "com.almworks.jira.structure.util.servlet.javax.CapturingRequestWrapper$CapturingBufferedReader"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/epic-body-capture-limit",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "The copy of an epic request's body holds at most its first 102,400 bytes (when read as bytes) or 102,400 characters (when read as characters); the downstream reader still gets all of it. Only what the downstream code really read is copied, so a body it never read gives no issues. A body cut off by the limit normally fails to parse and gives no issues. The copy is decoded with the request's character encoding, or the JVM default charset when the encoding is missing, illegal or unsupported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.CapturingRequestWrapper",
+    "com.almworks.jira.structure.util.servlet.javax.CapturingRequestWrapper#getCharset",
+    "com.almworks.jira.structure.util.servlet.javax.CapturingRequestWrapper#getString",
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/epic-body-parsing",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "The epic body is read as a JSON object. Without an `issueKeys` array, or with a body that is not valid JSON, no issue is found and that is logged at debug level only; the request is not affected. A failure reading the copy is logged as a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#addKeysFromJson"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/subtask-move",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "A `POST` (exact, upper case) whose URI contains `/rest/api/2/issue/<digits>/subtask/move` reports `JiraChangeType.SUBTASKS_REORDERED` for the numeric id in the URI, which is the parent issue. Parameters are not read. With an issue key instead of digits, or any other method, no issue is reported. Digits too long for a long count as a preparation failure: nothing is reported and the request goes on.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/report-shape",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "The report is made once per request, after the chain returned, whether the chain succeeded or threw, and whatever the response status: an exception from the chain still propagates to the caller after the report. The issue ids are passed sorted ascending with duplicates removed, so an issue named by both `id` and `issueKeys` is reported once. A request that yields no ids reaches no `IssueListener` (see `event-bridge`), with type `JiraChangeType.UNKNOWN_CHANGE` when no rule applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/failures-never-break",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "A failure while working out the issues is swallowed, nothing is then reported for that request, and the chain still runs. A failure while reporting after the chain is swallowed too. Both are handled as claimed for `stats-offer-decorator` (`ThreadDeath` and `VirtualMachineError` are rethrown; `StructureStoppedException` as root cause is silent; other failures are logged with the hourly repeat rule).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#doHttpFilter",
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#handleThrowable"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/parameters-read-before-chain",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "For rank, link-move, vote-or-watch and watcher requests the `id` and `issueKeys` parameters are read with `getParameter` before the chain runs, so a form-encoded body is parsed by the container at that point. No other request kind has its parameters read by the filter.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#addId",
+    "com.almworks.jira.structure.util.servlet.javax.IssueChangeInterceptor#addKeys"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/issue-change-interceptor/non-http-pass-through",
+   "module": "issue-change-interceptor",
+   "api": null,
+   "behaviour": "A request or response that is not HTTP is passed down the chain and nothing is reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/bulk-change-interceptor/scope-and-trigger",
+   "module": "bulk-change-interceptor",
+   "api": null,
+   "behaviour": "The `servlet-filter` `bulk-change-interceptor` (location `before-decoration`, weight 200) acts on `/secure/Bulk*`. It acts only when the HTTP session already exists (it never creates one) and its attribute `jira.bulkeditbean` holds the Structure bulk-edit selection created by `ww-structure`: a `BulkEditBean` subclass carrying a home URL and a `SearchRequest`. Otherwise (no session, no attribute, or Jira's own plain `BulkEditBean`) the request and response pass through unchanged and the session is left alone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.BulkChangeInterceptor#doHttpFilter",
+    "com.almworks.jira.structure.util.servlet.javax.BulkChangeInterceptor#getBulkEditBean"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/bulk-change-interceptor/search-swapped-for-the-request",
+   "module": "bulk-change-interceptor",
+   "api": null,
+   "behaviour": "During the chain the session attribute `jira.issue.navigator.search.request` holds the selection's `SearchRequest`. After the chain the previous value of that attribute is put back, also when the chain threw; a previous value of null puts null back, which removes the attribute.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.BulkChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/bulk-change-interceptor/empty-search-created",
+   "module": "bulk-change-interceptor",
+   "api": null,
+   "behaviour": "When the selection has no `SearchRequest`, a new empty `SearchRequest` is created, stored on the selection (so later requests reuse it) and used as the session search for this request.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.BulkChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/bulk-change-interceptor/navigator-redirect-to-home",
+   "module": "bulk-change-interceptor",
+   "api": null,
+   "behaviour": "When the selection's home URL is non-null and non-empty, the chain receives a response wrapper: a `sendRedirect` whose location contains `/secure/IssueNavigator.jspa` goes to the home URL as given, and any other location is unchanged. Everything else on the response behaves as on the original. With a null or empty home URL the original response goes down the chain and redirects to the navigator stay as they are.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.BulkChangeInterceptor#wrapResponse",
+    "com.almworks.jira.structure.util.servlet.javax.BulkChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/bulk-change-interceptor/selection-kept-when-jira-replaces-bean",
+   "module": "bulk-change-interceptor",
+   "api": null,
+   "behaviour": "After the chain, also when it threw, if `jira.bulkeditbean` now holds a different `BulkEditBean` (Jira created its own), that bean's `getSelectedIssues()` are copied into the Structure selection (both `initSelectedIssues` and `setIssuesInUse`) and the Structure selection is put back under `jira.bulkeditbean`. If the attribute is unchanged, or was removed or now holds something that is not a `BulkEditBean`, nothing is copied and the attribute stays as it is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.BulkChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/bulk-change-interceptor/no-restore-when-copy-fails",
+   "module": "bulk-change-interceptor",
+   "api": null,
+   "behaviour": "The search attribute is restored after the selection is handled, in the same protected step: if copying the issues back fails, the failure is swallowed and the session keeps the selection's search instead of the previous one (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.BulkChangeInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/bulk-change-interceptor/failures-never-break",
+   "module": "bulk-change-interceptor",
+   "api": null,
+   "behaviour": "A failure before the chain is swallowed and the chain still runs, with the response wrapper if it had already been set up; the search is restored afterwards only if it had been swapped. A failure after the chain is swallowed too, and an exception from the chain itself propagates. Handling is as claimed for `stats-offer-decorator` (`ThreadDeath` and `VirtualMachineError` are rethrown).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.BulkChangeInterceptor#doHttpFilter",
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#handleThrowable"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/bulk-change-interceptor/non-http-pass-through",
+   "module": "bulk-change-interceptor",
+   "api": null,
+   "behaviour": "A request or response that is not HTTP is passed down the chain and the session is not touched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/tempo-internal-issues-interceptor/scope",
+   "module": "tempo-internal-issues-interceptor",
+   "api": null,
+   "behaviour": "The `servlet-filter` `tempo-internal-issues-interceptor` (location `before-decoration`, weight 200) is declared on `/rest/tempo-core/*/issues/*`, but it acts only on an exact `PUT` whose URI contains `/rest/tempo-core/1/issues/` and ends with `issues/<key>`, where the key ends with a dash and digits. Other versions in the URL, other methods, sub-paths (`.../issues/ABC-1/worklogs`) and numeric ids are passed through with nothing reported. The request and response objects go down the chain unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.TempoInternalIssuesInterceptor#doHttpFilter",
+    "com.almworks.jira.structure.util.servlet.javax.TempoInternalIssuesInterceptor"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/tempo-internal-issues-interceptor/reports-issue-updated",
+   "module": "tempo-internal-issues-interceptor",
+   "api": null,
+   "behaviour": "For an accepted request the key is resolved before the chain with Jira's `IssueManager.getIssueObject(key)`, without a permission check. After the chain, whether it succeeded or threw and whatever the status, `IssueEventBridge.reportChanges` is called once with that one issue id and `JiraChangeType.ISSUE_UPDATED`. An exception from the chain still propagates after the report.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.TempoInternalIssuesInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/tempo-internal-issues-interceptor/unknown-key",
+   "module": "tempo-internal-issues-interceptor",
+   "api": null,
+   "behaviour": "When the key has no issue, nothing is reported and the request goes on normally.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.TempoInternalIssuesInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/tempo-internal-issues-interceptor/lookup-failure",
+   "module": "tempo-internal-issues-interceptor",
+   "api": null,
+   "behaviour": "When the issue lookup throws, the failure is handled as claimed for `stats-offer-decorator`, nothing is reported and the chain still runs. `ThreadDeath` and `VirtualMachineError` are rethrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.TempoInternalIssuesInterceptor#doHttpFilter",
+    "com.almworks.jira.structure.util.servlet.javax.AbstractStructureServletFilter#handleThrowable"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/tempo-internal-issues-interceptor/report-failure-not-guarded",
+   "module": "tempo-internal-issues-interceptor",
+   "api": null,
+   "behaviour": "The report after the chain is not protected, unlike `issue-change-interceptor`: anything thrown by `IssueEventBridge.reportChanges` (in practice an `Error` from a listener, see `event-bridge`) leaves the filter and reaches the caller, replacing any exception from the chain (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.TempoInternalIssuesInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/tempo-internal-issues-interceptor/tempo-absent",
+   "module": "tempo-internal-issues-interceptor",
+   "api": null,
+   "behaviour": "The filter does not check whether Tempo is installed. Without Tempo a matching `PUT` for an existing issue key is still reported as updated, whatever the answer to the request itself; the filter otherwise has no effect.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.TempoInternalIssuesInterceptor#doHttpFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/scope",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "The `servlet-filter` `security-filter` (location `before-login`, weight 200, dispatchers `REQUEST`, `INCLUDE`, `FORWARD`, `ERROR`) acts on `/secure/StructureExternalGadget.jspa`, for anonymous and logged-in users alike, and is declared with Atlassian's unrestricted-access annotation so that it is never refused. It sets the page's `Content-Security-Policy` so that the page may be framed by `'self'` and by the applications linked to Jira. Other headers, `X-Frame-Options` included, are not touched by it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExternalGadgetSecurityFilter",
+    "com.almworks.jira.structure.util.servlet.javax.ExternalGadgetSecurityFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/sets-policy-before-chain",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "Before the chain it takes the response's current `Content-Security-Policy` (possibly none) and sets the combined policy on the response, so the header is present even when nothing downstream sets one. With no current header the value is `frame-ancestors 'self' <origins>`, or just `frame-ancestors 'self'` with no application links.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExternalGadgetSecurityFilter#doFilter",
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#setContentSecurityPolicy",
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#addAncestorSources"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/intercepts-set-header",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "The chain receives a response wrapper. A `setHeader` whose name equals `Content-Security-Policy` ignoring case sets the combined policy of the given value instead of the value itself, under the exact name `Content-Security-Policy`. Other `setHeader` calls pass through unchanged. `addHeader` is not intercepted, for this header either, and goes straight to the real response.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExternalGadgetSecurityFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/combine-with-frame-ancestors",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "When the policy has a directive that starts, ignoring case and surrounding spaces, with `frame-ancestors ` (with the space), the directive is rewritten in place and the directives are joined with `;`: its existing sources come first in their order, then `'self'` and the link origins, without duplicates, separated by one space. Example with one link: `default-src 'self'; frame-ancestors https://a.example` becomes `default-src 'self';frame-ancestors https://a.example 'self' https://b.example`. A trailing `;` is lost and other directives keep their own spacing. Applying the filter again (on a forward) changes nothing, because of the de-duplication.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#addAncestorSources",
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#extendFrameAncestorsDirective"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/frame-ancestors-none-replaced",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "A `frame-ancestors` directive whose only source is `'none'` (ignoring case) is replaced by `frame-ancestors 'self' <origins>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#extendFrameAncestorsDirective"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/no-directive-appended",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "A policy with no such directive gets one appended, with a `;` added first when the trimmed policy does not end with one: `default-src 'self'` becomes `default-src 'self';frame-ancestors 'self' <origins>`. A null, empty or blank policy gives only the directive. A bare `frame-ancestors` with no following space does not count as a directive, so a second one is appended.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#addAncestorSources"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/link-origins",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "The origins are computed from `ReadOnlyApplicationLinkService.getApplicationLinks()`: for each link both `getDisplayUrl()` and `getRpcUrl()` count, reduced to `scheme://host` plus `:port` when a port is given, except that port 443 with `https` and port 80 with `http` are dropped. Path, query and user info are removed, and equal origins appear once. The directive always begins with `'self'`; the order of the origins after it is not defined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#getKnownReferrers",
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer$FrameAncestorsLoader#load",
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#cutUrl",
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#getOriginWithScheme"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/origin-cache",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "The origins are kept in the Atlassian cache `com.almworks.jira.structure.app-links` (one entry, created by a cache loader on the first request after a clear) and reused for all requests. Any `ApplicationLinkEvent` on Jira's `EventPublisher` clears the cache, so a link change shows on the next request.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer",
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#onAppLinkEvent"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/lifecycle",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "The filter registers its listener on `EventPublisher` when created; `destroy()` unregisters it and logs a warning that it is stopping.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExternalGadgetSecurityFilter#destroy",
+    "com.almworks.structure.commons.security.SecurityInterceptorEnhancer#destroy"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/policy-failure-drops-request",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "When computing or setting the policy before the chain throws an `Exception` (for example when application links cannot be read), it is logged as an error and the chain is never called: the request ends with an empty response (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExternalGadgetSecurityFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/chain-exceptions-swallowed",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "An `Exception` thrown by the chain, `IOException` and `ServletException` included, or by a later policy update, is logged as an error (`Unexpected exception in servlet filter`) and does not propagate, so the container's error handling never sees it (as the original does). An `Error` does propagate.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExternalGadgetSecurityFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/security-filter/non-http-pass-through",
+   "module": "security-filter",
+   "api": null,
+   "behaviour": "A request or response that is not HTTP goes down the chain unchanged. An `Exception` from that chain is logged and swallowed too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExternalGadgetSecurityFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/partitioned-cookie-header-filter/scope",
+   "module": "partitioned-cookie-header-filter",
+   "api": null,
+   "behaviour": "The `servlet-filter` `partitioned-cookie-header-filter` (location `after-encoding`, no weight, dispatcher `REQUEST`) is declared on `/secure/StructureExternalGadget.jspa` and `/rest/tsv/1.0/authenticate*`, with Atlassian's unrestricted-access annotation. It acts only on requests with scheme `https` and method `POST`, both compared ignoring case. Anything else, including any request the container reports as `http`, goes down the chain with the original objects.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.PartitionedCookieServletFilter#doFilter",
+    "com.almworks.jira.structure.util.servlet.javax.PartitionedCookieServletFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/partitioned-cookie-header-filter/gadget-login-on-redirect",
+   "module": "partitioned-cookie-header-filter",
+   "api": null,
+   "behaviour": "For an acting request whose URI does not end with `/rest/tsv/1.0/authenticate` (the gadget page login post), the chain gets a response wrapper: when `sendRedirect` is called, the `Set-Cookie` headers are rewritten first and then the redirect goes on to the same location. A response that does not redirect (such as a failed login that shows the form again) keeps its cookies as they were.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.PartitionedCookieServletFilter#createResponse",
+    "com.almworks.jira.structure.util.servlet.javax.PartitionedCookieServletFilter$RedirectWrapper#sendRedirect"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/partitioned-cookie-header-filter/authenticate-only-when-asked",
+   "module": "partitioned-cookie-header-filter",
+   "api": null,
+   "behaviour": "For an acting request whose URI ends with `/rest/tsv/1.0/authenticate`, the filter acts only when the request parameter `s_partitioned` is exactly `true` (case-sensitive). Otherwise the original response goes down the chain.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.PartitionedCookieServletFilter#createResponse"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/partitioned-cookie-header-filter/authenticate-on-set-header",
+   "module": "partitioned-cookie-header-filter",
+   "api": null,
+   "behaviour": "With `s_partitioned=true` the chain gets a response wrapper: on every `setHeader` call, whatever the header, the `Set-Cookie` headers present at that moment are rewritten and then the header is set. `addHeader`, `addCookie` and `sendRedirect` trigger nothing, so cookies added after the last `setHeader` stay as they are. A `setHeader` of `Set-Cookie` itself stores its value unmodified.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.PartitionedCookieServletFilter$SetHeaderWrapper#setHeader"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/partitioned-cookie-header-filter/attributes-added",
+   "module": "partitioned-cookie-header-filter",
+   "api": null,
+   "behaviour": "Rewriting appends to each target cookie's header, in this order, `; Secure`, `; SameSite=None` and `; Partitioned`. Each attribute is skipped when its name (`Secure`, `SameSite`, `Partitioned`) already occurs anywhere in that header text, compared case-sensitively, so an existing `SameSite=Lax` stays Lax and a lower-case `secure` gets a second `Secure`. All else in the header is kept, and rewriting twice changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.security.CookieAttributeAppender#appendCookieAttribute",
+    "com.almworks.structure.commons.security.CookieAttributeAppender$CookieAttribute"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/partitioned-cookie-header-filter/target-cookies",
+   "module": "partitioned-cookie-header-filter",
+   "api": null,
+   "behaviour": "The target cookies are `JSESSIONID`, `INGRESSCOOKIE` and the names in dark feature `structure.partitioned.cookies.additional`, a comma-separated list read at each rewrite; names are trimmed, empty ones skipped, and matched case-sensitively against the cookie name. Other cookies keep their header text unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.security.CookieAttributeAppender#getTargetCookies",
+    "com.almworks.jira.structure.util.servlet.javax.PartitionedCookieServletFilter$RedirectWrapper#sendRedirect"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/partitioned-cookie-header-filter/headers-replaced-in-order",
+   "module": "partitioned-cookie-header-filter",
+   "api": null,
+   "behaviour": "A rewrite replaces all the `Set-Cookie` headers: the first usable one with `setHeader`, the others with `addHeader`, in the original order. Blank headers are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.security.CookieAttributeAppender#appendCookieAttributes"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/partitioned-cookie-header-filter/unparseable-cookie-headers-lost",
+   "module": "partitioned-cookie-header-filter",
+   "api": null,
+   "behaviour": "A `Set-Cookie` header that `java.net.HttpCookie.parse` rejects (a warning is logged) or that parses into other than one cookie is not written back, so it disappears from the response when any other usable `Set-Cookie` header exists (as the original does). When no usable header exists, nothing is rewritten and all headers stay.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.security.CookieAttributeAppender#appendCookieAttributes"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/partitioned-cookie-header-filter/failures",
+   "module": "partitioned-cookie-header-filter",
+   "api": null,
+   "behaviour": "The filter catches nothing: an exception from the chain, or from a rewrite, reaches the caller. It has no effect on the page's content and does not change the request.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.PartitionedCookieServletFilter#doFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/get-and-post",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "`GET /plugins/servlet/structure/excel` and `POST` of the same path run the same export, reading the parameters of SPEC.md section 1.4 through `getParameterMap()` (the first value counts when a parameter is repeated), so a POST may carry them in a form body. Any path matching `/structure/excel*` under `/plugins/servlet` is served alike.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet",
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doPost"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/no-own-permission-check",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The servlet makes no access check of its own and needs no login: an anonymous caller gets what the forest and permission checks below allow. Access is decided by `forest-service` when it resolves the forest, by `view-manager` for a saved view, and by row visibility.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet",
+    "com.almworks.jira.structure.export.ForestExporter#prepareForest"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/request-context-cached",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "Before anything else it caches Jira's Velocity request context for this request, with SAL `ApplicationProperties.getBaseUrl(UrlMode.ABSOLUTE)` as base URL (see `velocity-request-context-factory-bridge`), so that links rendered in cells use that base URL. It does not clear it afterwards.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/forest-spec-missing",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "A missing, empty or unreadable `forestSpec`, or one that is the JSON `null`, answers `500` through `sendError` with the message `spec not available: <the parameter's value>` (`null` when missing). Nothing else happens: no view is read and no statistic is recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/forest-spec-invalid",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "A readable `forestSpec` rejected by `ForestSpec.fromRest` (for example neither or several of `structureId`, `sQuery` and clipboard, or `version` without `structureId`) answers `500` with that exception's message, not `400`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet",
+    "com.almworks.jira.structure.api.forest.ForestSpec#fromRest"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/error-status-mapping",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "A `StructureException` answers through `sendError(status, e.getLocalizedMessage())`: `503` when the error is `StructureErrors.AUTOMATION_FAILED`, otherwise by the error's category: `INVALID_INPUT` 400, `NO_PERMISSION` 403, `NOT_FOUND` 404, any other 500. It is logged as a warning with the structure id, taken from parameter `s` when it is a number and from the forest spec otherwise. `s` affects nothing else.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet",
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#getStatusCode"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/other-failures-500",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "Any other `Exception` or a `LinkageError` answers `sendError(500, e.getLocalizedMessage())`, which may be a null message, and is logged as a warning. Other `Error`s propagate to the container.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/success-headers",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The workbook is built completely before the response is touched, so a failure while building gives a clean error status. Then the response is `reset()`, the buffer size set to 8192, and besides the `Content-Type` and `Content-Disposition` of SPEC.md section 1.4 it gets `Last-Modified` = now and `Expires` = now + 1 ms. The `<name>` is encoded like JavaScript's `encodeURIComponent`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/xlsx-flag",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "`xlsx` selects the `.xlsx` format when its value, trimmed and ignoring case, is `true`; any other value or none gives `.xls`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet",
+    "com.almworks.jira.structure.api.util.StructureUtil#getSingleParameterBoolean"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/file-name-edges",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "In the file name, non-letter and non-digit characters at the start of the display name are dropped, not turned into `_`; letters and digits are those of `Character.isLetterOrDigit`, so non-Latin letters stay. The time is the moment the forest was read, formatted in the JVM's default time zone, not the user's. For example `  --Q3` at that same time gives `Q3_261028_1405.xlsx`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#createFilename",
+    "com.almworks.jira.structure.export.ForestExporter#prepareForest"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/active-user-statistic",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "After the workbook is built and before it is written, `statistics-manager` gets `addUniqueUserCountAsync(\"activeUser\")`. A failed export records nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/view-resolution",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The columns come from the saved view when `viewId` is a non-zero number, read from `view-manager` with `PermissionLevel.VIEW`. Otherwise from `viewSpec` when non-empty. A `viewId` that is not a number counts as absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#getViewSpecification",
+    "com.almworks.jira.structure.api.util.StructureUtil#getSingleParameterLong"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/view-failure-falls-back",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "When the saved view does not exist or cannot be viewed, the export does not fail and does not try `viewSpec`: it uses the default view, which has the `issuekey` field column followed by the main column. The same default is used when neither parameter gives a view, when `viewSpec` cannot be read, and when its content is invalid. So no view problem ever answers `403` or `404`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#getViewSpecification"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/columns-exported",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The columns of the view are exported in view order, without those with key `handle` or `actions`. When the view's column display mode is `ColumnDisplayMode.SCROLLABLE`, the pinned columns (`ViewSpecification.getPins()`) come first in pin order and the others follow in view order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#getColumnsToExport"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/renderer-lookup",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "For each column, providers from `extension-service` are tried in the order (column key, `ms-excel`), (column key, any format), (any key, `ms-excel`), (any key, any format), and within each pair in module order. The first that returns a renderer, or several through the export request context (see `exportrenderer-excel-joined`), wins. A `StructureProviderException` skips the column with a warning. A provider that throws anything else is ignored for the rest of the export. A column with no renderer is skipped with a warning, and a renderer whose `prepare` throws is left out; the other columns are exported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#prepareExportRenderers",
+    "com.almworks.jira.structure.export.ForestExporter#getRenderers",
+    "com.almworks.jira.structure.export.ForestExporter#getColumnRendererSafe"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/renderer-failure-isolated",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "A renderer that throws an `Exception` or `LinkageError` in `configureColumn` or `renderCell` is logged and not called again for that export; its remaining cells stay blank and the export succeeds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#configureColumnSafe",
+    "com.almworks.jira.structure.export.ForestExporter#renderCellSafe"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/context-keys",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "While renderers run, the export context holds `ExportContextKeys.Export.VIEW_SPECIFICATION` and, from sheet creation on, the POI objects under `ExportContextKeys.Excel`: `POI_WORKBOOK`, `POI_HELPER`, `POI_SHEET`, and for the current cell `POI_ROWNUM` (0-based sheet row), `POI_ROW`, `POI_COLUMN` (0-based) and `POI_CELL`. The header is set up through `configureColumn` and data through `renderCell`, once per kept row and column.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#createWorkbook",
+    "com.almworks.jira.structure.export.excel.ExcelExporter#createHeaderRow",
+    "com.almworks.jira.structure.export.excel.ExcelExporter#writeCells",
+    "com.almworks.jira.structure.export.excel.ExcelExporter$PoiColumn#configure",
+    "com.almworks.jira.structure.export.excel.ExcelExporter$PoiColumn#render"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/rows-kept",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The rows are those of the current forest of the `forestSpec` from `ForestService.getForestSource`, after removing generator rows, effector rows and rows that no longer exist, and applying `clientFilter`. Filtering is as `Forest.filter`: sub-rows of a removed row stay and move up. Collapsed rows are exported too, not skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#prepareForest",
+    "com.almworks.jira.structure.export.excel.ExcelExporter#isSkipCollapsed"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/client-filter-format",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "`clientFilter` starts with `+` (keep only the listed rows) or `-` (drop the listed rows). The rest is a `.`-separated list of decimal numbers, each added to the running total to give the next row id, so `+10.5.2` lists rows 10, 15 and 17. `+` alone keeps no row; `-` alone or an empty value filters nothing. A wrong first character, or any list element that does not parse (`+10.`), logs a warning and filters nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#parseClientFilter"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/row-limits",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "At most 1,000,000 rows are exported to `.xlsx` and 65,530 to `.xls`, counted on the rows kept: the first rows in forest order. Further rows are dropped silently, with no warning in the workbook.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#getMaximumRows",
+    "com.almworks.jira.structure.export.ForestExporter#prepareForest",
+    "com.almworks.jira.structure.export.ForestExporter#trimForestToMaximumSize"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/invisible-rows",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "Rows that `ForestAccessCache.getInvisibleRows` reports as invisible to the current `StructureAuth` user stay in the sheet at their place, but every attribute read for them gives null, so renderers show nothing for them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#prepareForest",
+    "com.almworks.jira.structure.export.ForestExporter$InaccessibleExportRow#get",
+    "com.almworks.jira.structure.export.ForestExporter$RowIterator#next"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/sheet-layout",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The workbook has one sheet. With nothing to warn about the header is on row 0 and data from row 1. Otherwise warnings come first, one row each, merged across all columns, light yellow background and italic: `s.export.forest-outdated` (`The exported structure may be outdated. We could not access the most recent version in time, because the structure was busy.`) and then `s.export.inconsistent` (`The exported information may be inconsistent due to concurrent changes in Jira or Structure during the export.`). One blank row follows, then the header and data.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#createWarningRow",
+    "com.almworks.jira.structure.export.excel.ExcelExporter#getBaseTableRow",
+    "com.almworks.jira.structure.export.excel.ExcelExporter#rowNum",
+    "com.almworks.jira.structure.export.excel.ExcelStyleHelper#getWarningStyle"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/sheet-name",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The sheet is named from `ForestService.getDisplayName`, made safe with POI's `WorkbookUtil.createSafeSheetName` (at most 31 characters, forbidden characters replaced), with any `:` removed and trimmed. When that leaves nothing the name is the text of `s.common.structure` (`Structure`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#createSheetName"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/forest-lock-wait",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "While the forest cannot be read because the structure's lock is not free, or attributes cannot be calculated for the same reason, the export retries, adding up the time waited over both steps. After more than 120 s (dark feature `structure.export.trySnapshotTimeout`, in seconds) it uses the last generated forest when one exists (version above 0) and marks the export outdated. After more than 600 s (dark feature `structure.export.forestLockTimeout`) it fails with `StructureErrors.AUTOMATION_FAILED` and message `s.export.error.forest-lock-timeout` (`Could not access the structure in {0} seconds, because it's constantly busy. Please try again later, or contact your Jira administrator or Tempo support.`) with the seconds as `{0}`, which answers `503`. Dark features are read once per export.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#prepareForest",
+    "com.almworks.jira.structure.export.ForestExporter#getLastGeneratedForest",
+    "com.almworks.jira.structure.export.ForestExporter#forestLockTimeout",
+    "com.almworks.jira.structure.export.ForestExporter$ExporterContext#calculateAttributes"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/attribute-loading",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "Attributes required by renderers are loaded for the exported rows, by `StructureAttributeService.getConsistentAttributeValues` when dark feature `structure.export.tryConsistentAttributes` is true (default). If that throws a `StructureException` they are loaded with `getAttributeValues` and the export is marked inconsistent. With no attributes required the step counts as consistent. Attributes calculated on the snapshot after a lock wait also mark it inconsistent. Once one step is inconsistent, the next does not try consistent loading.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter$ExporterContext#calculateAttributesForSpec",
+    "com.almworks.jira.structure.export.ForestExporter$ExporterContext#calculateAttributesForForest"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/unfiltered-columns",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "A column with parameter `forestSpec` = `unfiltered` calculates its values on the forest spec with the trailing filter and sorter transformations removed (all of them when only such transformations exist); its renderer sees those values for the same exported rows. All other columns use the export's forest spec.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ForestExporter#isAfterFiltering",
+    "com.almworks.jira.structure.export.ForestExporter$ExporterContext#filterTransformations",
+    "com.almworks.jira.structure.export.ForestExporter$ExporterContext#calculateAttributes"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/expand-format",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "`expand` is a `.`-separated list of tokens. A number N >= 0 sets the default level to N; `++` means everything expanded; `--` means level 0; `+<id>` and `-<id>` mark a row expanded or collapsed; a zero or unparseable id, any other token and empty tokens are ignored. When the forest spec has a title row the minimum level is 1 instead of 0. Without level tokens everything is expanded. A row of depth d is expanded when the level is above d, unless it is marked collapsed, or else when it is marked expanded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.ExpandState#parse",
+    "com.almworks.jira.structure.export.ExpandState#isExpanded",
+    "com.almworks.jira.structure.export.ForestExporter#configure"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/outline-groups",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "With a non-empty `expand` the rows below each parent form an Excel outline group, nested by depth, with the summary row above (`setRowSumsBelow(false)`). A group is collapsed when its parent is not expanded; everything inside a collapsed row counts as collapsed too. With an empty or missing `expand` there are no groups and all rows show. In `.xlsx` the rows of a collapsed group are hidden and the row just after the group carries the collapsed mark (created when missing); in `.xls` the group is collapsed with POI's `setRowGroupCollapsed`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#groupRows",
+    "com.almworks.jira.structure.export.excel.ExcelExporter#groupUpwards",
+    "com.almworks.jira.structure.export.excel.ExcelExporter#applyXlsxCollapse",
+    "com.almworks.jira.structure.export.ExpandState#collapseAllUnderCollapsed"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/pinned-item-rows",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "When the forest spec has a pinned item (see `filter-item`), data cells of every row showing that item get a thin top border and a bold font on top of the style they had.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter$PoiColumn#render",
+    "com.almworks.jira.structure.export.excel.ExcelStyleHelper#getOrCreatePinnedStyle"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/column-finish",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "After the data is written each column is auto-sized. A date column (one where `setDate` or `setDatetime` was used) with a non-zero width gets 512 width units more; the width is capped at 15,360 units. Each cell of the last row gets a thin bottom border added; with no data rows this applies to the header row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter$PoiColumn#finish",
+    "com.almworks.jira.structure.export.excel.ExcelStyleHelper#getOrCreateLastRowStyle"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/sheet-setup",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The sheet freezes all rows above the first data row, makes the first cell of that row active (of row 0 when there are no data rows), and is the selected sheet. Printing: row 1 of the sheet repeats on each page, landscape, automatic page breaks on, no notes, centred horizontally, not vertically, with fit-to-page switched off (a fit width of 1 and fit height of 0 are stored but not in force), paper Letter when the user's locale country is US or CA and otherwise A4.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#finishSheet",
+    "com.almworks.jira.structure.export.excel.ExcelExporter#getDefaultPaperSize"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/repeating-row-with-warnings",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The row repeated on printed pages is always the sheet's first row, so with a warning present the warning repeats instead of the header (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#finishSheet"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/page-header-footer-properties",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "The print header shows the sheet name on the left and `page / pages` on the right; the footer shows the file name on the left and the creation time on the right, in short date and time format of the user's locale. The workbook's title is the sheet name; author and last modified by are the user's display name, or the text of `common.words.anonymous` for anonymous; created and modified are the current time.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#finishSheet"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/no-columns-fails",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "When no column is left (for example a view holding only `handle` and `actions` columns), finishing the sheet hits a null cell, so the export answers `500`, normally with a null message (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.export.excel.ExcelExporter#finishSheet",
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#doGet"
+   ]
+  },
+  {
+   "key": "f1-filters-excel/excel-export/images",
+   "module": "excel-export",
+   "api": null,
+   "behaviour": "An image in a cell (see `ExcelCell.setRichTextFromHtml`) is loaded only when its URL starts with the Jira base URL: the rest of the URL is read with `ServletContext.getResourceAsStream`. A missing, empty or unreadable resource, or one that is not JPEG (starts FF D8, ends FF D9) or PNG (the PNG signature), gives no image. One workbook stores each URL's picture once. The picture is anchored to the cell, moves with it, does not resize, and is shrunk to fit the cell's final width and height.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.servlet.javax.ExcelExportServlet#imageResolver",
+    "com.almworks.jira.structure.export.excel.ExcelImageHelper#addImage",
+    "com.almworks.jira.structure.export.excel.ExcelImageHelper#importPicture",
+    "com.almworks.jira.structure.export.excel.ExcelImageHelper#resize"
+   ]
+  }
+ ]
+}

@@ -456,9 +456,9 @@ def test_inventory_is_built_from_the_descriptor_and_the_analysts_notes(tmp_path)
     import build_inventory
     jar = tmp_path / "p.jar"
     with zipfile.ZipFile(jar, "w") as z:
-        for c in ("com/acme/Gate", "com/acme/internal/RuleEngine", "com/acme/internal/Board", "com/acme/F9",
-                  "com/acme/F10"):
+        for c in ("com/acme/Gate", "com/acme/internal/RuleEngine", "com/acme/F9", "com/acme/F10"):
             z.writestr(c + ".class", b"not parsed")
+        z.writestr("com/acme/internal/Board.class", _mini_class("com/acme/internal/Board"))
         z.writestr("atlassian-plugin.xml",
                    '<atlassian-plugin key="com.acme.p" name="P"><plugin-info><version>1.2</version></plugin-info>'
                    '<workflow-validator key="gate" class="com.acme.internal.RuleEngine">'
@@ -487,6 +487,32 @@ def test_inventory_is_built_from_the_descriptor_and_the_analysts_notes(tmp_path)
     assert mods["ww"]["contract"]["actions"] == [{"alias": "Board", "commands": ["edit"]}]
     assert mods["wi"]["contract"]["label"] == "Board"
     assert "com.acme.internal" not in json.dumps(inv) and "com.acme.F9" not in json.dumps(inv)
+
+
+@pytest.mark.local
+def test_inventory_lists_webwork_commands_found_on_the_action_classes(tmp_path):
+    """Webwork runs `!x` through any public `doX()`, declared or not, inherited or not (a base class in a
+    bundled library gives every page `!apply`); `doExecute` is the plain URL, not a command."""
+    javac = shutil.which("javac")
+    if not javac or subprocess.run([javac, "-version"], capture_output=True).returncode != 0:
+        pytest.skip("needs a JDK")
+    sys.path.insert(0, str(TASK / "analyst"))
+    import build_inventory
+    src = tmp_path / "src" / "com" / "acme"
+    src.mkdir(parents=True)
+    (src / "Base.java").write_text("package com.acme; public abstract class Base {"
+                                   " public final String doApply() { return null; }"
+                                   " public final String doExecute() { return null; }"
+                                   " protected String doValidation() { return null; }"
+                                   " public String doSkipped(int x) { return null; }"
+                                   " public void doNothing() { } }")
+    (src / "Page.java").write_text("package com.acme; public class Page extends Base {"
+                                   " public String doResume() { return null; } }")
+    classes_dir = tmp_path / "classes"
+    subprocess.run([javac, "-d", str(classes_dir), str(src / "Base.java"), str(src / "Page.java")], check=True)
+    classes = {f"com.acme.{n}": (classes_dir / "com" / "acme" / f"{n}.class").read_bytes() for n in ("Base", "Page")}
+    assert build_inventory.action_commands(classes, "com.acme.Page") == ["apply", "resume"]
+    assert build_inventory.action_commands(classes, "com.acme.Gone") == []
 
 
 def test_inventory_md_index_is_spliced_between_markers():

@@ -1,4 +1,4 @@
-# JC4 helper brief: behavioural claims for the plugin's extension modules
+# JC5 helper brief: behavioural claims for the plugin's REST, pages, filters and Jira hooks
 
 Repo: /Users/tonylee/Documents/coding/longhorizon_testing (branch jira-re). You are an analyst helper in a
 clean-room reverse-engineering project. Another engineer (an AI agent) will re-implement this Jira plugin
@@ -6,45 +6,45 @@ clean-room reverse-engineering project. Another engineer (an AI agent) will re-i
 claim, in your own words. The implementer writes a JUnit test per claim (named after the claim id) against its
 own code, and hidden tests check the re-implementation against them.
 
-This session covers the plugin's **extension modules**: the many-instance modules that plug into the public
-API's extension points (attribute loader providers, effect providers, item types, export renderer providers,
-generators: inserters, extenders, groupers, sorters and filters, synchronizers, effectors, query constraints,
-new-structure templates, performance-log providers, a calendar provider) and the `module-type` declarations
-of those extension points. The API types (JC1), the 45 public components (JC2) and the 166 internal
-components (JC3) are already claimed; build on those claims rather than repeating them.
+This session covers the plugin's **non-UI surface modules**: the three REST modules, the webwork pages, the
+servlet filters and servlet, and the modules that hook into Jira (JQL function, custom field type and searcher,
+workflow condition and validator, activity stream, user handlers, link factories, transformer, `ao`, Velocity
+allowlists). The API types (JC1), all 211 components (JC2, JC3) and the 234 extension modules (JC4) are already
+claimed. Most of what these modules do is delegation to those: build on them, and refer to them by module key.
 
-## What is contract for an extension module
-- **The module key and type, and its descriptor element** (attributes and children such as `label`,
-  `description`, `order`, i18n keys, `resource` names): the descriptor is kept. Velocity templates and the UI
-  they render come in a later session; do not describe their HTML.
-- **The extension interface** it implements is a public API type (API.md). Its general rules are claimed
-  already (JC1, by API type). Your claims say what **this module** does through it, for example:
-  - *attribute loader provider*: which `AttributeSpec`s it answers (attribute id and every params key it reads,
-    with defaults and the value format), which it declines, what each value is for each item type (and for
-    missing, invisible or unsupported items), its dependencies on other attributes, how it aggregates or
-    propagates over the forest, nulls and errors, and how changes invalidate values (what it tracks);
-  - *effect provider*: the effect parameters it accepts (keys, value types, how ids or names are resolved),
-    validation and the problems it reports (by i18n key with the English text), what the effect does to the
-    issue or item when applied, its undo, and the description it gives;
-  - *item type*: the item type key, how item ids are formed and parsed (long id or string id), what object an
-    item resolves to and for whom (visibility and permission checks), which events or changes it tracks,
-    and what creating, copying or editing an item of this type does;
-  - *generator* (inserter, extender, grouper, sorter, filter): **its parameters as stored** (the JSON keys of
-    `AO_8BAD1B_GENERATOR.C_PARAMETERS`, value types, defaults, limits), how form input becomes those
-    parameters and which errors it rejects, the rows it produces (order, levels, duplicates, limits), the
-    actions it allows or blocks on the generated rows (move, add, remove: which become Jira changes or
-    effects), and what changes make it regenerate;
-  - *synchronizer* and *effector*: their stored parameters, what they read and write in Jira and in the
-    structure, in which direction and order, conflict rules, and their limits and errors;
-  - *export renderer provider*: which columns it renders (column key and params), the cell value and type in
-    Excel and in print, and its formats;
-  - *module-type*: which descriptor attributes and children it reads, their defaults and validation, what a
-    module of that type must provide, and how its instances become available (ordering, enabling and
-    disabling, Jira-version restrictions);
-  - *performance-log provider*: what it adds to the performance log, and when.
-- **Stored and wire formats are contract** and must be exact: parameter keys and value encodings, attribute ids
-  and params keys, item type keys and the form of item ids, and i18n message keys that are persisted or sent
-  (say the key and the English text from `analyst-work/jar/i18n/StructureMessages.properties`).
+## What is contract for these modules
+- **The module key, type and descriptor element** (attributes and children; `inventory.json` under `contract`).
+- **Your scope.** `scope.txt` in your scratch folder lists the original's source files you own, and the REST
+  endpoints or webwork aliases they serve. Several helpers share `rest-v1`, `rest-v2` and `ww-structure`.
+  **Every endpoint and every alias and command in your scope must appear, written exactly, in at least one
+  claim.** This is checked by script.
+- *REST endpoint.* SPEC.md §1.3 already gives each endpoint's path, parameters, shapes and main errors, and the
+  conventions (access gate, error formats, headers). Don't restate them. Claims add what a test needs beyond
+  them, in the form `` `GET /rest/structure/2.0/x`: given ..., it ... ``: the permission rule for each action, what is
+  checked in what order, defaults and clamps, the order and limits of results, how each input edge case
+  answers (missing, null, unknown id, no access, archived, anonymous), what is changed or stored, and what an
+  unknown value does. **Read the SPEC.md entry of every endpoint against the code and report each mismatch.**
+  Name shapes by their SPEC.md names. A trivial endpoint that SPEC.md covers fully gets one claim.
+- *Webwork page.* The URL `/secure/<alias>.jspa`, `/secure/<alias>!<command>.jspa` and `/secure/admin/...` is
+  contract; the action classes, their result names and the template paths are not. SPEC.md §1.4 says "What each
+  page shows and does is described in the claims", so claim per alias and command: its request parameters
+  (exact names, defaults, parsing), who may open it and what others get, what it does on GET and on submit,
+  what it changes and stores, where it redirects, its validation errors (i18n key and English text), and which
+  data the page presents, as a list of facts. Don't describe HTML, CSS or JavaScript: the next session does.
+- *Servlet filter or servlet.* The location, weight and URL patterns are contract. Claim which requests it acts
+  on, what it does to them (request, response, headers, cookies, page resources), what it records or tells
+  the rest of the plugin, and what it does when it fails or when the other app is absent. It never breaks the
+  request it filters unless the code says so.
+- *Jira hook.* Whatever Jira stores or calls is contract: workflow descriptor argument names and values, the
+  custom field's key and persisted config, JQL function name, argument forms, validation messages and result,
+  stream entries, and the handler results Jira shows. Say what each Jira callback gets and returns.
+- *Velocity allowlist.* Only the key and type are contract. The listed classes and methods are the original's
+  and are not named in claims: the implementer's allowlist lists its own getters. Claim which page family the
+  module serves, and what must hold: every method those pages' templates call is listed, and anything else
+  stays uncallable. Add a small summary of the kinds of values those pages read, and report any listed method
+  that changes state.
+- **Licence and vendor rules apply here too** (see Out of scope below). Licence pages, banners and endpoints get
+  the fixed answer only. Do not read or describe licence, certificate, serial or Marketplace logic.
 - The implementing classes, their helpers and their method shapes are **not** contract: never name them.
 
 Jira version: the pinned platform is **Jira 9.12**. Where a module has several classes for different Jira
@@ -56,7 +56,7 @@ app is present and for when it is absent.
 - Your modules: `modules.txt` in your own scratch folder (path in your prompt): module key, its descriptor
   element(s), the original's implementing class (internal, never name it in a claim) with the path of its
   decompiled source, purpose from the inventory, related modules, SPEC.md lines and existing claim ids that
-  mention the key.
+  mention the key. `scope.txt` beside it: see above.
 - The descriptor itself, the Velocity templates and the i18n bundle are in `analyst-work/jar/`
   (`atlassian-plugin.xml`, `templates/`, `i18n/StructureMessages.properties`). Read a generator's form and
   summary templates for its parameter names, but claim parameters from the Java code that reads them.
@@ -65,8 +65,9 @@ app is present and for when it is absent.
   `analyst-work/apivf/`. Class files: `analyst-work/jar/` (plugin), `analyst-work/apijar/` (API), the libraries
   as jars in `analyst-work/jar/META-INF/lib/`. Tools: `~/lrae-tools/re/bin/javap` (`javap -c -p -cp DIR CLASS`).
 - **The decompiler drops some `throw`s.** `fixtures/tasks/jira_re/analyst/dropped-throws.txt` lists every class
-  where the bytecode throws more than the source shows. For those classes, and wherever an error path matters
-  and looks odd, read the method with `javap -c -p`.
+  where the bytecode throws more than the source shows, including exceptions built by a method call (listed as
+  `name()`). For those classes, and wherever an error path matters and looks odd, read the method with
+  `javap -c -p`. A method that seems to return null where the API says not-null is such a case.
 - The spec already written, which your claims must agree with:
   - `fixtures/seed_jira_re/spec/API.md`: every API type and member, with a one-line meaning. Search
     `### \`<fq type>\``. Your module's interfaces are there.
@@ -127,8 +128,9 @@ scripts or notes go in your own scratch folder only.
 - **Uniformly deep.** Every module gets claims covering each responsibility: normal case, boundaries,
   errors, permissions, nulls, persistence. Typical: 2–5 claims for a thin bridge or holder, 4–10 for a cache,
   store or helper, 15–40 for a large one (a formula function library, an event bridge, a permissions
-  calculator, a synchronizer, a field grouper). For extension modules: 2–4 for a tiny effect provider or
-  item type, 5–15 for a typical loader, generator or item type, more for the large ones. Don't pad, and don't skip responsibilities.
+  calculator, a synchronizer, a field grouper). For this session: 1–4 per ordinary REST endpoint, 3–10 per
+  webwork page, more for the large ones (forest update, poll, item create, copy, restore). Don't pad, and don't
+  skip responsibilities.
 - **Big catalogues** (a formula function library, a field catalogue, a set of statistics): one claim per
   function or entry, or per small family of them, with argument rules, results, edge values and error
   results. Completeness matters more than brevity here: the implementer has nothing else to go on.
@@ -165,4 +167,5 @@ anything that writes: other helpers are working in parallel.
 - suspected bugs in the original (module, behaviour);
 - disagreements with API.md or SPEC.md (where, what is wrong);
 - behaviours you could not determine;
-- anything you read in `dropped-throws.txt` classes that changed a claim.
+- anything you read in `dropped-throws.txt` classes that changed a claim;
+- endpoints, aliases or commands in your scope that you left without a claim (there should be none).

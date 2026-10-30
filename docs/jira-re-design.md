@@ -356,6 +356,11 @@ Resolved 2026-10-28 (after JC2):
   carry `"suspected_bug": true`; the implementer implements them as stated and lists each in
   `analysis/SUSPECTED-BUGS.md` (stage 2). A fix would come only through a change request.
 
+Resolved 2026-10-30 (after JC5):
+- **fixed licence values:** `license-info` type `commercial`, empty licensee and serial, unlimited users, `maxUsers` 0,
+  source `none`, no server lock, no expiry; `licenseSEN` null, `unlicensed` false (SPEC.md §1.1);
+- **the welcome page's Gantt link** depends only on Gantt being enabled and the create right.
+
 ### 7.4 The public API tier (decided 2026-10-27; built in phase JA1, `docs/phase-JA1-summary.md`)
 
 - **Spec.** `spec/SPEC.md` lists the API's packages and public types, with every public signature, as
@@ -453,3 +458,9 @@ Resolved 2026-10-28 (after JC2):
   performance-log providers, templates). The brief's module part says the stored and wire formats these modules
   define are contract and must be exact: generator, synchronizer and effector parameter keys, attribute ids and
   params, item type keys and item id forms, persisted i18n keys with their English text.
+- JC5 (`docs/phase-JC5-summary.md`) claims the 36 non-UI surface modules: REST, pages, filters, servlet, Jira hooks,
+  `ao` and the Velocity allowlists. A REST claim adds what SPEC.md §1.3 does not say, and each helper reads the
+  SPEC.md entry of every endpoint against the code. A Velocity allowlist's listed methods are not contract: the
+  implementer lists its own getters. `contract.actions` now holds every command, read from the action classes,
+  because webwork runs `!x` through any public `doX()`, declared or not. `scan_throws.py` now also counts exceptions
+  built by a method call.

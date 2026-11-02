@@ -26,7 +26,7 @@ def test_spec_is_for_an_implementer():
     assert s.task.toolchain.dir == "~/lrae-tools/re" and s.task.counterparts.rea is None
     assert s.scoring.behavior.agent_suite_runner == "maven" and s.scoring.clean_room.enabled
     assert Path(s.scoring.clean_room.jar) == TASK / "vendor"          # a dir: the spec names no jar
-    assert s.budget.per_run_usd == 200.0 and s.agent.model == "claude-opus-5-5"
+    assert s.budget.per_run_usd == 75.0 and s.budget.experiment_usd == 75.0 and s.agent.model == "claude-opus-5-5"
     assert "spec/**" in s.task.protected_paths and "Edit(spec/**)" in s.task.permissions.deny
     assert not any("vendor" in d for d in s.task.permissions.deny)
 
@@ -361,8 +361,9 @@ def test_spec_check_finds_gaps_leaks_and_bad_evidence(tmp_path):
         ' "evidence": ["com.acme.Gate"]}\n')
     (spec / "SPEC.md").write_text("Internally com.acme.internal.RuleEngine does it.\n")
     (analyst / "claims-evidence.jsonl").write_text('{"id": "C-0001", "evidence": ["com.acme.Nope"]}\n')
-    (analyst / "spec-changes-1.md").write_text("PLACEHOLDER: later\n")
+    (analyst / "spec-changes-1.md").write_text("PLACEHOLDER: later, com.acme.internal.RuleEngine\n")
     text = "\n".join(_check(jar, spec, analyst).problems)
+    assert "spec-changes-1.md: names internal class com.acme.internal.RuleEngine" in text   # it reaches the agent too
     assert "engine" in text and "no active claim" in text                   # coverage
     assert "C-0001" in text and "evidence" in text and "claims.jsonl" in text  # evidence in the implementer's copy
     assert "com.acme.Nope" in text                                          # grounding
@@ -509,6 +510,90 @@ def test_claims_without_a_test_are_found(tmp_path, monkeypatch, java, untested, 
     monkeypatch.setattr(_support, "WS", tmp_path)
     assert _support.claims_without_tests({"C-0001", "C-0002"}) == missing
     assert _support.claims_of_module("gate") == {"C-0001", "C-0002"}
+
+
+def test_the_change_request_is_generated_and_current():
+    """Owner 2026-11-02: only the real faults of the pilot change; every other claim stays, permissions included."""
+    sys.path.insert(0, str(TASK / "analyst"))
+    import build_changes as bc
+    manifest = json.loads((TASK / "hidden" / "changes-1.json").read_text())
+    assert set(manifest["replaced"]) == {"C-1022", "C-2085", "C-1041", "C-1044", "C-1430", "C-1573", "C-1580",
+                                         "C-1585", "C-4192", "C-4193", "C-4194", "C-1464"}
+    assert not {"C-2080", "C-4064", "C-4069", "C-4083", "C-4090", "C-4099", "C-1898"} & set(manifest["replaced"])
+    assert sorted(manifest["modules"]) == [f"C-{n}" for n in range(9001, 9013)]
+    text = (TASK / "analyst" / "spec-changes-1.md").read_text()
+    assert "PLACEHOLDER" not in text and all(c in text for c in [*manifest["replaced"], *manifest["modules"]])
+    assert not bc.stale() and bc.problems(bc.load()) == []
+
+
+def _changes(**over):
+    claim = {"id": "C-9001", "module": "gate", "replaces": ["C-0001"], "behaviour": "Now y."}
+    return {"changes": [{"title": "T", "why": "W", "claims": [{**claim, **over}]}]}
+
+
+CLAIMS = {"C-0001": {"id": "C-0001", "module": "gate", "status": "active"},
+          "C-0002": {"id": "C-0002", "module": "gate", "status": "retracted"},
+          "C-0003": {"id": "C-0003", "module": "other", "status": "active"}}
+
+
+@pytest.mark.parametrize("over,word", [
+    ({}, None),
+    ({"id": "C-8000"}, "C-8000"),                       # would clash with build_claims' next ids
+    ({"replaces": ["C-0404"]}, "C-0404"),
+    ({"replaces": ["C-0002"]}, "not active"),
+    ({"module": "elsewhere"}, "elsewhere"),
+    ({"replaces": ["C-0003"], "module": "other"}, "pilot"),
+    ({"behaviour": "  "}, "behaviour"),
+])
+def test_the_change_request_refuses_bad_entries(over, word):
+    sys.path.insert(0, str(TASK / "analyst"))
+    import build_changes as bc
+    found = bc.problems(_changes(**over), claims=CLAIMS, pilot={"gate"})
+    assert (found == []) if word is None else any(word in x for x in found)
+
+
+def test_the_change_request_refuses_duplicates():
+    sys.path.insert(0, str(TASK / "analyst"))
+    import build_changes as bc
+    doc = _changes()
+    doc["changes"].append(_changes()["changes"][0])
+    found = "\n".join(bc.problems(doc, claims=CLAIMS, pilot={"gate"}))
+    assert "C-9001" in found and "C-0001" in found
+
+
+def _applied_workspace(tmp_path, java: str, applied: str, claims: list[str]):
+    _claim_workspace(tmp_path, java)
+    (tmp_path / "analysis" / "CHANGES-APPLIED.md").write_text(applied)
+    (tmp_path / "analysis" / "rewrite_map.json").write_text(json.dumps({"modules": {"gate": {"claims": claims}}}))
+
+
+GOOD_JAVA = "class G { @Test void c9001_a() {} }"
+
+
+@pytest.mark.parametrize("java,applied,claims,bad", [
+    (GOOD_JAVA, "C-0001 became C-9001", ["C-9001"], set()),
+    ("class G { }", "C-0001 became C-9001", ["C-9001"], {"test"}),
+    ("class G { @Test void c9001_a() {} @Test void c0001_a() {} }", "C-0001 became C-9001", ["C-9001"], {"stale"}),
+    (GOOD_JAVA, "done", ["C-9001"], {"report"}),
+    (GOOD_JAVA, "C-0001 became C-9001", ["C-0001"], {"map"}),
+])
+def test_t09_finds_a_change_that_was_not_applied(tmp_path, monkeypatch, java, applied, claims, bad):
+    sys.path.insert(0, str(TASK / "hidden"))
+    import _support
+    _applied_workspace(tmp_path, java, applied, claims)
+    monkeypatch.setattr(_support, "WS", tmp_path)
+    change = _support.Change("C-0001", "C-9001", "gate")
+    assert _support.change_problems(change) == bad
+
+
+def test_stage_5_is_scored_from_the_manifest():
+    sys.path.insert(0, str(TASK / "hidden"))
+    import _support
+    changes = _support.changes()
+    assert len(changes) == 12 and {c.module for c in changes} <= set(
+        json.loads((TASK / "hidden" / "pilot.json").read_text())["modules"])
+    brief = (TASK / "stage5.md").read_text()
+    assert "in full" in brief and (TASK / "hidden" / "test_t09_changes.py").is_file()
 
 
 def test_the_implementer_can_test_the_browser_offline():

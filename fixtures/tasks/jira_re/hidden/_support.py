@@ -38,6 +38,7 @@ FINAL_STAGE = 6
 WS = Path(os.environ.get("LRAE_WORKSPACE", ".")).resolve()
 VENDOR = Path(__file__).resolve().parent.parent / "vendor"
 PILOT = Path(__file__).resolve().parent / "pilot.json"   # analyst/build_pilot.py
+CHANGES = Path(__file__).resolve().parent / "changes-1.json"   # analyst/build_changes.py
 
 # Descriptor elements that are metadata, not functional modules.
 NON_MODULES = {"plugin-info", "resource", "component-import", "web-resource-transformer",
@@ -284,13 +285,46 @@ def claims_of_module(key: str) -> set[str]:
     return {c["id"] for c in rows if c.get("module") == key and c.get("status") == "active"}
 
 
+def tested_claims() -> set[str]:
+    return {f"C-{n}" for f in (WS / "src" / "test" / "java").rglob("*.java")
+            for n in CLAIM_TEST.findall(JAVA_COMMENT.sub("", f.read_text(errors="replace")))}
+
+
 def claims_without_tests(ids: set[str]) -> set[str]:
     """Those of ``ids`` with no JUnit method named after them and no entry in analysis/UNTESTED-CLAIMS.md."""
-    tested = {f"C-{n}" for f in (WS / "src" / "test" / "java").rglob("*.java")
-              for n in CLAIM_TEST.findall(JAVA_COMMENT.sub("", f.read_text(errors="replace")))}
     untested = WS / "analysis" / "UNTESTED-CLAIMS.md"
     listed = set(CLAIM_ID.findall(untested.read_text(errors="replace"))) if untested.is_file() else set()
-    return ids - tested - listed
+    return ids - tested_claims() - listed
+
+
+@dataclass(frozen=True)
+class Change:
+    old: str
+    new: str
+    module: str
+
+
+def changes() -> list[Change]:
+    data = json.loads(CHANGES.read_text())
+    return [Change(old, new, data["modules"][new]) for old, new in data["replaced"].items()]
+
+
+def change_problems(change: Change) -> set[str]:
+    """What stage 5 left undone for one replaced claim: ``test``, ``stale``, ``report`` or ``map``."""
+    found = set()
+    if claims_without_tests({change.new}):
+        found.add("test")
+    if change.old in tested_claims():
+        found.add("stale")
+    applied = WS / "analysis" / "CHANGES-APPLIED.md"
+    text = applied.read_text(errors="replace") if applied.is_file() else ""
+    if change.old not in text or change.new not in text:
+        found.add("report")
+    entry = load_json("analysis/rewrite_map.json").get("modules", {}).get(change.module) or {}
+    listed = entry.get("claims") or []
+    if change.new not in listed or change.old in listed:
+        found.add("map")
+    return found
 
 
 def need_reference() -> Reference:

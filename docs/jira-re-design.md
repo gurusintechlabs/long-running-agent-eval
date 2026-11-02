@@ -308,7 +308,7 @@ Resolved (owner, 2026-10-23):
 - **separate roles** (§7.2, built in J2);
 - **REA is an extra tool** for the analyst (no APK wrapping); the standalone decompilers remain the
   primary channel for a `.jar`;
-- **budget $200** for the pilot run;
+- **budget $200** for the pilot run (lowered to **$100** by the owner, 2026-11-02: agent hard cap $75, judges est. $10-25);
 - J1 approved, including external MCP servers as counterparts (D-28; renumbered from the behaviour track's
   D-19, owner 2026-10-26).
 
@@ -479,3 +479,8 @@ Resolved 2026-10-30 (after JC5):
   58 API claims behind the API tests. The full 608-module scope stays the goal and the spec stays whole. The stage 1
   skeleton is unchanged; stages 0, 2-4 and 6 and hidden t02/t03 work on the pilot's scope. New hidden t08 (static, stages 2-4)
   checks that each claim of a done module has a test named after its id. Behaviour per claim is still tier 3, after the pilot.
+- Owner decisions 2026-11-02 (`docs/phase-JCR1-summary.md`): **`CHANGES-1.md` replaces 12 pilot claims with new claims C-9001 to C-9012**,
+  fixing seven real faults. Every other suspected bug stays contract, and **no permission is tightened**: the replacement honours the
+  original. No medium-claim audit: the accuracy pass stays after the pilot, so stage 5 holds owner-decided fixes, not real spec errors.
+  `analyst/build_changes.py` generates the file and `hidden/changes-1.json` from `analyst/changes-1.json`. New hidden t09 (static, stages
+  5+) picks up where t08 stops.

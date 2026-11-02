@@ -366,22 +366,24 @@ def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, ap
     front_end, front_end_simple = front_end_names(ref, allowed)
     internal_simple |= front_end_simple
     brand = product_name_phrases(analyst_dir / "product-name-phrases.txt")
-    for f in sorted(x for x in spec_dir.rglob("*") if x.is_file()):
+    changes = analyst_dir / "spec-changes-1.md"     # reaches the agent at stage 5, so it is scanned like spec/
+    for f in sorted(x for x in spec_dir.rglob("*") if x.is_file()) + ([changes] if changes.is_file() else []):
         text = f.read_text(errors="replace")
+        label = f.name if f == changes else f.relative_to(spec_dir)
         for phrase in brand:
             if phrase in text:
-                p.append(f"{f.relative_to(spec_dir)}: shows the vendor's product name: {phrase}")
+                p.append(f"{label}: shows the vendor's product name: {phrase}")
         for a in sorted(set(VENDOR_ADDRESS.findall(text))):
-            p.append(f"{f.relative_to(spec_dir)}: links to the vendor: {a}")
+            p.append(f"{label}: links to the vendor: {a}")
         named = (set(FQCN.findall(text)) | {n.replace("/", ".") for n in JVM_NAME.findall(text)}) - allowed
         for n in sorted(x for x in named if ref.resolve(x)):
-            p.append(f"{f.relative_to(spec_dir)}: names internal class {n} (not in contract-classes.txt)")
+            p.append(f"{label}: names internal class {n} (not in contract-classes.txt)")
         for n in sorted(set(CAMEL.findall(text)) & internal_simple):
-            p.append(f"{f.relative_to(spec_dir)}: names internal class {n} by its simple name")
+            p.append(f"{label}: names internal class {n} by its simple name")
         for n in sorted(set(SLASH_NAME.findall(text)) & front_end):
-            p.append(f"{f.relative_to(spec_dir)}: names front-end internal {n}")
+            p.append(f"{label}: names front-end internal {n}")
         for n in sorted(x for x in named if x.replace("$", ".") in api_internal):
-            p.append(f"{f.relative_to(spec_dir)}: names internal (non-public) API class {n}")
+            p.append(f"{label}: names internal (non-public) API class {n}")
 
     spec_md = (spec_dir / "SPEC.md").read_text(errors="replace") if (spec_dir / "SPEC.md").is_file() else ""
     check_contract(rep, jar=jar, libs=libs, spec_md=spec_md, jira=jira or jira_version(), modules=ref.modules)
@@ -409,7 +411,6 @@ def check(*, jar: Path, spec_dir: Path = SEED_SPEC, analyst_dir: Path = HERE, ap
     for tid in sorted(set(mapping) - set(api_tests)):
         p.append(f"api-test-claims.json: {tid} is not an API test (renamed or removed?)")
 
-    changes = analyst_dir / "spec-changes-1.md"
     if not changes.is_file():
         p.append("spec-changes-1.md is missing")
     elif "PLACEHOLDER" in changes.read_text():

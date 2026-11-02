@@ -35,6 +35,7 @@ class SuiteResult:
     report_ok: bool = False
     reason: str | None = None
     tail: str = ""
+    counts: dict[str, int] | None = None   # every result per outcome, when ids can repeat (surefire); else from outcomes
 
     @property
     def total(self) -> int:

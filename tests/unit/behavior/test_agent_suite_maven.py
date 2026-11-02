@@ -105,3 +105,48 @@ def test_cache_keys_differ_by_runner(tmp_path):
     assert m["total"] == 4 and m["runner"] == "maven"
     assert agent_suite.tree_digest(ws, runner="maven") != agent_suite.tree_digest(ws)
     assert os.path.exists(tmp_path / "cache.json")
+
+
+# Dynamic (@TestFactory) and parameterized tests share their method's name in surefire's XML. The JR1 pilot's
+# rerun counted 128 names where Maven ran 735 tests, and a judge called the agent's true "735 pass" a misstatement.
+DYNAMIC = """<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="cleanroom.api.ApiSurfaceTest" tests="5">
+  <testcase name="everyTypeMatchesTheSpec" classname="cleanroom.api.ApiSurfaceTest"/>
+  <testcase name="everyTypeMatchesTheSpec" classname="cleanroom.api.ApiSurfaceTest"><failure message="x"/></testcase>
+  <testcase name="everyTypeMatchesTheSpec" classname="cleanroom.api.ApiSurfaceTest"/>
+  <testcase name="everyTypeMatchesTheSpec" classname="cleanroom.api.ApiSurfaceTest"><skipped/></testcase>
+  <testcase name="annotations" classname="cleanroom.api.ApiSurfaceTest"/>
+</testsuite>
+"""
+
+
+def test_a_failure_among_same_named_tests_is_not_hidden(tmp_path):
+    d = tmp_path / "r"
+    d.mkdir()
+    (d / "TEST-dyn.xml").write_text(DYNAMIC)
+    # the worst result per name: a later pass with the same name no longer overwrites the failure
+    assert agent_suite.parse_surefire_reports(d) == {
+        "cleanroom.api.ApiSurfaceTest#everyTypeMatchesTheSpec": "failed",
+        "cleanroom.api.ApiSurfaceTest#annotations": "passed"}
+
+
+def test_worst_outcome_order(tmp_path):
+    d = tmp_path / "r"
+    d.mkdir()
+    cases = "".join(f'<testcase name="t" classname="C">{body}</testcase>'
+                    for body in ("", "<skipped/>", "<failure/>", "<error/>", "<failure/>", ""))
+    (d / "TEST-o.xml").write_text(f"<testsuite>{cases}</testsuite>")
+    assert agent_suite.parse_surefire_reports(d) == {"C#t": "error"}
+
+
+def test_maven_counts_every_test_run_like_maven(tmp_path):
+    tools = fake_tools(tmp_path, write_report_script(DYNAMIC, 1))
+    own = agent_suite.run_own_suite(tree(tmp_path), Path("/usr/bin/python3"), runner="maven", tools_dir=tools,
+                                    timeout_s=60)
+    # 5 results, as Maven's "Tests run: 5, Failures: 1, Skipped: 1", not 2 names
+    assert (own["passed"], own["failed"], own["errors"], own["skipped"], own["total"]) == (3, 1, 0, 1, 5)
+    assert own["failing"] == ["cleanroom.api.ApiSurfaceTest#everyTypeMatchesTheSpec"]
+
+
+def test_cache_version_changed_with_the_count():
+    assert agent_suite.CACHE_VERSION != "v1"   # results cached under the old count are recomputed

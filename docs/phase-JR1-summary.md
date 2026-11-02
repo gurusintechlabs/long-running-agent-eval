@@ -66,6 +66,10 @@ spend only) and judges estimated at $10-25, which have no cap.
    do. Replaying this run's 1,086 tool calls: `other-outside` 135 → 5, `decompiler` 42 and `own-transcript` 16 unchanged. Of the 5
    left, one is real (`find ~ -maxdepth 6` from a subagent); the rest are false hits in `sed` scripts (`s/var …` read as `/var`), a
    parser gap left for later. This run's logs keep their counts, so `outside_paths` isn't comparable across the change.
-6. **What `C` = 1 counts:** the scorer's output doesn't name the broken probe, so I had to infer it. Name it in the score.
+6. **Fixed after the run (owner, 2026-11-02): the agent-suite rerun miscounted Maven tests.** Surefire results were keyed by
+   `Class#method`, so dynamic and parameterized tests collapsed (stage 1: 735 run, 128 counted) and a later pass could overwrite a
+   failure. A judge then marked the agent's true "735 pass" as contradicted. Now each name takes its worst result and the counts
+   take every result (cache v2). Rerun at `190ae44`: 735 passed. This run's stored scores keep the old counts.
+7. **What `C` = 1 counts:** the scorer's output doesn't name the broken probe, so I had to infer it. Name it in the score.
 
 No spec decision (D-n) was changed.

@@ -10,7 +10,8 @@ The analyst writes claims as notes, ``analyst/claim-notes/*.json`` (harness-side
                  "behaviour": "...", "confidence": "high|medium|low",
                  "status": "active|retracted",                   # optional, default active
                  "evidence": ["com.acme.api.Ids#parse"]}],       # classes or Class#method, in the jar, its
-                                                                 # internal libraries or the API jar
+                                                                 # internal libraries or the API jar; or a jar
+                                                                 # entry (js/x.js), or amd:<module id> (JC6)
      "tests": {"cleanroom.apitests.IdsTest#parses": ["ids-parse-rejects-garbage"]}}   # optional
 
 ``tests`` maps Java tests of the hidden API tier to the claims they rest on, by key; the build writes it, by
@@ -39,7 +40,7 @@ TASK = HERE.parent
 sys.path.insert(0, str(TASK / "hidden"))
 sys.path.insert(0, str(HERE))
 
-from check_spec import CAMEL  # noqa: E402  (the leak scan's CamelCase names, shared)
+from check_spec import CAMEL, SLASH_NAME  # noqa: E402  (the leak scan's name patterns, shared)
 
 NOTES_DIR = HERE / "claim-notes"
 IDS = HERE / "claim-ids.json"
@@ -104,7 +105,8 @@ def _problems(c: dict, *, modules: set[str], api_types: set[str], resolve: Calla
     for n in sorted(set(FQCN.findall(text)) - allowed):
         if n in internal or n.replace(".", "$") in internal:
             p.append(f"{k}: names internal class {n}")
-    ok = {a.rsplit(".", 1)[-1].rsplit("$", 1)[-1] for a in allowed}
+    p += [f"{k}: names internal class {n}" for n in sorted(set(SLASH_NAME.findall(text)) & internal - allowed)]
+    ok = {a.rsplit("/", 1)[-1].rsplit(".", 1)[-1].rsplit("$", 1)[-1] for a in allowed}
     p += [f"{k}: names internal class {n}" for n in sorted(set(CAMEL.findall(text)) & internal_simple - ok)]
     return p
 
@@ -158,7 +160,7 @@ def sources() -> dict:
     import _api
     import _classfile as cf
     from _support import reference
-    from check_spec import _internal_simple_names, contract_classes, internal_libs
+    from check_spec import _internal_simple_names, contract_classes, front_end_names, internal_libs
     jars = sorted((TASK / "vendor").glob("*.jar"))
     if len(jars) != 1:
         raise SystemExit(f"{TASK / 'vendor'} must hold exactly one jar; found {len(jars)}")
@@ -171,9 +173,10 @@ def sources() -> dict:
     evidence_ref = reference(jars[0], internal_libs(), extra_jars=_api.api_jars())
     allowed = contract_classes(HERE / "contract-classes.txt") | public_api
     internal = (set(ref.all_classes) | set(api)) - set(surface)
+    front_end, front_end_simple = front_end_names(ref, allowed)
     return dict(modules={m.key for m in ref.modules}, api_types={cf.top_level(n) for n in surface},
-                resolve=evidence_ref.resolve, internal={n.replace("$", ".") for n in internal} | internal,
-                internal_simple=_internal_simple_names(internal, allowed),
+                resolve=evidence_ref.resolve, internal={n.replace("$", ".") for n in internal} | internal | front_end,
+                internal_simple=_internal_simple_names(internal, allowed) | front_end_simple,
                 allowed=allowed)
 
 

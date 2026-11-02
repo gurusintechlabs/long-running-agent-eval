@@ -12,3 +12,12 @@
   `<dependencyManagement>` to one the repository has.
 - The JDK and Maven are in `~/lrae-tools/re/bin/` (`java`, `javac`, `jar`, `mvn`; not on `PATH`). Prefer
   `sh build.sh`.
+- **Testing the UI:** there is no running Jira, so UI claims are tested in JUnit too, in a real headless
+  browser. To use it, add these two to `pom.xml` with `<scope>test</scope>`: `com.microsoft.playwright:playwright:1.49.0`
+  (drives the browser, with a real DOM, keyboard, mouse and drag-and-drop) and `org.jsoup:jsoup:1.23.1` (parses
+  HTML, for server-rendered pages). `build.sh` points Playwright at the pinned Chromium in
+  `~/lrae-tools/re/browsers`, which is headless only, so call `playwright.chromium().launch()` with no
+  browser path or channel, and nothing is downloaded. Only `sh build.sh` sets this up. Load your own JS into a page with
+  `page.setContent(...)` or `page.addScriptTag(...)`, with your own stand-ins for what Jira provides (its page
+  objects, its JS libraries) and `page.route(...)` for REST replies. Share one browser per test class: starting
+  one takes seconds.

@@ -32,7 +32,7 @@ def _claim(key: str, **kw) -> dict:
 
 def _build(claims: list[dict], ids: dict | None = None, **kw):
     args = dict(modules=MODULES, api_types=API, resolve=_resolve,
-                internal={"com.acme.internal.RuleEngine", "com.acme.internal.AOBasedStore"},
+                internal={"com.acme.internal.RuleEngine", "com.acme.internal.AOBasedStore", "app/ui/GridPresenter"},
                 internal_simple={"RuleEngine", "AOBasedStore"}, allowed=set())
     args.update(kw)
     return bc.build(claims, dict(ids or {}), **args)
@@ -94,6 +94,7 @@ def test_a_claim_is_retracted_never_dropped():
     (_claim("x", behaviour="The RuleEngine decides."), "x: names internal class RuleEngine"),
     # a name that starts with an acronym, inside a key whose package is not the class's own (JC2)
     (_claim("x", behaviour="Key `com.acme.old.AOBasedStore.limit` sets it."), "x: names internal class AOBasedStore"),
+    (_claim("x", behaviour="The module app/ui/GridPresenter decides."), "x: names internal class app/ui/GridPresenter"),
     (_claim("x", colour="red"), "x: unknown field colour"),
     ({"module": "gate", "behaviour": "b", "confidence": "high", "evidence": ["com.acme.Gate"]}, "claim without a key"),
 ])

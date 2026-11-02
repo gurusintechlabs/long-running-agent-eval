@@ -1,0 +1,1676 @@
+{
+ "claims": [
+  {
+   "key": "u7-transforms/widget-bare/automation-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "At widget start the UI sends one `GET /rest/structure/2.0/automation` (timeout 30000 ms) and keeps the answer for the life of the widget; it is not refreshed. Any failure, including the timeout, is silent: the lists stay empty, both permission flags stay false, nothing is shown to the user, and code waiting for the registry is released as if the call had succeeded.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/automation-sorting",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "From the `/automation` answer the UI keeps each generator's `label`, `type`, `module`, `notConfigurable`, `group` and `presets`, and each effector's `label`, `module`, `title` and `icon`. Generators are sorted by `label`, effectors by `label`, and all presets of all generators are flattened into one list sorted by `label` (plain string order, so case-sensitive; the server's order is not kept). Each preset's `params` string is parsed as JSON, and a preset takes `type` and `module` from its generator. Lookups by kind return the whole list when no kind is given.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/automation-permission-flags",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "`generatorConfigurationAllowed` and `effectorConfigurationAllowed` from `/automation` decide whether generators and effectors count as accessible to the user; a missing flag or a failed call means not accessible.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/generator-kinds",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The UI knows five generator kinds in this fixed order: inserter, filter, sorter, grouper, extender. Their label, title and action texts are: Insert / 'Insert content under the currently selected item' / 'Insert…'; Filter / 'Filter content under the currently selected item' / 'Filter by…'; Sort / 'Sort content under the currently selected item' / 'Sort by…'; Group / 'Group content under the currently selected item' / 'Group by…'; Extend / 'Extend each item under the currently selected item' / 'Extend with…'. Each kind has its own icon.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/preset-matching",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A generator spec is recognised as a preset of its module as follows. A preset without params matches a spec with no or empty params. For a kind with platform parameters, these are compared leniently: grouper `level`, `includeGroups`; extender `from`, `to`; sorter `desc`, `from`, `to`, `locale`; filter `hard`, `showSubItems`, `pinnedItem`, `level`. On a copy of the spec's params, each platform parameter the preset defines is filled from the preset when absent, and each one the preset does not define is dropped; the copy must then deep-equal the preset's params. Inserters have no platform parameters and need exact deep equality. The first match in the generator's preset order wins. For example a sorter spec with params {attribute X, desc: true, from: 2} matches a preset {attribute X, desc: false} only if the values of the other keys are equal, so `desc: true` against `desc: false` does not match, but an absent `desc` does.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/label-suggestion",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The label of a generator spec is worked out in this order: a spec without `module` gives a rejected answer with null; a spec matching a preset gets the preset's label; a module with a registered generator descriptor gets that descriptor's suggested label, as a value or a promise; a module without a descriptor gives a rejected answer with null. Registered factories run first, on the first request for a label or an effector name.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/factories-consumed-once",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Descriptor factories registered through the public automation registry of the browser-side API are held in one list for the whole page and that list is emptied the first time any widget asks for a label or effector name. A second widget on the same page therefore gets no descriptors and falls back to preset labels and kind labels (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/add-descriptor-errors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "`addDescriptor` ignores a null descriptor. A descriptor without `moduleKey` throws `invalid module key <value>`. A generator descriptor whose module already has a generator descriptor throws `Descriptor for module \"<key>\" is already registered`. A descriptor that extends neither the browser-side API's generator descriptor nor its effector descriptor throws `Unsupported descriptor superclass for module \"<key>\".`. A second effector descriptor for the same module is not detected and replaces the first without an error (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/effector-name-generation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Asking for an effector's generated name with a missing module key or missing params, or for a module without an effector descriptor, gives a rejected answer with null; otherwise the descriptor's generated name is returned, as a value or a promise.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/descriptor-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The plugin registers these generator labels. Fixed text: `grouper-version-name` 'Version Name'; `grouper-portfolio-parent` 'Parent Issue'; `grouper-tempo-account` 'Account'; `extender-portfolio-children` 'Child Issues'; `extender-agile` 'Stories under Epics'; `grouper-sprint` 'Sprint'; `sorter-manual` 'Manual'; `filter-sprint` 'Sprint'; `grouper-agile-epic` 'Epic'. Computed labels: `sorter-attribute`, `grouper-text`, `filter-attribute` (attribute), `sorter-agile-rank`, `extender-links`, `grouper-links`, `extender-subtasks`, `filter-text`, `filter-jql`, `filter-sjql`, `filter-by-field`, as the following claims state. Any other module gets the generic kind label.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/SimpleGeneratorDescriptor",
+    "amd:structure/widget/automation/GrouperAgileEpicDescriptor",
+    "amd:structure/widget/automation/effector/DelayEffectorDescriptor"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/label-subtasks",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Label of `extender-subtasks`: no params gives null. With a non-empty `typeIds` the UI reads Jira's `GET /rest/api/2/issuetype` (through the cached Jira configuration) and shows the names of the sub-task types whose id is listed, in Jira's order, joined by a comma without a space, for example `Sub-task,Review`. If none of them is found, or `typeIds` is empty or absent, the label is 'Sub-tasks'; if the call fails the label is also 'Sub-tasks'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/ExtenderSubTaskDescriptor"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/label-filter-by-field",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Label of `filter-by-field`: no params, no `fieldId` or no `fieldValues` gives null. Otherwise the UI waits for the Jira field list and for the option labels of the selected values (`POST /rest/structure/2.0/issue-field/options` with `fieldId` and `fieldValues`, only when values are selected). The label is `<field name>: <labels joined by ', '>`, or `<field name>: All` with no labels. When the field is not in Jira's field list the label is 'Selected field is no longer accessible'. A failure of either source rejects with null.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/FilterByFieldGeneratorDescriptor"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/label-query-filters",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Label of `filter-text`, `filter-jql` and `filter-sjql`: the query text itself, taken from parameter `text`, `jql` or `sjql` respectively. The three module keys and these three query types map one to one; `text`, `jql` and `sjql` are the query type names used by the panel search.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/FilterQueryDescriptor"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/label-attribute",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Label of `sorter-attribute`, `grouper-text` and `filter-attribute`: no params or no `attribute` gives null. Otherwise, once attribute metadata is loaded, the label is the attribute registry's suggested label for the stored attribute spec.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/GeneratorAttributeDescriptor"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/label-links",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Label of `extender-links` and `grouper-links`: no params or no `linkTypeId` gives null. Otherwise the UI reads Jira's `GET /rest/api/2/issueLinkType`, finds the type whose `id` equals `linkTypeId` as text, and shows its `inward` name when parameter `inward` is true and its `outward` name otherwise; an unknown type gives null, a failed call rejects with null. Only the legacy boolean `inward` is read, not the `direction` parameter the form stores, so a generator with direction `inward` or `any` shows the outward name (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/automation/LinkGeneratorDescriptors"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/label-agile-rank",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Label of `sorter-agile-rank`: no params or no `fieldId` gives null. Otherwise, once the Jira configuration is loaded, the label is the name of the agile rank field whose custom id equals `fieldId`, or null when there is none.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/SorterAgileRankDescriptor"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/generator-dialog-open",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Opening the generator dialog sends `POST /secure/StructureGeneratorEdit.jspa` with the caller's parameters plus `atl_token`, and shows the answer in a Jira form dialog, which closes by itself when the server finishes it. The widget's callers pass `moduleKey`, optional `params` (JSON text) and one of `transform` or `quickTransform`, with `quickTransformName` for a quick transformation.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationUtil"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/generator-dialog-result",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the generator dialog is submitted successfully and the answer's `Content-Type` starts with `application/json` and has a body, the body is parsed and handed to the caller as the new parameters. Any other successful answer (an existing generator saved on the server) calls nothing. Parameters whose value is null are not removed from the parsed result, although the code tries to (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationUtil"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/effector-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The effector dialog sends `POST /secure/StructureEffectorEdit.jspa` in the same way. With a `structureId` and a result callback, a JSON answer goes to the callback, together with a run function when response header `X-Structure-Effector-Callback` is `run`; calling it with the new item opens the effector process dialog for that effector and structure. With `structureId` and `effectorId` and no callback, the header value `run` opens the process dialog right after the dialog closes. Otherwise the JSON answer goes to the callback alone.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationUtil"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/dialog-esc-autocomplete",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Pressing Esc in a generator or effector dialog while the autocomplete list of a text area in it is open closes only that list; the dialog stays open.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/automation/AutomationUtil"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/automation-menu-sections",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A generator or effector menu arranges its entries in sections, one per `group` value of the entry. An entry without a group goes to section 300 when its `notConfigurable` is false, otherwise to section 200, which is where presets go. Sections are ordered by their key compared as text, so '10' (the filter-by-field generator, `group=\"10\"`) comes before '200' (presets) and then '300' (configurable generators). Within a section the given order is kept.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/AutomationsDropDown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/automation-menu-entry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each menu entry shows its label, followed by `...` when it has no preset parameters, which tells the user it opens configuration. Its tooltip is the entry's description, or the label when there is none. Clicking an entry never follows a link; it calls the menu's handler with the entry's kind, module, label and parameters. When the list is empty no menu is built and the caller is told so.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/AutomationsDropDown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/automation-menu-search",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A menu with two or more entries has a search box with the placeholder 'Search' at the top; a menu with one entry has none. Each time the menu opens the search text is cleared and the box takes the focus. Filtering runs at most once per 100 ms: a case-insensitive substring match on the entry text. Sections with no visible entry are hidden, the first enabled visible entry becomes the active one, and when the text is not empty and nothing matches 'Not found' is shown.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/AutomationsDropDown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/automation-menu-generators",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The generator menu of a kind lists all presets of that kind first, then every generator of that kind that has a non-empty label and is configurable. A kind with no generators at all gives an empty menu, even if it has presets. Non-configurable generators are offered only through their presets. The effector menu lists every effector with a non-empty label.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/AutomationsDropDown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/transform-types",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A transformation has one of the kinds `filter`, `sorter`, `grouper`, `extender` or `group`. The first four have these labels and action texts: Filter / 'Filter by...', Sort / 'Sort by...', Group / 'Group by...', Extend / 'Extend with...'. Each kind has its own icon. A generic transformation counts as configured when it has both a key and a module. Spec entries with the legacy keys `unresolved` and `assigned2me` are treated as filters.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/transform/Transform",
+    "amd:structure/widget/transform/Extender",
+    "amd:structure/widget/transform/Group",
+    "amd:structure/widget/transform/Grouper",
+    "amd:structure/widget/transform/TransformRegistry"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/query-filter-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A filter on `filter-text`, `filter-jql` or `filter-sjql` is edited through the panel's search box, never through a dialog. A query of type `text`, `jql` or `sjql` becomes the spec {key `filter`, module, params {<type>: query}} merged over the existing spec, so an old parameter of another type stays when the type changes. An empty query means no transformation (the filter is removed). While the query has an error, the spec stays as it was. A text filter and a JQL or S-JQL filter have different icons.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/transform/Filter"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/sorter-direction-control",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The dropdown of a sorter transformation starts with a two-button choice 'Ascending' / 'Descending'; the current direction comes from `params.desc` (absent means ascending). Choosing the other direction changes `params.desc` at once (true for descending), so the view is re-sorted without any further action, and the transformation's icon follows the direction.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/transform/Sorter"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/sorter-direction-preset",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Choosing an entry in a sorter's dropdown does not carry over the direction selected there, or the previous parameters, when the entry is a preset: the new transformation has exactly the preset's parameters, so a sorter set to Descending goes back to Ascending unless the preset says otherwise (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/transform/Sorter",
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/filter-by-field-transformer",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A filter on `filter-by-field` counts as configured only when it has a `fieldId`. Choosing the generator itself in the Filter menu creates the chip and does not open the dialog; a configured chip can still be edited through 'Edit'. It uses a checkbox icon.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldTransformer"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/filter-by-field-options",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A configured Filter by field chip has a dropdown with a search box and a checkbox list of the field's values, at most 10 options per search, replacing the generator list. Checking a value appends it to `params.fieldValues`, unchecking removes it, and a clear action empties the list; each change updates the transformation at once, so the view is re-filtered. A value is never listed twice. Opening or focusing the dropdown puts the focus in the search box. When the transformation changes from elsewhere while the dropdown is closed, the list refreshes; while it is open, the refresh waits for it to close. Closing clears the search text.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldTransformer"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/filter-by-field-dropdown-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An unconfigured Filter by field chip's dropdown shows a spinner while the list of fields loads with `GET /rest/structure/2.0/issue-field`. An empty answer shows 'No data found', a failed call 'Cannot load data'. Otherwise the fields are listed as an automation menu, with search when there are two or more. In all cases the spinner goes away and the Remove action is added below.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldDropdown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/filter-by-field-dropdown-cache",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The field list is requested at most once per page: every later Filter by field chip reuses the first answer, and a failed first request is reused as well, so 'Cannot load data' stays until the page is reloaded (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldDropdown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/filter-by-field-entries",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each field from `GET /rest/structure/2.0/issue-field` becomes an entry labelled with its `label`, for a filter on `filter-by-field` with params {`fieldId`: the field's `id`, `fieldValues`: [], `keepNonIssues`: the text `true`}. Choosing it turns the chip into a configured one that keeps the same transformation id, and its dropdown opens 10 ms later.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldDropdown",
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/attribute-system-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Once Jira's field list is available (or has failed) the attribute picker gets one entry per non-custom Jira field that maps to a known system attribute, labelled with the Jira field name. Formats offered: number first for number fields, time for date and date-time fields, duration for duration fields, then text, HTML and order for all. A field with no mapping is skipped, with a logged warning unless it is `thumbnail`, `lastViewed`, `issuelinks` or `subtasks`.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldDropdown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/attribute-custom-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Custom fields appear in the picker as one 'Custom Field...' attribute (id `customfield`) plus one preset per field, labelled with the field name, with params {`fieldId`: the numeric id}. Fields with a positive numeric id only get a preset. Fields of these eight custom types are left out entirely: `aptis.plugins.epicSumUp:epic-sum-up-custom-field-attachment-indicator`, `-comments-indicator`, `-issue-count-progress`, `-progress`, `-status-category-progress`, `-story-points-progress`, `-type-allocation` and `-time-progress`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldDropdown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/attribute-builtins",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The picker also offers these attributes. Listed as presets, any format: Attachments (`attachments`), Worklogs (`worklogs`), Issue Links (`issuelinkobjects`), Issue Links (Including System) (`allissuelinkobjects`), Remote Links (`remoteissuelinkobjects`), Sub-Tasks (`subtasks`), Parent Issue (`parent`), Epic Stories (`epicStories`), Item (`item`), Comments (`comments`), History (`history`). Listed as presets with primary format then text, HTML, order: Depth (`depth`, number), Item Type (`itemtype`, text), Sequential Index (`seq`, text), Status Category (`status-category`, text), Project Category (`project-category`, text), Last Comment (`comment`, text). Known but without a preset: Progress (`progress`, number), Work Logged (`worklogged`, duration), Notes (`itemProperty`, text).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldDropdown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/attribute-version-sprint",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The picker offers as presets: Version Start Date (`version-start`), Version Release Date (`version-release`), Sprint Start Date (`sprint-start`), Sprint End Date (`sprint-end`), each in time then text, HTML, order; and Version Description (`version-description`), Sprint Goal (`sprint-goal`), each in text, HTML, order.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldDropdown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/attribute-optional-descriptors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The attribute registry also gets the sum, count, links count, user property, time in status, query match and formatted number attributes; a transition date attribute once the status configuration is available (skipped when it cannot be read); the formula attribute once saved columns and Jira fields are ready; and the Tempo work-logged and Tempo time-planned attributes, each only when the Tempo Timesheets or Tempo Planning API is enabled, after the user-picker permission check. When Tempo is absent these two simply do not exist.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/transform/FilterByFieldDropdown"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-add-button",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The transformations banner holds the current transformations as chips in spec order, ending with an add button whose tooltip is 'Add structure transformation (it does not change how others see this structure)'. The button reads 'Add transformation' only while there are no transformations and no chip dropdown is open; otherwise it shows just its icon.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/templates"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-add-menu",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The add button opens a menu with Filter, Sort, Group and Extend, in that order. Choosing one hides the add button for 100 ms and adds an unconfigured chip of that kind, labelled 'Filter by...', 'Sort by...', 'Group by...' or 'Extend with...', whose dropdown opens 10 ms later. The spec does not change until a generator is chosen.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-previous-transforms",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The UI remembers the previous spec when the panel moves between two different structures, or between a structure and a query. While that spec has transformations the add menu has one more entry, 'Previously selected transformations', at the end. Choosing it appends the previous spec's non-permanent transformations after the current ones, without their `id` and `quick` data; there is no check for duplicates. The entry is one element shared by all panels of the page, so in two-panel mode only the panel updated last shows it (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-tooltip",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The transformations button of the panel header has a tooltip only while the spec has at least one transformation. It reads 'You are viewing transformed structure:' followed by one line per chip that has a transformation id: its icon and its label. Without any such chip the tooltip is empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/utils"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-hide-remove",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The banner has two closing actions. Hide ('Hide') only hides the banner and keeps the transformations in force. Remove ('Remove') hides it and replaces the spec's transformations with the permanent ones only; when a query filter was selected the panel's search box returns to search mode and the selected filter is dropped.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/panel-banner-templates"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-reorder",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Chips can be reordered by dragging their handle, within the banner; the add button is not draggable. Starting a drag closes any open chip dropdown. Dropping moves the transformation in the spec to the new position, which changes the order in which transformations apply. Only configured chips have a drag handle.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/utils"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-refresh-count-mismatch",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After a reorder or a change of a chip the UI sends the chips' transformations to the spec. When the spec has a different number of transformations than the chips, those in the spec with no chip (matched by id) are put first, followed by the chips' transformations, so that none is lost.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-spec-sync",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the panel's spec changes for a transformable spec (anything except a clipboard forest) and the banner is not itself changing it, the chips are rebuilt to match: a chip with the same transformation id is kept and updated, new ones are created, those no longer in the spec are removed, and a transformation of unknown kind gets no chip. A spec without transformations clears all chips. No rebuild happens when the chips already equal the spec, in order and content.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-structure-change",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the panel moves to a different base spec (another structure, another query type, another `type`), all chips are cleared, and the new spec's transformations are shown only after that spec's quick transformations have finished loading.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-group-chip",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Spec transformations with the same `quick.group` show as one chip for the whole group, placed at the first member, when the group exists among the quick transformations and its members match it exactly, by count, order and quick id. Otherwise each member is shown as its own chip. A group chip shows the group's name and colour, its tooltip lists the members, and removing it removes every member from the spec.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/TransformerHolder",
+    "amd:structure/widget/ui/panel/transform/types",
+    "amd:structure/widget/ui/panel/transform/utils"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-disable",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the toolbar's automation mode is on, the add button is disabled, chips cannot be dragged, each chip's remove control is hidden and each chip is marked disabled. Leaving automation mode restores them. A rebuild of the chips applies the current mode again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-query-filter-toggle",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Selecting a query filter chip makes it the panel's selected filter: any other selected filter is unselected, the search box leaves search mode, and takes the chip's query and query type, and the panel's filter mode is on. Unselecting it switches filter mode off. Only one query filter can be selected at a time, and the selection survives a rebuild of the chips for the chip with the same transformation id.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-query-filter-updates",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While a query filter chip is selected, a change in the search box of the query, the query type or the error state goes straight to that chip's transformation. When the search box turns filter mode on with a new query, a new selected chip is added for the given transformation and any previous selected chip is unselected.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/header/PanelHeader"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/banner-save-quick-from-chip",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Save as Quick Transformation' on a chip (only when the panel is adminable) adds a quick transformation with the chip's kind, module and parameters, named with the chip's label, and replaces that transformation in the spec by the quick one, so it stays active and the chip becomes a quick chip.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/TransformerHolder",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-kinds",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A chip is one of four kinds. A quick chip stands for a quick transformation or a group: it has a remove control and no dropdown. A query filter chip is for `filter-text`, `filter-jql`, `filter-sjql`. An unconfigured Filter by field chip offers the list of fields. Every other chip is a configurable chip with a dropdown.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-label",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A chip's label is the quick name for a quick transformation, otherwise the suggested label of the generator spec. If the suggestion is rejected or null the label is the kind's label: Filter, Sort, Group or Extend. An empty text is kept as a valid label. The label is recalculated each time the transformation changes, and a long label gets a tooltip when it overflows.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder",
+    "amd:structure/widget/ui/panel/transform/utils"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-writes-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each change of a chip's transformation that has a module and parameters is written to the panel's spec at once: replacing the transformation with the chip's id when it has one, otherwise appending it and taking the id it was given. Non-quick and quick chips work the same; the view then reloads through the normal spec change.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-configurable-menu",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A configurable chip's dropdown holds, from the top: the kind's own control (direction for sorters, values for Filter by field), the generator menu of that kind, and a footer with 'Edit' (not for non-configurable generators), 'Move to Group', 'Save as Quick Transformation', and 'Remove'. Edit, Move to Group and Save as Quick Transformation are shown only when the chip has a module; the last two also need the panel to be adminable, re-evaluated when the panel's structure information changes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-choose-preset",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Choosing a preset or a query filter in a chip's dropdown replaces the transformation with the chosen one, keeping the chip's transformation id. A query filter is the exception: the old transformation is removed from the spec first and a new one created. A new query filter (without a query yet) is selected at once, so the user types its query in the search box, and its chip stays hidden until it has a query.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-choose-generator-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Choosing a generator without parameters that supports the dialog opens the generator dialog for that module with `transform=true` and without `params`; when the same module was already on the chip, nothing of its parameters is sent. On Apply the transformation gets the returned parameters and the chip's id, and the chip is added back to the banner if the closing dropdown had dropped it. Cancelling leaves things as they were, so a chip that had no module disappears.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder",
+    "amd:structure/widget/automation/AutomationUtil"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-edit-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Edit' opens the generator dialog with `moduleKey`, `transform=true` and the current parameters as JSON in `params` (only when the chip has a transformation id). On Apply the returned parameters replace the current ones under the same id.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder",
+    "amd:structure/widget/automation/AutomationUtil"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-dropdown-close-unconfigured",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a chip's dropdown closes and the chip has no module, the chip is removed. Opening a dropdown makes the add button lose its text, and closing it restores the text according to the state.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-remove",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Removing a chip takes it and its dropdown off the banner, and removes its transformation (for a group chip all members) from the spec by id. A chip that never got an id only disappears.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-permanent",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A permanent transformation's chip does nothing when clicked and its remove control does not work; a permanent query filter has no remove control at all. Removing all transformations from the banner keeps permanent ones. A permanent transformation comes from the project page's forced project filter.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder",
+    "amd:structure/widget/ui/panel/transform/TransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/types"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-query-filter",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A query filter chip is a toggle button with an icon, a label and, unless permanent, a close control. It is shown only while its query is not empty. Clicking it, when not disabled and when the transformation has an id, selects or unselects it. If it is unselected with an empty query it is removed. Closing a selected chip also ends the panel's filter mode.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-quick-click",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clicking a quick chip in the banner has no effect apart from dropping the focus, with one exception: for a user who cannot administer the panel and a `filter-by-field` quick chip, the click makes the chip the user's own copy, as the action Copy on the quick button does (statistic suffix `click`).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-unconfigured-filter-by-field",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An unconfigured Filter by field chip is labelled 'Filter by field'; its dropdown offers the field list and a footer with only 'Remove'. Choosing the `filter-by-field` entry from the Filter menu creates this chip and does not open a dialog; its dropdown opens 10 ms later.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder",
+    "amd:structure/widget/transform/FilterByFieldTransformer"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/chip-open-dropdown",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The UI can open a chip's dropdown on request: the chip is first scrolled into view.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/TransformerHolder"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Whenever the panel's base spec changes, the quick transformations are reloaded: a spec with a structure sends `GET /rest/structure/2.0/structure/{id}/quick-transforms`, and an empty answer gives the default set. A spec without a structure (a query) gets the default set without a call. A failed call logs a warning and leaves the list empty, with no defaults and no message. An answer for a spec that is no longer current is ignored. Transformations changing within the same base spec cause no reload.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-defaults",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The default set, in order: 'Unresolved' (filter, `filter-jql`, `jql` = `resolution is empty`); 'Assigned to me' (filter, `filter-jql`, `jql` = `assignee = currentUser()`); 'By Assignee' (grouper, `grouper-field`, `fieldId` = `assignee`); 'By Status' (`grouper-field`, `status`); 'By Version' (`grouper-field`, `fixVersions`); 'Sub-tasks' (extender, `extender-subtasks`, empty params). Defaults are not stored until the user changes the list.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-ids",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new quick id is `<structure id>-<n>`, for a group `<structure id>-g-<n>`; without a structure the prefix is the literal `jql`. `n` is one more than the largest number found after the last `-` of all existing ids, group members included; ids without a number count as 0. So with structure 12 and ids `12-1`, `12-g-7`, `12-3`, the next id is `12-8`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-save",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Every change of the list sends `PUT /rest/structure/2.0/structure/{id}/quick-transforms` with the complete list as a JSON array, content type `application/json; charset=UTF-8`. A transformation entry has `key`, `module`, `params` and `quick` {`name`, `id`}; a group entry has `key` = `group`, `quick` {`name`, `id`, `color`} and `transforms`. There is no save without a structure. A failed save logs a warning and shows nothing to the user; the change stays on screen. The list is not reloaded after saving.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController",
+    "amd:structure/widget/ui/panel/transform/types"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-spec-form",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A quick transformation goes into the spec as `key`, `module`, `params` and `quick` {`id`, `name`}, and for a group member also `quick.group` = the group's quick id; a transformation's `id` and `permanent` are included when set.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/types"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-buttons",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The quick transformations banner shows one toggle button per top-level entry, in list order, each with an icon and the name, and a tooltip when the name overflows. A group's icon takes the group's colour while it is off; when it is on the button takes the colour as background. The icon of a transformation comes from its kind, as for chips.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/templates",
+    "amd:structure/widget/ui/panel/transform/utils"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-toggle",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Turning a quick button on appends its transformation to the spec, or all members of a group, in order; nothing is added if already active. Turning it off removes those transformations by id. An unknown quick id is ignored. Clicks on a disabled button are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-sync-from-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "10 ms after any spec change within the same base spec, the buttons follow the spec: a transformation in the spec with a `quick.id` turns that button on; a group's button is on only when its members are in the spec with that `quick.group`, in the same order. A button whose transformations left the spec turns off. This means undoing or editing transformations elsewhere keeps the buttons right.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-validate-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After each sync, a spec transformation whose `quick.id` and group are unknown to this structure's list loses its `quick` data, and members of a group that no longer matches lose `quick.group` and act alone. If anything was changed the spec is rewritten. So a spec copied from another structure keeps working as ordinary transformations.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-reset-on-change",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the panel's structure information and the loaded quick transformations do not belong together, the group is collapsed and the buttons are cleared, until the right pair is available. A key that is not a number counts as 0 and matches a panel with no structure id.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-hide-remove",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The quick banner has the same two closing actions as the transformations banner. Hide ('Hide') keeps active quick transformations. Remove ('Remove') also turns all of them off.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-reorder",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the panel is adminable, top-level buttons can be reordered by dragging their handle; dropping moves the entry and saves the list. Starting a drag closes any open quick menu. Dragging is off while a group is expanded.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController",
+    "amd:structure/widget/ui/panel/transform/utils"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-admin-menus",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the panel is adminable each button has a chevron that opens its menu, marked pressed while the button is on. Quick transformation: 'Toggle', 'Edit', 'Move to Group', 'Delete'. Group: 'Toggle', 'Expand', 'Edit', 'Ungroup', 'Delete'. Expanded group: 'Toggle', 'Edit', 'Ungroup', 'Collapse', 'Delete'. Member inside an expanded group: 'Edit', 'Move Out', 'Delete'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/templates"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-nonadmin",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the panel is not adminable, buttons can only be toggled and have no chevron and no drag handle, except `filter-by-field` quick transformations, which have a chevron with 'Toggle' and 'Copy'. Group buttons have no menu, so such a user cannot expand a group.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-filter-by-field-clicks",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For a user who cannot administer the panel, a `filter-by-field` quick button separates click and double click: a click takes effect 400 ms later and toggles the button; a second click within that time cancels it and makes the user's own copy, statistic suffix `dblclick`. This handling does not check whether the button is disabled, so a click toggles it even in automation mode or history view (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-own-copy",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Copy makes a quick Filter by field editable by the user. If the quick transformation is in the spec, its chip becomes a normal chip with the same parameters and the quick button turns off; otherwise a new normal chip is added with its parameters. The transformations banner is then shown and 250 ms later the chip's dropdown opens. The UI records the local statistic `filterByField.transform.own` and, for click and double click, `filterByField.transform.own.click` or `.dblclick` (`POST /statistics/record`).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-edit",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Edit opens the generator dialog with `quickTransform=true`, `moduleKey`, `params` as JSON and `quickTransformName`. On Apply the returned `quickTransformName` becomes the name, and everything returned except `quickTransform` and `quickTransformName` becomes the parameters. The list is saved, the button's name and icon are updated, and if the quick transformation is on, the spec's transformation is updated under its id.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/automation/AutomationUtil"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-delete",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Delete removes the entry from the list without confirmation, saves, removes the button and, when it was on, removes its transformations from the spec. Deleting an expanded group first collapses it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-add",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Saving a transformation as quick works only when the panel is adminable: the new entry has the given name and a new quick id, goes at the end of the list, gets a button, and if the source transformation has a spec id, it is replaced in the spec. A quick filter from the search box's 'save as' is created this way after the generator dialog with `quickTransform=true`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-disable",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the toolbar's automation mode is on or the history view is visible, all quick buttons and chevrons are disabled, and dragging is off, including inside an expanded group. The state applies also to buttons built later.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-shortcuts",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Actions: 'q' then 'q' shows or hides the quick banner. 'q' then a digit 1 to 9, also on the numeric keypad, toggles the top-level entry at that position, if it has an id; on a disabled button nothing happens. 'r' then 'r' toggles the first top-level quick transformation on `filter-jql` with exactly the JQL `resolution is empty`; without one it does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-group-expand",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Expand replaces the group's button with an expanded box in the same place: the group's name with its icon, one button per member (each with its own menu and drag handle when adminable), or 'Group is empty.' when it has no members, and a dropdown button with the group's menu. Only one group is expanded at a time; expanding another collapses the first. Collapse brings the single button back. The expansion resets when the structure changes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/templates"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-group-expanded-state",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clicking the group's name in the expanded box toggles the whole group. While it is on the box is highlighted in the group's colour, and all member buttons look pressed. Members cannot be toggled one by one.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-group-member-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Dragging a member within an expanded group changes the order of the group, saved at once; when the group is on, the spec's transformations follow the new order.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-group-member-actions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In an expanded group: Edit opens the generator dialog for the member, with its name, and saves the changed member in the group. Move Out takes the member out of the group and appends it at the end of the top-level list. Delete removes it from the group. Each action saves the list and rebuilds the buttons.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-ungroup",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Ungroup moves all members of a non-empty group to the end of the top-level list, in order, and the group stays in the list, empty. Nothing happens for an empty group.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-group-save-changes",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Saving a group applies each member's change: added members get a new quick id and lose their spec id; moved-in ones leave the top level; moved-out ones are appended to the top level; deleted ones disappear; others stay. The group's name and colour change only if given. A new group goes at the end of the list. The list is then saved, the group counts as most recently used, and the buttons are rebuilt.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/types"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-active-group-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After a group change the spec follows. Group on, no member moved in, or an active one moved in: the group's entries in the spec are replaced in place by all current members in the new order, followed by members just moved out, which stay active on their own. Group on and an inactive transformation moved in: the group's transformations leave the spec, so the group turns off. Group off and an active transformation moved in: that transformation leaves the spec. A chip moved into a group from the transformations banner always leaves the spec as a chip.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/qt-group-tooltip",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Hovering a group's name shows the group's name with one line per member: its icon and name. An empty group shows 'Group is empty'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsBanner",
+    "amd:structure/widget/ui/panel/transform/utils"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-edit-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Edit' on a group opens a modal 'Group Settings' with: 'Name' prefilled, 'Color' with the colour picker on the group's colour, and the member list. The footer has 'Ungroup' at the left, shown only for a non-empty group, then 'Save' and 'Cancel'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformsGroupDialog",
+    "amd:structure/widget/ui/panel/transform/templates"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-add-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Move to Group' opens a modal 'Add to group' with the text 'You can add the transformation to an existing group or create a new one.', a 'Group' selector with the placeholder 'Choose group or create a new one', and 'Add' and 'Cancel'. Choosing an existing group shows its members plus the new one. Choosing 'Create New Group' also shows 'Name' (empty) and 'Color' (no colour chosen), above the list with only the new member.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformsGroupDialog",
+    "amd:structure/widget/ui/panel/transform/templates"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-add-selector",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The selector lists the existing groups, each with its name and colour, most recently used first, then 'Create New Group'. A value clears the selector's error. Choosing another entry rebuilds the lower part of the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformsGroupDialog"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-dialog-validate",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Save or Add with an empty name shows 'Please enter group name' and keeps the dialog open; Add with no group chosen shows 'Please choose a group or create a new one'. The name error clears only on the next attempt.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformsGroupDialog",
+    "amd:structure/widget/ui/panel/transform/templates"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-dialog-rows",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each member row shows a drag handle, icon and name, with a tooltip when the name overflows. Rows can be reordered by dragging or the keyboard, and the new order is what is saved. In 'Add to group', existing members are shown as disabled, and rows have no action menu. In 'Group Settings' each row has a menu titled 'Transformation Actions' with 'Move Out' and 'Delete'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformsGroupDialog",
+    "amd:structure/widget/ui/panel/transform/templates"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-dialog-row-actions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Choosing an action on a row marks it disabled, hides its menu and shows a warning text: 'Move out of the group.' or 'Delete from structure.'. Nothing is applied until Save. An action cannot be undone in the dialog except by Cancel. 'Ungroup' applies Move Out to every row.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformsGroupDialog"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-dialog-keyboard",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In a group dialog Enter saves and Esc closes, unless the focus is on a button or a row's action button. With the focus on a row: Enter opens that row's menu and moves the focus into it (a row with no menu saves the dialog), Left or Up moves the row up one place, Right or Down moves it down one, and the focus stays on the row. In the row menu Enter runs the action and Esc closes it, each returning the focus to the row. The dialogs ignore Jira's keyboard shortcuts.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformsGroupDialog",
+    "amd:structure/widget/ui/panel/transform/templates"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-dialog-save",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Save or Add applies the change through the group saving rules and closes the dialog. Cancel closes it with no change. A chip from the transformations banner (it has a spec id and no quick id) is added as a new quick transformation; an existing quick transformation is moved in.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformsGroupDialog",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController",
+    "amd:structure/widget/ui/panel/transform/types"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-recent-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Groups in the selector are ordered: both not recently used, by name in locale order; both recently used, most recent first; recent against not recent, the recent one first. The most recent group, compared with a group that is not recent, is treated as equal, so it may stay behind it (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController"
+   ]
+  },
+  {
+   "key": "u7-transforms/widget-bare/group-recent-memory",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The last 5 used groups are remembered per panel and per structure (or query type) in the user's stored widget settings, most recent first. Using the group that is already first changes nothing. Ids that no longer exist are simply ignored. The list is read again whenever the quick transformations are loaded.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/panel/transform/RecentQuickTransformGroupsModel",
+    "amd:structure/widget/ui/panel/transform/QuickTransformationsController"
+   ]
+  },
+  {
+   "key": "u7-transforms/ww-structure/generator-dialog-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The generator dialog's form (`StructureGeneratorEdit`) has the descriptor's title as its heading, the width of C-5368 and posts to `StructureGeneratorEdit!apply.jspa`, with hidden fields `atl_token`, `execute` = true, `generatorId`, `moduleKey`, `quickTransform` and `transform`. Below the heading comes a name or run-as field, then the generator's form, then 'Apply' (submit) and 'Cancel' (closes the dialog). Leaving the dialog with unsaved changes gives no browser warning.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/gen-edit-form.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/ww-structure/generator-dialog-quick-name",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For a quick transformation the first field is 'Name', marked required, a single-line text field with the given `quickTransformName`, or empty, posted as `quickTransformName`; its error shows below it. 'Runs As' is then not shown.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/gen-edit-form.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/ww-structure/generator-dialog-run-as",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Otherwise the first field is 'Runs As'. With a run-as user it shows a small avatar and the user's display name linking to `/secure/ViewProfile.jspa?name=<name>`, with Jira's user hover; an inactive user reads `<display name> (Inactive)`. The avatar is `/secure/useravatar?ownerId=<key>&size=small&ts=<timestamp>`. With no such user the field stays empty.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/gen-edit-form.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/ww-structure/generator-dialog-not-configurable",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A generator that is not configurable shows none of its form, but the form stays in the page hidden, so its values are submitted.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/gen-edit-form.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/ww-structure/generator-dialog-error",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The error content of the generator dialog is the heading of Jira's text for `common.words.error` ('Error') and one error message box for each message, with no form and no buttons of its own.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/gen-edit-error.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-inserter/form-allow-updates",
+   "module": "structure-inserter",
+   "api": null,
+   "behaviour": "The form part shared by inserters shows, only when `canHandleUpdates` is true, one checkbox 'Allow changes via <product>' (`allowUpdates`, value true), checked from `allowUpdates`. Otherwise it adds nothing.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/inserter.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-extender/form-levels",
+   "module": "structure-extender",
+   "api": null,
+   "behaviour": "The form part shared by extenders has the select 'Extend Levels' with 'All levels up to 10', 'All levels', 'Current level only' and 'Manual levels range'. The select itself is not submitted; it sets the `from` and `to` fields: All levels clears both, Current level only sets `to` to 1 and clears `from`, All levels up to 10 sets `to` to 10 and clears `from`, Manual shows both fields and moves the focus to 'From level'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender.vm",
+    "amd:structure/widget/ui/generator/LevelsRangeEditor"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-extender/form-levels-initial",
+   "module": "structure-extender",
+   "api": null,
+   "behaviour": "The select's start value comes from `from` and `to`: both empty is All levels; `from` empty and `to` = 1 is Current level only; `from` empty and `to` = 10 is All levels up to 10; anything else is Manual levels range. A new extender thus starts on All levels up to 10.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender.vm",
+    "amd:structure/widget/ui/generator/LevelsRangeEditor"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-extender/form-manual-fields",
+   "module": "structure-extender",
+   "api": null,
+   "behaviour": "'From level' (`from`) has the description 'Leave this field empty to extend the subtree from the current level'; 'To level' (`to`) has 'Leave this field empty to extend all nested levels of the subtree'. Each shows its field error below it. The two fields are visible only in the manual mode.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-extender/form-groups-warning",
+   "module": "structure-extender",
+   "api": null,
+   "behaviour": "In every mode but All levels, the form shows the note 'Extender does not consider groups on the current level and all nested levels.'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-extender/form-allow-updates",
+   "module": "structure-extender",
+   "api": null,
+   "behaviour": "When `canHandleUpdates` is true, the form ends with the checkbox 'Allow changes via <product>' (`allowUpdates`).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-sorter/form-levels",
+   "module": "structure-sorter",
+   "api": null,
+   "behaviour": "The form part shared by sorters has the select 'Sort Levels' with 'All levels', 'Current level only' and 'Manual levels range', working as for extenders: All levels clears `from` and `to`, Current level only clears `from` and sets `to` to 1, Manual shows 'From level' (description 'Leave this field empty to sort the subtree from the current level') and 'To level' ('Leave this field empty to sort all nested levels of the subtree'), and moves the focus to 'From level'. Start value: both empty is All levels, `from` empty and `to` = 1 is Current level only, otherwise manual, including `to` = 10.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/sorter.vm",
+    "amd:structure/widget/ui/generator/LevelsRangeEditor"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-sorter/form-direction",
+   "module": "structure-sorter",
+   "api": null,
+   "behaviour": "Only when `canReverse` is true the form has 'Sort Direction' with the radios 'Ascending' (`desc` = false, checked unless `desc`) and 'Descending' (`desc` = true). A last checkbox 'Allow changes via <product>' shows only when `canHandleUpdates` is true.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/sorter.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-grouper/form-level",
+   "module": "structure-grouper",
+   "api": null,
+   "behaviour": "The form part shared by groupers has the select 'Group on level' with 'Current level', 'Next level', 'Manual'. The select is not submitted; it controls the `level` field: Current level clears it, Next level sets it to 2, Manual shows 'Level' with the description 'Leave this field empty to group on the current level' and focuses it. Start value: empty or 1 is Current level, 2 is Next level, otherwise Manual. A `level` error shows below the field.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-grouper/form-include-groups",
+   "module": "structure-grouper",
+   "api": null,
+   "behaviour": "The form has the checkbox 'Consider other groups' (`includeGroups`) with the description 'Group items created by other groupers are normally skipped, unless this option is enabled.'. When `canHandleUpdates` is true it ends with the checkbox 'Allow changes via <product>'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/structure-filter/form-options",
+   "module": "structure-filter",
+   "api": null,
+   "behaviour": "The form part shared by filters has an 'Options' group with the checkbox 'Show all sub-items of matching items' (`showSubItems`), then the select 'Filter on level' with 'All levels', 'Current level', 'Manual'. The select is not submitted; it controls `level`: All levels clears it, Current level sets it to 1, Manual shows 'Level' with the description 'Leave this field empty to filter items on all levels'. Start value: empty is All levels, 1 is Current level, otherwise Manual. Choosing Manual does not change the value or move the focus.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/inserter-jql/form",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "The form has the JQL editor labelled 'JQL Query', focused on opening, and 'Limit' (`limit`) with the description 'Maximum number of issues to insert (leave empty for no limit)' and its error below.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/inserter-jql-form.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/inserter-jql/summary",
+   "module": "inserter-jql",
+   "api": null,
+   "behaviour": "The summary reads `Insert issues: <jql>`; the limit is not shown.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/inserter-jql-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/inserter-text/form",
+   "module": "inserter-text",
+   "api": null,
+   "behaviour": "The form has 'Text Query', a single-line field `text`, and 'Limit' (`limit`) with the description 'Maximum number of issues to insert (leave empty for no limit)'; each shows its error below.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/inserter-text-form.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/inserter-text/summary",
+   "module": "inserter-text",
+   "api": null,
+   "behaviour": "The summary reads `Insert issues: <text>`; the limit is not shown.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/inserter-text-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/agile-board/form",
+   "module": "agile-board",
+   "api": null,
+   "behaviour": "The form has the select 'Board' (`rapidViewId`) with all boards by name; when `rapidViewId` is -1 the first board is selected. Below are the radios `insertEpics`: 'Insert epics' (true) and 'Insert issues (except epics)' (false). The form has no place to show a field error. With no boards the select is empty.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/inserter-agile-form.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/agile-board/summary",
+   "module": "agile-board",
+   "api": null,
+   "behaviour": "The summary reads `Insert epics from \"<board>\"` when `insertEpics` is true, else `Insert issues from \"<board>\"`; an unknown board reads 'Unknown'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/inserter-agile-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/inserter-substructure/form",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "The form has the select 'Structure' (`structureId`) with all structures by name and the stored one selected; its error shows below.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/inserter-substructure-form.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/inserter-substructure/summary",
+   "module": "inserter-substructure",
+   "api": null,
+   "behaviour": "The summary reads `Insert structure <name>`, or `Insert structure <name> (only the part under <under>)` when the stored parameters have `under`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/inserter-substructure-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/extender-subtasks/form-types",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "The form has a 'Sub-task Types' group with the checkbox 'All available sub-task types' (`allTypes`). Unchecked, a multi-select `typeIds` (placeholder 'Click to select sub-task types') lists Jira's sub-task types in the user's language, with the stored ones selected. Checked, that select is hidden and a disabled select shows all sub-task types, or 'No sub-task types are available in Jira' when there are none; that one is not submitted. The `typeIds` error shows below.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender-subtasks.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/extender-subtasks/summary",
+   "module": "extender-subtasks",
+   "api": null,
+   "behaviour": "The summary reads 'Add sub-tasks' for all types, otherwise `Add sub-tasks: <type names>`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender-subtasks-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/extender-links/form-and-summary",
+   "module": "extender-links",
+   "api": null,
+   "behaviour": "The form is the link editor of `issue-links-support`, with the generator id as its id. The summary reads `Add issues linked by <link type>: parent <direction> children` when both a link type name and a direction name are known, else `Add issues linked by <none text>`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender-links.vm",
+    "templates/structure/generator/extender-links-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/extender-agile/form-and-summary",
+   "module": "extender-agile",
+   "api": null,
+   "behaviour": "The module adds no fields of its own: its form is only the shared extender part. The summary reads 'Add issues belonging to epics'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender-agile.vm",
+    "templates/structure/generator/extender-agile-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/extender-portfolio-children/form-and-summary",
+   "module": "extender-portfolio-children",
+   "api": null,
+   "behaviour": "The module adds no fields of its own: its form is only the shared extender part. The summary reads 'Extend with Advanced Roadmaps(Portfolio) child issues'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/extender-portfolio.vm",
+    "templates/structure/generator/extender-portfolio-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/grouper-field/form-and-summary",
+   "module": "grouper-field",
+   "api": null,
+   "behaviour": "The form has the select 'Issue Field' (`fieldId`) with the supported fields, each by its translated name when one exists, else its plain name, and the stored one selected; the error shows below. The summary reads `Group by <field name>`, or `Group by Unknown` with no name.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper-field.vm",
+    "templates/structure/generator/grouper-issuefield-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/grouper-version-name/form-and-summary",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "The form has the select 'Issue Field' (`fieldId`) as for `grouper-field`, listing this grouper's fields. The summary reads `Group by <field name> name`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper-version-name.vm",
+    "templates/structure/generator/grouper-version-name-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/grouper-agile-epic/form",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "The form has the select 'Sort epics by' (`rankFieldId`) starting with 'Epic name', selected when no rank field is stored, then the rank fields by name. The 'Epic name' option has no value of its own, so its text is submitted. Errors are looked up under `fieldId`, not `rankFieldId`, so an invalid rank field's message is not displayed (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "templates/structure/generator/grouper-epic.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/grouper-agile-epic/summary",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "The summary reads `Group by Epic, sort epics by <rank field>` with a rank field, else `Group by Epic`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper-epic-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/grouper-text/form-and-summary",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "The form has 'Group By' with the attribute picker for `attributeJson`, asking for the text format, and showing its error below. Gantt attributes are left out of the picker unless the dialog is for a transformation or quick transformation. The summary reads `Group by <attribute>` and carries the attribute's JSON for the browser to replace the `{attribute}` placeholder by the attribute's display name.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper-attribute.vm",
+    "templates/structure/generator/grouper-attribute-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/grouper-sprint/form-and-summary",
+   "module": "grouper-sprint",
+   "api": null,
+   "behaviour": "The module adds no fields of its own. The summary reads 'Group by Sprint'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper-sprint.vm",
+    "templates/structure/generator/grouper-sprint-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/grouper-portfolio-parent/form-and-summary",
+   "module": "grouper-portfolio-parent",
+   "api": null,
+   "behaviour": "The module adds no fields of its own. The summary reads `Group by <parent>`, with the text of C-3055.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper-portfolio.vm",
+    "templates/structure/generator/grouper-portfolio-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/grouper-tempo-account/form-and-summary",
+   "module": "grouper-tempo-account",
+   "api": null,
+   "behaviour": "The form has 'Options' with the checkboxes 'Include closed accounts' (`includeClosed`) and 'Include archived accounts' (`includeArchived`). The summary reads 'Group by Tempo Account'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper-tempo.vm",
+    "templates/structure/generator/grouper-tempo-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/grouper-links/form-and-summary",
+   "module": "grouper-links",
+   "api": null,
+   "behaviour": "The form is the link editor of `issue-links-support`, with the generator id as its id. The summary reads `Group each issue under issue that <direction> it` when both a link type name and a direction name are known, else `Group issues by Issue Links <none text>`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/grouper-links.vm",
+    "templates/structure/generator/grouper-links-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/sorter-attribute/form-and-summary",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "The form has 'Order By' with the attribute picker for `attributeJson`, asking for the order format, showing its error below. Gantt attributes are left out of the picker unless the dialog is for a transformation or quick transformation. No locale field is shown. The summary reads `Sort by <attribute>` and carries the attribute's JSON for the browser, as for `grouper-text`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/sorter-attribute.vm",
+    "templates/structure/generator/sorter-attribute-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/sorter-agile-rank/form-and-summary",
+   "module": "sorter-agile-rank",
+   "api": null,
+   "behaviour": "The form has the select 'Rank Field' (`fieldId`) with the rank fields by name and the stored one selected; the error shows below. The summary reads `Sort by <field name>`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/sorter-rank.vm",
+    "templates/structure/generator/sorter-rank-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/sorter-manual/summary-template",
+   "module": "sorter-manual",
+   "api": null,
+   "behaviour": "The summary template gives the text of C-3103 and nothing else.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/sorter-manual-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-jql/form-and-summary",
+   "module": "filter-jql",
+   "api": null,
+   "behaviour": "The form has the JQL editor labelled 'JQL Query', focused on opening, and the checkbox 'Keep non-issues' (`keepNonIssues`). The summary reads `Filter issues: <jql>`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-jql.vm",
+    "templates/structure/generator/filter-jql-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-text/form-and-summary",
+   "module": "filter-text",
+   "api": null,
+   "behaviour": "The form has 'Text Query', a two-line text area `text`, with its error below. The summary reads `Filter items with text: <text>`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-text.vm",
+    "templates/structure/generator/filter-text-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-sjql/form-and-summary",
+   "module": "filter-sjql",
+   "api": null,
+   "behaviour": "The form has 'S-JQL Query', a two-line text area `sjql`, with its error below; the query is checked only on Apply, there is no check while typing. The summary reads `Filter structure: <sjql>`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-sjql.vm",
+    "templates/structure/generator/filter-sjql-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-sprint/form-and-summary",
+   "module": "filter-sprint",
+   "api": null,
+   "behaviour": "The form has 'Show Sprints' with the checkboxes 'Active (Current)' (`active`), 'Future' (`future`), 'Closed' (`closed`) and 'Backlog' (`backlog`), and the `options` error below them. The summary template gives `Show Sprints: <selected>`, as in C-3174.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-sprint.vm",
+    "templates/structure/generator/filter-sprint-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-inserter-extender-duplicates/summary-template",
+   "module": "filter-inserter-extender-duplicates",
+   "api": null,
+   "behaviour": "The summary template gives the text of C-3166 and nothing else.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-duplicates-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-by-field/form-field",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "The form's first field is 'Issue Field' (`fieldId`), a select of the supported fields, each by its translated name when one exists, else its plain name. A stored field that is not in the list (inaccessible) is added as an option showing its raw id, selected. Its error shows below.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-by-field.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-by-field/form-values",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "'Field Values' (`fieldValues`) is a searchable multi-select with checkboxes, showing at most 10 results at a time and starting with the stored values. Changing 'Issue Field' reloads its options for that field. It is disabled while the selected field is the inaccessible stored one, and enabled again on choosing another. Its error shows below.",
+   "confidence": "medium",
+   "evidence": [
+    "templates/structure/generator/filter-by-field.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-by-field/form-keep-non-issues",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "The form ends with the checkbox 'Keep non-issues' (`keepNonIssues`).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-by-field.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-by-field/summary-template",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "The summary reads `<field>: <values>`, with 'Unknown' when no field name is available.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-by-field-summary.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-attribute/form-fields",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "The form has three rows: 'Attribute' (the attribute picker for `attributeJson`), 'Operator' (`operator`) and 'Value' (`value`); the first two are marked required. Each shows its own error. Next to Operator a help link titled 'Attribute Filter Documentation' opens the plugin's documentation in a new tab and is skipped by the Tab key.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-attribute.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-attribute/form-gantt",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "Gantt attributes (ids starting with `gantt.`) are left out of the picker unless the dialog is for a transformation or quick transformation. The picker takes the focus on opening and uses each attribute's primary format.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-attribute.vm",
+    "amd:structure/widget/ui/generator/AttributeFilterEditor"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-attribute/form-operators",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "The operator select (placeholder 'Select operator...') lists the operators given by the server, grouped by their group, with their translated names. Operators of group BOOLEAN ('is true', 'is false') are offered only when the attribute id is `expr` or `query-match`; for these two, if no operator is chosen yet, the first one in the list is selected. The list is rebuilt when the attribute id changes, and the current choice is kept.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/generator/AttributeFilterEditor",
+    "templates/structure/generator/filter-attribute.vm"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-attribute/form-value-editor",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "Operators of group DATE get a date picker, with values in `YYYY-MM-DD` and Jira's date formats. All others get a text field with the placeholder 'Enter attribute value...', disabled when the operator needs no value. Switching between the two kinds clears the value. Clicking Apply copies the editor's value to `value`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/generator/AttributeFilterEditor"
+   ]
+  },
+  {
+   "key": "u7-transforms/filter-attribute/summary-template",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "The summary reads `Filter items where attribute <attribute> <operator> <value>`, with the translated operator and an empty value when there is none, and carries the attribute's JSON for the browser, which replaces the `{attribute}` placeholder by the attribute's display name.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/generator/filter-attribute-summary.vm"
+   ]
+  }
+ ]
+}

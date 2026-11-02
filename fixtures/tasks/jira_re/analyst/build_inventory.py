@@ -34,7 +34,8 @@ sys.path.insert(0, str(HERE))
 
 from _contract import _ancestry, applies, jar_classes  # noqa: E402,F401  (shared with build_contract and check_spec)
 from _support import NON_MODULES, reference  # noqa: E402
-from check_spec import CAMEL, SEED_SPEC, _internal_simple_names, contract_classes, internal_libs  # noqa: E402
+from check_spec import (CAMEL, SEED_SPEC, _internal_simple_names, contract_classes, internal_libs,  # noqa: E402
+                        product_name_phrases, with_product_word)
 
 # module attributes that are internal or carried elsewhere
 SKIP_ATTRS = {"key", "class", "name", "i18n-name-key"}
@@ -89,6 +90,7 @@ def build(jar: Path, notes: dict, contract: set[str], jira: str, labels: dict[st
           libs: list[str] = ()) -> dict:
     ref = reference(jar, libs)
     internal = _internal_simple_names(ref.all_classes, contract)
+    brand = product_name_phrases(HERE / "product-name-phrases.txt")
     classes = jar_classes(jar, libs)
 
     def hidden(v: str) -> bool:
@@ -116,9 +118,12 @@ def build(jar: Path, notes: dict, contract: set[str], jira: str, labels: dict[st
                 cls = t
         name = None if m.element == "component" else el.get("name")   # components' names are internal labels
         modules.append({
-            "key": m.key, "type": m.element, "name": None if name is None or hidden(name) else name, "class": cls,
+            "key": m.key, "type": m.element,
+            "name": None if name is None or hidden(name) else with_product_word(name, brand), "class": cls,
             "group": n.get("group"), "purpose": n.get("purpose"), "related": n.get("related", []),
-            "confidence": n.get("confidence"), "contract": {**contract_of(el, labels, hidden, classes), **n.get("contract", {})},
+            "confidence": n.get("confidence"),
+            "contract": json.loads(with_product_word(json.dumps({**contract_of(el, labels, hidden, classes),
+                                                                 **n.get("contract", {})}), brand)),
         })
     return {
         "plugin": {"key": root.get("key"), "name": root.get("name"),

@@ -53,7 +53,7 @@
    "key": "m8-platform/lifecycle/after-start-banner-and-subscription",
    "module": "lifecycle",
    "api": null,
-   "behaviour": "After all components have been started, `lifecycle` logs at WARN level a banner framed by lines of `+` characters saying `Structure Plugin <version> is started, instance: <id>`, where `<id>` is two lowercase hex numbers joined by a dot (the epoch second when this component was created, and the epoch second when its class was loaded). It then enables the throttled clearing of all plugin caches, registers itself once with Jira's `EventPublisher` (a repeated start does not register twice), and from then on reports the plugin as running.",
+   "behaviour": "After all components have been started, `lifecycle` logs at WARN level a banner framed by lines of `+` characters saying `<product> Plugin <version> is started, instance: <id>`, where `<id>` is two lowercase hex numbers joined by a dot (the epoch second when this component was created, and the epoch second when its class was loaded). It then enables the throttled clearing of all plugin caches, registers itself once with Jira's `EventPublisher` (a repeated start does not register twice), and from then on reports the plugin as running.",
    "confidence": "high",
    "evidence": [
     "com.almworks.jira.structure.lifecycle.StructureLifecycle#afterComponentsStart",
@@ -78,7 +78,7 @@
    "key": "m8-platform/lifecycle/stop-sequence",
    "module": "lifecycle",
    "api": null,
-   "behaviour": "`onStop()` first stops a start that is still in progress: it interrupts the starter thread and waits up to 5 seconds for it (dark feature `structure.lifecycle.threadShutdownWaitMs`, default 5000). Then, before stopping components, it marks the plugin as not running, disables cache clearing (later requests to clear plugin caches do nothing), removes leaked thread-local state of the bundled XML and JSON libraries, clears Jira's Velocity template cache, unregisters from `EventPublisher` and logs a WARN banner `Structure Plugin is shutting down, instance: <id>`. It then stops the started components in reverse order and logs a warning listing any component that was not stopped cleanly.",
+   "behaviour": "`onStop()` first stops a start that is still in progress: it interrupts the starter thread and waits up to 5 seconds for it (dark feature `structure.lifecycle.threadShutdownWaitMs`, default 5000). Then, before stopping components, it marks the plugin as not running, disables cache clearing (later requests to clear plugin caches do nothing), removes leaked thread-local state of the bundled XML and JSON libraries, clears Jira's Velocity template cache, unregisters from `EventPublisher` and logs a WARN banner `<product> Plugin is shutting down, instance: <id>`. It then stops the started components in reverse order and logs a warning listing any component that was not stopped cleanly.",
    "confidence": "high",
    "evidence": [
     "com.almworks.structure.commons.lifecycle.PluginLifecycleController$ComponentState#stop",
@@ -207,7 +207,7 @@
    "key": "m8-platform/dependency-watcher/rewire-decision",
    "module": "dependency-watcher",
    "api": null,
-   "behaviour": "A refresh is needed for a watched plugin when it is uninstalled (`PluginUninstalledEvent`), or when all of these hold: both it and the Structure plugin are OSGi plugins with bundles (not uninstalled), its bundle is resolved, starting, stopping or active, Structure's bundle is starting or active, the watched package is exported by that plugin's bundle at the required version or higher, and Structure's bundle is not among the package's importers. For a `PluginEnabledEvent` the importer test is treated as failed, so enabling a watched plugin that exports a good enough package always triggers a refresh. A missing export, a lower version, the export coming from another bundle or a null importer list means no refresh. Any error during the check is logged as a warning and means no refresh.",
+   "behaviour": "A refresh is needed for a watched plugin when it is uninstalled (`PluginUninstalledEvent`), or when all of these hold: both it and the <product> plugin are OSGi plugins with bundles (not uninstalled), its bundle is resolved, starting, stopping or active, Structure's bundle is starting or active, the watched package is exported by that plugin's bundle at the required version or higher, and Structure's bundle is not among the package's importers. For a `PluginEnabledEvent` the importer test is treated as failed, so enabling a watched plugin that exports a good enough package always triggers a refresh. A missing export, a lower version, the export coming from another bundle or a null importer list means no refresh. Any error during the check is logged as a warning and means no refresh.",
    "confidence": "high",
    "evidence": [
     "com.almworks.structure.commons.lifecycle.DependencyWatcher#isRewireNeeded",
@@ -218,7 +218,7 @@
    "key": "m8-platform/dependency-watcher/refresh-once-and-effect",
    "module": "dependency-watcher",
    "api": null,
-   "behaviour": "A watcher instance launches at most one refresh: once one has been launched, further checks return no refresh. The refresh runs on its own daemon thread: it logs a WARN line naming the plugin and the cause (the event's simple class name, or `startup check`), disables every enabled plugin that depends (mandatorily or optionally) on `com.almworks.jira.structure`, disables Structure, refreshes Structure's OSGi bundle packages (only if the bundle is resolved), re-enables Structure when that is possible, and then re-enables the dependent plugins. If the refresh thread could not be launched, the watcher allows a later refresh. If the Structure plugin was not an OSGi plugin when the watcher was created, it never refreshes.",
+   "behaviour": "A watcher instance launches at most one refresh: once one has been launched, further checks return no refresh. The refresh runs on its own daemon thread: it logs a WARN line naming the plugin and the cause (the event's simple class name, or `startup check`), disables every enabled plugin that depends (mandatorily or optionally) on `com.almworks.jira.structure`, disables Structure, refreshes Structure's OSGi bundle packages (only if the bundle is resolved), re-enables Structure when that is possible, and then re-enables the dependent plugins. If the refresh thread could not be launched, the watcher allows a later refresh. If the <product> plugin was not an OSGi plugin when the watcher was created, it never refreshes.",
    "confidence": "medium",
    "evidence": [
     "com.almworks.structure.commons.lifecycle.DependencyWatcher#refresh",
@@ -369,7 +369,7 @@
    "key": "m8-platform/cloud-data-migrator/connect-vs-forge-gadgets",
    "module": "cloud-data-migrator",
    "api": null,
-   "behaviour": "On the Connect path dashboard gadgets are never included: the backup has no `gadgets` section and extension providers receive `includeDashboardGadgets` = false. On the Forge path gadgets are included: `dashboard-gadget-data-exporter` exports all Structure gadgets (no structure restriction) or those of the chosen structures, the backup gets a `gadgets` section, providers receive `includeDashboardGadgets` = true, and the numeric `viewId` and `canvas-viewId` preferences of exported gadgets are added to the backed-up views when the views are restricted.",
+   "behaviour": "On the Connect path dashboard gadgets are never included: the backup has no `gadgets` section and extension providers receive `includeDashboardGadgets` = false. On the Forge path gadgets are included: `dashboard-gadget-data-exporter` exports all <product> gadgets (no structure restriction) or those of the chosen structures, the backup gets a `gadgets` section, providers receive `includeDashboardGadgets` = true, and the numeric `viewId` and `canvas-viewId` preferences of exported gadgets are added to the backed-up views when the views are restricted.",
    "confidence": "high",
    "evidence": [
     "com.almworks.jira.structure.jcma.CloudDataMigrator#onStartAppMigration",

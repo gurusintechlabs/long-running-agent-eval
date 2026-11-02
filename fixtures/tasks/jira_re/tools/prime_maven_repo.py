@@ -17,7 +17,7 @@ agent's ``build.sh`` runs Maven offline with this repository as a read-only tail
    pom must carry it too (re-run ``prepare_seed.py``; the script stops with exit 2 to say so).
 2. Offline checks: a fresh copy of the seed, built exactly as the agent builds it (``sh build.sh``),
    must produce the plugin jar; the priming project must also build offline.
-3. ``<tools>/m2`` is made read-only, and ``<tools>/m2.manifest`` lists every artifact with its SHA-256
+3. ``<tools>/m2`` and ``<tools>/browsers`` are made read-only, and ``<tools>/m2.manifest`` lists every artifact and browser file with its SHA-256
    (resolver bookkeeping files with timestamps excluded). Its hash pins the repository (rule 4).
 """
 from __future__ import annotations
@@ -39,6 +39,29 @@ import jira_target  # noqa: E402
 DEPENDENCY_PLUGIN = "org.apache.maven.plugins:maven-dependency-plugin:3.8.1"
 REPOSITORIES = ("https://maven.artifacts.atlassian.com/", "https://repo1.maven.org/maven2/")
 MAX_EXCLUSION_ROUNDS = 8
+# What the implementer tests the UI with (owner 2026-10-30). Test scope only; the browser is installed once
+# into <tools>/browsers by ``install_browser`` and pinned by the manifest.
+UI_TEST_DEPS = (jira_target.Dep("com.microsoft.playwright", "playwright", "1.49.0", "test"),
+                jira_target.Dep("org.jsoup", "jsoup", "1.23.1", "test"))
+UI_CHECK_TEST = """import com.microsoft.playwright.*;
+import org.jsoup.Jsoup;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class UiToolsCheckTest {
+    @Test void browserAndParserWorkOffline() {
+        try (Playwright pw = Playwright.create(); Browser browser = pw.chromium().launch()) {
+            Page page = browser.newPage();
+            page.setContent("<input id=i><script>window.seen=[];"
+                + "document.getElementById('i').addEventListener('keydown',e=>seen.push(e.key));</script>");
+            page.focus("#i");
+            page.keyboard().press("Enter");
+            assertEquals("Enter", page.evaluate("seen.join()"));
+        }
+        assertEquals("a", Jsoup.parse("<p id=p>a</p>").getElementById("p").text());
+    }
+}
+"""
 BOOKKEEPING = ("_remote.repositories", "resolver-status.properties", "maven-metadata-local.xml")
 
 
@@ -152,11 +175,31 @@ def set_writable(root: Path, writable: bool) -> None:
         p.chmod((mode | stat.S_IWUSR) if writable else (mode & ~w))
 
 
-def write_manifest(m2: Path, out: Path) -> str:
+def install_browser(mvn: Path, m2: Path, browsers: Path, project: Path) -> None:
+    """Install Playwright's pinned headless Chromium into ``browsers`` (a tool of the run: Chrome on the host
+    updates itself). ``project``'s pom must declare Playwright."""
+    cp = project / "playwright.classpath"
+    run([str(mvn), "-B", "-ntp", f"-Dmaven.repo.local={m2}", f"{DEPENDENCY_PLUGIN}:build-classpath",
+         f"-Dmdep.outputFile={cp}", "-DincludeScope=provided",
+         "-DincludeGroupIds=com.microsoft.playwright,com.google.code.gson,org.java-websocket"], project)
+    if browsers.exists():
+        set_writable(browsers, True)
+        shutil.rmtree(browsers)
+    env = {**os.environ, "PLAYWRIGHT_BROWSERS_PATH": str(browsers)}
+    run([str(mvn.parent / "java"), "-cp", cp.read_text().strip(), "com.microsoft.playwright.CLI",
+         "install", "--only-shell", "chromium"], project, env)
+    set_writable(browsers, False)
+
+
+def write_manifest(m2: Path, out: Path, browsers: Path | None = None) -> str:
     lines = []
     for p in sorted(m2.rglob("*")):
         if p.is_file() and p.name not in BOOKKEEPING and not p.name.endswith(".lastUpdated"):
             lines.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(m2).as_posix()}")
+    for p in sorted(browsers.rglob("*")) if browsers else ():
+        rel = p.relative_to(browsers).as_posix()
+        if p.is_file() and not p.is_symlink() and not rel.startswith(".links/"):
+            lines.append(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  ../browsers/{rel}")
     out.write_text("\n".join(lines) + "\n")
     return hashlib.sha256(out.read_bytes()).hexdigest()
 
@@ -171,7 +214,7 @@ def main() -> int:
     if seed_pom != jira_target.render_seed_pom(seed_pom, t):
         raise SystemExit("the seed's pom.xml is not pinned to the resolved versions: run prepare_seed.py first")
     tools = tools_dir()
-    mvn, m2 = tools / "bin" / "mvn", tools / "m2"
+    mvn, m2, browsers = tools / "bin" / "mvn", tools / "m2", tools / "browsers"
 
     print(f"jira {t.jira_version} ({t.sources['jira_version']}), amps {t.amps_version} "
           f"({t.sources['amps_version']}), java release {t.java_release} ({t.sources['java_release']})")
@@ -179,7 +222,7 @@ def main() -> int:
     print(f"vendor's own modules (rewritten, not primed): {len(t.vendor_deps)}")
     for c in t.vendor_deps:
         print(f"  {c}")
-    wanted = to_prime(t, jira_target.public_api_dependencies(t))
+    wanted = to_prime(t, jira_target.public_api_dependencies(t)) + list(UI_TEST_DEPS)
     if t.public_api:
         print(f"public API (rewritten, not primed; its dependencies are): {', '.join(t.public_api)}")
     deps, missing = available(wanted)
@@ -243,6 +286,8 @@ def main() -> int:
             print("\nwarning: dependency:go-offline incomplete (see above); relying on the offline builds below\n",
                   flush=True)
 
+        install_browser(mvn, m2, browsers, prime)
+
         verify = Path(tmp) / "verify"
         shutil.copytree(jira_target.SEED, verify, ignore=ignore)
         env = {**os.environ, "LRAE_RE_TOOLS": str(tools)}
@@ -252,9 +297,12 @@ def main() -> int:
             raise SystemExit("offline build of the seed produced no plugin jar in target/")
         shutil.rmtree(prime / "target", ignore_errors=True)
         shutil.copyfile(verify / "build.sh", prime / "build.sh")
-        run(["sh", "build.sh"], prime, env)
+        check = prime / "src" / "test" / "java" / "UiToolsCheckTest.java"
+        check.parent.mkdir(parents=True, exist_ok=True)
+        check.write_text(UI_CHECK_TEST)
+        run(["sh", "build.sh"], prime, env)   # the primed project, with the UI test tools at work
 
-    digest = write_manifest(m2, tools / "m2.manifest")
+    digest = write_manifest(m2, tools / "m2.manifest", browsers)
     set_writable(m2, False)
     size = sum(p.stat().st_size for p in m2.rglob("*") if p.is_file())
     print(f"\nprimed {m2} ({size / 1e6:.0f} MB), now read-only; offline build verified ({jars[0].name})")

@@ -1,0 +1,1833 @@
+{
+ "claims": [
+  {
+   "key": "u9-editors/widget-bare/cell-panel-contents",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Editing a cell opens one editor panel in place, over that cell, as a group announced to screen readers as '<column name> cell editor'. The panel holds: the field's editor; a revert icon and a 'Done' button beside the editor for a simple editor; an error marker on the cell; below the editor an area for creation parameters, the error list and a button row with 'Revert Field' and 'Done'; and, for a new item, a sidebar with the indent button and the item type tabs. 'Done' has the tooltip 'Close the editor and upload all pending changes'; both revert controls have the tooltip 'Revert changes for this field'. Pressing Enter in the form never submits a page.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor",
+    "amd:structure/widget/ui/editor/editor-templates"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/cell-panel-states",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A panel is in one of these states. Loading: the field's editor is not there yet, and nothing but the loading indication shows. No editor: loading failed, and only the error shows. Simple: one input, with the buttons beside it. Complex: the editor contains a text area, or more than one of text input, select, checkbox and radio; the bottom button row is used instead of the buttons beside it. Create: the main column's editor of a new item, which is also complex and has the sidebar and the creation parameters.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor",
+    "css/structure/table/inlineEditor.css"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/revert-visibility",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Revert Field' and the revert icon can be seen only while the current value of this cell's inputs differs from the value they had when the editor finished loading. Typing a value back to the original hides them again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/edit-detection-timing",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Changed data is worked out by comparing all named inputs of the cell's editor with the values taken when the editor finished loading: same values means the cell has no edit and uploads nothing. The comparison runs at once on a change or select event. After key-up or mouse-up it runs 10 ms later, at most once per 100 ms.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/input-map-values",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The values of a cell are a map from input name to value. An input with a name counts only if it is not an unchecked checkbox or radio; several inputs with one name, or a multi-select, give an array; a name whose inputs are all unchecked gives an empty array, so clearing every checkbox is sent as `[]`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor",
+    "amd:structure/widget/AppUtil"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/loading-item-kinds",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Which editor a cell asks for. New row without a usable creation context: nothing is requested and the cell cannot be edited. An issue (new or existing, or a row with neither type nor item): the Jira field editors are requested through the shared field-editor loading (`/rest/structure/1.0/config/fields/forUpdate` or `forCreate`). An existing memo or planning task: `GET /rest/structure/1.0/config/fields/forGenericItemUpdate?type=<memo|planning-task>&id=<numeric id>&field=<field id>`. Anything else, including a field column on a new row that is not an issue: no request, and the cell cannot be edited.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor",
+    "amd:structure/widget/StructureFieldsConfig"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/load-errors-text",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Errors while loading an editor appear in the panel, which stays in the no-editor state. The message is, in order: the answer's top-level `error`; the `error` of the field's entry; when the field has no entry, or a generic-item answer is empty, 'No editor for this field, sorry. Perhaps it's read-only, or not added to the edit screen.'. An HTTP failure of the generic-item request shows 'Problem loading field editor: <error title>'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor",
+    "amd:structure/widget/StructureFieldsConfig"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/editor-ready-focus",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the editor HTML is installed and the panel is on the page, Jira's dynamic form controls are initialised and the first visible input takes focus, with its text selected if it is a text input. If the panel is not yet on the page, this waits for the row to render plus 20 ms. Controls that initialise asynchronously are waited for: wiki editors until the editor reports ready, Jira single selects and user pickers until their `initialized` event or 1000 ms. Date field inputs lose Jira's own key handling, so the keys in this section apply to them.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/focus-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Focus moves into the panel only if it is active. An automatic focus request (after loading or a layout) is ignored when focus is already somewhere else on the page outside this panel, except on the add-item menu trigger. If the editor has no visible input, a hidden placeholder tied to this editor takes focus, so keys still reach it. Before focusing, a panel outside a frozen section is scrolled horizontally into the area between the frozen left and right sections.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/panel-horizontal-fit",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A panel wider than the space to the right of its cell, in its grid section, is shifted left so that it ends 6 px before the section's edge, and a marker shows which cell it belongs to. When it fits, the shift and marker are removed. The panel's position is recalculated on section layout, column resize and table repaint.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/editor-height-reserved",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The grid is told the active panel's height, plus 5 px when above zero, or 0 when no panel is active, so it can keep the panel visible. It is recalculated whenever an editor is laid out, activated or finished.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor",
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/keys-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Keys inside a cell editor panel: Enter and Ctrl+Enter finish all edits; Alt+Enter switches to the dialog; Escape cancels the current cell's edit; Tab and Shift+Tab go to the next and previous editable field; Ctrl+Alt+Up, Down, Left and Right go to the editable field in that direction. How focus moves between fields belongs to the grid's table controller.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/keys-pass-through-popups",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "None of the keys above act while an autocomplete suggestion list or a layer is open, in the panel or at the top level of the page: the key goes to that popup. In the gadget, a layer placeholder in the panel that is still empty counts as open too.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/key-escape-on-select",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Escape pressed in a single-value select does not cancel the first time: it only closes the browser's list. A second Escape with no other key in between cancels the edit. Any other key resets this.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/key-enter-in-text-area",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Plain Enter in a text area, or in a rich text editor, inserts a line break and does not finish the edit; the text area of a Jira multi-select is an exception and Enter finishes there. Ctrl+Enter finishes everywhere. If a finish by Enter moved the focus elsewhere, the key's default action is prevented.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/key-arrows",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Arrow keys in a cell editor. Down or Alt+Down in a text input when a calendar trigger is visible opens the calendar. Alt+Up and Alt+Down on a new item's main editor switch to the previous and next item type tab. Otherwise, and never in a text input or text area, and only Left and Right in a select, arrows move focus between the editor's visible inputs: Left and Up to the previous one, Right and Down to the next, without wrapping. Alt+Up and Alt+Down never move focus this way.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/mouse-actions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clicks inside a panel: 'Done' finishes all edits; a revert control reverts this field; 'Switch to Dialog' switches to the dialog; an inactive tab selects that item type. Clicks on these never navigate.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/revert-field-effect",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Revert Field' restores the values the editor had when it finished loading, clears the panel's errors, updates the buttons and returns focus to the editor. The field stays in edit mode with no edit recorded. Field editors are rebuilt from the loaded HTML rather than patched, and the panel stays hidden until Jira's controls are initialised again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor",
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/cancel-link-confirm",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The only 'Cancel Changes' link is the one in the error description. Clicked when no other cell of the row has edits, it cancels the whole row edit. When another cell has edits, an inline question slides in (200 ms) under the errors, once only: 'Would you like to cancel creating this item?' for a new row, 'Would you like to cancel all pending changes to this item?' for an existing row, with the links 'Yes, Cancel Changes' (cancels the row edit) and 'No, wait!' (slides the question away). The strings 'Discard Changes' and its tooltip are in the catalogue but no control shows them.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/error-display",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A cell's errors are listed in the panel, one entry per message, HTML-escaped. If the editor had loaded, the list ends with 'Please fix the problems and try again, or Cancel Changes.', 'Cancel Changes' being the link. The cell gets an error marker whose tooltip is all messages joined. Inputs are marked invalid for assistive technology and described by that text; clearing the errors removes both.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/error-text-joining",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The joined error text trims each message and separates them with '; ', dropping one trailing '.' or '!' from what came before the separator. So 'A.', 'B!', ' C ' gives 'A; B; C', and the last message keeps its own punctuation: 'A', 'B.' gives 'A; B.'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/error-flash-once",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After errors are set on a cell the grid may ask whether to flash them. The answer is yes once per set of errors, then no until errors are set again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/new-item-indent-button",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The indent button of a new item's panel has three states, recalculated whenever the row's position or depth changes. If the row has a preceding sibling and may be moved under it: indent. Else, if it has no preceding sibling but has a parent, and may be moved under its grandparent (or to the top level): outdent. Otherwise disabled, showing the indent icon; a row with a preceding sibling under which it may not move is disabled even if outdenting would work. A click when enabled and the row is displayed runs the grid's 'levelDown' or 'levelUp' action, flips the state and returns focus to the editor.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/new-item-tabs",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new item's main editor shows one tab per item type preset, the row's preset active. Selecting a tab clears the panel's errors, makes that preset the row's type and shows its creation parameters, creating them the first time and keeping them for later returns, updates 'Switch to Dialog' and the Pages hint, and returns focus to the editor. If the row's preset is not among the tabs, the first tab is selected. Switching with Alt+Up and Alt+Down wraps from the last tab to the first and back.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/tab-presets-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Tabs, in order: 'Issue', 'Folder', 'Memo', 'Planning task', one tab per external generic item type registered with the plugin (its title, keyed by its type), then 'Page'. 'Page' creates a Confluence page if the pages companion app's extension `com.almworks.structure.pages:pages-extension` is reported available. Without that app it is a hint tab, 'Page' with a 'try' badge, unless the user dismissed the hint; dismissal removes the tab.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor",
+    "amd:structure/widget/ui/editor/CreateItemPresets"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/preset-keys",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Item type presets have these keys and item types: `issue` `com.almworks.jira.structure:type-issue`, `folder` `com.almworks.jira.structure:type-folder`, `memo` `com.almworks.jira.structure:type-memo`, `planning` `com.almworks.jira.structure:type-planning-task`, `confluence` and `pages-promo` `com.almworks.structure.pages:type-confluence-page`. An external generic item type uses its own type as both. A stored key that matches none of these is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CreateItemPresets"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/switch-to-dialog-offered",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Switch to Dialog' (tooltip 'Use the standard Jira dialog to create issue and add it to the structure') is offered in the panel only on a new row whose preset is Issue or Planning task, and when dialogs are possible: not in the gadget, and Jira's create dialog is available. If Jira's dialog fails to open, the link is removed from all of that row's editors.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor",
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/pages-hint-controls",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the hint tab is active the summary input is disabled, and the button row has a link 'Don't show me Pages again'. Clicking it remembers the dismissal in the browser, hides the add-page hint in the toolbar and cancels the current cell edit.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/edit-row-refusals",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Starting to edit a cell does nothing when the panel is read-only, the column is not an editable column or does not allow this row, the row is not known to be editable for that column, the row is not in the local forest, or the row's upload is in progress.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/edit-effector-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Editing a row that is an effector opens the edit effector dialog of that effector and structure, if the current user may execute or configure effectors; otherwise nothing happens. No cell editor opens, and this check comes before the read-only and editability checks.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/edit-generator-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Editing a row that is a generator, when the editability checks pass, opens the edit generator dialog for it instead of a cell editor.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/one-active-editor",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Only one cell editor is active at a time. Opening another deactivates the previous one, keeping its edit; its changes wait in the row until the row has no active editor. Reopening a deactivated cell shows it with its edits. Each started row moves the grid's focus to that row.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/focus-other-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the grid's focused row changes to another row during an edit, the editor tries to open the same column on the new row. If that is impossible, or no row is focused, all edits finish. Focus changes made by the editor itself, and those during a row drag, do not count.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/focus-returns",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The element focused before editing started, if it was outside any editor panel, gets focus back when all edits finish or are cancelled, provided it is still visible.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/row-finishes-when-left",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A row being edited finishes by itself as soon as none of its cell editors is active and no create dialog of its own is open. So moving from one row to another uploads the first row's edit.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/finish-with-no-changes",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Finishing an existing row with no changed cell cancels the edit without any request. A row in the state 'upload finished' is cleaned up the same way. Only a row in the editing state can finish; a new row also waits until its creation parameters are ready, unless a dialog was used.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/finish-new-without-summary",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new row with no `summary` value, whether or not other cells changed, is not uploaded. When the creation parameters hold typed input (a memo description), a confirmation asks 'Item cannot be added because the summary is not specified. Proceed without creating an item?': yes cancels the row, no returns focus to the editor. With no such input the row is simply cancelled.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/escape-new-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Escape on a new row: when any cell has changes, the creation parameters hold typed input, or fields were activated in Jira's dialog, a confirmation asks 'Proceed without creating an item?'. Yes cancels the row and finishes the other rows; no returns focus to the editor. With none of those, the row is cancelled without a question.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/escape-existing-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Escape on an existing row restores this cell to the values it had when it was last activated, deactivates it and then finishes all edits, so changes in other cells of the row, and this cell's earlier changes, are uploaded.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/cancel-row-edit",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Cancelling a row edit (the cancel link) drops all its changes, then finishes all other rows' edits. A row whose upload is in progress cannot be cancelled.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/cancel-new-row-cascade",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Cancelling a new row removes it from the forest. Queued, unsent actions that depend on its temporary id are dropped; edits of rows positioned next to it are cancelled in turn, and its upload block is lifted.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/edit-survives-own-drag",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a drag starts during an edit and the dragged rows are the edited row and only its descendants, in the same panel, the edit stays open; 50 ms after the drag ends, the focused row's edit resumes and the editor regains focus. Any other drag finishes all edits.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/column-changes-and-config",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Opening a column's configuration acts as Escape on the current cell. When the columns change and an edited column is gone or its specification differs, the row edit using it is dropped without upload.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/uncommitted-summary",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The widget can list uncommitted work: the existing rows with changes, each by its issue key, else summary, else '#<row id>', and the number of new rows with changes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/new-row-finish-readiness",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An existing row is always ready to finish, and so is a new row no longer being edited. A new row being edited is ready only when its main editor has a summary typed; with no editor offering that check it is not ready.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/edit-new-entry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Adding a new item does nothing in a read-only panel, or when that temporary row is already being edited. The new row, with a negative temporary id, appears at once at the requested place through a local forest adjustment: under the given parent at parent depth + 1, or at depth 0, after the given row. If the editor cannot then be opened, the row is removed again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor",
+    "amd:structure/widget/ui/editor/EditorUtil"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/edit-new-preset-choice",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The item type of a new row is the requested one, else the one remembered from the last creation, else Issue. The choice is remembered in the browser, across visits, and updated when the user leaves an editor with another tab selected.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/create-in-dialog-preference",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For a new Issue or Planning task the dialog opens at once instead of the panel if the user's last choice was the dialog: 'Switch to Dialog' remembers the preference, 'Switch to Panel' clears it, separately for issues and for planning tasks, in the browser across visits. Both default to the panel. If the dialog cannot be opened, the panel opens.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/create-another-chain",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In 'create another', the next new row goes after the row just created, under the same parent, which is expanded; it takes the same preset and samples, and the grid focuses and scrolls to it. The new row takes over the dialog that is already open, so no second dialog opens.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/move-new-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new row that is not uploading can be moved: its placement (under, after, before) is replaced, and the local adjustment follows. If its upload had failed, the row returns to editing and is finished again, which re-sends it at the new position.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/temp-row-id-replacement",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a row id is replaced by the server, rows being edited that use it as themselves, as a parent, neighbour or sample follow the new id, and the local adjustment is rebuilt. If the row vanished (no replacement), new rows that depended on it are cancelled. Rows with an upload in progress, and rows of another forest specification (compared without transformations), are not touched.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor",
+    "amd:structure/widget/ui/editor/RowEditState"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-update-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Finishing an existing row queues one upload, sent as `POST /rest/structure/2.0/item/update` with the body `item` (`itemId` the complete item id, `values` the changed values of all the row's cells together), `items.version` (the client's items version) and `forest` (`spec`, `version`, the client's latest). A later finish for the same row replaces the queued action.  Waiting for an async job ticket and retries are the upload queue's.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-generic-values",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For memos and planning tasks the update `values` are restructured: keys starting `itemproperty.`, plus `summary` and `description`, stay at the top level, and all others go under `values.params`. For other item types `values` is the flat map.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-update-answer",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On an update answer with `success` true the row's state becomes finished and its edit ends; dependants are told the item may have changed. On `success` false, or a failed request, the row stays in the failed state with the errors in its editors (see the error rules), the row is repainted and the footer warning is updated.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-create-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Finishing a new row queues one upload, sent as `POST /rest/structure/2.0/item/create` with the body: `forest` (`spec`, `version` taken at send time), `items.version` (at send time), `rowId` (the negative temporary id), `under`, `after`, `before` from the placement, `item` with `type` and `values`, `semantics` 0 and `parameters` {}.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-create-values",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Values of a create request: for an issue, `values.issue` holds the field values (from the dialog and from the cells, the cells winning), and `values` also holds the creation context `mode`, `pid`, `issuetype`, `parentIssue`. For other types, `values` is the cells' values plus the creation context: memo `params` and `description`; planning task `params` and `cloneMode`; page `spaceKey`, `confluenceId`, `contentId`, `contentType` and `parentId`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-create-sample",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the values have `mode` `clone` or a true `cloneMode`, and the row has a sample row, `values.sampleItemId` is set just before sending to the item id of that row.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-create-waits-for-neighbours",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A create request is not sent while its `under`, `after`, `before` or clone sample row is temporary (negative) or still uploading; it is sent once they have real ids.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-create-existing-issue",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An issue created in Jira's dialog is added with the same `POST /rest/structure/2.0/item/create`, with `item` being only `itemId` = that issue's item id. It replaces a queued create of the same temporary row.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-create-answer",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On a create answer: `itemId`, when present, is recorded for the row. With `successfulActions` above 0 the row finishes and its edit ends. With `updateError`, the row is marked failed and blocks the upload queue. Otherwise, and on a failed request, the row's errors are shown, it blocks the queue and the footer warning is updated. Questions in `updateError` belong to the upload queue.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-block-retry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new row that failed blocks later uploads until it succeeds or is cancelled. Finishing it again re-queues it and lifts the block.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/footer-warning",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While rows have upload errors, the widget's footer warning is shown. Blocking errors: 'Created item requires attention, upload suspended' for one row, '<n> items require attention, upload suspended' for several. Otherwise: 'Edited item requires attention' or '<n> edited items require attention'. Its tooltip is 'Click to edit item that has problems'. A click opens the first problem row's cell that has errors, preferring the first blocking row. With no errors the warning is hidden.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/row-state-values",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A row's edit state is one of: editing, upload pending, upload started, upload failed, upload finished, edit cancelled, upload cancelled. The grid sees three: editing (for editing, pending, started and failed), success (finished) and cancel (both cancelled states).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor",
+    "amd:structure/widget/ui/editor/EditorUtil"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/form-error-prefix",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A form error starting 'pid:' or 'issuetype:' loses that prefix when shown, and each form error is trimmed; empty ones are dropped. A non-text form error shows nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/RowEditState"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/upload-errors-spread",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On a failed upload with neither form errors nor field errors, the message 'Server could not process update request.' is shown. Each cell editor of the row gets all form errors plus the field errors for its own inputs. A field error with no such editor holding that value is added to every editor as '<field name>: <message>', the name coming from Jira's field list, else from the id: lower-cased, cut at the first underscore, capitalised. Form errors and those field messages are sorted when there are field errors.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/RowEditState"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/errors-cleared",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Errors are cleared on every finish attempt, and when a new row's preset changes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/RowEditState",
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/creation-context-change-salvage",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a new row's creation context changes (for example another project), editors of the row's other cells that are not active are discarded, since their HTML depends on the context, and their edited values are kept. When such a cell is opened again, its fresh editor gets those values back, and they also count for the upload. Editors of the row are preloaded for the new context, when it is usable.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/RowEditState",
+    "amd:structure/widget/ui/editor/ItemEditor",
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/creation-controllers-per-preset",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each new row has one creation parameter set per preset, kept while the row lives: issue, memo, planning task, and either page or the hint. Folders and external generic item types have none. Changing the preset releases the previous set's editor resources and recomputes the creation context.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/editor/RowEditState"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/sample-chain",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new row's sample may itself be a new row. The sample then resolves through that row's own sample to an existing row, and to none on a loop.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/RowEditState"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-dialog-open",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Opening Jira's create dialog for a new issue: the row's values are collected and its cells deactivated. The dialog waits until projects and issue types have loaded. The project and type are the context's, else the remembered ones, else 0. In clone mode, or with the feature `altInitialValuesInDialog`, when the context has no project and a sample exists, they are the sample's instead. Clone mode is turned off. The project is validated against those offered, then against those enabled for the plugin; a replaced project drops the type. Only one such dialog is open at a time.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-dialog-callbacks",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Outcome of Jira's create dialog. Cancel: the row is cancelled and other edits finish. Switch to panel: the dialog preference is cleared, the dialog's values go into the row's cells and field errors, project and type are copied and the main editor opens. Submit: the created issue is queued for adding, and if 'create another' was chosen a new row is started directly in the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/planning-dialog-open",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Opening the planning task dialog: the row's values are collected, and clone mode, if on, is turned off and reported to the dialog. Project and issue type are the context's, else the remembered ones, else 0. Opened automatically by the user's preference, its first validation errors are not shown; opened by 'Switch to Dialog', they are.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/planning-dialog-callbacks",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Outcome of the planning task dialog. Cancel: row cancelled, other edits finish. Switch to panel: dialog preference cleared, the dialog's values copied into the cells, errors shown, main editor opened. Save: the item is queued as a normal create. With 'Create another', after the upload succeeds the next new row is started and the dialog gets `itemId` and the URL `/secure/StructureBoard.jspa?s=<structure id>#layout=details&itemId=<item id>`. Without 'Create another' the dialog closes at once, not waiting for the upload. An upload that succeeds with no `itemId` closes the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/switch-to-dialog-action",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The switch action does nothing for a tab other than Issue or Planning task. On success it remembers the dialog preference for that kind of item.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/dialogs-not-in-gadget",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In the gadget no create dialog is used: new items are created only in the panel.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-params-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An Issue tab has a project select, an issue type select and, when the row has a sample, a 'Categories' group with a checkbox 'Copy from <issue key> <summary>'. A summary over 80 characters is cut to 77 plus '...', the full text being the tooltip. Without a sample that group is hidden. Both selects are disabled while copying.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IssueCreationParameters",
+    "amd:structure/widget/ui/editor/editor-templates"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-clone-default",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With a sample, copying is on by default and the user's last choice is remembered in the browser across visits. With no sample, or a sample row without a summary, copying is off.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IssueCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-project-type-remembered",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The project and issue type picked by the user (not those shown while copying) are remembered in the browser. While copying, the selects show the sample's project and type; turning it off restores the picked ones.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IssueCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-context-output",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The creation context follows the controls 200 ms after they change, once they are ready: `mode` `clone` with `pid` 0 and `issuetype` '' while copying; otherwise `mode` `new`, `pid` the project id and `issuetype` the type id. Initially `mode` `new`, `pid` the current project on a project page and otherwise 0, `issuetype` '' and `parentIssue` 0. A context is usable once there is a sample or both `pid` and `issuetype` are set; a usable context sends the sample's item id as `sampleItemId` and refreshes the row's preview attributes for the project and type, the sample row being used only in clone mode.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IssueCreationParameters",
+    "amd:structure/widget/ui/editor/IssueCreationContextManager"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-project-select",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The project select is a Jira searchable select, paged 50 at a time above 100 options, with disabled suggestions left out, and an invalid text reverts. The issue type select follows the project's issue type scheme with that scheme's defaults; its empty option is removed. On a project's page, unless copying, that project is preselected.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IssueCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-project-must-be-enabled",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "If the remembered project is no longer offered, or is not one of the projects enabled for the plugin, the selected project is used if valid, else the first enabled option; the result replaces the remembered one. If the remembered issue type is not offered, the selected type replaces it. When the project field is a suggestion input, a project not among its suggestions falls to the selected suggestion, then to the input's value, then 0.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IssueCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-load-errors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "If the project list has no HTML the area shows 'Error loading projects'; for issue types it shows 'Error loading issue types'. In both cases copying is forced on. When the request failed outright, the widget's error report shows 'Sorry, we had problems loading projects and issue types. Are you logged in?' with the failure's title and details.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IssueCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-subtask-sample",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "If the sample's issue type is not among the non-sub-task types offered, the sample is a sub-task. Its type list is then loaded through the field editor loading for field `issuetype`, with `pid` 0, `issuetype` '', `mode` `clone` and the sample's item id, at most once. While copying, that list replaces the normal type select and stays disabled on the sample's type. A failure shows 'Error loading issue types'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IssueCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/issue-focus-cycle",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Tab in the main editor, whatever the summary holds, and Enter there when the summary is empty, cycle: summary, project, issue type, summary. Entering the project or type field turns copying off. A pending suggestion in a select is accepted first, and the key is used up by that. The other shortcut (handled by the main column) toggles copying if the checkbox is visible.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IssueCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/memo-params-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A Memo tab has an icon and colour picker and a description. The description is Jira's rich text editor, 80 to 160 px high as it grows, or a plain text area in the gadget. After the rich editor is installed, focus goes back to the summary.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/MemoCreationParameters",
+    "amd:structure/widget/ui/editor/editor-templates"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/memo-params-output",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A memo's creation context is `params` (`iconClass`, `color`) and `description`, the description text being trimmed on each change and saved from the rich editor just before upload. Before the first output, `iconClass` and `color` are '' and `description` ''. The context is always usable, and a memo needs only a summary.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/MemoCreationParameters",
+    "amd:structure/widget/ui/editor/MemoCreationContextManager"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/memo-remembered",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The last chosen memo icon and colour are remembered in the browser across visits and preselected on the next memo. Rich editor changes count as typed input once the description is non-empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/MemoCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/memo-focus-cycle",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Tab or Enter from an empty summary moves to the description. Tab from the description returns to the summary.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/MemoCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/memo-editor-keys",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The cell editor's keys also work inside the memo's rich text editor. Its settings and listeners are removed when the memo's parameters are released.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/MemoCreationParameters",
+    "amd:structure/widget/RichEditorCustomizer"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/icon-picker",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The picker lists the memo icons `alm-memo` and `alm-flag` and a colour row; clicks select, the selected icon being marked and all icons shown in the chosen colour. A missing or unknown icon falls to the first. When the picker's owner asks to show unsupported icons, an unknown icon appears first as `alm-noicon` and is selected. When disabled, nothing can be chosen.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/IconPicker"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/page-params-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A Page tab (companion app present) has two required selects, labelled 'Space' and 'Template'. These English words are fixed, not translated. Spaces are grouped under their Confluence instance's name when there are several instances. The list comes from the shared Confluence space loading.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ConfluenceCreationParameters",
+    "amd:structure/widget/ui/editor/editor-templates"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/page-values",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A space option's value is '<confluence id>.<space key>', a template's '<content type>.<content id>', each split at the first dot. The creation context is `confluenceId`, `spaceKey`, `contentType`, `contentId` and `parentId` null; all are null to begin with. Space and template are remembered in the browser across visits.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ConfluenceCreationParameters",
+    "amd:structure/widget/ui/editor/ConfluenceCreationContextManager"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/page-templates-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the space changes, and for the initial space, the template select shows a disabled loading state and `GET /rest/structure-pages/1.0/confluence/<confluence id>/space/<space key>/blueprints` is sent to the companion app, once per space per row; each answer item has `name`, `contentType` and `contentId`. On failure the area shows 'Cannot get space templates'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ConfluenceCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/page-no-spaces",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With no spaces the whole parameter area shows 'No Confluence spaces found'. When loading failed, the widget's error report also shows 'Sorry, we had problems loading projects and issue types. Are you logged in?' with the failure's title and details (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/ConfluenceCreationParameters"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/pages-hint-panel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The hint tab (no companion app) shows a heading and one sentence saying Confluence pages can be viewed alongside Jira issues, about 25 words, and a button that opens, in a new window, a link to documentation about the companion app. The implementer supplies that link and the button's label: the original's label and target are the vendor's marketplace listing, which is not contract. Nothing can be created on this tab, no request is sent, and it has no input state.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/PagesPromoCreationController",
+    "amd:structure/widget/ui/editor/editor-templates",
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/planning-form-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A Planning task tab shows the heading 'Planning task', the text 'This task will be created only in Structure.', and, in order: when there is a sample, 'Categories' with a checkbox 'Copy from <key> <summary>', the summary cut at over 80 characters to 77 plus '...' and shown whole as a tooltip from 20 characters up; 'Project' and 'Issue Type', both required, marked '*'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/PlanningTaskCreationForm",
+    "amd:structure/widget/ui/editor/PlanningTaskCreationFormWrapper",
+    "amd:structure/widget/ui/editor/styled"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/planning-form-field-source",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The two selects are described by `GET /rest/structure/2.0/genericItem/creationFields/com.almworks.jira.structure:type-planning-task/<project id, 0 if none>`, sent again whenever the project changes. Each select stays empty until that answer arrives; a failure leaves it so. The issue type's option source gets `projectId` added. In a select with no value, or a value not among the options, the first option is taken automatically.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/PlanningTaskCreationForm"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/planning-copy-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A sample is the row's planning task, else its issue. A sample without a summary is ignored and copying is not possible. Copying is also impossible, the checkbox being disabled and unchecked, when the sample has just one of project and issue type. While copying, both selects are disabled and the sample's project and type are in use. The copy choice is off by default and remembered in the browser across visits, when copying is possible.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/PlanningTaskCreationController",
+    "amd:structure/widget/ui/editor/PlanningTaskCreationContextManager"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/planning-remembered",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A planning task's project and issue type are remembered in the browser across visits, separately from issues, and restored on the next one. Zero values are not stored.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/PlanningTaskCreationController"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/planning-context",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A planning task's creation context is `params.project`, `params.issuetype` (initially 0) and `cloneMode`. Its typed values are not counted as dirty, so Escape on such a row asks no question unless a cell has changes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/editor/PlanningTaskCreationController",
+    "amd:structure/widget/ui/editor/PlanningTaskCreationContextManager"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/registers-on-widget",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "One dialog is prepared per widget when the widget is ready. Depends on `widget` and `details-providers`. It opens on the widget's request and has no other entry point; only one is open at a time.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js",
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-open-sequence",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "On opening, the user picker permission is fetched and the item is validated with `POST /rest/structure/2.0/genericItem/com.almworks.jira.structure:type-planning-task/validate`, the body being the item values. Nothing shows until both finish. If either fails, an auto-closing error flag shows the server's message, or 'Failed to upload data: server error', and the row is cancelled.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-layout",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "The large modal dialog is headed 'Create planning task'. Its body is the generic item details form in dialog mode, editable while not loading. The footer has 'Switch to Panel' on the left (disabled while loading) and, on the right, any error text, a 'Create another' checkbox, 'Save' (primary, disabled while loading) and 'Cancel'.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-first-focus",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "Focus goes to the summary on first show only, not on later updates of the same dialog.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-clone-warning",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "If the row was copying when the dialog opened, a dismissible warning says 'The option to copy categories has been turned off.'.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-field-update",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "Each field edit merges into the item, `params` entry by entry. A change of `project` or `issuetype` re-validates with the same request and keeps only the errors of those two fields. A change of a field of type `rich-text`, which `description` normally is, sends `POST /rest/structure/2.0/wiki-markup/render` with field id to text, and stores the answer in `descriptionHtml` or `params.<id>Html`. Other changes are local. A failed update shows its message, or the server-error text, in the footer; the next successful update clears it.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-validation-merge",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "After each validation, errors for invisible fields are dropped. Values sent for a field with an error, or missing from the answer, are kept. A sent `description` is kept (with its HTML) if the answer lacks it and the field is visible.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-save",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "'Save' validates the current item, then adds 'Item name is required' to the `summary` field if the summary is missing or blank. With any field error, the errors show and nothing is created. Otherwise the item goes to the normal create upload. If 'Create another' is off, the dialog closes at once.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-create-another",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "With 'Create another' on, after a successful create the dialog stays open with its other field values, `summary` and `description` cleared. A dismissible banner says 'Planning task PT:<numeric id> has been successfully created.', the id being a link opening the given URL in a new window. The checkbox is off when the dialog opens and keeps the user's setting while it stays open.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-enter-key",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "Enter pressed while focus is on the dialog itself or within a field's container acts as 'Save'. This is suspended while a field is in edit mode.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-inline",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "'Switch to Panel' validates, closes the dialog and hands the item, and any field errors, to the panel.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-cancel",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "'Cancel' or closing the dialog, when the form is modified or a field is in edit mode, asks 'Data you have entered on this page will be lost. Are you sure you want to proceed?'. Yes cancels the row and closes; no returns focus to the field being edited. Unmodified, it just cancels and closes.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-modified-rule",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "The form is modified when the summary or description, ignoring ones blank on both sides, differ from the first validated item; or a `params` entry present in that item is null or undefined, or differs from it; or a `params` entry new since then is truthy and not an empty array.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-modified-arrays",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "Array values in `params` are compared by identity, so a list field holding the same values counts as modified after any later field update, and Cancel asks the question (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-validate-failure-stuck",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "If the validation behind 'Save' or 'Switch to Panel' fails, the dialog stays in its loading state with both buttons disabled and no message; only 'Cancel' still works (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planningTaskCreationDialog/dialog-create-another-failure-stuck",
+   "module": "planningTaskCreationDialog",
+   "api": null,
+   "behaviour": "With 'Create another' on, a failed create never reports back to the dialog: it stays in its loading state with 'Save' disabled until 'Cancel' (as the original does). The row's errors appear when the panel is next shown.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/planningTaskCreationDialog.js",
+    "amd:structure/widget/ui/editor/ItemEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/deps",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "Depends on `details-common` and `react-components-common`, and provides the field editors of generic items: labels, date and time, text area, number, and option select, plus their loaders.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planning-task-common.js",
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/label-selector",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "The labels editor is a multi-value input with the placeholder 'Select labels'. Typing asks `GET /rest/structure/2.0/label-picker?query=<trimmed text>`, plus `&customFieldId=<number>` for a labels custom field; each string in the answer is an option. Text matching no option can be added through 'Create '<text>''. Space adds the typed text as a label. The value is sent when the menu closes. It is disabled when not editable.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planning-task-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/label-loader-failure",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "If the label request fails, the suggestions never resolve and the input keeps its loading state until the next query (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/planning-task-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/date-time-field",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "The date-time editor is a date input and a time input in the user's locale and date picker formats, with the placeholders 'Select date...' and 'Select time...'. The value is sent when focus leaves the whole editor, or at once when cleared. Date without time shows 'Please fill time value.', time without date 'Please fill date value.', and nothing is sent. It is disabled while saving or when not editable.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planning-task-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/date-time-stale-check",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "The two-part check above works from the state at the last successful save, so before the first save it does not fire and a partial value is sent (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/planning-task-common.js",
+    "js/structure/react-components-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/textarea-field",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "The text area editor sends its value when focus leaves it and is disabled while saving or when not editable. After a rejected value it keeps the user's text.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planning-task-common.js",
+    "js/structure/react-components-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/number-field",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "The number editor is the text editor with the value trimmed before saving; it validates nothing itself.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planning-task-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/options-requests",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "An option select with a `spec` loads, on first show and when its value or spec changes: `GET /rest/structure/2.0/options-picker/list?spec=<spec>` for a non-searchable field; `GET .../options-picker/suggestions?ids=<JSON array of current values>&spec=<spec>` for a searchable one, without `ids` when there is no value. Typing in a searchable one sends `GET .../options-picker/search?query=<text>&spec=<spec>`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planning-task-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/options-grouping",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "Options are grouped by `group`, a message key translated for the heading, in order of first appearance; ungrouped ones have no heading. An option's icon shows when the field has icons. The matching option for the current value is shown as selected. 'No matches found' shows when nothing matches. A searchable list with no typed text ends with the hint 'Start typing to search'.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planning-task-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/options-behaviour",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "A select is clearable unless required, disabled unless editable, multi-value when `multiple`, and uses the field's `placeholder`. A value of 0 counts as none. A single select saves at once on change, a multi select on blur. With auto-selection and no matching value, the first option is chosen and saved, or an empty value if there are none; `issuetype` is auto-selected in the details editor as well.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planning-task-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/planning-task-common/options-not-selectable",
+   "module": "planning-task-common",
+   "api": null,
+   "behaviour": "A field that is not `selectable` shows the text editor with its value, arrays joined by commas. A field with no spec in the details editor shows nothing.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/planning-task-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/react-components-common/deps",
+   "module": "react-components-common",
+   "api": null,
+   "behaviour": "Depends on `uikit`; holds only the save-state helpers below.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/react-components-common.js",
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u9-editors/react-components-common/change-helper",
+   "module": "react-components-common",
+   "api": null,
+   "behaviour": "A field save does nothing when the value equals the last successfully saved one; otherwise the field reports 'updating' until the save ends. A failed save does not count as saved, so the same value can be sent again.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/react-components-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/react-components-common/value-follows-server",
+   "module": "react-components-common",
+   "api": null,
+   "behaviour": "A value-keeping field shows the given value, follows it when it changes unless the field is currently invalid, and saves its local value on blur.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/react-components-common.js"
+   ]
+  },
+  {
+   "key": "u9-editors/wiki-editor-theme-observer/theme-sync",
+   "module": "wiki-editor-theme-observer",
+   "api": null,
+   "behaviour": "When the page root's `data-color-mode` attribute changes, the rich text editors of the plugin's panels and cell editors get the same attribute on their inner document (default 'light'). An editor whose document cannot be reached is logged and skipped; the others still change.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/wikiEditorThemeObserver.js"
+   ]
+  },
+  {
+   "key": "u9-editors/wiki-editor-theme-observer/no-deps",
+   "module": "wiki-editor-theme-observer",
+   "api": null,
+   "behaviour": "Has no dependencies and does nothing until the colour mode changes.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/wikiEditorThemeObserver.js",
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-id-mapping",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A column's field maps to the field asked for: for issues, `timeestimate` and `timeoriginalestimate` use `timetracking`, others use their id; memos and planning tasks use the column's field id; other items have no editor. New rows use the answer's `createHtml`, existing rows its `editHtml`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/original-estimate-locked",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For `timeoriginalestimate` on an existing issue, when the answer's `canChangeOriginalEstimate` is false, the panel shows 'Cannot edit original estimate after work has been logged, sorry.' and no editor.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/editor-html-cleanup",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Field HTML is shown with changes. The other estimate's input is removed from a time tracking editor. Help links and legends go; help links of the time fields are kept out of Jira's help handling. Descriptions and example texts are removed and become the form's tooltip, joined by a space and a line break. Labels go, except those of checkboxes and radios. Rich editors start empty and load their own content.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/jsm-origin-field",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For the Service Management field type `com.atlassian.servicedesk:vp-origin`, the text `$noMatchValue` is removed from option labels. Its value, when not already four comma-separated parts, is sent as '<value>,<issue type id>,<project id>,<request type marker>', from the input's data. Without that app the case never arises.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/assignee-value",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the assignee value is an array of more than one, the first entry is used, or the second if the first is '-1'. The cell's preview text is then the matching selected option's text, including the empty option.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/cascading-plugin-value",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For the third-party type `com.sourcesense.jira.plugin.cascadingselect:multi-level-cascading-select`, all inputs whose names start with the field id are replaced by one array under the field id, ordered by the number after the id.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/assets-value",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For Assets object fields (see the field predicates), a single-child object select is sent as an array from the select's comma-separated keys, or empty; with several children the normal input values stand.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/assets-context",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "If the Assets app exposes its current project and issue functions, opening its field's editor asks Jira `GET /rest/api/2/issue/<issue>?fields=project` and overrides them with that project and issue until the editor closes. The override applies only if the answer comes before closing. Without the app, nothing is requested. The editor does not wait for the answer (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/assets-readiness-delay",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After the row renders, an Assets object reference field's editor waits 200 ms rather than 20 before taking focus.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/dirty-preview",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While a cell with an HTML attribute has edits, the grid shows the edited values rather than the stored one: selected options' text, text inputs escaped, checked boxes' labels, joined with ', ', or empty. Its aggregate column gets the same text if the row is a leaf. It clears when the edit ends.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor",
+    "amd:structure/widget/ui/editor/CellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-editor-widths",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Minimum widths in px by field: description and environment 400; multi-line custom text fields 188; duedate, reporter, security, estimates and custom date fields 110; select lists, assignee, issue type and priority 150; custom text inputs, selects, and multi-selects 130; wiki custom fields 200. Any panel with errors is at least 188 wide, and any with 'Switch to Dialog' at least 210.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/rich-editor-keys",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The cell editor's keys are installed once inside a wiki field's inner document, so they work there too.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/sprint-tempo-reposition",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a Jira Software sprint picker selects a value, or a Tempo account field changes, the panel's horizontal position is recomputed. Without those apps the case never arises.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/remote-gadget-selects",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In a gadget shown in another application, assignee, issue type and priority editors use the plain select, single-valued, in place of Jira's control.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/status-editor",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A status cell's editor is a select without search whose options and selected value appear as status lozenges in the status's colour. Any open status tooltip is closed when it appears.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/StatusEditorLayouter"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/status-transition-screen",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Selecting a status whose option has `data-transition-with-view` opens Jira's transition dialog, large, loaded by `GET /secure/WorkflowUIDispatcher.jspa?inline=true&decorator=dialog&id=<item id>&action=<transition>&atl_token=<token>`, and closing itself on completion. Success cancels the cell edit, as the transition is already done. Cancelling the dialog restores the previous selection. A status with no screen is saved with the row.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/edit/StatusEditorLayouter"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/system-fields-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "System field rules. Not editable: `issuekey`, `project`, `resolution`, `created`, `updated`, `resolutiondate`, `votes`, `watches`, `timespent`, `workratio`, `thumbnail`, `issuelinks`, `subtasks`. Not sortable: `thumbnail`, `issuelinks`, `subtasks`. Descending by default: `versions`, `fixVersions`, `priority`, `created`, `updated`, `duedate`, `resolutiondate`, `votes`, `watches`, `timespent`, `timeoriginalestimate`, `timeestimate`. Editable in the gadget: `issuetype`, `security`, `assignee`, `priority`, `timeoriginalestimate`, `timeestimate`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/jira/Fields"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/system-field-kinds",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Value kinds: text for `summary`, `description`, `environment`; date for `created`, `updated`, `duedate`, `resolutiondate`; number for `votes`, `watches`; duration for `timespent`, `timeoriginalestimate`, `timeestimate`. The attribute is named after the field, except `issuekey` (`key`) and `thumbnail`, `issuelinks`, `subtasks` (none). The other listed fields are `status`, `creator`, `reporter`, `components`, `labels`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/jira/Fields"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-predicates",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Numeric custom field: has an id, `type` number and a `custom` key. Gadget-editable custom field: numeric, or `com.atlassian.jira.plugin.system.customfieldtypes:textarea`, `com.deniz.jira.customfields:single-select`, `com.deniz.jira.customfields:multi-select`. Summable: `worklogged`, a system duration or number field, or a numeric custom field other than `com.atlassian.jira.plugin.system.customfieldtypes:importid`, `com.pyxis.greenhopper.jira:gh-global-rank`, `com.pyxis.greenhopper.jira:greenhopper-ranking`. User field: `type` user. Tempo: `com.tempoplugin.tempo-accounts:accounts.customfield`, `com.tempoplugin.tempo-teams:team.customfield`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/jira/Fields"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/assets-field-predicates",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Assets object fields are `com.riadalabs.jira.plugins.insight:` plus `rlabs-customfield-default-object`, `rlabs-customfield-object`, `rlabs-customfield-object-multi`, `rlabs-customfield-object-reference`, `rlabs-customfield-object-reference-multi` or `rlabs-customfield-object-readonly`; the two `reference` ones are reference fields, and the `readonly` one is known not to be editable.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/jira/Fields"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/jeditor-present",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the third-party JEditor app has its global object on the page, its 'field rendered' event (the name it declares, else `JEditorEvents.JEditorFieldRendered`) is watched, once. For content inside one of the plugin's panels, inline styles are stripped from the content, its parent and descendants, and the row is told it was updated.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/StructureJEditorHandler"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/jeditor-absent",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Otherwise, once the configuration has loaded, each updated row is checked for JEditor preview elements (class `je_preview`). If `com.jiraeditor.jeditor` is among the enabled plugins, their inline styles are stripped; if not, their HTML is shown escaped as plain text. The row is reported as updated, and this handler ignores its own report.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/StructureJEditorHandler"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/rte-mention-hidden",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In the plugin's rich editor containers, the mention operation is hidden from the editor's dropdown.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/RichEditorCustomizer"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/rte-settings",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While registered, extra settings are merged into every Jira rich editor being created, and extra key-down, key-up and change listeners are attached on its creation. An existing creation callback is kept and runs first. Unregistering affects only editors created later.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/RichEditorCustomizer"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/option-field-setup",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Whenever Jira reports new content, each visible option single-select and multi-select in it becomes Jira's select control with a dropdown button, reading its option source and endpoint (`list` or `search`, default `list`) from the element. Options come from `GET /rest/structure/2.0/options-picker/<endpoint>?spec=<JSON>&query=<text>`; only `search` re-queries as the user types.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/FieldEditorUtil"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/option-field-groups",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Those options are grouped by `group`, translated for the heading, ungrouped ones first if they came first; a non-array answer shows no options. In a searchable control with no typed text the list ends with 'Start typing to search', unless it shows the no-suggestions message.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/FieldEditorUtil"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/options-edit-template",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A generic field's option editor, for a selectable source: a select named by the field id, labelled with the field's translated name, single or multiple, with the current values as selected options (label, icon) and the source's spec and endpoint attached. For an unselectable source: a 4-row text area if multiple, else a text input, with the values' ids joined by ', '.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/field/options-edit.vm",
+    "com.almworks.jira.structure.optionsource.OptionSourceTools"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/duration-edit-template",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A generic duration field's editor: a short text input named by the field id holding the formatted duration, Jira's example text (`logwork.example` with '3w 4d 12h') and the time tracking help link, with the description `timetracking.field.original.estimate.description` or `timetracking.field.remaining.estimate.description` for those fields. The cell editor turns the texts into a tooltip.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/field/duration-edit.vm",
+    "amd:structure/widget/columns/edit/FieldCellEditor"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/user-field-template",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A user field's cell is the link described under `user-field-renderer`: to the profile in a new window, with Jira's user hover, in avatar, name or both views.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/field/user.vm"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/date-picker-input",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The date picker is a text input with the placeholder of the user's date picker format, a calendar trigger with the tooltip 'Select the date', and an error marker. Its week starts on Jira's first day. With no initial date it shows today. An initial date is parsed strictly; a date that fails is kept as text and validated.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/DatePicker"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/date-picker-validate",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "50 ms after a change, a non-empty text is sent as `GET /rest/structure/2.0/date/validate?date=<text>`. An answer for an older text is ignored. Valid: the date becomes `resultDate` (format yyyy-MM-dd) and the error clears. Invalid: the marker shows, with `error` as its tooltip, and there is no date. On a failed request there is no date and the marker is unchanged. The owner is then notified. Empty text: no request, and only the notification.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/DatePicker"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/date-picker-range-error",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A date range's owner can mark an input as out of range, optionally with the text 'Invalid Range. Finish date is earlier than start date.', and clear this.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/DatePicker"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/user-picker",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The multi-user picker searches Jira: `GET /rest/api/2/user/picker?query=<text>&showAvatar=true&maxResults=<limit>`, 250 ms after typing stops, the limit defaulting to 10. Results show avatar and Jira's highlighted text; a selection shows avatar and escaped display name, identified by user key. When `total` exceeds the users returned, a last row says 'There are more results. Try refining search.'. With no matches it says 'No matches found', or 'Start typing username or email' when nothing is typed.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/JiraMultiUserPicker"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/status-dropdown-menu",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The status multi-select is a button 'Add status...' opening a menu with a 'Search' input, 'Select all', 'Clear' and the statuses as checkbox lozenges. Clicks inside do not close it, and focus goes to the search. Rows and checkboxes toggle by click, and rows by Enter. Search filters by a case-insensitive substring of the label, 250 ms after typing; with nothing left it says 'No matches found'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/StatusMultiselectDropdown"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/status-dropdown-actions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Select all' selects every status, including those filtered out; 'Clear' clears them all. Each is disabled when it would change nothing. On closing, the checked ids go to the owner in check order, the search is cleared, 'Clear' is disabled and 'Select all' enabled, even if statuses are still checked (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/StatusMultiselectDropdown"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/status-dropdown-height",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "If the open menu passes the window's bottom, its status list is limited to the height from the menu's top to the window bottom, or 150 px if larger, minus the search area and 20 px.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/StatusMultiselectDropdown"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/checkbox-dropdown-basics",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The checkbox multi-select stays open while selecting and shows a checkbox in each row. Its placeholder is 'start typing...', or none when it starts with options. It searches 250 ms after typing, and shows 'Searching...' and 'No matches found'. Selecting toggles the row's checkbox, clears the search and repositions the list. The first result is highlighted. A clear control appears when something is selected and removes everything.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/CheckboxMultiSelectDropdown"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/checkbox-dropdown-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With no search text, selected options move to a headless group at the top, in selection order; those not in the answer are looked up (see the option lookup). Each group is cut to the limit. With search text, the order is the server's. A group past the limit ends with 'There are more results. Try refining search', and options come with the option's icon and label.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/CheckboxMultiSelectDropdown"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/checkbox-dropdown-field-change",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Changing the field of the select clears its choices.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/CheckboxMultiSelectDropdown"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/checkbox-embedded",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The embedded option list has the same search rules, 250 ms, and always-visible rows. With no search text, selected options come first in their own list, with a 'Clear selection' action when there are at least two, and a divider. Groups show headings, and each is cut to the limit with 'There are more results. Try refining search'. With no rows it says 'No matches found'. A loading mark shows during the request.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/CheckboxMultiSelectEmbedded"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-option-defaults",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The default option source for a field: `GET /rest/structure/2.0/issue-field/options?fieldId=<id>&query=<text>&count=<limit + number selected>`. The server's parameter is `limit`, so `count` has no effect and every matching option is returned (as the original does); the client cuts the list. `count` is left out when negative. Each group maps to a labelled set, with `total` and the number returned used to tell if more exist.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/FieldOptionsSupport"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-option-lookup",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Selected ids missing from an answer are resolved with `POST /rest/structure/2.0/issue-field/options`, body `fieldId` and `fieldValues`; the first group's options are used, none on failure, without any error shown.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/FieldOptionsSupport"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-option-requests",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new search cancels the previous one's timer and any open request. A failed request, unless aborted, shows one row 'Failed to load options: <server message, else status text, else 'unknown error'>'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/FieldOptionsSupport"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-option-rendering",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An option shows its `html` or escaped `label`, a selection its escaped `label`, with `iconUrl` as the icon if set. Status options with `metadata` show a lozenge in `color`. Sprint options show the label and a line '<state> · <board>', or just the state with no board.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/FieldOptionsRegistry",
+    "amd:structure/widget/ui/field/FieldOptionsSupport"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-option-registry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Field ids match ignoring case. `versions`, `fixVersions`, `project`, `issueType`, `priority` use the default. `status` uses the lozenge. User and group fields (by `type` or `items`) use the author search. `com.pyxis.greenhopper.jira:gh-sprint` uses sprints. All others use the default. A field looked up before Jira's field list arrives uses the default that time.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/field/FieldOptionsRegistry"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-option-authors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "User and group fields search `GET /rest/structure/2.0/author-picker?query=<text>&noRoles=true&noUsers=<true for group fields>&limit=<n>`. Each answer group becomes a set, with more shown when it has a `footer`. A first 'no value' option `special:EMPTY` is added unless the field is `creator`, or the search text is not in its label; its label is Jira's `assignee.types.unassigned`, `reporter.types.noreporter` or `userpicker.empty`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/FieldOptionsRegistry"
+   ]
+  },
+  {
+   "key": "u9-editors/widget-bare/field-option-avatars",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A user option's icon is `/secure/useravatar?ownerId=<key>&ts=<page load time>`, the key lower-cased unless it starts `JIRAUSER`. Any other text id gets `/images/icons/icon_groups_16.png`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/field/FieldOptionsRegistry"
+   ]
+  }
+ ]
+}

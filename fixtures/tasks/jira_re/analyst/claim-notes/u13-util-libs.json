@@ -1,0 +1,1053 @@
+{
+ "claims": [
+  {
+   "key": "u13-util-libs/jsutil/descriptor",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Web-resource `jsutil`, depending on exactly `com.almworks.jira.structure:tslib`, `com.almworks.jira.structure:jquery`, `com.almworks.jira.structure:stacktrace.js`, `com.almworks.jira.structure:events`, `com.almworks.jira.structure:structure-aui`, `com.atlassian.auiplugin:inline-dialog`, `jira.webresources:underscore-1.5.2` and `jira.webresources:jira-events`. It holds the shared browser utilities every other plugin script builds on; the plugin's other scripts depend on it, so it must load before them.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/init-failure-alert",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "When the shared utilities fail to initialise while the script loads, the browser shows an alert box reading `failed to initialize package jsutil ` followed by the error text; the page itself goes on loading.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/text-lookup",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Message lookup by key, used by all browser code: an empty key gives an empty string; a key not in the loaded message table gives the key itself; a known key with no arguments gives its text with every placeholder left as written ('Hello {0}, {1}' stays so); arguments replace the placeholders. With text 'Hello {0}, {1}' and only 'Bob' passed the result is 'Hello Bob, {1}': a placeholder whose argument is missing, null or undefined is left as written. Arguments are inserted as they are, without HTML escaping.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/text-formats",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Placeholders in message texts have these forms. `{n}`: argument n, as text. `{n,number}`: the number as text (2.6 gives 2.6). `{n,number,integer}`: rounded to the nearest whole number (2.6 gives 3). `{n,choice,...}`: see the separate claim. Any other format name (for example `{0,date}`) or number sub-format leaves the placeholder as written. Message texts come from the server already resolved, per `widget-i18n-transformer-cache`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/text-choice",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "A `{n,choice,LIMIT#text|LIMIT<text|...}` placeholder picks a text by the numeric argument, in the usual message-format way: `L#text` applies from L inclusive, `L<text` from just above L; below the first limit the first text applies; above the last the last applies. Parts that do not parse are skipped. The picked text then has its own placeholders replaced with the same arguments. For '{0,choice,0#no rows|1#one row|1<{0} rows}': 0, 0.5 and -1 give 'no rows'; 1 gives 'one row'; 2 gives '2 rows', 7 gives '7 rows'. A non-numeric argument (the text '3') leaves the whole placeholder as written.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/template-substitution",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Client-side text templates replace `{name}` placeholders from named values (dotted paths such as `{a.b}` walk the object's own properties) and otherwise from the message table. Replaced text is HTML-escaped unless the placeholder is written `{name:html}`. Numbers and booleans are shown as text, an empty string gives nothing, and a placeholder with neither a value nor a message stays as written. `{key,a,b}` looks up message `key` with up to 3 arguments taken from the named values, with `?` for a missing value. Positional formatting works the same way: pattern '{0} of {1}' with 1 and 3 gives '1 of 3', and a pattern shorter than 3 characters, or with no values, comes back unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/html-escape",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Text put into HTML by the utilities escapes exactly `&`, `<`, `>`, `\"` and `'` (to `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#39;`). A value that is not a string escapes to an empty string, numbers included. Unescaping turns those five back. Tag stripping removes anything of the form `<...>` and keeps the text between, so '<a>b</a>' gives 'b'.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/abbreviate-label",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Labels shortened for display: with the default limit of 40 characters a text of 40 or fewer stays whole; a longer one becomes its first 37 characters plus `...` (40 in total). With limit 7, 'abcdefghij' gives 'abcd...'. An empty value is returned as is. Capitalising upper-cases only the first character ('ab' gives 'Ab').",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/http-error-report",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "A failed request is turned into a report with a title, details and the response body, with these fixed English texts (not translated). Reason `timeout`: 'Request timed out. Please check your connection and try again.', details 'HTTP request timeout'. Reason `connection`: 'Connection problem. Please check your connection and try again.', details 'Browser failed to establish HTTP connection.'. Status 401 or 403: 'Permissions problem. Please check that you are logged in.'. Any other non-zero status: 'Server-side error. Please contact JIRA administrator.'. For those two the details are 'HTTP <status> <status text>', then a blank line and the response body when there is one. Status 0 or none: 'Network error. Please check your connection and try again.', details 'Browser failed to send HTTP request (<status>)'. Each feature decides where the report is shown.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/logging-console-only",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Browser-side logging goes to the browser console and nowhere else: no error, log line or stack trace is sent to any server, the vendor's included. Debug lines are off by default, warnings and errors are always written, and an error's stack goes to the console's error channel. An exception raised inside a listener or a guarded callback is logged and does not stop the other listeners. Lines carry a running number and the seconds since page load, then DEBUG, WARN or ERR, then the text.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js",
+    "js/structure/jira-copy/Notifications.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/error-sink-and-window-errors",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "A feature may register one receiver for error-level log lines; it gets the line's text, then a blank line and the stack when there is one. Warnings never reach it, and a later receiver replaces the former. Catching window errors, when a feature turns it on, logs 'JavaScript error: <message>' followed by a line '@line <n> (<url>)' at the level the feature gives, and always calls any handler that was there before; turning it off restores that handler. A failure inside this handling is swallowed.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/json-safe",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "If another script on the page has added a `toJSON` to `Array.prototype` that breaks JSON output (the check is that an object holding [1] must serialise as `{\"x\":[1]}`), the utilities disable it on load and warn in the console, so request bodies are valid JSON. Parsing with a default gives the default for an empty text or invalid JSON, without an error.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/url-context-path",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Local URLs are built from Jira's context path. With context `/jira`: 'rest/x' and '/rest/x' both give '/jira/rest/x', and an empty path gives '/jira/'. With an empty context, '/rest/x' gives '/rest/x'. Every same-server URL that the UI requests or links to is built this way.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/url-build-parameters",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Building a query string from a set of values gives `?a=1&b=2`, with names and values URL-encoded. An array repeats the name once per element. A value that is empty, zero, false, null or undefined is left out altogether, so 0 is never sent by this path (as the original does). With nothing left the result is empty, with no `?`.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/url-set-get-parameter",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Setting a query parameter on a URL replaces its first occurrence in place, drops further occurrences and keeps the other parameters in order; the value is URL-encoded; a new name is appended; a null value removes the name. Anything after `#` is not treated separately, so a fragment stays attached to the last parameter and a new parameter lands after it (as the original does). Reading a parameter looks only between `?` and `#`, returns the first match with `+` read as a space and the value URL-decoded, and gives null when absent.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/cookie-rules",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "General rules for cookies the UI writes: lifetime 365 days unless given, path `/` unless given, a path always ending in `/`. A value containing `;` or `=` is URL-encoded, other values are written as they are. Writing an empty value deletes the cookie by expiring it. Reading matches the exact name, strips surrounding double quotes, URL-decodes and gives an empty string when the cookie is absent. Since reading always decodes but writing does not always encode, a value with a stray `%` does not survive a round trip (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/window-load-state",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "The utilities track whether the browser's load event has happened. The state resolves at that event, and is rejected after 60 seconds without it, so code waiting for page load gives up then.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/shortcut-grammar",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Shortcuts are written as key names joined with `+`, the last being the key and those before it the modifiers `shift`, `ctrl`, `alt` and `meta`, case-insensitively: 'ctrl+shift+x'. A comma separates the steps of a sequence: 'g,s'. Key names are letters, digits, `f1` to `f19`, names such as `enter`, `escape`, `tab`, `space`, `backspace`, `delete`, `home`, `end`, `pageup`, `pagedown`, `left`, `right`, `up`, `down`, `insert`, and the punctuation keys. A shortcut that does not parse is logged as an error and not registered; a later registration of the same keys replaces the earlier one with a warning.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/shortcut-target-rules",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "A key press reaches plugin shortcuts only under these rules. Focus in an input, textarea, select or button: ignored unless the modifiers are exactly Ctrl+Alt or Ctrl+Alt+Shift, or that control lists the shortcut as allowed. Focus inside a Jira picker: ignored. A control marked as pass-through always accepts them. For a shortcut set bound to one part of the page: ignored while that part is hidden; accepted when focus is inside it; accepted when nothing in particular has focus (page body) or focus is on an ancestor of that part; otherwise not, unless a feature's own rule says so.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/shortcut-sequence-timing",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "After the first step of a sequence, the next key must arrive within 500 ms; later, or a key that does not continue the sequence, abandons it, and that key does nothing else. A sequence can start only from a key reaching the document or the shortcut set's own element. When a key is both a shortcut and the start of a sequence, its action waits 500 ms and is cancelled if the sequence continues. A shortcut that handled the key suppresses the browser's default for it and the matching keypress and keyup, until a different key arrives.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/shortcut-display",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Shortcuts are displayed as follows. Not on a Mac (the user agent does not contain 'mac os', in any case): each key name capitalised and joined with `+`: 'ctrl+shift+x' shows 'Ctrl+Shift+X'; sequence steps run together: 'g,s' shows 'GS'. `minus` shows `-`, `plus` shows `+`, `apos` shows `'`, and the arrows `left`, `right`, `down`, `up` show the arrow characters. On a Mac the same, without `+` and with symbols: `meta` as U+2318, `shift` U+21E7, `alt` U+2325, `ctrl` U+2303, `enter` U+23CE, `delete` U+2326, `escape` U+238B: 'ctrl+x' shows U+2303 then X.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/action-availability",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Each toolbar entry, menu entry and shortcut runs a named action. The action is asked for its availability just before it runs: when it answers no, or fails with an error (which is logged), it does not run and a key press goes on to the browser. When it runs and reports that it handled the event, the event is stopped there. Availability changes reach the bound controls at once: a disabled button has `aria-disabled` set and clicking it does nothing, a split button's arrow follows its main part, a toggled button has `aria-pressed` true, and a checkbox or radio menu entry shows as checked.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/control-cell-binding",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Form controls stay in step with their data in both directions: a value set in code shows in the control, and a user's change (for checkboxes, selects and radios on change, key release and click; for text fields also on blur) updates the value at once. A radio group is every radio with the same name in the same form. A value with no matching option leaves nothing selected.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/input-enabler",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "When a form's block is disabled by the shared binding, a text input or textarea becomes read-only, not disabled, so its text can still be selected and copied; all other inputs become disabled. Enabling removes this. A field can opt to be always truly disabled.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/declarative-new-content",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Whenever Jira reports new content on the page (page load, an opened dialog), inside that content: selects the plugin marks are turned into Jira's searchable select box, per `structure-aui`; and show/hide rules are wired. A rule says 'hide this element while checkbox X is checked' or 'show it while checkbox X is checked', several can be combined on one element, and the element follows the checkbox at once and on every change. When the checkbox cannot be found a warning is logged, a 'hide' element stays visible and a 'show' element stays hidden.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/focus-return",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "A dialog or popup borrows keyboard focus when it opens and gives it back when it closes: 250 ms after closing, focus goes to the most recent remembered element still on the page and visible, walking back through nested borrowers. If the user has meanwhile focused a visible element outside the closing popup, focus stays there. If nothing remembered remains, focus moves to the page body. Focus on anything other than an input or an element with a tab index counts as the current focus only after 2 seconds.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/wheel-scroll-containment",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "In a scrollable list set up this way, wheel scrolling past either end stops at that end and does not scroll the page behind it.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/autogrow-textarea",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "An auto-growing text area grows with its text while it has focus, following each key and input, up to its maximum height, then scrolls. When it loses focus, 300 ms later, it shrinks back to its original height and scrolls to the top.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/load-display",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Displaying content that depends on a pending load: already loaded, the content shows at once with no spinner. Otherwise the content is hidden, and if still pending after 500 ms a spinner appears in its place. On success the spinner goes and the content shows. On failure the spinner goes, the content stays hidden, and before it appears an error icon (with accessible text 'Error') and 'Cannot load data'. There is no retry here.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/single-vs-double-click",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "A control with separate single-click and double-click actions waits (500 ms by default) after a click before the single-click action; a double click within that time cancels it and runs the double-click action instead.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/dropdown-placement",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Dropdowns the plugin positions open below their trigger, unless there is more room above than below and the content (when its height is known) would not fit below. When a dropdown would pass the window's edge, its height is limited so that it ends 5 px short of the top edge, or short of the bottom edge by 5 px plus its top margin; otherwise there is no limit. A hidden dropdown entry is also marked disabled, so it cannot be reached by keyboard.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/reorder-by-drag",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Reorderable items in banners are dragged by their handle, inside their parent only, without scrolling. Items swap when the dragged item overlaps the neighbour by more than half its width and sits within half its height of it. When the drop lands on a new place the feature gets the old and new positions. In Firefox the click that ends the drag does not reach a button underneath.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/responsive-width",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "A bar with responsive width modes measures each mode in order, in its full-to-compact order, hidden while measuring, and uses the first mode whose measured width fits the available width; when none fits, the last. Its minimum width is then the chosen mode's width.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/tooltip-scope",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "On Jira 9.12 tooltips work through Jira's own tooltip component and apply inside the board on the structure page, the structure tab on an agile board, the structure panel on an issue page, and otherwise the plugin's own structure areas and toolbar. Each area is set up once. An element takes part when it is marked as having a tooltip or carries a `data-tooltip` or `original-title` attribute, including elements added later.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/tooltip-text",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "The text of a tooltip comes, in order, from a feature's text for that element, then its `data-tooltip` attribute, then its native `title` (which is removed so that the browser does not show its own, and kept as `data-tooltip`), then `original-title`. Tooltips may contain HTML unless the feature says otherwise, when the text is escaped. A Jira status lozenge ignores `data-tooltip`. With no text there is no tooltip. The tooltip sits to the lower right of its element.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/tooltip-suppress-and-hide",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "A click anywhere outside a tooltip box hides the tooltip showing and suppresses new ones for 300 ms. No tooltip shows for an element placed exactly at the window's top left corner (0,0), since it is not really laid out. A feature can hide all tooltips at once, and turn off the tooltip of one element, putting its text back as the `title`.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/overflow-tooltip",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "Text cut off by its container gets a tooltip with the full text, HTML-escaped, only while it really overflows: the text's width is greater than the element's inner width without its padding. Text that fits has no tooltip. Entries of a searchable select box that overflow get a native `title` with their text.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jsutil/no-boundary-internals",
+   "module": "jsutil",
+   "api": null,
+   "behaviour": "The reactive values, lifecycles, event dispatch, collections, caches and object helpers in this resource have no behaviour of their own at any boundary: nothing in them sends a request, stores anything or shows anything. A rebuild can use any equivalent.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/events/descriptor",
+   "module": "events",
+   "api": null,
+   "behaviour": "Web-resource `events`, with no dependencies and one script. It defines the names of the UI's internal application events (loading, edits, selection, views, polling, dialogs and the like), which plugin scripts use to talk to each other, available as a module and on the plugin's global namespace, since the gadget script reads it there.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/AppEvents.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/events/ids-not-contract",
+   "module": "events",
+   "api": null,
+   "behaviour": "Event identifiers are assigned at load, as `_e` plus a running number, so they carry no meaning, are not stored and never reach the server. The set is private to the plugin and a rebuild may name them freely; what companion apps can call is the browser-side API under `structure/api/`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/AppEvents.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/widget-i18n/descriptor",
+   "module": "widget-i18n",
+   "api": null,
+   "behaviour": "Web-resource `widget-i18n`, depending on `com.almworks.jira.structure:jsutil`, with a `transformation extension=\"js\"` using `widget-i18n-transformer`, and one download resource named `structure_messages.js` at location `i18n/structure_messages.js`. The packaged file holds only a comment: its real content is generated per locale, as `widget-i18n-transformer-common` and `widget-i18n-transformer-cache` claim.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "i18n/structure_messages.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/widget-i18n/bundle-install",
+   "module": "widget-i18n",
+   "api": null,
+   "behaviour": "The generated bundle calls `window.almworks.util.resources(locale, messages)`. The call sets `window.almworks.locale` to the locale and merges the messages into the table used for all lookups, later bundles adding to it and overwriting equal keys. Until a bundle has loaded, lookups give the key itself.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/almworks-util.js",
+    "i18n/structure_messages.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/hints/descriptor",
+   "module": "hints",
+   "api": null,
+   "behaviour": "Web-resource `hints`, depending on `com.almworks.jira.structure:jquery` and `com.almworks.jira.structure:jsutil`, with the stylesheet `structure-hints.css` (content type text/css) and the script `hints.js`. The stylesheet only spaces the action link within a page-wide hint and gives it a pointer cursor. The helpers exist only when the plugin's jQuery has loaded.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/hints.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/hints/dismiss",
+   "module": "hints",
+   "api": null,
+   "behaviour": "Dismissing a page-wide hint with a given id removes the hint that holds the clicked element from the page, remembers the dismissal, fires a window resize so that the layout closes the gap, and cancels the link's default action. It is remembered in the browser's local storage with no expiry. If storage is unavailable or the write fails, it goes to a cookie named with the hint's id, value `hidden`, for 365 days, path = Jira's context path, or `/`. It is per browser, not per user. No request is sent.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/hints.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/hints/is-dismissed",
+   "module": "hints",
+   "api": null,
+   "behaviour": "A hint counts as dismissed when local storage holds any non-empty value for it, or a cookie with its id is set. Unavailable storage counts as nothing stored, so only the cookie decides. `end-of-life` uses this check; nothing in the plugin itself calls the dismissal helper at present.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/hints.js",
+    "js/structure/endOfLife.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/descriptor",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "Web-resource `page-util`, depending on `com.atlassian.auiplugin:ajs`, `jira.webresources:jira-global`, `com.almworks.jira.structure:jsutil` and `com.almworks.jira.structure:page-rc`, with one script: helpers for the plugin's server-rendered pages. They exist only when jQuery has loaded.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/pageutil.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/cms-value-format",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "The checkbox multi-selector (used by the sync and rollup forms) keeps its value in a hidden form input: a comma-separated list of option ids, in selection order, or `*` for 'all'. The initial value is read from that input and every change is written back to it.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/pageutil.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/cms-load",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "Loading options: a GET to the given local URL (with Jira's context path), expecting JSON. A `#name` at the end of the URL is not sent: it picks that field of the answer as the list. Only the latest request counts: an older answer is dropped. The loading state ('Loading...') shows only when a load is still running after 300 ms, and ends with the load.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/pageutil.js",
+    "templates/structure/ext/sync/statusup-form.vm"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/cms-render-options",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "Each option in the answer makes one labelled checkbox. Its id, name and description are read from `id`, `name`, `description` unless the page supplies its own readers, and are HTML-escaped; the description is the tooltip. An option without id or name is skipped. No options at all shows 'None'. Reloading replaces the options and re-applies the current value.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/pageutil.js",
+    "templates/structure/ext/sync/statusup-form.vm"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/cms-load-error",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "A failed load marks the selector as failed, but no stylesheet or script reacts to that, so the user sees the loading state end and no options and no message, and the mark stays after a later successful load (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/pageutil.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/cms-all-and-items",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "Checking 'All' checks every option and makes the value `*`. Unchecking 'All' clears every option. Unchecking any option while 'All' is checked clears 'All' and the value becomes the ids still checked, in display order, since `*` has no order. With value `*` every box is shown checked. Other changes keep the stored order: an unchecked id is removed; a newly checked id goes before the first id of an option listed after it that is already in the value, or at the end.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/pageutil.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/cms-reorder",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "Where the form has an order list, it shows one draggable row per selected option in value order, with the option's name and description tooltip, and a reorder hint only when there is at least one row. With value `*` the list is empty. Dragging a row sets the value to the new order, unless 'All' is checked.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/pageutil.js",
+    "templates/structure/ext/sync/statusup-form.vm"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/cms-submit-pruning",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "On form submit, ids in the value that are no longer among the loaded options are removed from the input; `*` and an empty value are left alone. Since the options are empty until loaded, submitting before the load has finished or after it has failed removes every id and saves an empty selection (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/pageutil.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/bind-select",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "Binding a select to a callback calls it once when the page is ready, with the current value and the select, then on each change and key release. The sync-type selector uses this.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/pageutil.js",
+    "templates/structure/include/selectsync.vm"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/move-items",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "Moving items between two select lists (the project picker's arrows) moves the selected options of the source into the target, keeping the target in order by locale comparison of the option text: each goes before the first option that sorts equal or after, or at the end, with the search continuing from the previous item's place. It presumes both lists are sorted and the selection is in order.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/pageutil.js",
+    "templates/structure/admin/edit-projects.vm"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/integer-input-keys",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "An integer-only field accepts in its keydown only: digits, numeric keypad digits, Home, End and arrow keys, Backspace and Delete, plus Ctrl or Cmd with A, C, V, X. All other keys are blocked, Tab and Enter included, so Tab cannot leave the field and Enter cannot submit the form (as the original does). Shifted digit keys are not told apart, so Shift+1 is let through.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/pageutil.js",
+    "templates/structure/admin/defaults-select-automation.vm",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u13-util-libs/page-util/integer-input-normalise",
+   "module": "page-util",
+   "api": null,
+   "behaviour": "On every key release, input, change and blur, an integer-only field's text is replaced by its whole-number reading: '007' becomes 7, '12abc' becomes 12, '-5' stays -5. Text with no leading number ('abc', or empty) stays as it is.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/pageutil.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/dialog-common/descriptor",
+   "module": "dialog-common",
+   "api": null,
+   "behaviour": "Web-resource `dialog-common`, depending on `com.almworks.jira.structure:jsutil` and `com.atlassian.auiplugin:dialog2`, with one stylesheet and the scripts of the shared modal dialog, its size names, its stacking and the confirmation dialog. The stylesheet centres the error line below the body in Jira's form error colour.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/dialog/BaseModalDialog.js",
+    "js/structure/dialog/types.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/dialog-common/modal-layout",
+   "module": "dialog-common",
+   "api": null,
+   "behaviour": "The shared modal dialog has a title, a body, an error line that starts empty, a primary submit button with the caller's text, and a 'Cancel' link button. Sizes are small (default), medium, large and extra large, as Jira's dialog sizes. Title and submit text are escaped, the body is HTML. It is modal, so a click on the backdrop does not close it, the submit button has focus when it opens, Jira's own keyboard shortcuts are off while it is open, and it leaves the page when it closes.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/dialog/BaseModalDialog.js",
+    "js/structure/dialog/types.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/dialog-common/modal-keys",
+   "module": "dialog-common",
+   "api": null,
+   "behaviour": "While a modal dialog is the top one, Enter anywhere submits and Escape cancels, and neither reaches the page behind. Enter on the Cancel button cancels. Enter in a text area of the body also submits. With another dialog on top, it ignores both keys. Clicks inside it or on its backdrop do not reach the page behind.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/dialog/BaseModalDialog.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/dialog-common/modal-submit",
+   "module": "dialog-common",
+   "api": null,
+   "behaviour": "Submitting clears the error line, shows the submit button as busy and runs the caller's task. On success the dialog closes, then the caller's success step runs with the triggering event. On failure the button is idle again, the dialog stays and the failure text shows in the error line as plain text.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/dialog/BaseModalDialog.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/dialog-common/modal-double-submit",
+   "module": "dialog-common",
+   "api": null,
+   "behaviour": "Nothing blocks a second submit while the first is running: another click or Enter starts the caller's task again (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/dialog/BaseModalDialog.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/dialog-common/modal-cancel",
+   "module": "dialog-common",
+   "api": null,
+   "behaviour": "Cancelling closes the dialog and then runs the caller's cancel step, if any, with the event. No request is sent by the dialog itself.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/dialog/BaseModalDialog.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/dialog-common/confirmation",
+   "module": "dialog-common",
+   "api": null,
+   "behaviour": "The confirmation dialog is that modal dialog with title 'Confirmation', the message as one paragraph, submit text 'Confirm' and small size by default. Confirm closes it at once and runs the confirm step; Cancel closes it and runs the cancel step. The message is inserted as HTML, unescaped, so callers must escape what they pass.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/dialog/ConfirmationDialog.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/dialog-common/stacking",
+   "module": "dialog-common",
+   "api": null,
+   "behaviour": "A dialog opened over another stays on top: its backdrop is raised 500 above the current one (from 2500 when none shows) and the dialog 20 above that. Closing it puts the backdrop back to where it was and keeps it showing when a dialog lies below. When no dialog lay below, the backdrop's level is cleared.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/dialog/Dialog2BlanketAware.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/confluence-auth-utils/descriptor",
+   "module": "confluence-auth-utils",
+   "api": null,
+   "behaviour": "Web-resource `confluence-auth-utils`, depending on `jira.webresources:almond` and `com.almworks.jira.structure:jsutil`, with one script.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/confluence-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/confluence-auth-utils/login-popup",
+   "module": "confluence-auth-utils",
+   "api": null,
+   "behaviour": "Showing the Confluence login opens the given URL in a popup window of 640 by 520 pixels without scrollbars, centred on the browser window, with the window name 'Log In to Confluence'. Every 200 ms it checks whether the popup is closed. Once closed, the caller's step runs, or without one the Jira page reloads. The URL comes from the caller; this helper makes no request of its own, and with Confluence absent it is simply not called.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/confluence-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/confluence-auth-utils/popup-blocked",
+   "module": "confluence-auth-utils",
+   "api": null,
+   "behaviour": "When the browser blocks the popup, a dialog of 500 by 300 pixels opens, titled 'Pop-up window blocked', with the text 'Your browser prevented the login window from opening. Please open this URL manually in another window:', the URL as a link, and a primary 'OK' button that closes the dialog. A click outside also closes it. No reload follows.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/confluence-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/confluence-auth-utils/popup-reopened",
+   "module": "confluence-auth-utils",
+   "api": null,
+   "behaviour": "Starting the login again while an earlier popup is being watched replaces the watched window, and the first check's timer is never stopped, so after closing the caller's step runs repeatedly, every 200 ms (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/confluence-util.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/confluence-templates/descriptor",
+   "module": "confluence-templates",
+   "api": null,
+   "behaviour": "Web-resource `confluence-templates`, with no dependencies and one script: the template of the banner shown in the widget's Confluence content when it cannot be loaded.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/confluence-templates.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/confluence-templates/error-banner",
+   "module": "confluence-templates",
+   "api": null,
+   "behaviour": "The Confluence error banner shows the caller's message (escaped) as a paragraph, then a row with a retry loading indicator, an optional action button supplied by the caller, and a 'Try Again' button. When each appears, and what the buttons do, is in the Confluence handling of `widget-bare`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/confluence-templates.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jquery/descriptor",
+   "module": "jquery",
+   "api": null,
+   "behaviour": "Web-resource `jquery`, depending on `jira.webresources:almond`. It supplies the plugin's own jQuery 3 level copy; the version and files are the implementer's choice.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/lib/shim/jquery-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jquery/isolation",
+   "module": "jquery",
+   "api": null,
+   "behaviour": "Loading it must not disturb Jira's jQuery: when the loaded copy differs from Jira's, the page's global `$` and `jQuery` go back to what they were, and the plugin's copy is reachable only as `window.almworks.$` (kept if already set) and as a private module. When it is the same object as Jira's nothing is restored.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/lib/shim/jquery-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jquery/no-cross-domain-script",
+   "module": "jquery",
+   "api": null,
+   "behaviour": "In the plugin's copy, a cross-domain response is never run as a script just because of its content type, unless a request asks for that data type explicitly.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/lib/shim/jquery-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jquery/shorthand-events",
+   "module": "jquery",
+   "api": null,
+   "behaviour": "The plugin's copy must offer the short event methods `blur`, `click`, `focus`, `select` and `submit`: with arguments they bind, without they trigger.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/lib/shim/jquery-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jquery-ui/descriptor",
+   "module": "jquery-ui",
+   "api": null,
+   "behaviour": "Web-resource `jquery-ui`, depending on `com.almworks.jira.structure:jquery`. The plugin needs from it: sortable lists, dragging, resizing with its styles and images, and a delayed-hover helper. Library and version are the implementer's choice.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/lib/shim/jqueryui-before.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/jquery-ui/isolation",
+   "module": "jquery-ui",
+   "api": null,
+   "behaviour": "The plugins install onto the plugin's jQuery, not Jira's: the global `$` and `jQuery` point to the plugin's copy only while they load and are put back straight after. With the plugin's copy missing, nothing is switched.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/lib/shim/jqueryui-before.js",
+    "js/structure/lib/shim/jqueryui-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/react/descriptor-isolation",
+   "module": "react",
+   "api": null,
+   "behaviour": "Web-resource `react`, with no dependencies. It supplies React and React DOM to the plugin's UI. When both `React` and `ReactDOM` were on the page beforehand they are put back after it loads (otherwise the loaded copies stay as globals); the plugin's copies stay on `window.almworks` and as private modules, also under the plain module ids that the UI kit asks for. It presumes `window.almworks` exists, so another plugin resource must have loaded first.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/lib/shim/react-before.js",
+    "js/structure/lib/shim/react-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/momentjs/descriptor-isolation",
+   "module": "momentjs",
+   "api": null,
+   "behaviour": "Web-resource `momentjs`, depending on `jira.webresources:almond`. It supplies a date library to the date picker and the cumulative flow diagram, registered as a module. It is not hidden: the library's own global stays on the page.",
+   "confidence": "medium",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/lib/shim/moment-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/tslib/descriptor",
+   "module": "tslib",
+   "api": null,
+   "behaviour": "Web-resource `tslib`, with no dependencies: runtime helpers for the plugin's compiled scripts, registered as a module. It must exist because `jsutil` depends on it, and what it contains is the implementer's choice. The module loader's AMD flag is on only while it loads and is removed after, as Jira's loader expects.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/lib/shim/tslib-before.js",
+    "js/structure/lib/shim/tslib-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/c3/descriptor",
+   "module": "c3",
+   "api": null,
+   "behaviour": "Web-resource `c3`, depending on `jira.webresources:almond`, supplying the charting library and its stylesheet that the cumulative flow diagram needs.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/lib/shim/c3d3-before.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/c3/isolation",
+   "module": "c3",
+   "api": null,
+   "behaviour": "Any global `d3` and `c3` on the page before go back after it loads, and the plugin's copies are reachable only as private modules. Chart creation switches the global `d3` to the plugin's copy just for that call and restores it afterwards, even on an error, so Jira's or other apps' copies keep working.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/lib/shim/c3d3-before.js",
+    "js/structure/lib/shim/c3d3-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/stacktrace.js/descriptor-isolation",
+   "module": "stacktrace.js",
+   "api": null,
+   "behaviour": "Web-resource `stacktrace.js`, with no dependencies. It must exist because `jsutil` depends on it, but no plugin script calls it: stack traces in logs come from the errors themselves. While it loads, the globals `exports`, `define` and `printStackTrace` are set aside and afterwards all restored, so that the page's loader is untouched. Nothing it produces is sent anywhere.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/lib/shim/stacktrace-before.js",
+    "js/structure/lib/shim/stacktrace-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/uikit/descriptor",
+   "module": "uikit",
+   "api": null,
+   "behaviour": "Web-resource `uikit`, depending on `com.almworks.jira.structure:react`. It supplies the component kit, translation and CSS-in-JS libraries behind the plugin's newer React parts (structure info, details panels, planning tasks); its contents are the implementer's choice.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/react/ReactContentRenderer.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/uikit/isolation",
+   "module": "uikit",
+   "api": null,
+   "behaviour": "Loading the kit must leave Jira's global `_` as it was: a utility library inside the kit that takes over `_` is given back straight after the kit loads. The kit's dependencies are private modules, and with one missing the registration is skipped.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/lib/shim/uikit-deps-after.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/uikit/react-content-renderer",
+   "module": "uikit",
+   "api": null,
+   "behaviour": "React content is rendered into a given page element inside the theme for Jira Data Center, so that it follows Jira's look, and rendering the same element again updates it. Unmounting one element clears it; unmounting the renderer clears every element it has rendered, so a closed panel leaves nothing mounted.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/react/ReactContentRenderer.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/vendors/descriptor",
+   "module": "vendors",
+   "api": null,
+   "behaviour": "Web-resource `vendors`, with no dependencies and one script resource named `vendors.js`: the shared third-party code (React, a state store, CSS-in-JS and the like) of the management single-page app, which `manageSpa` depends on. Its content is the implementer's choice and it only needs to serve that app. It contains no error reporting and no calls to the vendor, and nothing of the kind may be added.",
+   "confidence": "medium",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "fe/vendors.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/fonts/descriptor",
+   "module": "fonts",
+   "api": null,
+   "behaviour": "Web-resource `fonts`, with no dependencies: a `fonts/` download folder at location `css/structure/fonts` with `allow-public-use` true, and the stylesheets `font-awesome.min.css` and `structure-font.css`.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u13-util-libs/fonts/server-used-icons",
+   "module": "fonts",
+   "api": null,
+   "behaviour": "The server and module descriptors emit icon class names (see C-2855, C-2879, C-3476, C-3692), so these must work on any page holding this resource. `alm alm-fw` plus: `alm-checkbox`, `alm-effector`, `alm-flag`, `alm-group`, `alm-issue-icon`, `alm-memo`, `alm-sort-asc`, `alm-sort-desc`, `alm-status-category`, `alm-version-name`. `s-fa` with `s-fa-fw` plus: `s-fa-angle-up`, `s-fa-check-circle`, `s-fa-exclamation-triangle`, `s-fa-filter`, `s-fa-link`, `s-fa-pencil`, `s-fa-plus`, `s-fa-star`, `s-fa-tasks`, `s-fa-trash-o`.",
+   "confidence": "medium",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver",
+    "com.almworks.jira.structure.extension.attribute.query.QueryMatchProvider"
+   ]
+  },
+  {
+   "key": "u13-util-libs/fonts/icon-isolation",
+   "module": "fonts",
+   "api": null,
+   "behaviour": "Icon classes carry their own prefixes, so they do not collide with Jira's or other apps' icon fonts. The `alm` font is not read aloud by speech output. A rebuild draws its own glyphs; the vendor's logo glyph is left out.",
+   "confidence": "medium",
+   "evidence": [
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u13-util-libs/widget-css/descriptor",
+   "module": "widget-css",
+   "api": null,
+   "behaviour": "Web-resource `widget-css`, with no dependencies, holding an `img/` folder at location `css/structure/img/` and the structure widget's stylesheets: board, toolbar, footer, inputs, forms, tooltips, panel header and banners, structure selector, item details, history, table header and body, rows, text wrapping, inline editor, column panels, each column type, view selector and management, dialogs, spinner, colour and date pickers, memo, planning task, quick actions, help, gadget, error and decision panels, and the Jira page and dialog adjustments. How they split into files is the implementer's choice.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u13-util-libs/widget-css/mail-image",
+   "module": "widget-css",
+   "api": null,
+   "behaviour": "The `img/` folder must hold `structure-logo-label.png`, since mails link to it (C-2313). The rebuild supplies its own image there, with no vendor branding.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "com.almworks.jira.structure.util.MailSender"
+   ]
+  },
+  {
+   "key": "u13-util-libs/widget-css/theme",
+   "module": "widget-css",
+   "api": null,
+   "behaviour": "All colours come from named theme values that follow Jira's own design tokens, with a light default when a token is absent, so the widget follows Jira's light and dark themes with no setting of its own. On Jira's dark theme the images of the pages promotional banner have a dark variant.",
+   "confidence": "medium",
+   "evidence": [
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u13-util-libs/widget-css/hover-reveals",
+   "module": "widget-css",
+   "api": null,
+   "behaviour": "Some controls show only on hover, in stylesheets: the pencil of an inactive editable field appears when the pointer is over the field; the 'more' button of a transformation in the group dialog appears when the pointer is over that transformation, half-visible, and fully while its menu is open. A disabled banner edit control stays half-visible on hover.",
+   "confidence": "medium",
+   "evidence": [
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u13-util-libs/widget-css/open-in-new-window-hover",
+   "module": "widget-css",
+   "api": null,
+   "behaviour": "A link marked as opening a new window shows its small indicator only on hover, press or focus.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u13-util-libs/widget-css/formula-dialog-short-window",
+   "module": "widget-css",
+   "api": null,
+   "behaviour": "In the formula editor dialog, the content area keeps a fixed height relative to the dialog on windows up to 700 pixels high, so it stays scrollable; its formula box is resizable vertically from a minimum height of 110 pixels, 300 by default.",
+   "confidence": "medium",
+   "evidence": [
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u13-util-libs/structure-aui/descriptor",
+   "module": "structure-aui",
+   "api": null,
+   "behaviour": "Web-resource `structure-aui`, depending on `com.atlassian.auiplugin:aui-select2`, with the stylesheet `structure-aui.css` (content type text/css) and the script `structureAuiSelect2.js`.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/util/jira/structureAuiSelect2.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/structure-aui/stylesheet",
+   "module": "structure-aui",
+   "api": null,
+   "behaviour": "The stylesheet adapts Jira's components to the plugin: the look of disabled toolbar buttons, the mark of checked radio entries in plugin dropdowns, the select box search field, the active badge in the structure selector, and the wiki editor. In the wiki editor of generic items it hides the attachment button, since generic items have no attachments.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u13-util-libs/structure-aui/select-no-matches",
+   "module": "structure-aui",
+   "api": null,
+   "behaviour": "The plugin's searchable select box is Jira's, working on Jira's jQuery, with 'No matches found' as its empty-result text unless the caller gives its own. Calling with a command rather than with options passes it through unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/util/jira/structureAuiSelect2.js"
+   ]
+  },
+  {
+   "key": "u13-util-libs/formula-icons/descriptor",
+   "module": "formula-icons",
+   "api": null,
+   "behaviour": "Web-resource `formula-icons`, with no dependencies, and exactly four download resources by name, with no file extension in the name: `partly-cloudy` at `images/formula/partly-cloudy.png`, `shine` at `images/formula/shine.png`, `spacer` at `images/formula/spacer.gif` and `thunderbolt` at `images/formula/thunderbolt.png`.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u13-util-libs/formula-icons/names-are-contract",
+   "module": "formula-icons",
+   "api": null,
+   "behaviour": "All four names are contract, because formulas store them: the bundled Item Health formula (C-1747) calls `structure_icon_url` (C-2025) with `shine`, `partly-cloudy`, `thunderbolt` and `spacer`, and a column saved from it keeps those names in its stored formula. `spacer` is a 1 by 1 image used for padding; the other three are icons shown at 20 by 20 by that formula, from 64 by 64 sources. The rebuild draws its own images.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "com.almworks.jira.structure.savedcolumn.BundledColumnSource"
+   ]
+  }
+ ]
+}

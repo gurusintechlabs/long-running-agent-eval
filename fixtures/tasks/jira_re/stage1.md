@@ -19,7 +19,7 @@ Design the replacement and build its foundation.
 ```json
 {"modules": {"<module key>": {"status": "done|partial|not_started",
                               "files": ["src/main/java/..."], "tests": ["src/test/java/..."],
-                              "claims": ["C-001", "C-002"]}}}
+                              "claims": ["C-0001", "C-0002"]}}}
 ```
 
 Every file listed must exist. Keep this map up to date in every later stage.

@@ -97,7 +97,7 @@ applies the manual adjustments users made to generated content.
 **Change tracking.** An item tracker is the change journal that forests and values poll. It is fed by:
 - Jira events, through an issue event bridge and bridges for structure-relevant platform and app events;
 - user and group events;
-- reindex notifications. The *Structure Index Monitor* custom field exists only to be told when an issue
+- reindex notifications. The *<product> Index Monitor* custom field exists only to be told when an issue
   is reindexed, and the plugin creates and locks it itself;
 - servlet filters that catch changes Jira makes without events: rank, sub-task order, watchers,
   epic links, some Tempo edits.
@@ -123,7 +123,7 @@ saved filter, links, Agile, sub-tasks and status rollup.
 **Query.** S-JQL is a query language over a forest. A query constraint registry is filled by the
 `structure-query-constraint` modules, and a parser also accepts plain JQL and text search. S-JQL is used by
 the `structure()` JQL function, the S-JQL automation filter, and the workflow condition and validator
-"Issue Matches Structure Query".
+"Issue Matches <product> Query".
 
 **Persistence.** The Active Objects schema has 39 tables with the prefix `AO_8BAD1B_` (`contract.tables`
 of module `ao`). They hold structures, forests and their change log, rows, item types, generators, views,
@@ -246,7 +246,7 @@ The original contacts its vendor and the Atlassian Marketplace over the network.
 
 `data-tracker` (component), `event-bridge` (component), `generic-item-history-manager` (component), `history-recorder` (component), `history-service` (component), `issue-change-interceptor` (servlet-filter), `issue-reindex-tracker` (component), `item-tracker` (component), `reindex-manager` (component), `statistics-manager` (component), `structure-deleted-event-listener` (component), `structure-event-bridge` (component), `structure-features-statistic-source` (component), `structure-usage-tracker` (component), `structure-users-event-bridge` (component), `wf-statistics` (component)
 
-**permissions-security** (11): Structure permissions, access checks and security filters.
+**permissions-security** (11): <product> permissions, access checks and security filters.
 
 `attribute-sensitivity-manager` (component), `bulk-permission-checker` (component), `forest-permissions-cache` (component), `partitioned-cookie-header-filter` (servlet-filter), `permission-scheme-manager` (component), `permissions-cache` (component), `permissions-calculator` (component), `permissionsEditor` (web-resource), `project-scope-cache` (component), `security-filter` (servlet-filter), `structure-permissions` (web-resource)
 

@@ -37,6 +37,7 @@ import pytest
 FINAL_STAGE = 6
 WS = Path(os.environ.get("LRAE_WORKSPACE", ".")).resolve()
 VENDOR = Path(__file__).resolve().parent.parent / "vendor"
+PILOT = Path(__file__).resolve().parent / "pilot.json"   # analyst/build_pilot.py
 
 # Descriptor elements that are metadata, not functional modules.
 NON_MODULES = {"plugin-info", "resource", "component-import", "web-resource-transformer",
@@ -122,16 +123,23 @@ class Reference:
     all_classes: dict[str, set[str]] = field(default_factory=dict)   # fq name ($ for inner) -> methods
     modules: list[Module] = field(default_factory=list)
     descriptor_found: bool = False
+    resources: set[str] = field(default_factory=set)    # the jar's other entries: scripts, templates, ...
+    js_modules: set[str] = field(default_factory=set)   # AMD module ids defined by its scripts
 
     @property
     def classes(self) -> list[str]:
         return sorted(c for c in self.all_classes if "$" not in c.rsplit(".", 1)[-1])
 
     def resolve(self, ref: str) -> bool:
-        """``fq.Class`` or ``fq.Class#method``; inner classes as ``Outer$Inner`` or ``Outer.Inner``."""
+        """``fq.Class`` or ``fq.Class#method``; inner classes as ``Outer$Inner`` or ``Outer.Inner``; a jar
+        entry (``js/app.js``) or an AMD module id (``amd:app/Grid``) for what lives in scripts and templates."""
         if not isinstance(ref, str) or not ref.strip():
             return False
+        if ref.strip().startswith("amd:"):
+            return ref.strip()[4:] in self.js_modules
         cls, _, method = ref.strip().partition("#")
+        if cls in self.resources:
+            return True
         method = method.split("(", 1)[0].strip()
         candidates = [cls]
         parts = cls.split(".")
@@ -145,6 +153,18 @@ class Reference:
                                                      and "<init>" in self.all_classes[c]):
                     return True
         return False
+
+
+AMD_DEFINE = re.compile(rb"""\bdefine\(\s*["']([^"']+)["']""")
+
+
+def _add_front_end(ref: Reference, z: zipfile.ZipFile) -> None:
+    for n in z.namelist():
+        if n.endswith((".class", "/")) or n.startswith("META-INF/"):
+            continue
+        ref.resources.add(n)
+        if n.endswith(".js"):
+            ref.js_modules.update(m.decode("utf-8", "replace") for m in AMD_DEFINE.findall(z.read(n)))
 
 
 def _add_classes(ref: Reference, z: zipfile.ZipFile) -> None:
@@ -169,6 +189,7 @@ def reference(jar: Path, libs: list[str] = (), extra_jars: list[Path] = ()) -> R
             _add_classes(ref, z)
     with zipfile.ZipFile(jar) as z:
         _add_classes(ref, z)
+        _add_front_end(ref, z)
         for lib in (n for n in z.namelist() if any(fnmatch.fnmatchcase(n, g) for g in libs)):
             with zipfile.ZipFile(io.BytesIO(z.read(lib))) as inner:
                 _add_classes(ref, inner)
@@ -204,6 +225,21 @@ def module_keys() -> list[str]:
     return [m.key for m in ref.modules] if ref and ref.modules else ["<no-modules>"]
 
 
+def pilot_keys() -> list[str]:
+    """The modules in the pilot's scope; a jar with none of them (a synthetic plugin) is in scope whole."""
+    ref = workspace_reference()
+    wanted = set(json.loads(PILOT.read_text())["modules"])
+    return [m.key for m in ref.modules if m.key in wanted] if ref else []
+
+
+def scope_keys() -> list[str]:
+    return pilot_keys() or module_keys()
+
+
+def pilot_api_claims() -> set[str]:
+    return set(json.loads(PILOT.read_text())["api_claims"])
+
+
 # ---------------------------------------------------------------- the agent's artefacts
 
 class ArtefactError(AssertionError):
@@ -236,6 +272,25 @@ def load_jsonl(rel: str) -> list[dict]:
             raise ArtefactError(f"{rel}:{n} is not an object")
         rows.append(row)
     return rows
+
+
+CLAIM_TEST = re.compile(r"\bvoid\s+c(\d{4,})_\w*\s*\(", re.I)
+JAVA_COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
+CLAIM_ID = re.compile(r"\bC-\d{4,}\b")
+
+
+def claims_of_module(key: str) -> set[str]:
+    rows = (json.loads(x) for x in (WS / "spec" / "claims.jsonl").read_text().splitlines() if x.strip())
+    return {c["id"] for c in rows if c.get("module") == key and c.get("status") == "active"}
+
+
+def claims_without_tests(ids: set[str]) -> set[str]:
+    """Those of ``ids`` with no JUnit method named after them and no entry in analysis/UNTESTED-CLAIMS.md."""
+    tested = {f"C-{n}" for f in (WS / "src" / "test" / "java").rglob("*.java")
+              for n in CLAIM_TEST.findall(JAVA_COMMENT.sub("", f.read_text(errors="replace")))}
+    untested = WS / "analysis" / "UNTESTED-CLAIMS.md"
+    listed = set(CLAIM_ID.findall(untested.read_text(errors="replace"))) if untested.is_file() else set()
+    return ids - tested - listed
 
 
 def need_reference() -> Reference:

@@ -1,0 +1,1349 @@
+{
+ "claims": [
+  {
+   "key": "u12-details/widget-bare/panel-frame",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The item details panel sits beside the structure grid on the board. It has a header with the current item's icon and title and a close control (accessible name `Close details panel`), and below that either the viewport of the details provider for the current item's type, or a message that takes the viewport's place. The panel exists from widget start-up; it is hidden until details are switched on.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/header-icon-title",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Header: with a current item and a provider for its type, the icon is the provider's `getIcon(row)` and the title the provider's `getHeaderTitle(row)`; `getIcon` may answer with a promise, in which case the icon area is emptied while the promise is pending and filled when it settles, an answer arriving after the row has changed being dropped. With no item or no provider the icon is a generic info icon. When the title is empty or there is no provider, the title reads `Item Details`. Header icon and title are re-rendered each time details start loading and after each successful refresh.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails",
+    "amd:structure/api/ItemDetailsProvider"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/toggle-open",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Switching details on takes effect at once: the panel syncs with the focused row of the board's primary panel and shows that row's details. The shared board state that says whether details are shown (read by the page mode that selects the `structure-with-details` views) is updated, and the structure page is told that its layout changed. This state lives in the page only: it is not stored by the details panel itself; layout persistence belongs to the layout code.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/toggle-close-checks-edits",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Switching details off (the close control, `shift+o`, or any other toggle) first asks whether leaving is allowed (see `leave-confirmation`). If the user refuses, details stay on. When details are switched off, the panel's provider gets `beforeHide(row)` and polling learns that details editing has ended.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/close-control",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The close control reacts on mouse button down, not on click; the event goes no further, so no other mouse handling sees it. It closes details as in `toggle-close-checks-edits`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/toggle-and-focus",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The grid action that opens details and moves focus there (bound by the grid; key `o`, see C-4952) does nothing and reports not-performed when there is no current item type. Otherwise it toggles details and, when it is opening them, moves keyboard focus into the panel as soon as the panel can interact. `shift+o` toggles details without moving focus into the panel and first drops any focus the panel had.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/keys-inside-panel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While keyboard focus is inside the details panel, exactly these keys still reach the board's keyboard handling: `o`, `shift+o`, `z`, `\\`, `k`, `j`, `l`, `e`, `a`, `m`, and `ctrl+alt+0` to `ctrl+alt+9` on both the digit row and the numeric keypad. Other board shortcuts are not acted on while focus is inside the panel, and shortcuts typed in an input follow the board's general input rule.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/focus-tracking",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The panel counts as focused while keyboard focus is inside it, and the board marks the focused state. Focus arriving while the panel cannot interact (see `display-state`) does not count: the panel stays not focused. Moving focus to the panel focuses the provider's element of class `focusElementClass` when that exists and is visible, otherwise the provider's viewport, and then calls the provider's `onDetailsFocusing`. Asking for focus does nothing unless details are on and the panel can interact; asking to drop focus blurs the active element.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails",
+    "amd:structure/api/ItemDetailsProvider"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/focus-stealers",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Focus returns after temporary focus stealers. A named stealer (issue dialog, layer, generic-item edit) is recorded when it starts, if the panel was focused then, or the stealer forces it, or another stealer is already recorded. When the last recorded stealer finishes, focus goes back to the panel as soon as it can interact, unless the finisher says not to. A later stealer starting cancels that pending return. Changing the current row forgets all recorded stealers.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/block-actions-while-loading",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the panel is shown but cannot interact, `shouldBlockActions` is true, so issue actions and shortcuts on the panel's item are refused until it can interact again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails",
+    "amd:structure/widget/ui/details/DisplayState"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/row-follow-debounce",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The panel follows the focused row of the focused grid panel. A focus change is handled at most once per 500 ms for each grid panel, using the row focused at that moment. Changes in a grid panel that is not the focused one, and changes while rows are being dragged or a drop is finishing, are ignored. A change of focused grid panel is treated the same way as a change of focused row.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/details/CurrentRowModel"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/row-load-debounce",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A change of the current row after 500 ms of quiet loads the details at once. A further change within 500 ms of a handled one waits for a 500 ms quiet period, restarted by each later change. So moving quickly through rows loads the first row and then the final one. If the row changes but the item stays the same and details are already loaded, nothing is reloaded and the content stays as it is.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/unloaded-row-wait",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a row id is positive but the row's summary is not known yet, the row is treated as having no item for now (see `stub-selection`), and the check runs again when the pending summary arrives; if no summary request is pending, the check runs again after 1000 ms. A later row change cancels that wait.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/details/CurrentRowModel"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/row-data-extension",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each new row is passed to the provider's `extendFocusedRowData({rowId, itemId, itemType, panel})`. If its promise is still pending, the panel enters the loading stub state and the promise is rejected after 1000 ms with the provider's `timeoutMessageKey` (default `timeout`). A rejection with `(key, isError)` shows the message for that key. A resolved row whose data differs from the current one, not counting `panel`, is marked as a different row and clears the stub state. A later row change rejects a pending promise, and its result is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/details/CurrentRowModel",
+    "amd:structure/api/ItemDetailsProvider"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/stub-selection",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With no provider for the row's item type the panel shows a message instead of details: `newItem` for a negative row id (an item not yet uploaded), `detailsUnsupported` for any other non-zero row id, `noFocused` when no row is focused. These never count as errors.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/details/CurrentRowModel"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/stub-texts",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Message lookup for stub key K: if the text catalogue has `s.itemDetails.stub.title.+K+`, title and body are `s.itemDetails.stub.title.+K+` and `s.itemDetails.stub.body.+K+`; otherwise `s.issueDetails.stub.title.+K+` and `s.issueDetails.stub.body.+K+`. Companion apps' providers depend on that lookup. The message is an error message when the rejection said error, otherwise an information message, and has no close control. It is shown with the panel's type marker removed so no provider content shows.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/stub-text-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Message texts, title then body. newItem: `The new item hasn't been uploaded yet` / `Item details are not displayed because the selected item hasn't been created yet.` noFocused: `No item selected` / `Click an item on the left to see its details.` detailsUnsupported: `No details` / `No details are available for the selected item.` noKey: `Issue details are not loaded` / a roughly 40-word body saying the details have not been downloaded yet: either they will arrive shortly, or the issue has become inaccessible (deleted, moved to a project not enabled for the plugin, or no permission). timeout: `Item details are not loaded` / `Could not download details. Data required for current item details rendering hasn't been retrieved.` memo.noItemData: `Memo details are not loaded` / `Could not download details. Data required for current memo details rendering hasn't been successfully retrieved.`",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails",
+    "amd:structure/widget/ui/details/CurrentRowModel"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/stub-companion-texts",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The catalogue also holds messages for the page-details companion's provider. confluence.loadTimeout: `Could not contact Confluence` / a body saying Confluence did not answer in time and asking the user to have an administrator check that it runs and the helper app is enabled. confluence.noUrl: `Cannot display details` / a body saying details could not be downloaded and asking for the integration settings to be checked. With the companion absent they are never shown. The original's licence-problem message for that companion never appears (fixed answer, SPEC.md 1.1).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/leave-confirmation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Before the current row is left or details are closed, the panel checks 100 ms later whether the provider's `hasUnfinishedEdits(row)` is true. If not, leaving goes ahead. If it is, a confirmation dialog titled `Confirmation` with a `Confirm` button shows `You have some unfinished edits on the details page. Leave it without applying changes?`. Confirm calls the provider's `cancelUnfinishedEdits(row)` and allows leaving. Cancel returns focus to the element that had it, calls `onDetailsFocusing`, and refuses. Without a provider, leaving is allowed at once.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/leave-refused-restores-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When leaving is refused while following the grid, the panel keeps its current row and, for a positive row id, puts grid focus back on the panel's row if that row is still in the grid. For 1000 ms after a refusal, further row changes are refused at once with no dialog; after that, the question is asked again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/details/CurrentRowModel"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/display-state",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The panel's display state is a set of flags: item loaded, panel shown, disabled, showing a stub, different row, resizing. The panel can interact exactly when item loaded and panel shown are set and no other flag is. So a panel showing a stub cannot interact, and focus requests are ignored in that state.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/details/DisplayState"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/loading-indicator",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The loading indicator appears only after the item has been not-loaded for 1000 ms and goes away at once when it loads; a load finishing inside 1000 ms shows no indicator.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/details/DisplayStateCell"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/disable-overlay",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The panel content is disabled for interaction whenever the item is not loaded, or the state is disabled, different row, or resizing. It is dimmed at once when disabled for a reason other than these two: resizing never dims, and different row dims only after 500 ms. Leaving the disabled state cancels any pending dimming and removes it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/details/DisplayStateCell"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/loading-lifecycle",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When details are on and a provider exists, showing a row clears item loaded and different row, renders the header, and calls `showDetails(row, life)`. Resolving sets item loaded. Rejecting with `(key, isError)` sets the stub for that key and item loaded. A later show or row change ends `life` and rejects the older promise, and its result is ignored. Details being off clears panel shown and calls `beforeHide(row)`; the layout code calls back when the panel is shown, which sets panel shown.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails",
+    "amd:structure/api/ItemDetailsProvider"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/resize",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the panel is being resized it is disabled but not dimmed. After a width change, the provider's `applyWidth(width)` is called once the panel can interact again; it is also called, with the panel's width, when the item type changes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails",
+    "amd:structure/widget/ui/details/DisplayStateCell"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/grid-edit-disables-panel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the shown row is being edited inline in the grid, the panel is disabled. When that edit ends the panel is enabled again; if it ended successfully, details are refreshed with the loading state (see `refresh-queue`). This follows the row that was shown when the details loaded and is re-attached when an edit starts on that row.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/refresh-queue",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A refresh of an item happens 800 ms after it is requested, and requests for the same item arriving before it finishes share that one refresh. It is skipped if details are off, the item is no longer current, or there is no provider. It calls the provider's `refreshDetails(row, life)` and re-renders the header on success. A silent refresh keeps the current content active; a non-silent one clears item loaded until it finishes, then sets it again if details are still on and the same item is current.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/refresh-on-poll",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On a polling result that reports item changes, if the provider has `refreshOnStructureUpdate` and details are on, a silent refresh is requested when the result is a full update or its changed items contain the current item. Empty item results do nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/requestRefresh-bridge",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "`requestRefreshDetails(deferred, itemId, silent)`: when `itemId` is given and is not the current item, the deferred resolves at once with no refresh and no notification. Otherwise a refresh runs with that silent flag, the deferred resolves when it ends whatever its result, and the board is told details editing stopped and the item may have changed, which makes the grid re-read it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/edit-pauses-poll",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Provider calls to `notifyDetailsEditStarted` make the board's polling hold back, and `notifyDetailsEditStopped` or closing details lets it resume; the polling side is claimed with polling. `notifyDetailsUpdated` also tells the board the item may have changed.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/statistics",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Through the board's local statistics (`POST /statistics/record`, nothing sent to the vendor): a focused row change in the primary panel records `focusedRowChanged.detailsOn` or `focusedRowChanged.detailsOff`, and an inline edit started in that panel records `inlineEdit.structureBoard.detailsOn` or `inlineEdit.structureBoard.detailsOff`, by whether details are on.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/update-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "`updateItemData(values)` (details bridge) needs a current item and panel, otherwise its promise rejects with nothing sent. It queues one upload, `POST /rest/structure/2.0/item/update`, with JSON body `{item: {itemId: <complete item id>, values}, items: {version: <current items version>}, forest: {spec: <the panel's forest spec>, version: <current version of that spec>}}`. The spec is taken when the update is queued, the versions when the upload is built. The forest in the grid is not changed by the action.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails",
+    "amd:structure/widget/ui/details/ItemDetailsUpdateAction"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/update-result",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Reply handling for `updateItemData`: a transport or server failure rejects its promise. A reply with `success` false resolves with the reply and no refresh. A reply with `success` true runs a non-silent refresh of that item (see `requestRefresh-bridge`) and resolves with the reply when that ends. No further poll is required for this upload.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/update-override",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "If an update for the same item is still waiting in the upload queue, as the last entry, a new update for that item replaces it instead of following it: the older values are never sent and the older promise never settles, even when the two touched different fields (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/details/ItemDetailsUpdateAction",
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/provider-registration",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Providers register by item type through the API's `registerItemDetailsProvider`; registration is held until the details panel is initialised. A registration throws an error, and the provider is not added, when the type is not a string, the class does not extend the API's details provider base class, `showDetails` is not a function, or `viewport` is not a DOM element; the last two are also logged, naming the provider.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/details/ItemDetailsProviderRegistry",
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/widget-bare/provider-defaults",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each provider instance gets `{widget, itemDetailsBridge}` at construction, with a bridge whose current-row view shows only rows of that item type (null otherwise). Members it does not define take the defaults of the API's details provider base class. Its viewport is added to the panel and is visible only while the current item's type matches. A second registration for a type replaces the first with a warning in the log.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/details/ItemDetailsProviderRegistry",
+    "amd:structure/ui/details/ItemDetails"
+   ]
+  },
+  {
+   "key": "u12-details/details-common/module",
+   "module": "details-common",
+   "api": null,
+   "behaviour": "`details-common` holds the field editors shared by the details panel and the planning-task creation dialog: the summary editor, the rich-text field editor, the collapsible section, and the text and date field editors. It depends only on `react-components-common`; the editor classes it uses come from `details-providers`, so a page using it must have that loaded as well.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/details-common.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-common/expander",
+   "module": "details-common",
+   "api": null,
+   "behaviour": "A collapsible section has a clickable header with a chevron, its label, and a required mark when the field is required. It starts open each time it is built. Clicking anywhere on the header toggles it. When collapsed its content is removed, and open or closed is not remembered between items or visits.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-common.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-common/text-field",
+   "module": "details-common",
+   "api": null,
+   "behaviour": "The text field editor shows the value, or an empty text when the value is null or undefined. An optional transformer may rewrite each typed value. Focus reports edit started. Blur reports edit finished and commits. It is disabled while not editable or while a commit is running. When marked invalid it keeps what the user typed instead of taking the server's value.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-common.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-common/field-commit-rule",
+   "module": "details-common",
+   "api": null,
+   "behaviour": "Text and date field editors commit by blur, not per keystroke. A commit is skipped only when the value equals the last one that committed successfully on this editor, so the first blur after opening sends the value even if unchanged (as the original does). While it runs the editor is disabled; failure leaves the user's value in place and allows a retry.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/details-common.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-common/date-field",
+   "module": "details-common",
+   "api": null,
+   "behaviour": "The date field uses a date picker with Jira's user locale (page metadata `user-locale`), the date format given by the surrounding details (Jira's date format, see `fields-date-format`), and the placeholder `Select date...`. Choosing a date updates the shown value, and blur commits it, under `field-commit-rule`. It is disabled while not editable or committing. It cannot be used outside a details context that provides the date format.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-common.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-common/summary-editor",
+   "module": "details-common",
+   "api": null,
+   "behaviour": "The summary editor shows the item's summary with the rules of `inline-text-editor`. It is enabled unless explicitly not editable. A summary coming from the server updates it while it is not being edited. Commit reports edit finished first, then sends the value. Activating and deactivating it report edit started and finished. It is rebuilt when any of its options change, which loses editing in progress.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-common.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-common/summary-force-focus",
+   "module": "details-common",
+   "api": null,
+   "behaviour": "With the force-focus option and an empty (blank) summary, the summary editor starts in edit mode as soon as it is built and takes focus. Without the option or with a summary it starts in view mode.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-common.js",
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-common/rich-text-field",
+   "module": "details-common",
+   "api": null,
+   "behaviour": "The rich-text field editor shows the rendered HTML value and edits the wiki text (see `rich-text-editor`), keeping both in step with server values. It is editable only when the field is editable. Options: placeholder, whether a cancel with changes needs confirmation, a cancel callback that receives the field's id. Activating reports edit started, passing a function that returns focus to the editor; deactivating reports edit finished.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-common.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/module",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "`details-providers` depends on `planning-task-common` and on load registers one provider class for both the memo and the planning-task item types through `registerItemDetailsProvider`. It is required with the widget (C-1217). If not loaded, memos and planning tasks show the `detailsUnsupported` message.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/inline-view-mode",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "An editable text field in view mode shows its value and an edit icon, with the tooltip `Click to edit`; while editing there is no tooltip. With a configured placeholder an empty value shows the placeholder.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js",
+    "amd:structure/widget/ui/details/details-templates"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/click-to-edit",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "A click on the edit icon starts editing at once. A click on the value starts editing 250 ms later, unless a second click arrives first (which cancels it, so double-click selects text) or text was selected when the mouse went down or at click time. The caret goes where the click landed. Editors that are not enabled ignore this. Editing starts with the current value, and focus arrives 50 ms later; the input's focus-out during that step is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/inline-text-editor",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Inline text editor (the summary): a single-line input with no autocomplete, sized to the value, with all text selected on entering edit mode. A blank or whitespace-only value is treated as no change, so submitting it reverts to the old value. Cancelling needs no confirmation.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/edit-form-buttons",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "While editing, the form has a save button (tooltip Jira's common word `Save`) and a cancel button (tooltip Jira's common word `Cancel`). Enter in the input or on save submits; Escape in the input, or Enter on cancel, cancels. Cancel reacts on mouse button down.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js",
+    "amd:structure/widget/ui/details/details-templates"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/focus-out-submits",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "For the summary editor, focus leaving the form submits, unless focus went to the form's save or cancel button or to the open dialog's submit button, or focus is still inside the field, or a submit is pending.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/submit-rule",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Submit with no change leaves edit mode and runs the cancel callback. Submit with a change disables input and buttons, hides any previous error and calls the submit action. On success the new value is shown and edit mode ends. On failure edit mode stays, input is enabled again, and `Error submitting the edited data` is shown.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js",
+    "amd:structure/widget/ui/details/details-templates"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/cancel-rule",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "A text editor configured to confirm cancels shows, when the value changed, a confirmation dialog with `There are unsaved changes. Are you sure you want to close the editor?`; Confirm reverts and leaves edit mode, cancel returns focus to the input. With nothing changed it stays in edit mode and refocuses the input. An editor not configured to confirm cancels at once. Reverting runs the cancel callback and hides the error.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/rich-text-editor",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Rich-text editor: view mode shows rendered HTML, or the placeholder when blank (and the placeholder is applied as server HTML changes). Clicking starts the same way as `click-to-edit`. Edit mode opens the Jira rich-text form with the wiki value, a `Done` submit button and a `Cancel` link (Jira's common words). The form is removed on leaving edit mode, in the next tick.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/rich-text-escape-cancel",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "In rich-text edit mode, Escape anywhere in the document (and in the embedded visual editor) or the `Cancel` link cancels: with changes it follows `cancel-rule`; with no change it simply leaves edit mode, without running the cancel callback. Changes are compared on trimmed text. An empty value can be submitted.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/rich-text-outside-click",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "A click outside the rich-text form and value never submits the edit, because the check for an open modal dialog always answers yes (as the original does). Only the `Done` button submits.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/load-sequence",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Showing a memo or planning task sends `GET /rest/structure/2.0/genericItem/details/{itemType}/{id}` and, unless cached, `GET /rest/structure/1.0/config/userPickerPermission`. The answer is used only if the same row is still current. With item data: the content is drawn with `item`, `fields`, the permission, the row's editable attribute and the structure id. With no item data: the content is cleared and the show fails with stub key `memo.noItemData` as an information message. Whether a failed permission request alone also gives that message depends on how Jira's jQuery combines a native promise, and could not be determined.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/user-picker-cache",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "The user-picker permission is requested once per page and shared by all details; a failed request is forgotten, so the next show asks again.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/provider-values",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "The memo and planning-task provider has `refreshOnStructureUpdate` true, and `refreshDetails` does the same as showing. `extendFocusedRowData` waits for the row's editable attribute before resolving, so a slow attribute gives the `timeout` message. The panel is not editable when the attribute says so or when the grid panel is read-only.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/panel-layout",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Top to bottom: the summary editor with its error under it, on the same line a convert button for planning tasks; planning-task intro text; for memos the icon picker; the `Description` section; the `Fields` section. Changing item resets the content, so section states and errors are not kept.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/convert-button",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "`Convert to Jira issue` shows only in the details panel, for a planning task, when the item is editable and the server config `canRunEffectorsOnQueryResults` is true. Clicking opens the effector process dialog for module `com.almworks.jira.structure:effector-conversion` with params `{selectedItems: [itemId]}` and forest spec `{structureId}`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/planning-task-intro",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "For a planning task, `Add details about this task.` shows when the item is editable or in the creation dialog. In the creation dialog a `Learn more` link with an external-link icon follows it, opening a link to the plugin's documentation in a new tab. In the details panel the link is absent.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/description-section",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "The `Description` section shows when editable, or in the creation dialog, or when the description has non-blank text. Editable or in the dialog it is a rich-text editor that is enabled only when the description field is visible; the placeholder is `Add description here...` when visible and `None` when not. Read-only it shows `descriptionHtml`. The section has a required mark when the description field is required. Its error shows inside it. Cancel needs confirmation in the panel, not in the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/dialog-mode",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "The content is shared with the planning-task creation dialog. There the summary and description are always editable, non-editable fields are hidden, confirmations are not shown, and finishing an edit returns focus to the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/edit-sends",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Field edits send through `updateItemData`: summary as `{summary: value}`, description as `{description: value}`, memo icon as `{params: {...}}`, each other field as `{params: {<field id>: value}}`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/field-errors",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Errors show under their field. After a reply, errors of the sent fields are cleared and `fieldErrors` of the reply are applied, keyed by field id, with `summary` and `description` shown under those editors. An error also clears when the value of that param changes on the server, and when the user cancels editing that field. Moving to another item clears all errors. A reply with `success` false counts as a failure for the editor.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/unfinished-edits",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Unfinished edits mean an editor is open, or a field was added with `Add field` and not yet saved. Leaving-confirm drops both. Saving a field clears its entry; saving either time estimate field clears both estimate fields. Removing a field clears its entry too. Starting an edit marks the panel as stolen focus (`genericItem`), and finishing it returns focus to the panel.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/memo-icon",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "For memos the picker shows `params.iconClass` and `params.color`, with unsupported icons shown as such. It is enabled unless the item is not editable. Choosing a colour sends `{params: {color}}`, unless the current icon is the unsupported one, then nothing is sent. Choosing an icon sends `{params: {iconClass}}`; replacing an unsupported icon sends `{params: {iconClass, color}}`. Failure shows `Error updating memo icon`, which clears when the value next changes.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/fields-descriptors",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "The `Fields` section lists field entries built from `fields`. Fields that are not visible are left out, and non-editable ones too in the creation dialog. `summary` and `description` never appear. Fields `timeoriginalestimate`, `timeestimate`, `timespent`, those that remain, form one grouped entry `Time tracking` with id `timetracking`, in that order. Entries are ordered with `project`, then `issuetype` first, others by name.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/fields-selection",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "The fields shown are the entries with a non-null value in any of their fields, those with a required field, and those already chosen; this is recomputed when values or fields change, and a chosen entry stays until removed.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/add-field-dropdown",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Above the shown fields is `You can add additional fields` with an `Add field` button (tooltip `Add field`), disabled when not editable. Its menu lists chosen entries, ticked, then the others, unticked. Required entries never appear among the chosen. Entries whose fields are all non-editable are hidden. The menu stays open on click, focus stays on the clicked entry, and entries are disabled while a change is applying, with a spinner by the button.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/add-field-search",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "For planning tasks only, the menu has a search box, focused on open, that filters entries by name, ignoring case, anywhere in the name. Closing the menu clears it. Memos have no search box.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/remove-field",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Unticking an entry with no value just hides it. With a value, in the details panel a confirmation shows `The memo field value(s) will be removed. Are you sure you want to proceed?` or, for planning tasks, `The planning task field value(s) will be removed. Are you sure you want to proceed?`; Confirm hides the entry and sends `{params: {<each field id>: null}}`, and cancel keeps it. The creation dialog does the same with no confirmation.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/field-row",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Each field shows its name as label, a red `*` when required, its editor, and any error below. It is editable only if the item and field are. An unknown type shows `Field \"<id>\" of type \"<type>\" is not supported` in place of the editor.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/field-editors-table",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Editor by field type. Plain text: `single-line-text`, `single-duration`. Date: `single-date`. Date and time: `single-date-time`. Number: `single-number`. Multi-line: `multi-line-text`. Rich text: `rich-text`. Labels: `multi-label`. Option picker: `single-user`, `multi-user`, `single-project`, `single-version`, `multi-version`, `single-issue-type`, `single-priority`, `multi-component`, `single-sprint`, `single-group`, `multi-group`, `single-option`, `multi-option`. Rich-text values come from `<field id>Html`. Pickers receive `project` and `issuetype` of the values to scope options. The editors themselves are claimed under `planning-task-common`.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/details-providers/fields-date-format",
+   "module": "details-providers",
+   "api": null,
+   "behaviour": "Date editors use Jira's date format from the widget's Jira configuration, converted to the picker's format, with no time part.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/details-providers.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/registration",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "`issue-details` depends on Jira's issue navigator `common` and `viewissue` resources and the `issueviewer` component, and on load registers a provider for the issue item type. If it is not on the page (C-1216), issues show the `detailsUnsupported` message.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/viewer-start",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "The panel embeds Jira's own issue viewer. It sets page metadata `viewissue-max-cache-size` to 100 unless already set, starts Jira's issue application (a start failure is logged and setup continues), and gets its issue editor to draw in the panel's viewport. The provider has `refreshOnStructureUpdate` true, `timeoutMessageKey` `noKey`, and the focus target is the viewer's issue container.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/row-key",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "For an issue row, the issue id comes from the item id, and the key from the row's key attribute. If the key is not known yet, the promise waits for an attribute update of that row and so gets the 1000 ms `noKey` limit.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/show",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Showing an issue aborts any pending load, closes any open inline dialog, blurs open field edits, loads the issue into the viewer by id and key, and prefetches the rows just above and below in the displayed forest, when those are issues with known keys. Prefetch uses Jira's issue data cache and shows nothing.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/show-pending-errors",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "When an issue with a stored unsaved-field error is shown (see `save-errors`), the load finishes on `fieldsLoaded`. If fields loaded, 10 ms later the viewer's save error display is triggered and focus moves to the panel, the event carrying no issue id because it reads the wrong property of the row (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/before-hide",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Before hiding, in the next tick, the viewer's own hide runs (a thrown error is logged and ignored), and any inline dialog is closed. Switching details off also resets the viewer's model to its default.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/unfinished-comment",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "`hasUnfinishedEdits` is true when Jira's comment form holds a draft that Jira would warn about on leaving and the form is not marked dismissed. Leaving confirmed marks it dismissed. Refused leaving focuses the comment form again.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/narrow-layouts",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "The viewer switches to Jira's narrow layout when the panel is under 900 px wide and to its very narrow layout under 600 px.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/selected-issue-api",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Jira's selected-issue API is pointed at the panel. Selected issue id, key and object are the panel's. Is-accessible means details are on and there is a key. Is-visible means the panel can interact. Is-currently-loading means the viewer loads or the panel blocks actions. Open-focus-shifter works only when interactive. Refresh runs only when interactive, otherwise resolves at once. Get-fields and edit-field act on the viewer's fields, and editing only an editable one. Next, previous, return-to-search, switch-layouts, view-selected, toggle-filter-panel, update-issue, focus-search and toggle-fullscreen do nothing. Query-valid and fullscreen-visible answer true. An inline load error shows Jira's error message, closeable.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/wait-for-saves",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Before an issue dialog opens it waits until saves in progress end: checked after 10 ms, then at each inline save completion.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/action-shortcuts-guard",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Jira's `issueaction` keyboard shortcuts are ignored while the issue is loading, or actions are blocked, or there is no current issue data.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/dialog-url",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Jira dialogs whose URL holds `id={0}` have it replaced with the selected issue id; with none selected the dialog's request is not made. Each dialog request sends `decorator=dialog` and `inline=true`. Each shown dialog gets the current issue id.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/dialog-finish",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Finishing an issue form dialog or dialog2: a dialog that is not an issue dialog keeps Jira's handling. Clone keeps Jira's redirect. Delete hides the dialog and then updates. Others show the footer loading indicator, update, and then, on any outcome, emit Jira's update trace, hide the indicator and hide the dialog. Labels dialogs answer submits as form dialogs do.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/dialog-update",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Dialog update: the command comes from Jira's notifications for that dialog, with the current key and id as defaults. With details off it just finishes. For another issue it finishes and notifies an update. For the current issue it runs a non-silent refresh. Either way Jira's message for the update shows at the end. With no current issue the update fails.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/clone-dialog-closing",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "When the clone dialog is closing, unless by cancel or Escape, and details are on with a current issue, its hide is held until the update finishes.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/quick-edit-events",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Jira's `QuickEdit.sessionComplete` and `QuickCreateSubtask.sessionComplete` events replace earlier listeners and trigger the dialog update for the current dialog.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/new-content-tokens",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "On new content, workflow transition links get the current `atl_token`, and the viewer's login link gets `os_destination` set to the current page path and query without the context path, so login returns to the board.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/permalink",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "With a `baseURL` on the page, page metadata `viewissue-permlink` is set to `<baseURL>/browse/<key>` on changes of key or details-on, and with an empty key when details are off.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/comment-scroll",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Focusing the add-comment text area scrolls the panel to its bottom.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/save-errors",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "A failed save in the viewer is stored per issue with fields and response, and removed by a successful save or inline edit cancel. So moving away and back shows the error again. The save error display's issue link opens details and moves grid focus to the issue's row (preferring a row shown recently, else the first row of that issue, else clears focus); for the same issue it shows the issue again by key.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/window-title",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "The viewer does not change the browser window title.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/parent-change-merge",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "When Jira merges a fetched issue into the cached one and their parent ids differ, the fetched parent is kept. Without that merge function a warning is logged.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/attachment-drop",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "When Jira's attachments drop zone module exists, it does not attach when no issue is selected, and its window-wide mask sits next to the panel and shows only during drag and drop. A relocation failure is logged. Without the module nothing happens.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/issue-link-navigation",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "An issue link click in the viewer navigates the page to that issue's URL, after saving a navigation hint (cookie `structure3.navigation.hint`, claimed with navigation) holding the structure id, time and key. Failure is logged.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/field-save-refresh",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "The viewer's model and edit controller hold back the update following a field save when no grid edit runs, and the saved fields pass with the next update. A successful save for the current issue requests a silent refresh.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/edit-notifications",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Dialog show and inline edit start, and lock of the panel refresh for the add-comment module, report details edit started. Dialog hide, inline edit cancel or blur, and panel refresh unlock report stopped.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/saving-marks-rows",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "While a save runs, all rows with that issue are marked as changing externally and repainted. On success or error the details report an update, marks clear, and rows repaint.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/recent-issues",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "The last 20 shown rows are remembered in the page, newest first, for `save-errors`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/focus-rules",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "After a field submit or a replaced focused panel, or inline edit blur or cancel, focus moves to the panel. Dialogs count as stealer `issueDialog`, layers as `layer`, and the issue operations shifter as `focusout`. When panel focus changes with the shown row different from the focused one, Jira's issue environment is prepared for the shown row, or back for the grid's row.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/refresh",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "`refreshDetails` waits for any pending fetch of the key and then refreshes the viewer if it shows that issue and is not loading; otherwise it refetches the key's data for the cache, passing the shown entity.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/attachment-subtask-links",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Attachment sort and order links and sub-task show-all and show-open links update the viewer with the link's query in place, and move the check mark, unless ctrl, meta or shift is held. Sub-task reorder links do `GET <link>` with `disableRedirect=true`, then refresh the issue; failure shows Jira's error, closeable.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/links-expanded",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "After the user expands more links, the links module expands again upon reload until the row changes.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/time-tracking-page",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "When issue-page time-tracking code is present, once the panel is visible it tracks the structure and shown row, and is on when details are on and the page's show-time-tracking parameter is set. Otherwise nothing happens.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/statistic",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "Each inline edit start in the viewer records `inlineEdit.issueViewer` in local statistics.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/issue-details/teardown",
+   "module": "issue-details",
+   "api": null,
+   "behaviour": "When details die, the viewer's data is reset, the viewer dismissed, and all listeners removed.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/issue-details.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/module",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "`structure-info` depends on `uikit` and is required with the widget (C-1217). On start it looks for the footer's info slot; a widget with no such slot gets no dialog. It renders the trigger after the widget configuration has loaded.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/trigger",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "The trigger is a link `Info` with tooltip `Show information about <product>` and an info icon. While loading, it has a spinner instead and is marked disabled.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/toggle",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "Clicking the trigger shows the dialog, or hides it if visible; clicks during loading are ignored. The widget action `openInfoPopup` does the same and reports handled. No shortcut was found bound to it.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/request",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "The first opening sends `GET /rest/structure/2.0/info-popup` once per page through the widget's request queue, and shows the dialog when it finishes. Later openings use the same data, and a failed first load is not retried.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/request-failure",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "If the request fails, the dialog opens with empty data: title with `v?`, no node line, the Help and Support sections, no companion rows.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/empty-version",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "An empty or null `structureVersion` in the reply leaves a spinner as the only content.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/dismiss",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "Clicking outside closes it; clicking inside closes only when on a link. It auto-hides after 8000 ms with the usual inline dialog rule. It joins the widget's popup handling, so it counts as an open popup and can be closed with others.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/placement",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "It opens at the trigger, in the footer. If there is more room above and it would not fit below, it moves above with its arrow at the bottom and scrolls within the space. It also scrolls if it would overflow the bottom.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/title-version",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "The top line shows the replacement's own display name (SPEC.md 1.1, never the original's name or vendor), followed by `v<structureVersion>`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/node-line",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "With a non-empty `jiraClusterNodeId` a line reads `DC Node: <id>`. On single-node Jira there is no line.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/no-update-state",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "No update indication ever appears: every update flag is false (SPEC.md 1.8), so no `update available` label is shown and no link to the app manager appears.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/no-licence-state",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "Licence states are the fixed answers: no `unlicensed` label, no serial, no copy-to-clipboard control and no related messages ever show, for the plugin or a companion. The dialog has no licence text at all.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/help-section",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "Section `Help` links, opening in a new tab: `Welcome to <product>` to `<context>/secure/StructureWelcome.jspa`, same tooltip; `Keyboard shortcuts`, tooltip `Show keyboard shortcuts cheat sheet`; `Documentation`, tooltip `Open documentation in a separate browser window`, a link to the plugin's documentation.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/shortcuts-link",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "`Keyboard shortcuts` is absent on an Agile board tab and on the issue page. A click stays on the page, and in the next tick shows the widget's keyboard hints.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/support-section",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "Section `Support` has one link: `Clear caches`, tooltip `Clear <product> caches`, to `/secure/ClearStructureCaches.jspa` in a new tab. The original's support request link, which leads to the vendor, is left out.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/no-feedback",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "No feedback section: nothing to the vendor, so its heading, text and its idea and community links do not exist. The dialog sends nothing outside.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/companion-rows",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "One row per entry of `plugins`, in order. It shows `name`; then `version` when non-empty, otherwise the label `not installed`. A row has no links: `links` is all null (C-4721), so the original's `Getting started` and `Documentation` do not exist here, and the dialog holds no address of its own for these.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/try-it",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "A row that is not installed shows nothing on the right: `links.tryIt` is always null (C-4721), so the original's `Try it` link does not exist here.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-info.js"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/clear-caches-page",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "`/secure/ClearStructureCaches.jspa` screen: page title and heading `Clear <product> caches`, a warning message `Clearing caches may affect your instance performance!`, then the form. No licence warning ever appears on it (SPEC.md 1.1).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/info/clear-caches.vm"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/clear-caches-form-action",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "The form field `Action` has the options, with `action` values: `Clear current user caches` (`clearOwnCaches`, preselected); for administrators also `Clear caches of the specified user` (`clearUserCaches`), `Clear all caches on this node` (`clearAllCaches`), and on a cluster `Clear all caches on all nodes` (`clearClusterCaches`). For others the list is disabled and a hidden field sends `clearOwnCaches`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/info/clear-caches-form.vm"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/clear-caches-form-user",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "A `User` user picker (`user`, default the current user's name) shows only while `Clear caches of the specified user` is selected.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/info/clear-caches-form.vm"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/clear-caches-form-submit",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "Button `Clear caches` sends a POST to `ClearStructureCaches!apply.jspa` with `atl_token`, `confirm=true`, `apply` and `redirect`. `redirect` is `returnUrl` when given, otherwise the page's own link. With `returnUrl` a `Back` link to it shows, tooltip `Go back to the <product> Board page`. The same form is on the support page (C-5192).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/info/clear-caches-form.vm"
+   ]
+  },
+  {
+   "key": "u12-details/structure-info/shortcuts-page",
+   "module": "structure-info",
+   "api": null,
+   "behaviour": "`/secure/ViewStructureShortcuts.jspa` screen, in Jira's popup layout: heading `Keyboard Shortcuts: <product>` with `Ctrl + ?` at the right, then each group (C-4950 to C-4958) with its heading and lines of label and keys. Alternatives join with ` or `, modifiers each end with ` + `, and keys in a sequence stand next to each other as separate keys. The footer has a `Close` link, fixed text. The form has no submit control, so nothing is sent.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/info/shortcuts.vm"
+   ]
+  }
+ ]
+}

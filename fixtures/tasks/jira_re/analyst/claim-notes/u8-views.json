@@ -1,0 +1,1341 @@
+{
+ "claims": [
+  {
+   "key": "u8-views/widget-bare/dialog-open-entry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The Manage Views dialog is created on first use per panel and has two pages that share one window: a selection page and a details page. Opened from the entry 'Manage Views...' of the view menu it shows the selection page; opened from the sharing 'Change' action it shows the details page of the panel's current view. Every opening selects the first tab ('Current') of the selection page, loads the requested view if any, re-reads the list of the visible tab, and moves keyboard focus to the first button in the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/dialog-sharing-tab-not-selected",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Opening the details page of the current view from the sharing 'Change' action asks for the Sharing tab, but the request names the tab without the panel's prefix, so no tab matches and the details page opens on whichever tab was active before (Properties on first use) (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates",
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/selection-page-layout",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The selection page has the heading 'Manage Structure Views', four tabs and a 'Close' button. Tabs, each with a heading and a one-sentence explanation above its list, except Search: 'Current' (heading 'Current View', says this is the view in use: 'This is the currently used view.'), 'Managed' (heading 'Managed Views', says these are views you created or can manage), 'Associated' (heading 'Associated Views', says these are the views selected in the View Settings of the displayed structure and offered in its menu), 'Search'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/selection-tab-sources",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "What each selection tab lists. Current: only the panel's current view; nothing when there is none or when it is the fallback view with id -1. Managed: `GET /rest/structure/1.0/view?withPermissions=true&withOwner=true&permission=admin`. Associated: `GET /rest/structure/1.0/view/menu?forPage=<page id>&forStructure=<structure id>` for the panel's structure (the `forStructure` parameter is left out when the panel shows something that has no numeric structure id; a negative id or no panel content gives an empty list without a request). Answers are cached in the page by the view loader until a view is saved or deleted.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/selection-list-load-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each selection tab reloads its list when it becomes the active tab, when the dialog opens, and when the panel's current view configuration changes while the selection page is visible. A reload requested while that tab's previous reload is still running is ignored. On dialog opening and on a configuration change the list is redrawn even if the answer is identical, so the check marks and adjusted marks are always current.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/selection-empty-states",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A tab with nothing to list shows 'No views to show.'. This covers a null answer (including a failed Managed, search or all-views request) and an empty answer. The Search tab shows an empty area, with no message, before any search and when searched with blank text.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/selection-row-content",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each row of a selection list shows, in order: a check mark for the panel's current view (with the tooltip 'This is the current view'; other rows keep the space with no mark or tooltip), a sharing icon, the view name as a link, a '*' with the tooltip 'You have adjusted this view and the changes have not been saved on the server yet.' when the view has unsaved adjustments that count as modifications, and the description below (blank line when there is none). Entries without an id are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/selection-row-sharing-icon",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The sharing icon of a row depends on the view's `shared` and `sharedWithAll`: `sharedWithAll` true shows a group icon with the tooltip 'Shared with everyone'; `shared` true otherwise shows a people icon with the tooltip 'Shared with some users'; not shared shows no icon and no tooltip.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/selection-row-actions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A 'Details >' button in a selection row is visible only on the row the mouse last entered (it stays visible after the mouse leaves until another row is entered). Clicking the button, or clicking anywhere on the row except a link or a button, opens the details page of that view on its first tab (Properties). Clicking the name link switches the panel to that view through the view-switching action and leaves the dialog open.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "css/structure/view/viewManagement.css"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/search-tab",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The Search tab has a text field 'Find View' with the hint 'Enter view name (or a part of it).', a submit button 'Search' and a button 'Show All Views'. Submitting (button or Enter) trims the text: blank text clears the list without a request, other text searches through `GET /rest/structure/1.0/view?name=<URL-encoded text as typed, trimmed>`. 'Show All Views' empties the text field and lists `GET /rest/structure/1.0/view?withPermissions=true&withOwner=true`. When the Search tab is re-entered it repeats the last mode: all views after 'Show All Views', else a search with the text in the field.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/details-page-layout",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The details page has the heading 'View Details', a summary, five tabs and a footer. The summary shows 'View:' with the view name and description, and 'Access:' with a sentence. The tabs are, in order: 'Properties', 'Sharing', 'Associations', 'Advanced', 'Delete'. The footer holds '< Back to View List', 'Save Changes' and a Cancel or Close link.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/details-access-sentence",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The 'Access:' line of the details page reads, from the view's flags: `adminable` true: 'Manage - you can change all properties of this view'; else `writable` true: 'Update - you can change this view's columns but you cannot change other properties'; else 'Use - you can use this view but you cannot update it'. The first word is emphasised. While no view is loaded the name and the access line show '?' and the description is empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/details-loading",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Opening details asks for `GET /rest/structure/1.0/view/<id>?withPermissions=true&withOwner=true`, unless full details of that view are already cached in the page. The page shows no view data until the answer arrives and drops an answer for a view other than the last requested one. A failed request leaves the summary at '?' with all fields empty and disabled.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/details-reopen-after-failed-save",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After a failed save the details page stays marked as loading. Opening details of that same view again does not re-read it and keeps the unsaved edits, until another view is opened or a save succeeds (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/details-tab-visibility",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Tab visibility on the details page. 'Sharing': only when the view is `adminable` and the caller may share views (`canShareViews` of the widget configuration). 'Associations': only when the view id is positive. 'Delete': only when the view is `adminable`. 'Properties' and 'Advanced': always.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/properties-tab-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The Properties tab holds: 'Name' (text, at most 255 characters), 'Description' (multi-line), 'Options' with two checkboxes 'Horizontal scrolling' and 'Text Wrapping', the owner field, and an error area at the bottom. When the view has unsaved adjustments that count as modifications, the tab begins with '*' and 'You have adjusted this view and the changes have not been saved on the server yet.'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/properties-field-permissions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Name' and 'Description' are enabled only when the view is `adminable`. The 'Horizontal scrolling' and 'Text Wrapping' checkboxes are never disabled; for a view the user cannot change, ticking them has no effect because nothing can be saved.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/properties-options-mapping",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Horizontal scrolling' edits the view's `spec.columnDisplayMode`: ticked means 2, unticked means 1, and any value other than 2 shows unticked. 'Text Wrapping' edits `spec.rowDisplayMode`: ticked means 12, unticked means 11, and any value other than 12 shows unticked. They act on the dialog's working copy of the saved view, not on the user's local adjustments.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/ViewConstants"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/owner-field-editable",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The editable owner field is shown when the view is `adminable` and the caller may browse users (`canBrowseUsers`). It is Jira's single-user picker: a text input with Jira's user autocomplete, Jira's hint text for that picker, and a people icon with Jira's 'select user' tooltip. Clicking the icon opens a window (800 by 750, resizable, scrollable, top 100, left 100) on `<base URL>secure/popups/UserPickerBrowser.jspa?multiSelect=false&decorator=popup&element=<the input's id>&triggerEvent=customUserSelected`; the chosen user fills the input through that event.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/owner-field-value",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The owner field shows the owner's `name`. Typing the current owner's name restores the original owner object; any other text makes the owner `{name: <text>}`. When the view has an owner, clearing the text sends `{name: \"\"}`; when it has none, clearing it leaves the owner unset.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/owner-field-readonly",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A read-only 'Owner' line is shown when the view has `owner` or `hasOwner` true and the editable field is not shown. With an owner object it shows the display name, or `name` if there is no display name, preceded by the avatar when `avatarUrl` is present (requested with `&size=small` added to that URL; it opens Jira's user hover when `profileUrl` is also present). With only `hasOwner` it shows 'someone'. With neither the line is hidden.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/save-enablement",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Save Changes' is visible only when all hold: a view is loaded, it is `adminable` or `writable`, the working copy differs (deep comparison) from the loaded view, the id is positive, the name is not blank after trimming, and the specification is valid JSON. Otherwise it is hidden. The footer link reads 'Cancel' while it is visible and 'Close' otherwise, so invalid edits show 'Close'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/save-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Save Changes' sends, for an `adminable` view, `POST /rest/structure/1.0/view/<id>/update` with the whole working copy (id, name, description, spec, flags, permissions, owner) as JSON, and for a view that is only `writable`, `POST /rest/structure/1.0/view/<id>/updateSpec` with the `spec` alone. The previous error text is cleared first.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/save-result",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On a successful save the details page reloads its fields from the answer and stays open; pressing Enter in a single-line field of the details form does the same save and then closes the dialog. If nothing can be saved, Enter does nothing. Cached view lists are dropped after any save, and a changed view is reloaded in the panels showing it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/save-error",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a save fails the dialog stays on the details page with the user's edits and shows the reason in the error area of the Properties tab: for `/update` the raw response body; for `/updateSpec` the `message` of the JSON error, or the raw body when there is no `message`. The area is not visible on other tabs. It is cleared by the next save or by confirming to dismiss changes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/user-not-found-text-unused",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An unknown owner name is not given a special message: the server's plain-text 400 body appears in the error area. The bundled text 'An error occurred while saving: user not found' is never shown.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/dirty-navigation-confirm",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When there is something to save (the state in which 'Save Changes' is visible), '< Back to View List', the Cancel link on the details page and the Escape key first ask for confirmation in a dialog titled 'Confirmation', with a 'Confirm' button and the message 'The changes made to this view were not saved. Are you sure you want to dismiss them? (To save changes, press \"Cancel\" and then click \"Save Changes\")'. Confirm discards the working copy and clears the error, then navigates; cancel stays on the page with the edits. Invalid edits (blank name, broken JSON) do not ask.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/dialog/ConfirmationDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/close-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Escape closes the dialog only while it is visible, and goes through the unsaved-changes check. The selection page's 'Close' button closes at once. Back returns to the selection page and reloads the visible list without forcing a redraw. Page changes take 400 ms: details comes in from the right, selection from the left.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/sharing-banner",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The Sharing tab begins with one banner, by the current rules in the working copy: no rules: 'Not shared' and the link 'Make Public'; rules with an 'anyone' subject at any level: 'Shared with everyone' and the link 'Make Private'; other rules: 'Shared with some users' with the links 'Make Public' and 'Make Private' separated by '|'. Link tooltips: 'Share this view with everyone' and 'Clear sharing and make the view accessible only to the owners'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/sharing-editable-rules-check",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The rules are editable in the Sharing tab only when each rule has `rule` equal to `set`, `level` one of `view`, `edit`, `admin`, subject one of `anyone`, `group`, `projectRole`, and levels never decrease along the list (all `view` before `edit` before `admin`). Anything else (for example a `user` subject, an `apply` rule or a `none` level) shows 'The view has complex sharing rules. To change sharing, start with making the view private.', the link 'Make Private', and the rules as JSON in a read-only text area.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/sharing-sections",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Editable rules appear in three sections, each with a list and an add control: 'Who can Use:' (level `view`), 'Who can Update:' (level `edit`), 'Who can Manage:' (level `admin`). Each rule has a remove link 'Remove'. A section that has no 'anyone' rule ends with a line that is not a rule: 'All who can Update', 'All who can Manage' and 'Owner and Jira administrators' respectively.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/sharing-rule-text",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A rule reads 'Everyone' for subject `anyone`, 'Group: <group id>' for `group`, and 'Project: <name> Role: <name>' for `projectRole`. Project and role first show their ids; the names come from `GET /rest/structure/1.0/config/projects?withRoles=true` and `GET /rest/structure/1.0/config/roles`, and an id that is not found stays as the id.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/sharing-add-control",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each add control reads 'Include:', a selector with 'Everyone' (default), 'Group' and 'Project', and a link 'Add'. Choosing Group shows one selector of groups; choosing Project shows a selector of projects and one of roles. Each list shows a small spinner until loaded, loads once per control, and starts on its first entry. Options come from `GET /rest/structure/1.0/config/groups?assignable=true` (`groups`) and `GET /rest/structure/1.0/config/projects?withRoles=true` (`projects`); entries without a name are skipped, and an option's value is the entry's `id`, or its name when there is no id.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/sharing-role-follows-project",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Changing the project in an add control rebuilds the role selector from that project's roles (`userRoles` resolved to role objects). The previously chosen role stays selected if the new project has it; otherwise the first role is selected.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/sharing-add-rule",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Add' creates a rule with `rule` `set`, the section's level and the chosen subject (`groupId`; or integer `projectId` and `roleId`). Adding 'Everyone' at a level removes every rule, of any subject, at that level and at lower levels. Adding a group or role at a level removes an 'anyone' rule of the same level only. The new rule goes before the first rule of a higher level, otherwise at the end. Example: rules [group a: view, group b: edit], Add Everyone at edit gives [anyone: edit]; [anyone: view], Add group c at view gives [group c: view].",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/sharing-make-public-private",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In the Sharing tab, 'Make Public' does the same as adding 'Everyone' to 'Who can Use:'. 'Make Private' empties the rule list, including uneditable rules. 'Remove' deletes that rule. All of these change only the working copy; nothing is sent until 'Save Changes'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/associations-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The Associations tab's content is requested the first time the tab is active for a loaded view, by `GET /rest/structure/1.0/view/<id>/associations`, with only one request at a time. It shows a spinner until the answer. A failed request shows 'Failed to load view associations - sorry!' and no global or structures data. Loading any other view, and the 'Refresh Associations' link (tooltip 'Reload view associations from server'), reset the tab, which reloads while it is active.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/associations-intro",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The Associations tab always starts with a two-sentence explanation of what makes a structure associated with a view (the view is offered in the structure's drop-down menu by its View Settings, which are managed from the manage page), followed by the refresh link.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/associations-global",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the answer has `associatedDefault` true the tab shows 'Global Default:' with 'This view is associated with all structures that do not have customized view settings.'. For a Jira administrator (`admin` in the widget configuration) it adds a link 'Default View Settings' (tooltip 'Open global defaults page in a separate browser window') that opens `/secure/admin/StructureDefaults.jspa` in a new window.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/associations-structures",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Under 'Structures:' the tab lists `associatedStructures` as rows: the structure name as a link, with the structure description as tooltip, opening `/secure/StructureBoard.jspa?s=<structure id>&view=<view id>` in a new window; and, when that structure is `adminable`, a 'Manage' link opening `/secure/StructureViews.jspa?id=<structure id>` in a new window. With a successful answer and no structures it shows 'This view is not associated with any structure.'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/associations-add-to-current",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After a successful or failed associations load, when the user administers the structure in the panel and that structure is not in the list, the tab shows 'Add to the current structure's views...' (tooltip 'Open view settings for the current structure in a separate browser window so you can add this view.'), linking in a new window to `/secure/StructureViews.jspa?id=<structure id>&addedView=<view id>`. The link is hidden when the panel's content has no numeric id.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/advanced-tab",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The Advanced tab shows a warning, 'Warning! Changing advanced properties can break the view or make it disappear. Use at your own risk.', only when the view is `writable`, and a text area 'View Specification' holding the working copy's `spec` as JSON. The text area is disabled unless the view is `writable`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/advanced-spec-parse",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Editing 'View Specification' parses the text as JSON into the working copy. Empty or invalid text makes the specification empty: 'Specification JSON is not valid.' and a link 'Restore' appear, and saving is unavailable. 'Restore' puts back the specification last loaded from the server. The text does not otherwise have to match any format on the client; the server validates it on save.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/advanced-active-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the working copy has an id and a valid specification, and the user has local adjustments for that view that count as modifications, the Advanced tab also shows a read-only 'Active Specification' with the JSON of that specification after the adjustments, with temporary column ids replaced by permanent ones, and the note 'This view has been adjusted. The active specification defines the adjusted view.'. With no such adjustment the block is hidden. While the text is invalid the block keeps its previous state.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates",
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/delete-tab",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The Delete tab shows 'Deleting a view has permanent effect and cannot be undone.' and a button 'Delete This View' (tooltip 'Delete this view'). The button asks for confirmation in the 'Confirmation' dialog, with 'This view is shared with other users. Are you sure you would like to delete it?' when the view is `shared` and 'Are you sure you would like to delete this view?' otherwise.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ui/view/view-dialog-templates",
+    "amd:structure/dialog/ConfirmationDialog"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/delete-result",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Confirming sends `DELETE /rest/structure/1.0/view/<id>`. On success the dialog returns to the selection page and reloads its list; a panel showing the deleted view re-reads it and, when that fails, falls back to the view with id -1 ('No View'). On failure the dialog stays on the details page and shows no message of its own. Cancelling sends nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "amd:structure/widget/ViewLoader",
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/attribute-picker-decoration",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Whenever Jira announces new page content, each element in it that is marked as a plugin attribute field and not yet decorated becomes an attribute picker. This is how the attribute fields of the grouper and sorter generator forms get their picker. When the element's data flag `skip-gantt-attributes` is true, attributes whose id starts with `gantt.` are not offered.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewDialog",
+    "templates/structure/generator/grouper-attribute.vm",
+    "templates/structure/generator/sorter-attribute.vm"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-pick-scope",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each grid panel remembers its chosen view per panel (primary or secondary), per what the panel shows (a structure id, or a kind of content such as a query) and per page: separately for the structure board, the issue page, project-type pages (project, component and version share one), each gadget (by gadget id, 0 when unknown) and each Agile board (by board id, 0 when unknown). It is kept in the browser, not on the server.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ui/view/ViewIdWrapper"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-pick-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the content of a panel changes, the panel first waits for saved columns and for local storage to be ready, whatever the result of the saved-columns load. It then picks a view in this order: (1) a forced view, (2) the remembered view for this scope, if it can be loaded, (3) the remembered view for the same scope of the opposite panel, if it can be loaded, (4) `GET /rest/structure/1.0/view/default?forPage=<page id>&forStructure=<structure id>`, where `forStructure` is left out for non-numeric content, (5) the fallback view with id -1, 'No View'. Steps 4 and 5 count the picked view as recent but do not store it as the remembered view. An answer that arrives after the content or the view changed is dropped.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ui/view/ViewIdWrapper",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-pick-no-content",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A panel with nothing that identifies its content has no view: id 0, empty specification, no widths.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-initial-and-forced",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A caller may give an initial view; it is stored once as the remembered view for the scope and then follows the normal order. A forced view (from the widget configuration on gadgets and Agile boards, or set explicitly) applies to the primary panel only: it wins over everything, is not remembered, and recent views stop being recorded for that panel.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ui/view/ViewIdWrapper"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-perspective-default",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a perspective is active and not disabled for the panel, and the perspective's view for that panel is loaded, the default for the panel's remembered view is the perspective view (id -20 for the primary panel, -21 for the secondary one). For the primary panel this holds only when the perspective was made on the same page. Importing a perspective's specification for a panel makes that special view with the name 'Perspective' and the description 'Columns that were shown when perspective was shared'.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-perspective-export",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A perspective snapshot stores the panel's effective specification, after adjustments and normalization, at the JSON path `<panel name>.viewSpec` (`primary.viewSpec` or `secondary.viewSpec`). The value is not written when perspectives are disabled for the panel.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-switch-user",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the user chooses a view it becomes the panel's current view, is stored as the remembered view for the scope, and is recorded as recent. Internal changes (the fallback after a failed load, a forced view) store nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-unavailable-fallback",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the current view cannot be loaded (`GET /rest/structure/1.0/view/<id>` fails) and is not the fallback, the panel switches to the view with id -1 ('No View', description 'No view has been selected.'), and nothing is stored. While a view is loading the panel has no view data.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-previous",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A panel remembers, for the life of the page, the view shown before the current one (never the fallback with id -1). The key sequence `v`,`v`,`v` switches back to it as a user choice; the view menu has no entry for it. If no previous view exists the action does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/view-reload-events",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a view is reloaded and differs from what the page had, a panel showing that view re-reads it and rebuilds its effective specification.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/effective-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A panel's effective specification is built in this order: a copy of the saved view's `spec`; normalization; the user's adjustments in order; and, when there is at least one adjustment, normalization again. An adjustment that cannot be applied is skipped and the rest still apply. The result carries the column widths, panel-size settings and scroll offset for the view, and any change is announced to the rest of the widget.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/normalize-columns",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Normalization of a column list. The `handle` column comes first: the existing one, or `{csid: handle, key: handle}`. If there is no `main` column one is added right after it the same way. The rest follow in their order, leaving out: columns with no key or a key of no registered column type, columns with no `csid`, `actions`, `blank`, `handle`, and any `main` other than the first. A last column ends the list: `actions`, or `blank` where Jira actions are disabled (remote gadgets, Confluence macros, Agile boards), using the existing column of that key when there is one. Example: [{key:field,csid:1}] on the board gives handle, main, field 1, actions.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ui/view/ViewConstants"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/normalize-saved-columns",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "During normalization a column with `params.savedColumn` whose id does not start with `modified/` takes its `params` from the current saved-column definition, keeping `savedColumn` set to the definition's id. If no such saved column exists now the column is dropped. A column marked `modified/` keeps its own parameters. Before the saved-column list has loaded, columns are left as they are; the effective specification is rebuilt once it loads and whenever a saved column is updated or deleted.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/normalize-pins",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In scrollable mode (`columnDisplayMode` 2) normalization puts `main` first in `pins` if it is missing and removes pins that match no column `csid`. In other modes `pins` is left untouched and no column counts as pinned.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ui/view/ViewConstants"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/display-mode-constants",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Modes: `columnDisplayMode` 2 is scrollable and every other value, including none, is treated as auto-fit (1). `rowDisplayMode` 12 is text wrapping and every other value is treated as one line (11). Column keys with fixed places are `handle` (always first), `actions` and `blank` (always last).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewConstants",
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/adjustment-kinds",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Grid changes do not touch the saved view at once. Each is recorded as a local adjustment for the view: add, remove, move, change or pin/unpin a column, change the column display mode, change the row display mode. Adjustments apply on top of the saved specification until saved or reverted.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ui/view/ViewModifications"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/adjustment-shared-scope",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Adjustments, column widths and formula-editor sizes of a view are kept per view in the user's browser, not per structure and not per panel: the same view shows the same adjustments under every structure. When one panel adjusts a view, the other panel showing it immediately rebuilds from storage. Nothing here is sent to the server until a save.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/UserSettings",
+    "amd:structure/widget/ui/view/ViewModificationsWrapper",
+    "amd:structure/widget/ui/view/ViewWidthsWrapper",
+    "amd:structure/widget/ui/view/ViewEditPanelSettingsWrapper",
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/adjustment-forced-scope",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For a forced view the adjustments, widths, panel sizes and scroll offset are stored for that place only (panel, content and page scope), not per view, and only that view can use them. When a place is forced to a view different from the one it had, all four are cleared first.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/UserSettings",
+    "amd:structure/widget/ui/view/ViewModificationsWrapper",
+    "amd:structure/widget/ui/view/ViewWidthsWrapper",
+    "amd:structure/widget/ui/view/ViewEditPanelSettingsWrapper",
+    "amd:structure/widget/ui/view/ViewHScrollOffsetWrapper"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/adjustment-perspective-scope",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While a perspective is active, adjustments and widths are stored apart for that perspective id. For the special perspective views (ids -20, -21), they are kept for the browser tab session only, and they disappear when the session ends.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModificationsWrapper",
+    "amd:structure/widget/ui/view/ViewWidthsWrapper",
+    "amd:structure/widget/ui/view/ViewEditPanelSettingsWrapper",
+    "amd:structure/widget/perspective/StorageManager"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/adjustment-invalid-storage",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Stored adjustments are read as a list. If any entry has no kind, an unknown kind or missing required fields, the whole list is discarded and the view shows no adjustments. An unreadable stored value also counts as no adjustments.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/UserSettings",
+    "amd:structure/widget/ui/view/ViewModificationsWrapper"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/add-column-position",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An added column gets its position from the column neighbours it was dropped between, given as lists of ids to the left and right (`handle`, `actions` and `blank` excluded). The search alternates: nearest left neighbour (insert after it), nearest right neighbour (insert before it), next left, next right, and the first one that still exists wins. With no match it goes at the end. In any case it is then moved left of trailing `actions`/`blank` and right of `handle`. An add whose id is already present fails and is skipped.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModifications",
+    "amd:structure/widget/ui/view/ViewConstants"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/move-column",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Moving a column removes it and reinserts it by the same neighbour search. With no neighbour found, or when the position is unchanged, the order stays. In scrollable mode an unpinned column's position is searched among unpinned columns only. A move flagged as pinned reorders `pins` only and leaves `columns` alone; if the column is not in `pins` nothing changes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModifications",
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/remove-change-column",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Removing a column also removes it from `pins`; a missing column is ignored. Changing a column replaces its whole specification and keeps its `csid`; a missing column is ignored. A change that gives a `csid` different from the column's fails and is not recorded.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModifications"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/pin-unpin-column",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Pin adds the column at the end of `pins`; unpin removes it. Both work only in scrollable mode and `main` can never be unpinned. Asking to pin a pinned column or unpin an unpinned one records nothing. A view with no pins that becomes scrollable gets `pins` = [`main`].",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModifications",
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/merge-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new adjustment cancels older ones so the list stays short. Remove of a column: drops the older change of that column at any distance; if the immediately preceding adjustment is the add of that column, both vanish; a directly preceding move, pin or unpin of the column is dropped. Move: replaces a directly preceding move of the same column in the same area (pinned or unpinned). Pin directly after unpin of the same column, or the reverse: both vanish. Display-mode change directly after another display-mode change: both vanish. Row-mode change after any earlier row-mode change: both vanish. Change of a column: replaces the older change of that column at any distance, and if the new specification equals the column in the saved view, both vanish.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModifications",
+    "amd:structure/widget/ui/view/UserSettings"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/modified-state",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A view counts as modified when it has any adjustment other than a column display-mode change. So changing only 'Horizontal scrolling' from the toolbar shows no adjusted mark and cannot be saved through Save, while changing only text wrapping does and can.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ui/view/ViewModifications"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/add-column-temp-ids",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new column with no `csid` gets a temporary id `#<n>`: n is one more than the highest number used by added columns in the view's adjustments (an added column with no usable number counts as +1), then the first such id not already used in the grid. With no view it is `#<current time in ms>`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/save-view",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Saving the current view does nothing and reports false unless its id is positive, it counts as modified, and the effective specification is not empty. Otherwise it sends `POST /rest/structure/1.0/view/<id>/updateSpec` with the effective specification, including the columns added by normalization, with temporary ids made permanent. On success the adjustments are cleared, widths and panel sizes move to the new ids, and if the view is still current the answer becomes the saved view. On failure the adjustments stay and the error text is passed to the caller. Column widths are not sent.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/permanent-column-ids",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Before a specification goes to the server, each column with a `#` id gets a permanent one, in column order, counting up from the highest numeric `csid` already in the list, and matching `pins` entries follow. Columns with no `csid` are removed. Example: csids 1, #1, main, 3, #2 become 1, 4, main, 3, 5. Stored widths and panel sizes follow the same renaming.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ui/view/UserSettings"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/save-view-as",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Save As trims the name; if it is blank, or there is no specification, it answers empty and sends nothing. Otherwise it sends `POST /rest/structure/1.0/view` with `{name, spec}` where `spec` is the effective specification with permanent ids. On success: the new view inherits the old view's widths and panel sizes (under the new ids), the old view's adjustments are cleared, the panel switches to the new view as a user choice if the old one is still current, and other parts are told about it. On failure the old view and adjustments are unchanged and the caller gets an empty answer. Save As is available only when `canCreateViews` is true and the view counts as modified.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ViewLoader",
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/revert-view",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Revert drops all adjustments of the current view and clears the widths and formula-editor sizes of columns that were added or changed by them. Other columns keep their widths. It rebuilds the grid and tells the other panel. With no adjustments it does nothing and reports false.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ui/view/UserSettings"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/column-width-effects",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Removing a column clears its manual and preferred widths and its formula-editor size. Changing a column clears its preferred width, and its editor size only if its column type (`key`) changed. Width updates count per kind, so manual and preferred version numbers each start at 1 and rise by 1 with each update of that kind.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/toggle-display-reset-widths",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Changing the column display mode from the UI records the adjustment and then asks the grid to reset its column widths. Changing the row display mode records only the adjustment. Neither does anything when the panel has no view.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/make-public-private",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The view menu's sharing actions work on the view named by the clicked entry, otherwise the current view, and only when that view is known to be `adminable`. 'Make Public' sends `POST /rest/structure/1.0/view/<id>/makePublic` with body `{}`. 'Make Private' sends `POST /rest/structure/1.0/view/<id>/update` with the whole cached view and `permissions` empty. A failure of either shows no message from the view model.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/recent-views",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each panel keeps a list of at most 15 recent view ids in the browser (per panel, not per structure or per page; perspectives do not affect it), most recent first. Recording moves an id to the front; recording the first id changes nothing; negative ids are ignored except -20 and -21. Unreadable entries are dropped when the list is read. The menu resolves them with `GET /rest/structure/1.0/view?ids=<ids, comma-separated>` for ids not already known, and an empty list needs no request.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/RecentViewsModel",
+    "amd:structure/widget/ui/view/ViewModel",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/stored-widths-validation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Stored widths have two groups, manual and preferred, each mapping `csid` to a number. A width outside 16 to 10000, a non-number and any other group are dropped on read. Setting a width to null deletes it. An unreadable value counts as no widths.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewWidthsWrapper",
+    "amd:structure/widget/ui/view/UserSettings",
+    "amd:structure/widget/Constants"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/stored-editor-size-validation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Stored formula-editor sizes map `csid` to a width and a height. An entry is dropped on read unless its width is a number from 100 to 3000 and its height a number from 50 to 5000. Setting an entry to null deletes it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewEditPanelSettingsWrapper",
+    "amd:structure/widget/ui/view/UserSettings",
+    "amd:structure/widget/Constants"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/stored-hscroll",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The horizontal scroll offset of a panel is kept per panel and per view for the browser tab session only, rounded to a whole number and never below 0; it is recorded only in scrollable mode, and an offset of 0 clears the stored value.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/view/ViewHScrollOffsetWrapper",
+    "amd:structure/widget/ui/view/UserSettings",
+    "amd:structure/widget/ui/view/ViewModel"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/status-source",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The status list comes from Jira's `GET /rest/api/2/status`, requested at most once per page and cached, also when it failed. The result is shared and read-only. A failed request gives an empty configuration: no statuses and no categories. The filter-by-field dropdown is its consumer for status values.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration",
+    "amd:structure/widget/transform/FilterByFieldDropdown"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/status-entries",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each status entry keeps `id`, `name`, `description`, `iconUrl` and its category. Entries with no `id` or no `name` are skipped, and for a repeated `id` the first entry wins. A status with no `statusCategory`, or a category with no `key`, has no category.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/status-categories",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Categories are collected from `statusCategory` of the statuses, one per `key`; the first status seen defines it. Each has `key`, `name` (the key when `name` is missing) and `colorName`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/status-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Categories are ordered by rank, then by name in the browser's locale order. Ranks: `new` 2, `indeterminate` 3, `done` 4, any other key or no category 1, so unknown categories sort first. Statuses are ordered by the rank of their category, then by name. Example: Done (done), Open (new), Custom (no category), Backlog (new) sort as Custom, Backlog, Open, Done.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The widget configuration comes from one `GET /rest/structure/1.0/config/widget`, sent when first needed; later callers wait for it or are served at once. A failed request reports 'Error loading configuration. Cannot start structure widget, sorry! (<reason>)'. An empty answer records 'Cannot load widget configuration'. Either way the configuration then counts as loaded and waiting callers run, with all capabilities false.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-capabilities",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Capabilities read false until the configuration has loaded: create views (`canCreateViews`), share views (`canShareViews`), create perspectives (`canCreatePerspective`), bulk change (`canBulkChange`), browse users (`canBrowseUsers`), manage global saved columns (`canManageGlobalSavedColumns`), administrator (`admin`), anonymous (`anonymous`). May-create-issues reads null until loaded and then `canCreate`. No capability depends on licensing: the replacement never reports an invalid licence, and the `licenseInvalid` check is always false.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-other-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Other fields are read from the same answer as they are. Absent values default to: `features` empty, `externalGenericItemTypes` empty, `globalError` none, `hideHelp` and `hideHelpAdminTips` none, `enabledPlugins` empty, `canRunEffectorsOnQueryResults` false, `jiraEmailNotificationsEnabled` false. Help flags read false until the configuration has loaded. `jiraVersion` `9.12.3` gives the version number 91203 (major times 10000 plus minor times 100 plus patch); a missing or unparsable version gives none.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-jira-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The field list comes from `jiraFields`. Entries with no `id` or `name` are dropped, as are the fields `aggregatetimeoriginalestimate`, `aggregateprogress`, `aggregatetimeestimate`, `aggregatetimespent` and `progress`. The rest are sorted by name in locale order. A missing list counts as empty. Agile rank fields are those fields whose `customId` appears in `jiraAgileRankFields`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-date-defaults",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the answer has no `jiraDateTimeFormats`, the defaults are: date format `dd/MMM/yy`, time format `h:mm a`, picker format `%e/%b/%y`, Java picker format `mm/dd/yy`, first day of week 0 (Sunday).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-export-backoff",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Export links keep only entries that have `label`, `url` and `moduleKey`. A non-empty `restAsyncBackoff` array replaces the client's polling back-off sequence; otherwise the built-in one stays.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-extensions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "`extensions` holds per-app client settings by app key, and consumers follow it as a live value. The Confluence integration counts as available only when the entry for `com.almworks.structure.pages:pages-extension` has `licensed` exactly true. With the app absent, or the flag not true, it counts as unavailable.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-spaces",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The list of Confluence spaces the user may modify comes from `GET /rest/structure-pages/1.0/space/modifiable` (`confluences`). A non-empty answer is cached in the page. Otherwise each ask requests again, and a failure gives an empty list and the error report to the caller. The path belongs to the Confluence companion app, not to this plugin's REST.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-field-editors-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Field editors for inline editing are requested by context. For an existing issue: `GET /rest/structure/1.0/config/fields/forUpdate?issue=<id>`. For a new issue with project and issue type known: `GET /rest/structure/1.0/config/fields/forCreate?project=<id>&issuetype=<id>`. For a new issue modelled on a sample: `GET /rest/structure/1.0/config/fields/forCreate?sample=<id>`. A single field adds `&field=<URL-encoded id>`. No usable context means an error result with no text and no request.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-field-editors-result",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An empty field-editors answer gives the error 'No editor for this field, sorry. Perhaps it's read-only, or not added to the edit screen.'. A failed one gives 'Problem loading field editor: <reason>'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-field-editors-cache",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Full answers (no `field`) are cached, least recently used out first, for 20 issues, 10 sample issues and 20 project-and-type pairs. After a single-field answer the client fetches the full set for that issue in the background, unless it is already cached or a background fetch is already running. Only one background fetch runs at a time.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-field-editors-invalidate",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Cached editors for issues and samples are dropped when issue data changes (only the named ids, or all when no list is given) and when an edit stops with a change for that item. Editors cached by project and issue type are not dropped for the life of the page.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-project-issuetype-pickers",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The project and issue type pickers for inline creation come from `GET /rest/structure/1.0/config/fields/forCreate?field=project&field=issuetype`, and are cached once they arrive. When the answer has `structuredProjects`, projects outside that list stay in Jira's project picker but are disabled and unselected. If the selected project was disabled, the first enabled project of the same group becomes selected.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-structured-project-check",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A project id is checked against `structuredProjects`: with no list or an id in the list it stays as it is, and otherwise it becomes the first id in the list.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-issuetype-known-check",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "To decide whether an issue type can be used for a new non-subtask issue, the client reads the positive type ids offered by Jira's create form, from the suggestions of Jira's issue type field or, if those are absent, from its select options. With no such data the answer is unknown. A type not in the set is known to be unavailable.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-permission-lists",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Lists for permission editors, each cached in the page once non-empty: assignable groups (`GET /rest/structure/1.0/config/groups?assignable=true`, `groups`), roles (`GET /rest/structure/1.0/config/roles`, `roles`), projects with roles (`GET /rest/structure/1.0/config/projects?withRoles=true`, `projects`). In the last, each project's `userRoles` ids become role objects from `roles`, unknown ids are dropped, and a project without the list gets an empty one. A failed request gives the caller an empty answer without a message, and the next ask tries again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-rest-cache",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Calls to Jira's own REST API from the widget are cached per path for the life of the page, and a failed call stays cached.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/widget-bare/config-copied-attributes",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a new issue is modelled on a sample, the fields copied from it are exactly: `project`, `issuetype`, `assignee`, `environment`, `priority`, `security`, `versions`, `fixVersions`, `components`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/config/StatusConfiguration"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-module",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "`structure-views-js` is the script of `/secure/StructureViews.jspa`, which also requires `page-rc`. It runs once when the page has rendered and needs the dependencies in its descriptor; `jquery-ui` supplies the drag sorting. It sends no REST calls: everything goes through the form post of `StructureViews!apply.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm",
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-frame",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "With a structure the browser title is 'Views - <name>', the page heading 'Views', the sub-heading 'Views for Structure \"<name>\"', with a link to the plugin's documentation (tooltip 'Open related part of documentation in a separate browser window or tab', text 'Help'), in Jira's general page frame. On the global page title and heading are 'Default View Settings for Structures', inside Jira's administration frame on the plugin's Default Settings tab, with no sub-heading or help link.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-intro",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "Below the heading a note explains the page. With a structure, it is two short paragraphs: what a view is, what View Settings choose (which views the Views menu offers and which are default, per Jira page), and that global defaults apply unless customized. On the global page, one sentence says these settings apply to structures that have no customized settings.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-form-fields",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "The form posts to `StructureViews!apply.jspa` with `atl_token`, `id` (empty on the global page) and `execute=true`. Footer: submit 'Apply' and a link 'Cancel' to the return URL. Page errors appear above the settings, one line each. With a structure, a 'Structure' row shows the name, '(ID: <id>)' and the description.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-default-radio",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "With a structure, 'View Settings' offers two radio options named `useDefault`: 'Default' (value `true`, selected when the structure has no own settings) and 'Customized' (value `false`, selected otherwise). 'Default' shows a read-only block headed 'Default settings:' with the global defaults. 'Customized' shows the editable block. The change is immediate and sends nothing. On the global page there are no radios, and only the editable block shows.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-editable-start",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "The editable block starts from the structure's own settings when customized, else from a copy of the global defaults, so choosing 'Customized' starts from the defaults. Changes in it stay on the page until 'Apply'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-readonly-block",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "In the read-only block all inputs are disabled, the 'Offered on:' link does nothing, and defaults show as view names ('-' when the page has no default view or the view is not accessible).",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-view-row",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "Under 'Views Menu' each view is a row in display order, with a drag handle, the name and a 'Remove' link (tooltip 'Remove this view from the list'). On a structure page an accessible view's name opens `StructureBoard.jspa?s=<structure id>&view=<view id>` in a new window, with its description as tooltip. On the global page, or for an inaccessible view, the name is plain text. An inaccessible view reads '? (Unknown View)'.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-inaccessible-tooltip",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "The tooltip of an inaccessible view shows the literal text `s.manage.views.inaccessible.description`, because no English text exists for that key (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-offered-on",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "Each row has a link 'Offered on: <summary>' (tooltip 'Select which pages should have this view on the menu'). The summary follows the ticked pages: all ticked 'All pages', none ticked 'No pages!', otherwise their names in page order joined by ', '. Page names: '<product> Board', 'Issue Page', 'Project Pages', 'Dashboard Gadget'.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getPageNameForViewSettings"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-offered-on-popup",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "Clicking 'Offered on:' toggles a small panel under the row, with 'Which pages should have this view included in the Views menu?' and one checkbox per page, named `v<view id>-<page id>-menu` with value `true`. Only one panel is open at a time, and a click outside it closes it.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-add-view",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "Under the list, 'Add view:' offers a selector and an add icon (tooltip 'Add'). The selector lists all views the user can see that are not in the list, keeping the previous selection if still offered, otherwise the first. The whole control is hidden when no view is left. Adding appends a row at the bottom with every page ticked, and refreshes the selector and the default selectors.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm",
+    "com.almworks.jira.structure.webwork.StructureViews#isMenuOn"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-view-selector-options",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "View selectors group options under 'Public views - shared with everyone', 'Shared views - shared with some users' and 'Private views - usable only by owners', and hide empty groups. An option shows the name, abbreviated to 40 characters, and with ' [<id>, <owner>]' added when another view has the same name. Its tooltip is the description.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm",
+    "com.almworks.jira.structure.util.Util#abbreviate"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-remove-reorder",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "'Remove' deletes the row at once, and the view returns to the add selector. Rows are reordered by dragging the handle vertically; dragging does not change the default selectors. When the list is empty it shows 'No views are added to the menu.', and the list and 'Default Views' are hidden.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-default-selectors",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "'Default Views' has one line per page that has a default view, with the page name and ':' and a selector named `default-<page id>-view`. Each selector offers exactly the listed views ticked for that page, and is recomputed whenever a tick, an addition or a removal changes that. A still-offered selection stays. Otherwise the first option is selected. A page with no ticked views has its line hidden, and when all lines are hidden so is the block.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-submit",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "On submit the view ids in the current order of the editable list are written to the hidden `view-sequence` field, joined by commas, and the form posts normally.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u8-views/structure-views-js/page-added-view-highlight",
+   "module": "structure-views-js",
+   "api": null,
+   "behaviour": "When the page opens with `addedView` in the list, that row is marked. After 500 ms, if the row's top is lower than 100 pixels above the bottom of the window, the window's scroll position is set to that excess (an absolute position, not added to the current one), and the row flashes briefly.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structureViews.js",
+    "templates/structure/manage/structure-views.vm"
+   ]
+  }
+ ]
+}

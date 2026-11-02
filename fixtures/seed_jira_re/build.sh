@@ -11,5 +11,7 @@ set -eu
 TOOLS="${LRAE_RE_TOOLS:-$HOME/lrae-tools/re}"
 cd "$(dirname "$0")"
 [ $# -gt 0 ] || set -- package
+# Browser tests (ENVIRONMENT.md) run on the pinned Chromium; nothing is downloaded.
+export PLAYWRIGHT_BROWSERS_PATH="$TOOLS/browsers" PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 exec "$TOOLS/bin/mvn" -o -B -ntp \
   -Dmaven.repo.local="$PWD/.m2/repository" -Dmaven.repo.local.tail="$TOOLS/m2" "$@"

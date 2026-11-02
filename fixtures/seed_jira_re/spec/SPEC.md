@@ -34,6 +34,17 @@ The replacement is installed in place of the original, so it keeps the key. It i
 it never uses the original's display name or vendor name, and never claims to be the vendor's (product
 owner decision, 2026-10-28).
 
+**The product name in text** (product owner decision, 2026-10-30). The original's text uses the word *Structure*
+in two ways. As the vendor's product name, the spec writes `<product>`: the replacement shows its own display name
+there, the same one everywhere, in every label, title, tooltip, message, mail subject and log line. As the common
+noun for what users work with, a structure, the word stays ('Delete Structure', 'Default Structure', 'Structure
+ID', 'Structure with id {0} does not exist...'). Prose in the claims may still call the plugin Structure, as
+in "the current Structure user"; that is description, not text to show. If you meet a shown text where the word
+is clearly the product and the spec missed it, use your own name. Identifiers do not change: the plugin key, module
+keys, REST paths, URLs, i18n keys, class names, `com.almworks.*` ids. The names of the four companion apps in
+`info-popup` also stay, because they name other apps. The replacement links to nothing of the vendor's, and its
+documentation links are its own.
+
 **`plugin-info` parameters to keep,** because Jira and the plugin manager follow them:
 - `configure.url` = `/secure/admin/StructureAdmin!view.jspa`
 - `post.install.url` = `/secure/admin/StructureSetupGuide.jspa`
@@ -776,6 +787,7 @@ Only the structure search endpoints of `rest-v2` are rate limited: one request p
 #### Content types and conventions
 - Requests and responses are JSON (`application/json`, UTF-8) unless stated; the gadget resource also accepts form-encoded requests; the S-JQL logs endpoint streams `application/zip`.
 - Many replies use the acknowledgement object `{"empty": true}` ([`empty-ok`](#shape-empty-ok)) instead of an empty body.
+- A path may be requested with a trailing slash, and answers the same: the original's front end does this for some calls.
 - Optional values are usually omitted or null when not applicable; clients must treat absent and null alike.
 - Ids: structure, view, row, issue and project ids are JSON integers; Jira issue type, status and constant ids are strings. Times are epoch milliseconds unless stated.
 - Long-running `rest-v2` requests use the asynchronous job protocol described with [`extensible-async-request`](#shape-extensible-async-request).
@@ -1185,7 +1197,7 @@ Access: logged-in user. Consumes: any. Produces: `application/json`.
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
 | `structure` | query | string |  | Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty gives the `s.jql.error.unknown-structure` error. A name matching several viewable structures is an error. |
-| `query` | query | string |  | Structure query (S-JQL) text, as the function's second argument; missing means `[]`; an empty text is a parse error. |
+| `query` | query | string |  | <product> query (S-JQL) text, as the function's second argument; missing means `[]`; an empty text is a parse error. |
 
 Validates the two arguments of the plugin's `structure()` JQL function for the caller without running it: the structure must exist and be viewable, its automation must not be stopped, and the structure query must parse and validate. Logged-in callers only.
 
@@ -1200,7 +1212,7 @@ Access: logged-in user. Consumes: any. Produces: `application/zip`.
 | parameter | in | type | default | meaning |
 |---|---|---|---|---|
 | `structure` | query | string |  | Structure id or exact structure name (as in the `structure()` JQL function's first argument). Empty gives the `s.jql.error.unknown-structure` error. A name matching several viewable structures is an error. |
-| `query` | query | string |  | Structure query (S-JQL) text, as the function's second argument; missing means `[]`; an empty text is a parse error. |
+| `query` | query | string |  | <product> query (S-JQL) text, as the function's second argument; missing means `[]`; an empty text is a parse error. |
 | `includeRelOutput` | query | boolean |  | Boolean, default false: also capture the step-by-step relation evaluation output (very verbose). |
 | `messagePattern` | query | string |  | Optional log line layout pattern (log4j pattern syntax) for the captured lines; default layout when omitted. |
 
@@ -1464,7 +1476,7 @@ Creates an attribute-value subscription owned by the caller for a window (a fore
 
 **Response.** 200 with a [`attribute-subscription`](#shape-attribute-subscription): the new subscription id, the window as stored, and, with `valuesUpdate=true`, a full values update.
 
-**Errors.** 400 when the forest spec is missing or invalid; attribute specs with unknown formats are silently dropped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 when the forest spec is missing or invalid; attribute specs with unknown formats are silently dropped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/attribute/subscription/{id}`
 
@@ -1483,7 +1495,7 @@ Returns the subscription's current window and, with `valuesUpdate=true`, the val
 
 **Response.** 200 with a [`attribute-subscription`](#shape-attribute-subscription).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `PUT /rest/structure/2.0/attribute/subscription/{id}`
 
@@ -1502,7 +1514,7 @@ Replaces the whole window of an existing subscription (forest, rows and attribut
 
 **Response.** 200 with a [`attribute-subscription`](#shape-attribute-subscription).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `DELETE /rest/structure/2.0/attribute/subscription/{id}`
 
@@ -1516,7 +1528,7 @@ Drops a subscription of the caller and stops its value loading.
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/attribute/subscription/{id}/patch`
 
@@ -1535,7 +1547,7 @@ Changes only the parts of a subscription's window that are present in the body (
 
 **Response.** 200 with a [`attribute-subscription`](#shape-attribute-subscription).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) (code 4800) when the subscription does not exist, has expired, or belongs to another user. 400 when the window's forest spec is invalid. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/author-picker`
 
@@ -1586,11 +1598,11 @@ Resolves a list of user keys into display data for showing already-selected user
 
 Access: anonymous users allowed. Consumes: `application/json`. Produces: `application/json`.
 
-Lists the automation modules the grid can offer: every available generator (inserters, groupers, extenders, sorters, filters) with its presets, every available effector, and whether the caller holds the Structure app permissions to configure generators and effectors.
+Lists the automation modules the grid can offer: every available generator (inserters, groupers, extenders, sorters, filters) with its presets, every available effector, and whether the caller holds the <product> app permissions to configure generators and effectors.
 
 **Response.** 200 with a [`automation-catalog`](#shape-automation-catalog). Modules whose plugin is unavailable are left out.
 
-**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/calendar/list`
 
@@ -1767,7 +1779,7 @@ Suggests agile boards visible to the caller (item value = board id, label and ti
 
 **Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding at most one group per category (no group when nothing matches).
 
-**Errors.** 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/create-structure/projects`
 
@@ -1778,11 +1790,11 @@ Access: logged-in user. Consumes: `application/json`. Produces: `application/jso
 | `query` | query | string |  | Text typed by the user; items whose name contains it (case-insensitive literal substring; empty matches everything) are returned ordered by name length, shortest first, with the matching part wrapped in `<b>` in the item's html label. |
 | `maxResults` | query | integer |  | Maximum number of items; only values between 1 and the server limit (20 by default) lower the limit. When results are cut, the group carries a footer text with shown/total counts. |
 
-Suggests Jira projects that are enabled for Structure and browseable by the caller (item value = project id, title = project description).
+Suggests Jira projects that are enabled for <product> and browseable by the caller (item value = project id, title = project description).
 
 **Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding at most one group per category (no group when nothing matches).
 
-**Errors.** 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/create-structure/share-with`
 
@@ -1797,7 +1809,7 @@ Suggests permission subjects for sharing a new structure: a `private` choice (it
 
 **Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding at most one group per category (no group when nothing matches). Groups appear in the order private, roles, groups.
 
-**Errors.** 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/create-structure/versions`
 
@@ -1813,7 +1825,7 @@ Suggests unarchived versions of the given projects (item value = version id, lab
 
 **Response.** 200 with a [`picker-search-result`](#shape-picker-search-result) holding at most one group per category (no group when nothing matches).
 
-**Errors.** 400 when a project id is not a number. 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 when a project id is not a number. 401 from the platform for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/dark-features`
 
@@ -1895,7 +1907,7 @@ Re-applies effect batches that were undone with the undo call; same contract as 
 
 **Response.** 200 with a [`effect-undo-redo-response`](#shape-effect-undo-redo-response); `successfulActions` is always 1, failures go into `updateError`.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec or effect ids are missing or the forest source is not a transforming one; a forest that accepts the call but not the operation (a plain or clipboard forest) gives `UNSUPPORTED_FOREST_SOURCE_OPERATION` in `updateError` with status 200. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec or effect ids are missing or the forest source is not a transforming one; a forest that accepts the call but not the operation (a plain or clipboard forest) gives `UNSUPPORTED_FOREST_SOURCE_OPERATION` in `updateError` with status 200. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effect/undo`
 
@@ -1911,7 +1923,7 @@ Reverts the given batches of effects that earlier grid actions caused in Jira (f
 
 **Response.** 200 with a [`effect-undo-redo-response`](#shape-effect-undo-redo-response). A failed undo is reported inside the body (`updateError`), not by status; `successfulActions` is always 1.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec or effect ids are missing or the forest source is not a transforming one; a forest that accepts the call but not the operation (a plain or clipboard forest) gives `UNSUPPORTED_FOREST_SOURCE_OPERATION` in `updateError` with status 200. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec or effect ids are missing or the forest source is not a transforming one; a forest that accepts the call but not the operation (a plain or clipboard forest) gives `UNSUPPORTED_FOREST_SOURCE_OPERATION` in `updateError` with status 200. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/acknowledge`
 
@@ -1925,7 +1937,7 @@ Marks finished effector processes as acknowledged by the user, so they stop bein
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/list`
 
@@ -1939,7 +1951,7 @@ Lists effector processes (runs of effectors that write to Jira) for the audit vi
 
 **Response.** 200 with a [`effector-page-response`](#shape-effector-page-response) whose `items` are [`effector-process`](#shape-effector-process); `pagination.total` = number of matching processes, `errors` = 0.
 
-**Errors.** 404 with no body for anonymous callers. 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 with `error` = `Invalid request data` when `startAt` is beyond the end of the list. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with no body for anonymous callers. 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 with `error` = `Invalid request data` when `startAt` is beyond the end of the list. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/cancel`
 
@@ -1954,7 +1966,7 @@ Requests cancellation of an effector process (its calculation or application sto
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 500 with a [`structure-error`](#shape-structure-error) when the process's progress handle is gone. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 500 with a [`structure-error`](#shape-structure-error) when the process's progress handle is gone. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/cancelAndWait`
 
@@ -1969,7 +1981,7 @@ If the process is pending, calculating, calculated, queued or in progress, reque
 
 **Response.** 200 with a [`effector-process`](#shape-effector-process) (state after the wait).
 
-**Errors.** 500 when the process handle is gone. A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 500 when the process handle is gone. A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/preview`
 
@@ -1984,7 +1996,7 @@ Returns a page of the effects a calculated process would apply (its preview), wi
 
 **Response.** 200 with a [`effector-page-response`](#shape-effector-page-response) whose `items` are [`effect-record`](#shape-effect-record) (with `index` = position in the preview); `pagination.total` = number of previewed effects, `pagination.errors` = number of warning or unresolvable effects.
 
-**Errors.** 404 text/plain `No preview found` when the process has no preview. A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 with `error` = `Invalid request data` when `startAt` is beyond the end of the list. Paging is checked before access to the process, so a stranger with a bad `startAt` gets 400, not 404. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 text/plain `No preview found` when the process has no preview. A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 with `error` = `Invalid request data` when `startAt` is beyond the end of the list. Paging is checked before access to the process, so a stranger with a bad `startAt` gets 400, not 404. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/records`
 
@@ -1999,7 +2011,7 @@ Returns a page of the effects a process actually applied (its audit records), ea
 
 **Response.** 200 with a [`effector-page-response`](#shape-effector-page-response) whose `items` are [`effect-record`](#shape-effect-record); `pagination.total` = number of (filtered) records, `errors` = 0.
 
-**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 with `error` = `Invalid request data` when `startAt` is beyond the end of the list. Paging is checked before access to the process, so a stranger with a bad `startAt` gets 400, not 404. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 400 text/plain when `startAt` is negative or `maxResults` is below -1; 400 with `error` = `Invalid request data` when `startAt` is beyond the end of the list. Paging is checked before access to the process, so a stranger with a bad `startAt` gets 400, not 404. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/resume`
 
@@ -2014,7 +2026,7 @@ Resumes applying a process whose application was interrupted (status `APPLY_INTE
 
 **Response.** 200 with a [`effector-process`](#shape-effector-process).
 
-**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 500 with a [`structure-error`](#shape-structure-error) when resuming fails. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 500 with a [`structure-error`](#shape-structure-error) when resuming fails. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/effectorProcess/{processId}/status`
 
@@ -2028,7 +2040,7 @@ Returns a process's status, completion percentage and whether cancellation was r
 
 **Response.** 200 with a [`effector-process-progress`](#shape-effector-process-progress).
 
-**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 500 with a [`structure-error`](#shape-structure-error) when the progress handle is gone. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** A process is visible only to the user who started it and to Jira administrators; any other caller (and an unknown id) gets 404 with a [`structure-error`](#shape-structure-error) (code 6017). 500 with a [`structure-error`](#shape-structure-error) when the progress handle is gone. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/effectorProcess/{processId}/undo`
 
@@ -2043,7 +2055,7 @@ Starts a new effector process that reverts the successfully applied effects of a
 
 **Response.** 200 with a bare JSON number: the id of the new undo process.
 
-**Errors.** Body is a [`structure-error`](#shape-structure-error): 403 (code 4501) when the caller lacks the app permission to run effectors; 400 when the process is not finished or has nothing to undo; 404 (code 6017) when the process is unknown or not the caller's. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** Body is a [`structure-error`](#shape-structure-error): 403 (code 4501) when the caller lacks the app permission to run effectors; 400 when the process is not finished or has nothing to undo; 404 (code 6017) when the process is unknown or not the caller's. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/expr/validate`
 
@@ -2073,7 +2085,7 @@ Returns the current content of a forest (a structure, a past version of one, a q
 
 **Response.** 200 with a [`forest-snapshot`](#shape-forest-snapshot) echoing the spec.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. A missing or unparsable `s` gives 400 with `error` = `Invalid request data` and `message` = `Forest spec is required`. Malformed JSON in a POST body gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. A missing or unparsable `s` gives 400 with `error` = `Invalid request data` and `message` = `Forest spec is required`. Malformed JSON in a POST body gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/forest/latest`
 
@@ -2087,7 +2099,7 @@ Same as the GET form, with the forest spec as the request body.
 
 **Response.** 200 with a [`forest-snapshot`](#shape-forest-snapshot) echoing the spec.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/forest/update`
 
@@ -2103,7 +2115,7 @@ Applies a list of editing actions (add, copy, move, remove rows) to a forest in 
 
 **Response.** 200 with a [`forest-update-response`](#shape-forest-update-response). Refusals and questions are reported in `updateError` with status 200.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when `version` is missing, an action name is unknown (`add`, `copy`, `move`, `remove` are valid), a forest/row list required by the action is missing or unparsable, `cutFrom` lacks `version` or `rowIds`, or `copy` has `originalRowIds` of the wrong length. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when `version` is missing, an action name is unknown (`add`, `copy`, `move`, `remove` are valid), a forest/row list required by the action is missing or unparsable, `cutFrom` lacks `version` or `rowIds`, or `copy` has `originalRowIds` of the wrong length. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/generation/generatorDescriptions`
 
@@ -2117,7 +2129,7 @@ Describes generators by id for the health/stop banner: an HTML snippet with the 
 
 **Response.** 200 with a JSON array of [`generator-description`](#shape-generator-description).
 
-**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/generation/resume`
 
@@ -2131,7 +2143,7 @@ Resumes automatic generation for the given forests and every forest they are bui
 
 **Response.** 200 with a [`generation-control-request`](#shape-generation-control-request) whose `forestSpecs` lists every forest that was considered for resuming (the requested ones and their dependencies).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/generation/stop`
 
@@ -2145,7 +2157,7 @@ Stops generation of the given forests: running generations are cancelled and the
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/generation/stopIfRunning`
 
@@ -2159,7 +2171,7 @@ Like stop, but only takes effect for a forest whose generation is currently runn
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) when a structure in a spec is not visible; 400 for an invalid spec. 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/genericItem/creationFields/{itemType}/{projectId}`
 
@@ -2174,7 +2186,7 @@ Returns the field descriptors needed to create a planning task: `project` and `i
 
 **Response.** 200 with a JSON object mapping field id (`project`, `issuetype`) to a [`generic-item-field`](#shape-generic-item-field); `{"empty": true}` for other item types.
 
-**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/genericItem/details/{itemType}/{id}`
 
@@ -2189,7 +2201,7 @@ Returns the details panel content of a generic item (memo, planning task): its s
 
 **Response.** 200 with a [`generic-item-details`](#shape-generic-item-details).
 
-**Errors.** 400 text/plain when the item type is not a generic item type; 404 with a [`structure-error`](#shape-structure-error) when the item does not exist or is not visible to the caller. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 text/plain when the item type is not a generic item type; 404 with a [`structure-error`](#shape-structure-error) when the item does not exist or is not visible to the caller. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/genericItem/{itemType}/validate`
 
@@ -2204,7 +2216,7 @@ Validates the values of a planning task that is about to be created and returns 
 
 **Response.** 200 with a [`generic-item-validation`](#shape-generic-item-validation); when `params` is absent, only an empty `fieldErrors` is returned.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) for other item types or when the caller can browse no project; 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) for other item types or when the caller can browse no project; 401 for anonymous callers. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/group-picker`
 
@@ -2234,7 +2246,7 @@ Returns one version of a structure's history in full: the change entries with th
 
 **Response.** 200 with a [`structure-history-version`](#shape-structure-history-version) including `fullForest` and the per-change position fields.
 
-**Errors.** 403 text/plain when the structure does not exist or is not viewable; 400 text/plain when the version is missing; other failures (e.g. unknown version) as text/plain with the status of the error category (404/403/400/500). 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain when the structure does not exist or is not viewable; 400 text/plain when the version is missing; other failures (e.g. unknown version) as text/plain with the status of the error category (404/403/400/500). 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/history/{id}/versions`
 
@@ -2252,7 +2264,7 @@ Lists the change history of a structure, newest first, one entry per stored vers
 
 **Response.** 200 with a [`structure-history-page`](#shape-structure-history-page).
 
-**Errors.** 403 text/plain when the structure does not exist or the caller cannot view it. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain when the structure does not exist or the caller cannot view it. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/info-popup`
 
@@ -2316,7 +2328,7 @@ Returns what the caller can do with an issue from the grid's issue menu: availab
 
 **Response.** 200 with a [`issue-actions-and-operations`](#shape-issue-actions-and-operations).
 
-**Errors.** 404 with no body when the issue does not exist or the caller cannot see it. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with no body when the issue does not exist or the caller cannot see it. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/item/create`
 
@@ -2332,7 +2344,7 @@ Creates a new item (issue, folder, memo, planning task... of the given type) or 
 
 **Response.** 200 with a [`create-item-response`](#shape-create-item-response). Item validation errors go into `formErrors`/`fieldErrors`, insertion refusals and questions into `updateError`, all with status 200.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when `item.type` is missing or `item.itemId` cannot be parsed; 404/400/500 with a [`structure-error`](#shape-structure-error) when the type is unknown, cannot create items, or its module fails; an error when the forest does not accept actions. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when `item.type` is missing or `item.itemId` cannot be parsed; 404/400/500 with a [`structure-error`](#shape-structure-error) when the type is unknown, cannot create items, or its module fails; an error when the forest does not accept actions. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/item/update`
 
@@ -2348,7 +2360,7 @@ Updates fields of an existing item (through its item type, e.g. summary of a fol
 
 **Response.** 200 with a [`update-item-response`](#shape-update-item-response); validation failures give `success` = false with `formErrors`/`fieldErrors`.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the item id is missing or unparsable, the item type is unknown, or the type does not support updates while non-note values are given; 500 when the item type module fails. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the item id is missing or unparsable, the item type is unknown, or the type does not support updates while non-note values are given; 500 when the item type module fails. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/label-picker`
 
@@ -2403,7 +2415,7 @@ Returns the table of the structure management page for all structures the caller
 
 **Response.** 200 with a [`managed-structures-table`](#shape-managed-structures-table).
 
-**Errors.** 429 text/plain with a `Retry-After` header (seconds) when rate-limited. 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 429 text/plain with a `Retry-After` header (seconds) when rate-limited. 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use <product>. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/manage-structures/favorites`
 
@@ -2413,7 +2425,7 @@ Returns the management table restricted to the caller's favourite structures (ar
 
 **Response.** 200 with a [`managed-structures-table`](#shape-managed-structures-table).
 
-**Errors.** 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use <product>. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/manage-structures/one`
 
@@ -2427,7 +2439,7 @@ Returns the management table row for a single structure (to refresh one row).
 
 **Response.** 200 with a [`managed-structures-table`](#shape-managed-structures-table).
 
-**Errors.** 404 with a [`structure-error`](#shape-structure-error) when the structure does not exist or is not viewable. 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 404 with a [`structure-error`](#shape-structure-error) when the structure does not exist or is not viewable. 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use <product>. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/manage-structures/page-details`
 
@@ -2441,7 +2453,7 @@ Returns, for the structures on the currently displayed page of the management ta
 
 **Response.** Body: map<string, [`managed-structure-page-details`](#shape-managed-structure-page-details)>. 200 with a JSON object mapping each structure id (as a string key) to a [`managed-structure-page-details`](#shape-managed-structure-page-details).
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) (`Invalid request data`) when more ids than the limit are sent. 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) (`Invalid request data`) when more ids than the limit are sent. 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use <product>. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/manage-structures/recent-ids`
 
@@ -2451,7 +2463,7 @@ Returns the ids of the structures the caller opened recently, most recent first.
 
 **Response.** Body: array<integer>. 200 with a JSON array of structure ids.
 
-**Errors.** 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use <product>. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/manage-structures/recents`
 
@@ -2461,7 +2473,7 @@ Returns the management table restricted to the caller's recently opened structur
 
 **Response.** 200 with a [`managed-structures-table`](#shape-managed-structures-table).
 
-**Errors.** 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use Structure. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 with a [`structure-error`](#shape-structure-error) (code 4010) when the caller may not use <product>. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/mapping`
 
@@ -2475,7 +2487,7 @@ Translates row ids into the corresponding rows of other forests: for each forest
 
 **Response.** 200 with a [`row-mapping-response`](#shape-row-mapping-response): one mapping per forest spec, in request order, each with one mapped row per requested row (0 when none).
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the forest spec is invalid (missing, more than one of `structureId`/`sQuery`/clipboard, `version` or `title` without `structureId`, unsupported query type); 404 when the structure does not exist or is not visible. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/note`
 
@@ -2610,7 +2622,7 @@ The grid's periodic poll. In one call it returns: for each watched forest, the c
 
 **Response.** 200 with a [`poll-response`](#shape-poll-response). Forest entries whose spec is invalid are silently left out of `forestUpdates`; a forest that cannot be read is reported with `error` in its update; an unknown subscription is reported with `error` in its subscription update.
 
-**Errors.** 500 for a null body or a forest entry or `items` without `version`. 400 with a [`structure-error`](#shape-structure-error) when more subscriptions than the limit are sent or a subscription entry lacks `id` or `version`. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 500 for a null body or a forest entry or `items` without `version`. 400 with a [`structure-error`](#shape-structure-error) when more subscriptions than the limit are sent or a subscription entry lacks `id` or `version`. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/process/{id}/cancel`
 
@@ -2625,7 +2637,7 @@ Requests cancellation of a background process (any long-running Structure operat
 
 **Response.** 200 with a [`background-process-info`](#shape-background-process-info).
 
-**Errors.** 403 text/plain `permission violation` when the caller may not use Structure; 404 text/plain when the process does not exist or is not visible to the caller (a process with no owner, or whose owner no longer exists, is visible to everyone; otherwise it is visible to the user who started it, and every process to Jira administrators).
+**Errors.** 403 text/plain `permission violation` when the caller may not use <product>; 404 text/plain when the process does not exist or is not visible to the caller (a process with no owner, or whose owner no longer exists, is visible to everyone; otherwise it is visible to the user who started it, and every process to Jira administrators).
 
 #### `GET /rest/structure/2.0/process/{id}/info`
 
@@ -2639,7 +2651,7 @@ Returns the display state of a background process: localized name, status, curre
 
 **Response.** 200 with a [`background-process-info`](#shape-background-process-info).
 
-**Errors.** 403 text/plain `permission violation` when the caller may not use Structure; 404 text/plain when the process does not exist or is not visible to the caller (a process with no owner, or whose owner no longer exists, is visible to everyone; otherwise it is visible to the user who started it, and every process to Jira administrators).
+**Errors.** 403 text/plain `permission violation` when the caller may not use <product>; 404 text/plain when the process does not exist or is not visible to the caller (a process with no owner, or whose owner no longer exists, is visible to everyone; otherwise it is visible to the user who started it, and every process to Jira administrators).
 
 #### `GET /rest/structure/2.0/projects-picker`
 
@@ -2813,7 +2825,7 @@ Searches the structures the caller can access with at least the requested permis
 
 **Response.** 200 with a [`structure-summary-list`](#shape-structure-summary-list); it signals when more pages exist.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when `permission` is not a known level name; 429 text/plain with `Retry-After` (seconds) when rate-limited. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when `permission` is not a known level name; 429 text/plain with `Retry-After` (seconds) when rate-limited. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/structure`
 
@@ -2823,11 +2835,11 @@ Access: anonymous users allowed. Consumes: `application/json`. Produces: `applic
 |---|---|---|---|---|
 | (body) | body | [`structure-summary`](#shape-structure-summary) |  | [`structure-summary`](#shape-structure-summary) with the properties of the new structure (name, description, permissions, etc.; `id` is ignored). |
 
-Creates a new structure from the given properties, owned by the caller. Requires the Structure app permission to create structures.
+Creates a new structure from the given properties, owned by the caller. Requires the <product> app permission to create structures.
 
 **Response.** 201 Created with a `Location` header (the relative URI `/<new id>` resolved by the REST framework) and the created [`structure-summary`](#shape-structure-summary) including permissions and owner.
 
-**Errors.** 403 with a [`structure-error`](#shape-structure-error) (code 4006) when the caller may not create structures; 400 when the body is missing or invalid. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 with a [`structure-error`](#shape-structure-error) (code 4006) when the caller may not create structures; 400 when the body is missing or invalid. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/structure/list`
 
@@ -2842,7 +2854,7 @@ Returns the data for the structure selector shown next to an issue or in a proje
 
 **Response.** 200 with a [`structure-picker-list`](#shape-structure-picker-list).
 
-**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `PUT /rest/structure/2.0/structure/recents`
 
@@ -2856,7 +2868,7 @@ Records that the caller opened a structure, moving it to the front of the caller
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/structure/{id}`
 
@@ -2872,7 +2884,7 @@ Returns one structure's properties (name, description and its rendered HTML, fla
 
 **Response.** 200 with a [`structure-summary`](#shape-structure-summary).
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the id is missing or not positive; 404 with a [`structure-error`](#shape-structure-error) when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when the id is missing or not positive; 404 with a [`structure-error`](#shape-structure-error) when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `DELETE /rest/structure/2.0/structure/{id}`
 
@@ -2886,7 +2898,7 @@ Deletes a structure together with its forest, change history and index entries. 
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** 400 when the id is missing or not positive; 404 with a [`structure-error`](#shape-structure-error) when the structure is not viewable; 403 with a [`structure-error`](#shape-structure-error) when the caller can view but not administer it. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 when the id is missing or not positive; 404 with a [`structure-error`](#shape-structure-error) when the structure is not viewable; 403 with a [`structure-error`](#shape-structure-error) when the caller can view but not administer it. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/structure/{id}/description-shown`
 
@@ -2900,7 +2912,7 @@ Tells whether the structure is configured to show its description above the grid
 
 **Response.** 200 with a [`structure-description-shown-flag`](#shape-structure-description-shown-flag) (false when never set).
 
-**Errors.** 403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/structure/{id}/favorite`
 
@@ -2914,7 +2926,7 @@ Tells whether the structure is one of the caller's favourites (always false for 
 
 **Response.** 200 with a [`structure-favorite-flag`](#shape-structure-favorite-flag).
 
-**Errors.** 403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `PUT /rest/structure/2.0/structure/{id}/favorite`
 
@@ -2929,7 +2941,7 @@ Adds the structure to, or removes it from, the caller's favourites. For anonymou
 
 **Response.** 200 with a [`structure-favorite-flag`](#shape-structure-favorite-flag): the request echoed back (or `false` for anonymous).
 
-**Errors.** 403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/structure/{id}/quick-transforms`
 
@@ -2943,7 +2955,7 @@ Returns the structure's configured quick transformations (the preset transformat
 
 **Response.** 200 with the stored JSON array of [`quick-transform-entry`](#shape-quick-transform-entry) returned verbatim (`[]` when none).
 
-**Errors.** 403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain when the structure does not exist or is not viewable. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `PUT /rest/structure/2.0/structure/{id}/quick-transforms`
 
@@ -2958,7 +2970,7 @@ Replaces the structure's quick transformations. Requires administer permission o
 
 **Response.** 200 with [`empty-ok`](#shape-empty-ok) (`{"empty": true}`).
 
-**Errors.** 403 text/plain when the structure does not exist or the caller cannot administer it; 400 with a [`structure-error`](#shape-structure-error) when the body is missing, unparsable or has duplicate ids. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 403 text/plain when the structure does not exist or the caller cannot administer it; 400 with a [`structure-error`](#shape-structure-error) when the body is missing, unparsable or has duplicate ids. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/structure/{id}/update`
 
@@ -2973,7 +2985,7 @@ Changes a structure's properties; properties absent from the body are kept. Requ
 
 **Response.** 200 with the updated [`structure-summary`](#shape-structure-summary) including permissions and owner.
 
-**Errors.** 400 when the body is missing or invalid; 404 or 403 with a [`structure-error`](#shape-structure-error) when the structure is not visible or not administrable. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 when the body is missing or invalid; 404 or 403 with a [`structure-error`](#shape-structure-error) when the structure is not visible or not administrable. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/structureWelcome/search`
 
@@ -3001,7 +3013,7 @@ Undoes groups of actions previously performed by synchronizers (as recorded in t
 
 **Response.** 200 with a [`synchronizer-undo-batch`](#shape-synchronizer-undo-batch): `syncModuleKeys` echoed, `actionGroups` holding, for each input group in reverse order, the JSON-array text of the resulting undo actions or failure descriptions (`result`: `failure`, optional `reason`, optional `exception`).
 
-**Errors.** 401 for anonymous callers. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 401 for anonymous callers. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `GET /rest/structure/2.0/tempo/accounts`
 
@@ -3065,7 +3077,7 @@ Computes attribute values (column data) for given rows of one or more forests in
 
 **Response.** 200 with a [`row-values-response`](#shape-row-values-response) with one entry per request entry, in order.
 
-**Errors.** 400 with a [`structure-error`](#shape-structure-error) when a forest spec is invalid. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use Structure (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
+**Errors.** 400 with a [`structure-error`](#shape-structure-error) when a forest spec is invalid. Failures raised by Structure are answered with a [`structure-error`](#shape-structure-error) body and a status from the error category: 404 not found or not accessible, 403 no permission, 400 invalid input, 500 otherwise. Malformed JSON gives 400 with a [`structure-error`](#shape-structure-error) whose `error` is a parse-failure text; invalid request data gives 400 with `error` = `Invalid request data` and `message` = the reason; 503 (text) while Structure is stopped. 403 text/plain `permission violation` when the caller is not allowed to use <product> (plugin-wide user restriction); 401 when the query string carries `loggedIn=true` and the caller is anonymous.
 
 #### `POST /rest/structure/2.0/wiki-markup/render`
 
@@ -3169,19 +3181,19 @@ Status of one companion add-on in the about popup.
 | `version` | string | Installed version, or null when the add-on is not installed and enabled. |
 | `licenseInfo` | [`about-license-summary`](#shape-about-license-summary) | The add-on's license summary when the add-on is installed, registered with the app and the caller is logged in; null otherwise (always null for Testy). |
 | `updateAvailable` | boolean | Whether the Marketplace offers a newer version. Always false in the replacement (no Marketplace access). |
-| `links` | [`about-companion-links`](#shape-about-companion-links) | Static links to the vendor's documentation for this add-on. |
+| `links` | [`about-companion-links`](#shape-about-companion-links) | Always all null (see the shape). |
 
 <a id="shape-about-companion-links"></a>
 
 #### Shape `about-companion-links`
 
-Fixed documentation links shown for a companion add-on (static strings pointing to the vendor's public site; the server does not fetch them).
+Links of a companion add-on. The keys stay in the reply, and every value is null: the original's addresses lead to the vendor, so the replacement has none.
 
 | key | JSON type | meaning |
 |---|---|---|
-| `gettingStarted` | string | URL of the getting-started guide. |
-| `documentation` | string | URL of the product documentation. |
-| `tryIt` | string | URL of a demo or trial page; null for Deliver. |
+| `gettingStarted` | string | Always null. |
+| `documentation` | string | Always null. |
+| `tryIt` | string | Always null. |
 
 <a id="shape-about-license-summary"></a>
 
@@ -3365,7 +3377,7 @@ Changed attribute values of a subscription since a version.
 | key | JSON type | meaning |
 |---|---|---|
 | `id` | integer | Subscription id. |
-| `full` | boolean | True when the update contains all values (the client must discard what it had), false when only changes since `fromVersion`. |
+| `full` | boolean | True when the update contains all values for the window, false when only changes since `fromVersion`. A client accepts a full update whatever version it holds, and merges it into its values: rows the update does not mention keep what they had. |
 | `fromVersion` | [`data-version`](#shape-data-version) | The version the update starts from (as requested). |
 | `version` | [`data-version`](#shape-data-version) | The values version after applying this update; send it next time. |
 | `data` | array<[`attribute-subscription-values`](#shape-attribute-subscription-values)> | Values per attribute. |
@@ -4379,7 +4391,7 @@ Bootstrap data for the structure grid client.
 | `canManageGlobalSavedColumns` | boolean | Caller may manage instance-wide saved columns. |
 | `admin` | boolean | True for Jira administrators; absent otherwise. |
 | `anonymous` | boolean | True for anonymous callers; absent otherwise. |
-| `extensions` | map<string, map<string, any>> | Per companion-app key, the client settings that app supplies; absent when none. |
+| `extensions` | map<string, map<string, any>> | Per companion-app key, the client settings that app supplies; absent when none. The plugin passes them on and neither computes nor checks them; its front end reads the key `licensed` of an entry as that app's own availability flag (exactly true means available). |
 | `exportLinks` | array<[`export-menu-link`](#shape-export-menu-link)> | Export menu entries; absent when none. |
 | `externalGenericItemTypes` | array<[`third-party-item-type`](#shape-third-party-item-type)> | Item types contributed by other apps (hidden ones excluded), sorted by weight then title. |
 | `restAsyncBackoff` | array<integer> | Delays between re-polls of long-running requests (from the application or system property `structure.rest.async.backoff`, comma-separated); absent when not configured. |
@@ -5209,7 +5221,7 @@ How a quick transformation appears.
 |---|---|---|
 | `id` | string | Unique id within the structure's list. |
 | `name` | string | Button label. |
-| `color` | string | Button color (CSS color value). |
+| `color` | string | Button colour: one of `gray`, `blue`, `green`, `orange`, `red`, `purple`, the values of the plugin's colour picker. |
 
 <a id="shape-quick-transform-entry"></a>
 
@@ -6505,7 +6517,7 @@ The shared caches are named `com.almworks.structure.<name>`, for example `forest
 #### Jira entities the plugin creates or references
 
 - **Custom field type** `com.almworks.jira.structure:index-monitor-cf-type` and **searcher** `com.almworks.jira.structure:index-monitor-cf-searcher`:
-  - At start-up the plugin looks at the first custom field of this type (any further ones are left alone) and, when there is none, creates a global one named `Structure Index Monitor`, with description "System custom field, required for correct functioning of Structure add-on. Does not store any data."
+  - At start-up the plugin looks at the first custom field of this type (any further ones are left alone) and, when there is none, creates a global one named `<product> Index Monitor`, with description "System custom field, required for correct functioning of <product> add-on. Does not store any data."
   - A field it has just created is locked as a managed configuration item; an existing global field is not locked again. A non-global first field is deleted and re-created.
   - The field stores no values and adds nothing to the issue index; its indexer only observes reindexing.
   - Existing installs have this field in Jira's custom-field table, keyed by the type key above.
@@ -6521,7 +6533,7 @@ The shared caches are named `com.almworks.structure.<name>`, for example `forest
     - `queryDesc`: validator only, the message shown when the issue is blocked.
     - `allowUnstructured`: `true`/`false`.
 - **Gadgets** `com.almworks.jira.structure:structure-gadget` and `com.almworks.jira.structure:cfd-gadget`. Jira's dashboard tables persist their spec URIs and string user preferences:
-  - Structure gadget: `structureId`, `viewId`, `filterId`, `customTitle`, `numRows` (default `10`), `isConfigured` (default `false`), `allowChanges` (default `true`), `useCanvasSettings` (default `false`), `canvas-viewId`, `canvas-numRows`, `filterType`, `filterQuery`, `adjustments`.
+  - <product> gadget: `structureId`, `viewId`, `filterId`, `customTitle`, `numRows` (default `10`), `isConfigured` (default `false`), `allowChanges` (default `true`), `useCanvasSettings` (default `false`), `canvas-viewId`, `canvas-numRows`, `filterType`, `filterQuery`, `adjustments`.
   - Cumulative-flow gadget: `scopeStructureId`, `trainingStructureId`, `trainingPeriod` (default `-1`), `estimationIssueTypes`, `scopeIssueTypes`, `teamAttributeSpec`, `targetDate`, `whenAppearedAttributeSpec`, `whenWorkStartedAttributeSpec`, `whenCompletedAttributeSpec`, `ignoreThreshold`, `customTitle`, `isConfigured` (default `false`).
   - The browser script defines the value contents. Ids are decimal strings, and attribute specs are JSON.
 
@@ -6748,7 +6760,24 @@ original uses them itself:
 - every web-resource's module key, context and dependency (`inventory.json`), and every web section and
   location the plugin declares.
 
-The browser-side programming interface that extension apps call is specified with the web-resources' claims.
+**The browser-side API.** Companion apps call these names from their own scripts, so they are contract, exactly:
+- the global `window.almworks.structure.api`, with the members `subClass`, `baseClass`, `isSubClass`, `isInstance`,
+  `addSuper`, `getClassName`, `Column`, `ColumnType`, `registerColumnType`, `ColumnConfigurator`, `ColumnGroup`,
+  `registerColumnGroup`, `SpecOption`, `ColumnOption`, `registerCoreExtension`, `ItemDetailsProvider`,
+  `registerItemDetailsProvider` and `automationRegistry`;
+- the helper `window.namespace`;
+- the AMD modules `structure/api/AttributeDescriptor`, `structure/api/AutomationRegistry`, `structure/api/Column`,
+  `structure/api/ColumnConfigurator`, `structure/api/ColumnGroup`, `structure/api/ColumnType`,
+  `structure/api/EffectorDescriptor`, `structure/api/GeneratorDescriptor`, `structure/api/ItemDetailsBridge`,
+  `structure/api/ItemDetailsProvider`, `structure/api/SecondaryPanelRegistry`, `structure/api/SpecOption`,
+  `structure/api/StructureCoreExtension` and `structure/api/StructureCoreExtensionRegistry`.
+
+Their members, arguments, return values and call order are in the claims of `widget-bare`. Every other AMD
+module id, script path, CSS class, DOM id and browser-storage key of the original is not contract: choose your own.
+
+**Front-end libraries.** `jquery`, `jquery-ui`, `react`, `momentjs`, `tslib`, `c3`, `stacktrace.js`, `uikit`, `vendors`
+and `fonts` keep their keys, types and dependencies. Which library fills each one is your choice; their claims say
+what the plugin needs from it.
 
 ## 1.8 Out of scope: contacting the vendor
 

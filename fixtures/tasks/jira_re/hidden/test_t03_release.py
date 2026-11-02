@@ -1,11 +1,11 @@
-"""t03 (stage 6): RELEASE.md accounts for every module of the plugin."""
+"""t03 (stage 6): RELEASE.md accounts for every module in the pilot's scope."""
 import pytest
 
-from _support import WS, module_keys, need_module, stage
+from _support import WS, need_module, scope_keys, stage
 
 
 @stage(6)
-@pytest.mark.parametrize("key", module_keys())
+@pytest.mark.parametrize("key", scope_keys())
 def test_release_names_the_module(key):
     need_module(key)
     rel = WS / "RELEASE.md"

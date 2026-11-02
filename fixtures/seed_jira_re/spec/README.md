@@ -4,6 +4,8 @@ Written by the analyst from the original plugin. It describes behaviour, never c
 
 | File | What |
 |---|---|
+| `PILOT.md` | **Start here.** What this pilot covers, out of everything below. |
+| `pilot-claims.jsonl` | The claims in the pilot's scope: the same lines as in `claims.jsonl`. |
 | `SPEC.md` | The external contract first (everything the replacement must keep exactly), then each module's behaviour. |
 | `API.md` | Part 2 of `SPEC.md`: the public Java API, every type and signature exactly, with the meaning of each. |
 | `INVENTORY.md` | What the plugin is for and how its modules fit together. |
@@ -19,3 +21,6 @@ the first.
 **Suspected bugs.** Claims flagged `"suspected_bug": true` describe the original faithfully, including what
 looks like a bug (their text says "as the original does"). They are the contract until a `CHANGES-*.md` file
 says otherwise: implement them as stated, and check each one as you implement it (stage 2 says how).
+
+**`<product>`.** Wherever text quoted in a claim has `<product>`, the replacement shows its own display name
+(`SPEC.md` 1.1), so 'Welcome to `<product>`' is the claim's exact text with your name in it.

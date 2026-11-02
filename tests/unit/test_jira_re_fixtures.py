@@ -173,7 +173,8 @@ def test_hidden_suite_on_a_synthetic_plugin(tmp_path):
     files = {
         "analysis/rewrite_map.json": '{"modules": {"gate": {"status": "done", "files": ["src/main/java/n/G.java"],'
                                      ' "tests": ["src/test/java/n/GTest.java"]}}}',
-        "src/main/java/n/G.java": "class G {}", "src/test/java/n/GTest.java": "class GTest {}",
+        "src/main/java/n/G.java": "class G {}", "src/test/java/n/GTest.java": "class GTest { void c0001_checksGate() {} }",
+        "spec/claims.jsonl": '{"id": "C-0001", "module": "gate", "behaviour": "b", "status": "active"}\n',
         "pom.xml": "<project><groupId>com.acme</groupId><artifactId>p</artifactId></project>",
         "src/main/resources/atlassian-plugin.xml": '<atlassian-plugin key="${project.groupId}.${project.artifactId}">'
                                                    '<workflow-validator key="gate" class="n.G"/></atlassian-plugin>',
@@ -390,6 +391,153 @@ def test_spec_check_finds_acronym_led_internal_names(tmp_path):
     (spec / "INVENTORY.md").write_text("Tune `com.acme.old.AOBasedStore.limit`; JSON and Gate are words.\n")
     text = "\n".join(_check(jar, spec, analyst).problems)
     assert "AOBasedStore" in text and "JSON" not in text and "Gate" not in text, text
+
+
+def _with_front_end(jar: Path) -> Path:
+    with zipfile.ZipFile(jar, "a") as z:
+        z.writestr("js/app/bundle.js", 'define("app/ui/GridPresenter",["a"],function(a){});'
+                                       'define("app/api/ColumnType",[],function(){});')
+        z.writestr("templates/page.vm", "<div/>")
+    return jar
+
+
+def test_evidence_may_cite_front_end_sources(tmp_path):
+    """JC6: UI behaviour lives in JS and templates, so evidence may be a jar entry or an AMD module id."""
+    from _support import reference
+    ref = reference(_with_front_end(_analyst_fixture(tmp_path)[0]))
+    assert ref.resolve("js/app/bundle.js") and ref.resolve("templates/page.vm")
+    assert ref.resolve("amd:app/ui/GridPresenter") and ref.resolve("amd:app/api/ColumnType")
+    assert not ref.resolve("js/app/nope.js") and not ref.resolve("amd:app/ui/Nope")
+    assert not ref.resolve("amd:")
+
+
+def test_spec_check_finds_internal_front_end_names(tmp_path):
+    """JC6: a JS module's id, its CamelCase last segment and a source path leak like an internal class; a
+    browser API name listed in contract-classes.txt is contract."""
+    jar, spec, analyst = _analyst_fixture(tmp_path)
+    _with_front_end(jar)
+    (spec / "INVENTORY.md").write_text("The GridPresenter of app/ui/GridPresenter, from templates/page.vm and "
+                                       "js/app/bundle.js; extend app/api/ColumnType at /rest/app/ui.\n")
+    text = "\n".join(_check(jar, spec, analyst).problems)
+    for leak in ("GridPresenter by its simple name", "app/ui/GridPresenter", "templates/page.vm", "js/app/bundle.js"):
+        assert leak in text, text
+    assert "/rest/app/ui" not in text
+    assert "app/api/ColumnType" in text
+    with (analyst / "contract-classes.txt").open("a") as f:
+        f.write("app/api/ColumnType   # browser API\n")
+    assert "ColumnType" not in "\n".join(_check(jar, spec, analyst).problems)
+
+
+def test_spec_check_finds_the_vendor_brand_and_vendor_addresses(tmp_path):
+    """Owner 2026-10-30: the spec never tells the replacement to show the vendor's product name or to link to
+    the vendor. Identifiers that are never fetched, such as activity-stream IRIs, are not links."""
+    jar, spec, analyst = _analyst_fixture(tmp_path)
+    (analyst / "product-name-phrases.txt").write_text("# comment\nWelcome to Acme\n")
+    (spec / "INVENTORY.md").write_text("Menu 'Welcome to Acme'; docs https://tempo.io/docs and http://alm.works/demo "
+                                       "and http://almworks.com/help; "
+                                       "verb http://structure.almworks.com/syndication/verbs/move\n")
+    text = "\n".join(_check(jar, spec, analyst).problems)
+    assert "shows the vendor's product name: Welcome to Acme" in text
+    for address in ("tempo.io", "alm.works", "almworks.com"):
+        assert f"links to the vendor: {address}" in text
+    assert "structure.almworks.com" not in text
+
+
+def test_the_spec_shows_no_vendor_brand_and_no_vendor_links():
+    spec = SEED / "spec"
+    phrases = [x.strip() for x in (TASK / "analyst" / "product-name-phrases.txt").read_text().splitlines()
+               if x.strip() and not x.startswith("#")]
+    assert len(phrases) > 50
+    claims = {c["id"]: c for c in map(json.loads, (spec / "claims.jsonl").read_text().splitlines())}
+    for c in claims.values():
+        assert not [x for x in phrases if x in c["behaviour"]], c["id"]
+    assert "`<product>`" in (spec / "README.md").read_text()
+    assert "`<product>`" in (spec / "SPEC.md").read_text()
+    for cid in ("C-1940", "C-2028", "C-4721"):
+        assert "http" not in claims[cid]["behaviour"], cid
+    assert "null" in claims["C-4721"]["behaviour"]
+    assert "`links.gettingStarted`" not in claims["C-5947"]["behaviour"]
+    assert "`Try it` link does not exist" in claims["C-5948"]["behaviour"]
+
+
+def test_the_pilot_scope_is_generated_and_current():
+    """Owner 2026-11-01: 85 foundation modules, a UI slice, and the API claims behind the independent API tests."""
+    sys.path.insert(0, str(TASK / "analyst"))
+    import build_pilot as bp
+    pilot = json.loads((TASK / "hidden" / "pilot.json").read_text())
+    assert len(pilot["modules"]) == 86 and "structure-info" in pilot["modules"]
+    assert len(pilot["api_claims"]) == 58
+    claims = [json.loads(x) for x in (SEED / "spec" / "pilot-claims.jsonl").read_text().splitlines()]
+    assert len(claims) == 748 and {c["status"] for c in claims} == {"active"}
+    assert {c["module"] for c in claims if c.get("module")} == set(pilot["modules"])
+    assert not bp.stale()
+
+
+def test_the_briefs_set_the_pilot_scope():
+    stage0 = (TASK / "stage0.md").read_text()
+    assert "PILOT.md" in stage0 and "everything in `spec/`" not in stage0
+    assert "PILOT.md" in (SEED / "spec" / "README.md").read_text()
+    for n in (2, 3, 4, 6):
+        assert "pilot" in (TASK / f"stage{n}.md").read_text(), n
+    assert "c0001_" in (TASK / "stage2.md").read_text()
+
+
+def _claim_workspace(tmp_path, java: str, untested: str = ""):
+    (tmp_path / "spec").mkdir()
+    (tmp_path / "analysis").mkdir()
+    (tmp_path / "src" / "test" / "java").mkdir(parents=True)
+    (tmp_path / "spec" / "claims.jsonl").write_text(
+        '{"id": "C-0001", "module": "gate", "behaviour": "b", "status": "active"}\n'
+        '{"id": "C-0002", "module": "gate", "behaviour": "b", "status": "active"}\n'
+        '{"id": "C-0003", "module": "gate", "behaviour": "b", "status": "retracted"}\n'
+        '{"id": "C-0004", "module": "other", "behaviour": "b", "status": "active"}\n')
+    (tmp_path / "src" / "test" / "java" / "GTest.java").write_text(java)
+    (tmp_path / "analysis" / "UNTESTED-CLAIMS.md").write_text(untested)
+
+
+@pytest.mark.parametrize("java,untested,missing", [
+    ("class G { @Test void c0001_a() {} @Test void c0002_b() {} }", "", set()),
+    ("class G { @Test void c0001_a() {} }", "", {"C-0002"}),
+    ("class G { @Test void c0001_a() {} }", "- C-0002: needs a real Jira page", set()),
+    ("class G { // void c0001_a() is planned\n @Test void c0002_b() {} }", "", {"C-0001"}),
+    ("class G { /* void c0001_a() {} */ @Test void c0002_b() {} }", "", {"C-0001"}),
+])
+def test_claims_without_a_test_are_found(tmp_path, monkeypatch, java, untested, missing):
+    sys.path.insert(0, str(TASK / "hidden"))
+    import _support
+    _claim_workspace(tmp_path, java, untested)
+    monkeypatch.setattr(_support, "WS", tmp_path)
+    assert _support.claims_without_tests({"C-0001", "C-0002"}) == missing
+    assert _support.claims_of_module("gate") == {"C-0001", "C-0002"}
+
+
+def test_the_implementer_can_test_the_browser_offline():
+    """Owner 2026-10-30: UI claims are tested with Playwright and jsoup in JUnit, on the pinned Chromium."""
+    import prime_maven_repo as pm
+    env = (SEED / "ENVIRONMENT.md").read_text()
+    assert all(d.artifact in env and d.version in env for d in pm.UI_TEST_DEPS)
+    build = (SEED / "build.sh").read_text()
+    assert 'PLAYWRIGHT_BROWSERS_PATH="$TOOLS/browsers"' in build and "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1" in build
+    assert "Playwright" in (TASK / "stage2.md").read_text()
+    assert {d.scope for d in pm.UI_TEST_DEPS} == {"test"}
+
+
+def test_the_manifest_pins_the_browser_too(tmp_path):
+    """The browser is a tool of the run (rule 4). ``.links`` holds machine paths, so it is left out."""
+    import prime_maven_repo as pm
+    m2, browsers = tmp_path / "m2", tmp_path / "browsers"
+    (m2 / "a").mkdir(parents=True)
+    (m2 / "a" / "a.jar").write_text("jar")
+    (browsers / "shell-1").mkdir(parents=True)
+    (browsers / ".links").mkdir()
+    (browsers / "shell-1" / "chrome").write_text("x")
+    (browsers / ".links" / "abc").write_text("/machine/path")
+    out = tmp_path / "m2.manifest"
+    digest = pm.write_manifest(m2, out, browsers)
+    names = [x.split()[1] for x in out.read_text().splitlines()]
+    assert names == ["a/a.jar", "../browsers/shell-1/chrome"]
+    (browsers / "shell-1" / "chrome").write_text("y")
+    assert pm.write_manifest(m2, out, browsers) != digest
 
 
 def test_spec_check_sees_internal_classes_in_bundled_jars(tmp_path):

@@ -1,9 +1,10 @@
 """t02 (stages 1-4): the clean-room rewrite (Java) maps every module to code and tests that exist.
 
-Stage 1 lays the skeleton; stages 2, 3 and 4 bring a third, two thirds and all of the modules to done."""
+Stage 1 lays the skeleton; stages 2, 3 and 4 bring a third, two thirds and all of the pilot's modules to done
+(spec/PILOT.md)."""
 import pytest
 
-from _support import WS, load_json, module_keys, need_module, need_reference, stage
+from _support import WS, load_json, need_module, need_reference, scope_keys, stage
 
 MAP = "analysis/rewrite_map.json"
 STATUSES = {"done", "partial", "not_started"}
@@ -39,8 +40,9 @@ def _share_done(thirds: int) -> None:
     if not ref.modules:
         pytest.skip("the jar has no atlassian-plugin.xml modules")
     entries = _map()
-    done = sum(_done(entries.get(m.key)) for m in ref.modules)
-    assert 3 * done >= thirds * len(ref.modules), f"{done} of {len(ref.modules)} modules are done"
+    keys = scope_keys()
+    done = sum(_done(entries.get(k)) for k in keys)
+    assert 3 * done >= thirds * len(keys), f"{done} of {len(keys)} modules in scope are done"
 
 
 @stage(2)
@@ -54,7 +56,7 @@ def test_at_least_two_thirds_of_the_modules_are_rewritten():
 
 
 @stage(4)
-@pytest.mark.parametrize("key", module_keys())
+@pytest.mark.parametrize("key", scope_keys())
 def test_module_is_rewritten(key):
     need_module(key)
     assert _done(_map().get(key)), f"module {key!r} is not done (status, src/main/java and src/test/java files)"

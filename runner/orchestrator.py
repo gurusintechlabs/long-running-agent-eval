@@ -356,8 +356,11 @@ class Run:
 
     def _setup_guardrails(self) -> None:
         policy = self._task_policy(load_policy(self.spec.guardrails.policy_file))
+        tc = self.spec.task.toolchain   # reads there are expected, not other-outside (as in check_toolchain)
+        tools = [] if tc is None else [self.host_home / tc.dir[2:] if tc.dir == "~" or tc.dir.startswith("~/")
+                                       else Path(tc.dir)]
         bound = policy.bind(work=self.paths.work, repo=self.repo_root, agent_state=self.state_dir,
-                            home=self.host_home)
+                            home=self.host_home, tools=tools)
         o = self.guard_opts
         wall = o.get("wall")
         clock = SystemClock()

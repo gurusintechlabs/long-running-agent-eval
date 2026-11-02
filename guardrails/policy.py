@@ -16,8 +16,9 @@ simulated inside one command (``cd x && cat ../..``) and across commands via ``t
 
 Decisions (also see the module report):
 * Order of classification: agent memory (exempt) → WORK (allowed) → REPO (harness-access) →
-  reads of the agent's own state dir (own-transcript, a warning; writes fall through, D-26) → home-secrets → anything else under the real HOME (other-outside) → system dirs (allowed) →
-  everything else (other-outside, a warning).
+  reads of the agent's own state dir (own-transcript, a warning; writes fall through, D-26) → home-secrets →
+  reads under the task's toolchain (``task.toolchain.dir``, allowed; writes are other-outside) → anything else
+  under the real HOME (other-outside) → system dirs (allowed) → everything else (other-outside, a warning).
 * Allowed without a warning: /usr, /bin, /sbin, /lib*, /opt, /etc, /dev, /System, /Library,
   /Applications, /private/etc, and the temp dirs /tmp, /private/tmp, /var/folders (scratch space;
   the harness already gives the agent TMPDIR inside its work dir). Home is checked first, so a fake
@@ -31,6 +32,7 @@ import os
 import re
 import shlex
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -123,8 +125,8 @@ class Policy:
     sha256: str
     path: Path | None = None
 
-    def bind(self, work: Path, repo: Path, agent_state: Path, home: Path) -> BoundPolicy:
-        return BoundPolicy(self, Path(work), Path(repo), Path(agent_state), Path(home))
+    def bind(self, work: Path, repo: Path, agent_state: Path, home: Path, tools: Iterable[Path] = ()) -> BoundPolicy:
+        return BoundPolicy(self, Path(work), Path(repo), Path(agent_state), Path(home), tools)
 
 
 def load_policy(path: Path | str) -> Policy:
@@ -180,13 +182,15 @@ def _glob_to_regex(glob: str) -> re.Pattern:
 
 
 class BoundPolicy:
-    def __init__(self, policy: Policy, work: Path, repo: Path, agent_state: Path, home: Path):
+    def __init__(self, policy: Policy, work: Path, repo: Path, agent_state: Path, home: Path,
+                 tools: Iterable[Path] = ()):
         self.policy = policy
         self.sha256 = policy.sha256
         self.work = _real(work)
         self.repo = _real(repo)
         self.agent_state = _real(agent_state)
         self.home = _real(home)
+        self.tools = [_real(t) for t in tools]   # the task's own toolchain: reads there are expected
         subst = {"{WORK}": self.work, "{REPO}": self.repo, "{AGENT_STATE}": self.agent_state}
         self._rules = [self._bind_rule(r, subst) for r in policy.out_of_workspace]
         self._exempt = [e for r in self._rules for e in r["except"]]
@@ -373,6 +377,8 @@ class BoundPolicy:
         outside = next((r for r in self._rules if r["outside"]), None)
         if outside is None:
             return None
+        if not write and any(_under(prefix, t) for t in self.tools):
+            return None  # reading or running the task's toolchain (JDK, Maven, its offline repository)
         if _under(path, self.home):
             pass
         elif any(_under(path, s) for s in SYSTEM_ALLOW):

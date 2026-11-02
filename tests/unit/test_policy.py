@@ -536,3 +536,52 @@ def test_decompiler_calls_in_scripts_are_logged(env, body):
 ])
 def test_decompiler_near_misses(env, cmd):
     assert "decompiler" not in ids(bash(env, cmd)), [v.evidence for v in bash(env, cmd)]
+
+
+# -- task tools: reads under the task's declared toolchain are expected, not other-outside ----
+@pytest.fixture
+def tools_env(env):
+    tools = env.home / "lrae-tools" / "re"
+    for d in (tools / "bin", tools / "m2" / "net" / "ao"):
+        d.mkdir(parents=True)
+    env.tools = tools
+    env.tpol = load_policy(RULES).bind(env.work, env.repo, env.state, env.home, tools=[tools])
+    return env
+
+
+def tbash(env, cmd):
+    return env.tpol.check_tool_call("Bash", {"command": cmd}, env.work)
+
+
+@pytest.mark.parametrize("cmd", [
+    "cd /tmp && ~/lrae-tools/re/bin/javap -cp ~/lrae-tools/re/m2/net/ao/ao-5.0.3.jar net.ao.DatabaseProvider | grep -i tx",
+    "ls -R ~/lrae-tools/re/m2/net | head", "M=~/lrae-tools/re/m2; ls $M/net/ao", "$HOME/lrae-tools/re/bin/mvn -o -v",
+    "grep -A3 gson ~/lrae-tools/re/m2/net/*/x.pom", "~/lrae-tools/re/bin/java tools/Gen.java spec/API.md src/main/java",
+])
+def test_reads_under_task_tools_are_not_outside(tools_env, cmd):
+    assert "other-outside" not in ids(tbash(tools_env, cmd)), [v.evidence for v in tbash(tools_env, cmd)]
+    assert "other-outside" in ids(bash(tools_env, cmd))      # without declared tools: unchanged
+
+
+def test_task_tools_through_file_tools(tools_env):
+    jar = str(tools_env.tools / "m2" / "net" / "ao" / "ao.pom")
+    for tool, inp in (("Read", {"file_path": jar}), ("Grep", {"path": str(tools_env.tools / "m2"), "pattern": "x"}),
+                      ("Glob", {"path": str(tools_env.tools), "pattern": "**/*.pom"})):
+        assert "other-outside" not in ids(tools_env.tpol.check_tool_call(tool, inp, tools_env.work)), tool
+    for tool in ("Write", "Edit"):
+        assert ids(tools_env.tpol.check_tool_call(tool, {"file_path": jar}, tools_env.work)) == ["other-outside"], tool
+
+
+@pytest.mark.parametrize("cmd", [
+    "rm -rf ~/lrae-tools/re/m2/net/ao", "echo x > ~/lrae-tools/re/m2/net/ao/x.jar", "touch ~/lrae-tools/re/bin/javap",
+    "mv ~/lrae-tools/re/m2/net ~/lrae-tools/re/m2/old",
+])
+def test_writes_under_task_tools_stay_outside(tools_env, cmd):
+    assert "other-outside" in ids(tbash(tools_env, cmd)), [v.evidence for v in tbash(tools_env, cmd)]
+
+
+def test_task_tools_cover_only_their_own_dir(tools_env):
+    assert ids(tbash(tools_env, "ls ~/lrae-tools")) == ["other-outside"]          # the parent is not declared
+    assert ids(tbash(tools_env, "cat ~/lrae-tools/re-other/x")) == ["other-outside"]
+    assert ids(tbash(tools_env, "ls ~/lrae-tools/*/m2")) == ["other-outside"]     # a glob reaching past them
+    assert ids(tbash(tools_env, "cat ~/.ssh/id_rsa")) == ["home-secrets"]         # rules before the exemption still win

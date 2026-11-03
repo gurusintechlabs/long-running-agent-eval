@@ -349,6 +349,8 @@ class GuardrailMonitor:
             self._check_budget()
         elif etype == "claude_code.api_error":
             t = sent if sent is not None else wall
+            if t < wall - API_ERROR_WINDOW_S:
+                return  # history: a resumed run replays otel.jsonl from the start
             self._api_errors.append(t)
             while self._api_errors and t - self._api_errors[0] > API_ERROR_WINDOW_S:
                 self._api_errors.popleft()

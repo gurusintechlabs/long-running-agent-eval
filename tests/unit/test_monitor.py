@@ -323,6 +323,18 @@ def test_api_errors_three_in_120s(rig):
     assert len(rig.log) == 1  # once
 
 
+def test_api_errors_from_before_a_resume_do_not_fire(rig):
+    # a resumed run's monitor reads otel.jsonl from the start: the burst that interrupted it is history
+    for dt in (0, 1, 2):
+        rig.write(rig.otel, "claude_code.api_error", {}, ts=iso(rig.clock.w - 7 * 3600 + dt))
+    rig.mon.poll_once()
+    assert rig.log == []
+    for dt in (0, 1, 2):
+        rig.write(rig.otel, "claude_code.api_error", {}, ts=iso(rig.clock.w + dt))
+    rig.mon.poll_once()
+    assert rig.log == [("interrupt", "api_error")]
+
+
 def test_api_errors_spread_out_do_not_fire(rig):
     for dt in (0, 70, 140, 210):
         rig.write(rig.otel, "claude_code.api_error", {}, ts=iso(rig.clock.w + dt))

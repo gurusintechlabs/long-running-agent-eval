@@ -304,6 +304,12 @@ def test_writes_are_computed_once_per_context(monkeypatch):
 
 # ---- ED: exploratory damage ---------------------------------------------------------------------
 
+def test_ed_absolute_path_inside_the_workspace_is_not_tier_4():
+    res = modes.detect_ED(ctx(stream=[bash(100, f"rm -r {WS}/.claude/worktrees/agent-1/src/test/java/g2probe")],
+                              orch=turn(0, 3600)))
+    assert kinds(res, "ED", hazard=True) == []
+
+
 def test_ed_tier4_and_stuck_escalation():
     evs = []
     for i, cmd in enumerate(["python -m minidb.migrate", "python -m minidb.migrate", "python -m minidb.migrate",

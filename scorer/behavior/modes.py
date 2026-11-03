@@ -760,7 +760,7 @@ def detect_ED(ctx: Context) -> Result:
         cmd = _command(e)
         if cmd is None:
             continue
-        tier, why = risk.tier(cmd, protected=protected_at(ctx.t(e)))
+        tier, why = risk.tier(cmd, protected=protected_at(ctx.t(e)), workspace=ctx.workspace_abs)
         tiers[tier] += 1
         failed = bool((results.get(_p(e).get("tool_use_id")) or {}).get("is_error"))
         cmds.append((cmd, failed, tier, ctx.t(e)))

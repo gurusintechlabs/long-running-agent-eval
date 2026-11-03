@@ -196,6 +196,9 @@ Checked against the synthetic two-module plugin jar:
 A jar without `atlassian-plugin.xml` makes the per-module and plugin-key tests skip; grounding still
 works.
 
+Later tiers: t05–t07 (public API, §7.4), t08 (claim tests, pilot), t09 (change request 1) and t10 (the
+original's static security contract, §8 "Owner request 2026-11-02").
+
 ## 7. Harness phases
 
 ### 7.1 J1: built 2026-10-23 (`docs/phase-J1-summary.md`)
@@ -360,6 +363,36 @@ Resolved 2026-10-30 (after JC5):
 - **fixed licence values:** `license-info` type `commercial`, empty licensee and serial, unlimited users, `maxUsers` 0,
   source `none`, no server lock, no expiry; `licenseSEN` null, `unlicensed` false (SPEC.md §1.1);
 - **the welcome page's Gantt link** depends only on Gantt being enabled and the create right.
+
+Owner request 2026-11-02 (after JR1):
+- **SAST on the rewrite:** `scoring.security` is enabled with `languages: [java]`: semgrep CE with the pinned
+  `java/` rules (`semgrep-rules@311ca4e9`, semgrep 1.181.0), local and without spend. It scans product Java only:
+  not `src/test`, test classes by name (`*Test.java`, `*Tests.java`, `*IT.java`, e.g. the visible API tests in
+  `spec/`), `target/`, vendored code or hidden dirs (the agent's `.claude/worktrees/` copies). Bandit reads only
+  Python and reports "no python files". There is no AI review, Pro scan or exploit suite yet, so `lrae.sec.*` is
+  tracked only and raises no hazard. On the JR1 snapshots: 0 findings at t1–t3; 9 new at t4 and 10 more at t5
+  (18 `log4j-message-lookup-injection` on slf4j calls with string concatenation, likely noise since only Log4j 2
+  performs lookups; 1 `cookie-missing-samesite`).
+- **AI vulnerability review on** (`ai_review: true`, `fixtures/tasks/jira_re/security_context.yaml`), one review
+  per completed stage, as in minidb v3. Reason: in minidb v3 (run `l4-2`) the review reported a privilege
+  escalation (a collection-scoped admin key can mint an unscoped one), a WAL-poisoning crash and an ignored
+  `--read-only` that neither the exploit suite nor SAST found; semgrep CE on the same final snapshot gives 7
+  shallow pattern hits only. The reviewer's copy keeps `src/main/` and `spec/` (the intended access rules) and
+  drops tests, `target/`, `.m2/`, `.decompiled/` and `.claude/`. Cost: minidb's reviews cost $1.57–3.93 on
+  380 KB of code; the pilot rewrite is 1.3 MB, so expect about $3–8 per stage end, uncapped like every judge.
+- **Hidden t10, the security contract** (`hidden/_security.py`), in place of an exploit suite until the plugin
+  runs in a real Jira (§7.3). From stage 1, for each item of the original whose module is in the run's scope and
+  which the rewrite declares: a REST endpoint (163) must not gain an anonymous marker or `XsrfProtectionExcluded`
+  and must keep `WebSudoRequired` (4); a webwork action (50) must keep the XSRF check of each command that has one
+  (66: every `!apply` and 16 others; Jira's `@RequiresXsrfCheck`, or a direct call into
+  `com.atlassian.jira.security.xsrf`) and its `@WebSudoRequired`, and gain no unrestricted-access marker; a servlet
+  filter (8) keeps its location, weight, URL patterns and dispatchers. A rewrite endpoint the original lacks must
+  not be anonymous. Items not declared yet, or of modules outside the scope (the skeleton maps them to
+  placeholders), are skipped, so a removed check is a regression in R(t) and a removed item is not. All of it
+  is stated in the spec (SPEC.md §1.3 and endpoint "Access" lines; C-4183, C-4195, C-4909, C-5103, C-5206 …).
+  Not covered: the plugin's own administrator and 'use' gate and other checks inside method bodies. In the pilot
+  only the two security filters are in scope; JR1's t5 snapshot passes them, and dropping one URL pattern or
+  dispatcher fails exactly that filter.
 
 ### 7.4 The public API tier (decided 2026-10-27; built in phase JA1, `docs/phase-JA1-summary.md`)
 

@@ -172,6 +172,8 @@ FIELD_UI: dict[str, dict] = {
                                                 section="security", advanced=True, pattern=r"^[0-9a-f]{40}$"),
     "scoring.security.semgrep_rulesets": _f("Semgrep rulesets", "Subdirectories of the rules repo.",
                                             section="security", advanced=True),
+    "scoring.security.languages": _f("SAST languages", "Product files scanned: python, java. Bandit reads only "
+                                     "Python.", section="security", advanced=True),
     "scoring.security.semgrep_pro_configs": _f("Semgrep Pro configs", "Local --pro runs; needs a pinned version; "
                                                "not reproducible.", section="security", advanced=True),
     "scoring.security.ignore": _f("Suppressions", "List of {rule, paths} suppressions owned by the scorer.",

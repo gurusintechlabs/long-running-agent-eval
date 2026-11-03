@@ -294,6 +294,22 @@ def test_security_scoring_fields_hashed_only_when_used(tmp_path):
                                 task__exploit_tests="exploit"), repo_root=Path("/x")).spec_hash != loaded.spec_hash
 
 
+def test_security_languages(tmp_path):
+    """``languages`` picks the product files SAST scans; the default (python) leaves the spec hash unchanged."""
+    def load(**sec):
+        return load_spec(write_spec(tmp_path, scoring={"judge_model": "claude-opus-5-5",
+                                                       "security": {"enabled": True, **sec}}), repo_root=Path("/x"))
+    base = load()
+    assert base.spec.scoring.security.languages == ["python"]
+    assert load(languages=["python"]).spec_hash == base.spec_hash
+    java = load(languages=["java"], semgrep_rulesets=["java"])
+    assert java.spec.scoring.security.languages == ["java"] and java.spec_hash != base.spec_hash
+    with pytest.raises(SpecError):
+        load(languages=["cobol"])
+    with pytest.raises(SpecError):
+        load(languages=[])
+
+
 @pytest.mark.parametrize("bad", [
     {"enabled": True, "semgrep_rules_commit": "short"},
     {"enabled": True, "ai_review": True},                              # ai review needs a context file

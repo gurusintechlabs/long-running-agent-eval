@@ -902,3 +902,16 @@ def test_spec_check_reads_jvm_form_names_too(tmp_path):
     text = "\n".join(_check_api(jar, spec, analyst, api).problems)
     assert "com.acme.api.impl.Cache" in text and "com.acme.internal.RuleEngine" in text, text
     assert "com.acme.api.Store" not in text
+
+
+def test_security_scoring_of_the_rewrite():
+    """semgrep CE with the pinned Java rules and the AI review per stage (no Pro, no exploit suite: t10 instead)."""
+    sec = load_spec(SPEC).spec.scoring.security
+    assert sec.enabled and sec.languages == ["java"] and sec.semgrep_rulesets == ["java"]
+    assert sec.semgrep_rules_commit and sec.semgrep_version and not sec.semgrep_pro_configs
+    assert sec.ai_review and Path(sec.context_file) == TASK / "security_context.yaml"
+    from scorer.security import ai_review
+    ctx = yaml.safe_load(Path(sec.context_file).read_text())
+    assert set(ai_review.CONTEXT_KEYS.values()) <= set(ctx)
+    ai_review.build_prompt(ctx, [])                    # every placeholder filled
+    assert "Structure" not in yaml.safe_dump(ctx) and "almworks" not in yaml.safe_dump(ctx)   # plugin-agnostic

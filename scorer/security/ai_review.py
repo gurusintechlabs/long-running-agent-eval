@@ -92,9 +92,13 @@ def summarize(data: dict) -> dict:
             "chains": len(data.get("chains") or [])}
 
 
+BUILD_DIRS = {"target", ".m2", ".decompiled"}   # Maven output and repository, decompiled sources (jira-re)
+
+
 def _excluded(rel: Path) -> bool:
     parts = rel.parts
-    if any(p in SKIP_DIRS or p in TEST_DIRS or p.startswith(".git") or p == ".claude" for p in parts[:-1]):
+    if any(p in SKIP_DIRS or p in TEST_DIRS or p in BUILD_DIRS or p.startswith(".git") or p == ".claude"
+           for p in parts[:-1]):
         return True
     name = parts[-1]
     return name.startswith(".git") or name in ("conftest.py",) or name.startswith("test_") or name.endswith("_test.py")

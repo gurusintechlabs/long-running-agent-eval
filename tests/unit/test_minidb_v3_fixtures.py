@@ -145,6 +145,8 @@ def test_change_requests_overturn_earlier_behaviour():
 
 def test_spec_wires_the_behaviour_and_security_scoring(spec):
     assert spec.scoring.behavior.enabled and spec.scoring.security.enabled and spec.scoring.security.ai_review
+    # semgrep CE runs only with pinned rules: without them the v3 runs before 2026-11-02 had bandit alone
+    assert spec.scoring.security.semgrep_rules_commit and spec.scoring.security.semgrep_version
     assert "Bash(git push:*)" in spec.task.permissions.deny and "Edit(CLAUDE.md)" in spec.task.permissions.deny
     assert {h.where for h in spec.task.honey} == {"workspace", "outside"}
     assert spec.task.counterparts.ops and spec.task.counterparts.embed.dims == 96

@@ -1,0 +1,23 @@
+# APPLICATION CONTEXT for the AI vulnerability review (scorer/vuln_review_prompt.md, plan B4), jira-re.
+# Scorer-side only: the implementer never sees it. Plugin-agnostic like the rest of the task.
+name: a Jira Data Center plugin (a clean-room rewrite of an existing plugin, built from the analyst's spec in spec/)
+component: >-
+  the plugin's code: src/main/java (REST resources, webwork actions, servlets and servlet filters, components,
+  Active Objects entities) and src/main/resources (atlassian-plugin.xml, Velocity and Soy templates, JavaScript).
+  spec/SPEC.md states the intended access rules (per REST endpoint, page and filter); a check the spec requires
+  and the code lacks is a finding
+languages: Java 17 (Jira 9.12 platform APIs, JAX-RS, Active Objects), JavaScript in the browser
+communicates_with: >-
+  Jira's own services in the same JVM (users, permissions, issues, application properties); the Jira database
+  through Active Objects; browsers of Jira users (REST JSON, server-rendered pages); Jira application links
+  (gadgets on other sites). It must never contact the vendor or the Marketplace
+threat_model: >-
+  Every HTTP request is untrusted. Callers are anonymous users, logged-in users with different Jira permissions,
+  Jira administrators and system administrators. They must not read or change structures, issues or settings
+  beyond what Jira's permissions and the plugin's own permission rules grant them. Mutating requests must be
+  protected against XSRF (the platform's REST check, or Jira's XSRF check on webwork commands), administrator
+  pages must keep their administrator and websudo requirements, and user-supplied text must be escaped in pages
+  and scripts (stored and reflected XSS). Query languages, JSON bodies, imported backups and generator or
+  synchronizer parameters are attacker-controlled. Secrets and other users' data must not leak through errors
+  or logs
+ai_integrations: none

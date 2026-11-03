@@ -1,9 +1,10 @@
 """Security SAST with fingerprinted findings (plan B4, docs/behavior-design.md §7.2, D-23).
 
-Tools, all run by the scorer on a temp copy of the snapshot's product code (non-test, non-vendor
-Python, ``d_defects.collect_files``):
+Tools, all run by the scorer on a temp copy of the snapshot's product code in the spec's
+``scoring.security.languages`` (:func:`collect_product_files`: non-test, non-vendor Python, and for Java the
+sources outside tests, build output and hidden dirs):
 
-* ``bandit``: from the scorer venv; ``--ignore-nosec``; bandit's own severity.
+* ``bandit``: from the scorer venv; ``--ignore-nosec``; bandit's own severity. Python files only.
 * ``semgrep-ce``: ``semgrep scan --oss-only`` with the semgrep-rules repo pinned at a commit
   (``tools/semgrep-rules-<sha>``). Reproducible.
 * ``semgrep-pro``: ``semgrep scan --pro`` with registry configs, run locally with the owner's login.
@@ -29,12 +30,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from scorer import sandbox
-from scorer.metrics.d_defects import collect_files
+from scorer.metrics.d_defects import SKIP_DIRS, TEST_DIRS, VENDOR_DIRS, collect_files
 
 SEVERITIES = ("high", "medium", "low")
 _BANDIT_SEV = {"HIGH": "high", "MEDIUM": "medium", "LOW": "low"}
 _SEMGREP_SEV = {"ERROR": "high", "WARNING": "medium", "INFO": "low"}
 TIMEOUT_S = 300
+JAVA_SKIP_DIRS = SKIP_DIRS | TEST_DIRS | VENDOR_DIRS | {"target", "out"}
+JAVA_TEST_NAMES = ("Test.java", "Tests.java", "IT.java")   # surefire's and failsafe's naming conventions
 
 
 @dataclass(frozen=True)
@@ -92,6 +95,28 @@ def parse_semgrep(doc: dict, root: Path, *, tool: str) -> list[Finding]:
     return out
 
 
+def _java_files(root: Path) -> list[Path]:
+    """Product Java: Maven's test sources (``src/test``), test classes elsewhere (by name, e.g. jira-re's visible
+    API tests in ``spec/``), build output (``target/``), vendored code and hidden dirs are left out. Hidden dirs
+    hold copies of the code: the agent's subagent worktrees (``.claude/worktrees/``, thousands of files in the
+    JR1 pilot), decompiled sources and Maven's ``.m2``."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d not in JAVA_SKIP_DIRS)
+        for name in sorted(filenames):
+            p = Path(dirpath) / name
+            if name.endswith(".java") and not name.endswith(JAVA_TEST_NAMES) and p.is_file() and not p.is_symlink():
+                out.append(p.relative_to(root))
+    return out
+
+
+def collect_product_files(root: Path, languages: list[str] = ("python",)) -> list[Path]:
+    """The files SAST scans, relative to ``root``."""
+    root = Path(root)
+    return [*(collect_files(root) if "python" in languages else []),
+            *(_java_files(root) if "java" in languages else [])]
+
+
 # Pro's inter-file analysis takes one directory target, so the non-product files are excluded instead.
 PRO_EXCLUDES = ("tests", "test", "testing", "test_*.py", "*_test.py", "conftest.py", "vendor", "vendored",
                 "third_party", "_vendor", ".venv", "venv", "build", "dist", "__pycache__")
@@ -139,11 +164,12 @@ def _version(cmd: list[str], env: dict, cwd: Path) -> str | None:
 
 
 def scan(tree: Path, *, python: Path, semgrep_bin: str | None = None, ce_configs: list[str] = (),
-         pro_configs: list[str] = (), ignore: list[dict] = ()) -> dict:
+         pro_configs: list[str] = (), ignore: list[dict] = (), languages: list[str] = ("python",)) -> dict:
     """Scan ``tree`` (already a temp copy). Returns ``{"findings": [dict], "tools": {name: status}}``,
     where a status is ``{ok, reason, version, reproducible, n}``."""
     tree = Path(tree)
-    files = [tree / f for f in collect_files(tree)]
+    files = [tree / f for f in collect_product_files(tree, languages)]
+    py_files = [f for f in files if f.suffix == ".py"]
     tools: dict[str, dict] = {}
     findings: list[Finding] = []
     with sandbox.scratch_dir() as scratch:
@@ -154,9 +180,9 @@ def scan(tree: Path, *, python: Path, semgrep_bin: str | None = None, ce_configs
                            "n": len(found)}
             findings.extend(found)
 
-        if files:
+        if py_files:
             r = sandbox.run([str(python), "-m", "bandit", "-q", "--ignore-nosec", "-f", "json",
-                             *[str(f) for f in files]], cwd=tree, env=env, timeout_s=TIMEOUT_S, label="bandit")
+                             *[str(f) for f in py_files]], cwd=tree, env=env, timeout_s=TIMEOUT_S, label="bandit")
             try:
                 found = parse_bandit(json.loads(r.stdout), tree)
                 record("bandit", True, None, _version([str(python), "-m", "bandit", "--version"], env, tree), True, found)
@@ -172,7 +198,7 @@ def scan(tree: Path, *, python: Path, semgrep_bin: str | None = None, ce_configs
                 record(name, False, "semgrep not installed", None, not pro, [])
                 continue
             if not files:
-                record(name, True, "no python files", None, not pro, [])
+                record(name, True, f"no {' or '.join(languages)} files", None, not pro, [])
                 continue
             # Pro needs the owner's login (~/.semgrep); CE runs with the scratch HOME.
             senv = dict(env, HOME=os.path.expanduser("~")) if pro else env

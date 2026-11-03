@@ -66,6 +66,21 @@ def test_code_copy_has_no_tests_git_or_harness_files(tmp_path):
     assert not {n for n in names if n.startswith((".git", "tests")) or n in ("test_more.py", "conftest.py")}
 
 
+def test_code_copy_of_a_maven_workspace(tmp_path):
+    """jira-re: product Java and the analyst's spec (the intended access rules) stay; tests, build output, Maven's
+    repository, decompiled sources and the agent's subagent worktrees go."""
+    src = tmp_path / "ws"
+    for rel in ("src/main/java/p/Resource.java", "src/main/resources/atlassian-plugin.xml", "spec/SPEC.md", "pom.xml",
+                "src/test/java/p/ResourceTest.java", "target/classes/p/Resource.class", ".m2/repo/x.jar",
+                ".decompiled/p/Resource.java", ".claude/worktrees/agent-1/src/main/java/p/Resource.java"):
+        (src / rel).parent.mkdir(parents=True, exist_ok=True)
+        (src / rel).write_text("x")
+    dest = ai_review.code_copy(src, tmp_path / "copy")
+    names = {p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file()}
+    assert names == {"src/main/java/p/Resource.java", "src/main/resources/atlassian-plugin.xml", "spec/SPEC.md",
+                     "pom.xml"}
+
+
 class Runner:
     def __init__(self, outputs):
         self.outputs = list(outputs)

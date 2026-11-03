@@ -121,7 +121,9 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
         jf = data["scoring"]["behavior"]
         jf["judge_fixtures"] = {"sha256": hash_path(Path(jf["judge_fixtures"]))}
     sec = data["scoring"].get("security")
-    if sec == SecurityScoring().model_dump(mode="json"):
+    if sec and sec.get("languages") == ["python"]:   # the default; hashes from before the field stay valid
+        sec.pop("languages")
+    if sec == {k: v for k, v in SecurityScoring().model_dump(mode="json").items() if k != "languages"}:
         data["scoring"].pop("security", None)
     elif sec and sec.get("context_file"):
         sec["context_file"] = {"sha256": hash_path(Path(sec["context_file"]))}

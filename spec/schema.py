@@ -250,6 +250,7 @@ class SecurityScoring(Strict):
     semgrep_version: str | None = None            # `semgrep --version` must match (reproducibility)
     semgrep_rules_commit: str | None = None       # semgrep-rules repo, fetched to tools/semgrep-rules-<sha10>
     semgrep_rulesets: list[str] = Field(default_factory=lambda: ["python"])  # subdirs of that repo
+    languages: list[Literal["python", "java"]] = Field(default_factory=lambda: ["python"], min_length=1)  # files SAST scans
     semgrep_pro_configs: list[str] = Field(default_factory=list)  # e.g. p/python; local --pro, not reproducible
     ignore: list[dict] = Field(default_factory=list)   # scorer-owned suppressions [{rule, paths}]
     ai_review: bool = False                       # one dedicated review per completed stage

@@ -4,7 +4,7 @@
     .venv/bin/python fixtures/tasks/jira_re/analyst/build_changes.py [--check]
 
 Writes ``analyst/spec-changes-1.md`` (committed as ``spec/CHANGES-1.md`` at stage 5) and ``hidden/changes-1.json``
-for hidden t09. A change replaces active pilot claims of the same module with new claims, given in full. New ids
+for hidden t09. A change replaces active claims of the same module with new claims, given in full. New ids
 start at C-9001, well above what ``build_claims.py`` hands out; they stay out of ``claims.jsonl`` and
 ``claim-ids.json``, since the implementer must not see them before stage 5. A new claim's evidence is that of the
 claim it replaces (``claims-evidence.jsonl``). ``--check`` exits 1 when an output is stale or an entry is invalid.
@@ -52,13 +52,13 @@ def _spec_claims() -> dict[str, dict]:
     return {c["id"]: c for c in rows}
 
 
-def _pilot_modules() -> set[str]:
-    return set(json.loads((TASK / "hidden" / "pilot.json").read_text())["modules"])
+def _modules() -> set[str]:
+    return {m["key"] for m in json.loads((SPEC / "inventory.json").read_text())["modules"]}
 
 
-def problems(doc: dict, *, claims: dict[str, dict] | None = None, pilot: set[str] | None = None) -> list[str]:
+def problems(doc: dict, *, claims: dict[str, dict] | None = None, modules: set[str] | None = None) -> list[str]:
     claims = _spec_claims() if claims is None else claims
-    pilot = _pilot_modules() if pilot is None else pilot
+    modules = _modules() if modules is None else modules
     found, seen = [], set()
     for c in _new_claims(doc):
         cid = c["id"]
@@ -69,8 +69,8 @@ def problems(doc: dict, *, claims: dict[str, dict] | None = None, pilot: set[str
         seen.add(cid)
         if not c.get("behaviour", "").strip():
             found.append(f"{cid}: no behaviour")
-        if c["module"] not in pilot:
-            found.append(f"{cid}: module {c['module']} is not in the pilot")
+        if c["module"] not in modules:
+            found.append(f"{cid}: module {c['module']} is not in the inventory")
         for old in c["replaces"]:
             target = claims.get(old)
             if old in seen:

@@ -1,4 +1,4 @@
-"""t03 (stage 6): RELEASE.md accounts for every module in the pilot's scope."""
+"""t03 (stage 6): RELEASE.md accounts for every module."""
 import pytest
 
 from _support import WS, need_module, scope_keys, stage

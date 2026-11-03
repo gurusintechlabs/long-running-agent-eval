@@ -4,7 +4,7 @@ Static: it reads test method names, and says nothing about what a test checks. I
 where stage 5 renames tests of corrected claims."""
 import pytest
 
-from _support import claims_of_module, claims_without_tests, need_module, pilot_api_claims, scope_keys, stage
+from _support import claims_of_module, claims_without_tests, need_module, api_claims, scope_keys, stage
 from test_t02_rewrite import _done, _map
 
 
@@ -19,6 +19,6 @@ def test_claims_of_a_done_module_have_tests(key):
 
 
 @stage(4, 5)
-def test_api_claims_in_the_pilot_have_tests():
-    missing = claims_without_tests(pilot_api_claims())
+def test_api_claims_have_tests():
+    missing = claims_without_tests(api_claims())
     assert not missing, f"{len(missing)} API claim(s) have no test: {sorted(missing)[:20]}"

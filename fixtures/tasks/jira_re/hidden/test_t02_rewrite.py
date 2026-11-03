@@ -1,7 +1,7 @@
 """t02 (stages 1-4): the clean-room rewrite (Java) maps every module to code and tests that exist.
 
-Stage 1 lays the skeleton; stages 2, 3 and 4 bring a third, two thirds and all of the pilot's modules to done
-(spec/PILOT.md)."""
+Stage 1 lays the skeleton; stages 2, 3 and 4 bring a third, two thirds and all of the modules to done
+(spec/inventory.json)."""
 import pytest
 
 from _support import WS, load_json, need_module, need_reference, scope_keys, stage

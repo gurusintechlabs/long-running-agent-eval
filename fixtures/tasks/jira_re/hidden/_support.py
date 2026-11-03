@@ -11,7 +11,7 @@ The jar sits harness-side in ``fixtures/tasks/jira_re/vendor/``, next to this di
 the suite in place). Tests are parametrised over the reference, so P(t) at a checkpoint is the share of
 the plugin the rewrite covers. The analyst's files are checked once, by ``analyst/check_spec.py``, which
 reuses the grounding helpers here. Behaviour tests (does the rewrite do what the plugin does) are a
-later tier, written after the pilot.
+later tier.
 
 Environment (from ``scorer.yaml``):
   LRAE_WORKSPACE   the snapshot copy under test
@@ -37,7 +37,6 @@ import pytest
 FINAL_STAGE = 6
 WS = Path(os.environ.get("LRAE_WORKSPACE", ".")).resolve()
 VENDOR = Path(__file__).resolve().parent.parent / "vendor"
-PILOT = Path(__file__).resolve().parent / "pilot.json"   # analyst/build_pilot.py
 CHANGES = Path(__file__).resolve().parent / "changes-1.json"   # analyst/build_changes.py
 
 # Descriptor elements that are metadata, not functional modules.
@@ -226,19 +225,15 @@ def module_keys() -> list[str]:
     return [m.key for m in ref.modules] if ref and ref.modules else ["<no-modules>"]
 
 
-def pilot_keys() -> list[str]:
-    """The modules in the pilot's scope; a jar with none of them (a synthetic plugin) is in scope whole."""
-    ref = workspace_reference()
-    wanted = set(json.loads(PILOT.read_text())["modules"])
-    return [m.key for m in ref.modules if m.key in wanted] if ref else []
-
-
 def scope_keys() -> list[str]:
-    return pilot_keys() or module_keys()
+    """The modules the run builds: all of them (owner 2026-11-02: the full run replaced the 86-module pilot)."""
+    return module_keys()
 
 
-def pilot_api_claims() -> set[str]:
-    return set(json.loads(PILOT.read_text())["api_claims"])
+def api_claims() -> set[str]:
+    """The active claims about the public Java API (``module`` null, ``api`` set), all in scope."""
+    rows = (json.loads(x) for x in (WS / "spec" / "claims.jsonl").read_text().splitlines() if x.strip())
+    return {c["id"] for c in rows if c.get("api") and not c.get("module") and c.get("status") == "active"}
 
 
 # ---------------------------------------------------------------- the agent's artefacts

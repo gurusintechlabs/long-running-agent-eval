@@ -1,8 +1,9 @@
 """t10 (from stage 1): the rewrite is never more open than the original, item by item (``_security``).
 
 REST endpoints, webwork actions and servlet filters of the original, judged where the rewrite declares the same
-item and its module is in the run's scope: a dropped XSRF check, websudo requirement or filter pattern, or an
-added anonymous marker, fails; an item the rewrite does not have yet is skipped. Owner 2026-11-02: the closest
+item and its module is started (not ``not_started`` in ``analysis/rewrite_map.json``: the stage-1 skeleton maps
+unbuilt pages to placeholders): a dropped XSRF check, websudo requirement or filter pattern, or an added anonymous
+marker, fails; an item the rewrite does not have yet is skipped. Owner 2026-11-02: the closest
 jira-re gets to minidb's exploit suite until the plugin runs in a real Jira. A check that disappears after it was
 there is a regression in R(t)."""
 import functools
@@ -13,6 +14,7 @@ import pytest
 import _api
 import _security as sec
 from _support import WS, VENDOR, ArtefactError, _expand, _pom_props, current_stage, scope_keys, stage, target_jar
+from test_t02_rewrite import _map
 
 
 def _jira() -> str | None:
@@ -68,7 +70,13 @@ def test_not_more_open_than_the_original(item):
         pytest.skip("the original declares no REST endpoint, webwork action or servlet filter")
     ref = reference()
     if ref.module_of(item) not in scope_keys():
-        pytest.skip(f"{item} belongs to module {ref.module_of(item)!r}, outside this run's scope (hidden/pilot.json)")
+        pytest.skip(f"{item} belongs to module {ref.module_of(item)!r}, outside this run's scope")
+    try:
+        status = (_map().get(ref.module_of(item)) or {}).get("status")
+    except (ArtefactError, AssertionError):   # no usable rewrite map: t02's failure, not this tier's
+        status = None
+    if status not in ("done", "partial"):
+        pytest.skip(f"module {ref.module_of(item)!r} is {status or 'not in the rewrite map'}: nothing built to judge")
     kind, _, name = item.partition(":")
     if kind == "rest":
         got = _rewrite_part("endpoints").get(item)

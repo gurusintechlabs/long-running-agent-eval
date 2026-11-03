@@ -14,7 +14,7 @@ claims of ``ww-structure``, ``security-filter`` and ``partitioned-cookie-header-
 * **servlet filters** (``filter:<key>``): the same location and weight, and at least the original's URL patterns
   and dispatchers, so the filter still guards every URL it guarded.
 
-Only the rewrite's items of modules in the run's scope are judged (the pilot's modules, or all): an endpoint,
+Only the rewrite's items of modules in the run's scope are judged (all modules; ``_support.scope_keys``): an endpoint,
 action or filter it does not declare yet, or one of a module the run does not build (its skeleton may map it to a
 placeholder), is skipped. Coverage is t02-t04's job, so deleting an item is never a security regression, while
 dropping its check is. What these
@@ -185,7 +185,7 @@ class Reference:
         return [*self.endpoints, *(f"action:{a}" for a in self.actions), *(f"filter:{k}" for k in self.filters)]
 
     def module_of(self, item: str) -> str | None:
-        """The plugin module an item belongs to, so a run judges only the modules in its scope (the pilot's)."""
+        """The plugin module an item belongs to, so a run judges only the modules in its scope."""
         kind, _, name = item.partition(":")
         if kind == "rest":
             return self.rest_modules.get(item)

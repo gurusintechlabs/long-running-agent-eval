@@ -3,12 +3,12 @@
 Static, like t08: it reads names, and says nothing about what a test checks."""
 import pytest
 
-from _support import change_problems, changes, pilot_keys, stage
+from _support import change_problems, changes, scope_keys, stage
 
 
 @stage(5)
 @pytest.mark.parametrize("change", changes(), ids=lambda c: c.new)
 def test_change_is_applied(change):
-    if change.module not in pilot_keys():
+    if change.module not in scope_keys():
         pytest.skip(f"this jar has no module {change.module!r}")   # a synthetic plugin
     assert not change_problems(change), f"{change.old} -> {change.new}: {sorted(change_problems(change))}"

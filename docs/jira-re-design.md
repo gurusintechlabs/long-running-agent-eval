@@ -517,3 +517,17 @@ Owner request 2026-11-02 (after JR1):
   original. No medium-claim audit: the accuracy pass stays after the pilot, so stage 5 holds owner-decided fixes, not real spec errors.
   `analyst/build_changes.py` generates the file and `hidden/changes-1.json` from `analyst/changes-1.json`. New hidden t09 (static, stages
   5+) picks up where t08 stops.
+
+Owner 2026-11-02 (after JR1): **full run, not a pilot.**
+- The task covers the whole spec: all 608 modules and every active API claim. `spec/PILOT.md`,
+  `spec/pilot-claims.jsonl`, `hidden/pilot.json` and `analyst/build_pilot.py` are gone; stages 0, 2, 3, 4 and 6
+  name `spec/inventory.json` instead of the pilot. The hidden suite's scope (`_support.scope_keys`) is every
+  module, t08 checks every active API claim (`_support.api_claims`), and change request 1 may touch any module
+  of the inventory. Seed re-pinned (eacc87b0).
+- Budget: $1000 agent hard cap (`per_run_usd = experiment_usd = 1000`); judges uncapped, est. $100-250 (X judge
+  and goal observer per checkpoint, AI review per stage end on a growing tree). `duration_min` 1800 (30 h) so the
+  cap, not the clock, ends the run at JR1's $45-75/h; checkpoints every 30 min.
+- t10 judges only modules the rewrite map marks `done` or `partial`: the stage-1 skeleton maps unbuilt pages to a
+  placeholder action, which is not an insecure page.
+- JR1's open items still apply: parallel background subagents (they set the spend rate) and Maven's outbound
+  connections despite `-o` are logged, not prevented.

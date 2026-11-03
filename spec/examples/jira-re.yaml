@@ -11,17 +11,18 @@
 #   3. .venv/bin/python fixtures/tasks/jira_re/tools/prepare_seed.py   (pins pom.xml, fills in seed_commit)
 #   4. .venv/bin/python fixtures/tasks/jira_re/tools/prime_maven_repo.py   (offline Maven repo; network)
 #   5. .venv/bin/python fixtures/tasks/jira_re/analyst/check_spec.py   (the analyst's spec is complete)
-# Model and CLI version are set ONLY here. Budget: $100 for the pilot (owner, 2026-11-02; was $200);
-# every real run still needs approval of the estimated spend.
+# Model and CLI version are set ONLY here. Scope: the whole spec, 608 modules (owner, 2026-11-02: the full
+# run replaces the 86-module pilot of JR1). Budget: $1000 agent hard cap (owner, 2026-11-02); every real run
+# still needs approval of the estimated spend.
 spec_version: 1
-experiment_id: jira-re-pilot
+experiment_id: jira-re-full
 task:
   id: jira-re
   class: L3
   prompt_file: ../../fixtures/tasks/jira_re/stage0.md
   stages_file: ../../fixtures/tasks/jira_re/stages.yaml
   seed_repo: ../../fixtures/seed_jira_re
-  seed_commit: "2d07cbb2b6498512cc86844125681c09880ba81b"   # written by prepare_seed.py (zeros: not prepared)
+  seed_commit: "eacc87b0f0038c6a1ccc89c088eeafe27737e601"   # written by prepare_seed.py (zeros: not prepared)
   seed_requirements_lock: ../../fixtures/tasks/jira_re/requirements.lock   # harness side: agent + scorer venvs
   constraints_file: ../../fixtures/tasks/jira_re/constraints.yaml
   hidden_tests: ../../fixtures/tasks/jira_re/hidden
@@ -42,15 +43,15 @@ agent:
   model: claude-opus-5-5               # <- CHANGE AGENT MODEL HERE
   auto_memory: cli_default
 run:
-  duration_min: 360                    # upper bound; stages follow as soon as the previous one is done
-  checkpoint_interval_min: 20
+  duration_min: 1800                   # upper bound (30 h); the $1000 cap ends it first at JR1's $45-75/h
+  checkpoint_interval_min: 30         # up to 60 checkpoints, each with a Maven build
   repeats: 1
   configs: [A]
   seed: 1234
   parallelism: 1
 budget:                                # subscription login: $ = API-equivalent estimate (D-16)
-  per_run_usd: 75.00                   # owner, 2026-11-02: $100 in all; agent hard cap 75, judges (uncapped) est. 10-25
-  experiment_usd: 75.00                # one pilot run (repeats: 1); counts agent spend only
+  per_run_usd: 1000.00                 # owner, 2026-11-02: agent hard cap; judges are uncapped (est. $100-250)
+  experiment_usd: 1000.00              # one run (repeats: 1); counts agent spend only
 isolation:
   mode: local
   work_dir: ~/lrae-work

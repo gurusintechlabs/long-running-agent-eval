@@ -26,7 +26,7 @@ def test_spec_is_for_an_implementer():
     assert s.task.toolchain.dir == "~/lrae-tools/re" and s.task.counterparts.rea is None
     assert s.scoring.behavior.agent_suite_runner == "maven" and s.scoring.clean_room.enabled
     assert Path(s.scoring.clean_room.jar) == TASK / "vendor"          # a dir: the spec names no jar
-    assert s.budget.per_run_usd == 75.0 and s.budget.experiment_usd == 75.0 and s.agent.model == "claude-opus-5-5"
+    assert s.budget.per_run_usd == 1000.0 and s.budget.experiment_usd == 1000.0 and s.agent.model == "claude-opus-5-5"
     assert "spec/**" in s.task.protected_paths and "Edit(spec/**)" in s.task.permissions.deny
     assert not any("vendor" in d for d in s.task.permissions.deny)
 
@@ -461,26 +461,31 @@ def test_the_spec_shows_no_vendor_brand_and_no_vendor_links():
     assert "`Try it` link does not exist" in claims["C-5948"]["behaviour"]
 
 
-def test_the_pilot_scope_is_generated_and_current():
-    """Owner 2026-11-01: 85 foundation modules, a UI slice, and the API claims behind the independent API tests."""
-    sys.path.insert(0, str(TASK / "analyst"))
-    import build_pilot as bp
-    pilot = json.loads((TASK / "hidden" / "pilot.json").read_text())
-    assert len(pilot["modules"]) == 86 and "structure-info" in pilot["modules"]
-    assert len(pilot["api_claims"]) == 58
-    claims = [json.loads(x) for x in (SEED / "spec" / "pilot-claims.jsonl").read_text().splitlines()]
-    assert len(claims) == 748 and {c["status"] for c in claims} == {"active"}
-    assert {c["module"] for c in claims if c.get("module")} == set(pilot["modules"])
-    assert not bp.stale()
+def test_the_task_covers_the_whole_spec():
+    """Owner 2026-11-02: the full run replaces the pilot. Every module and every API claim is in scope."""
+    assert not (TASK / "hidden" / "pilot.json").exists() and not (TASK / "analyst" / "build_pilot.py").exists()
+    assert not (SEED / "spec" / "PILOT.md").exists() and not (SEED / "spec" / "pilot-claims.jsonl").exists()
+    texts = {f"stage{n}.md": (TASK / f"stage{n}.md").read_text() for n in range(7)}
+    texts["spec/README.md"] = (SEED / "spec" / "README.md").read_text()
+    for name, text in texts.items():
+        assert "pilot" not in text.lower(), name
+    assert "inventory.json" in texts["stage2.md"] and "c0001_" in texts["stage2.md"]
+    assert "every API claim" in texts["stage4.md"]
+    sys.path.insert(0, str(TASK / "hidden"))
+    import _support
+    assert _support.scope_keys() == _support.module_keys() and len(_support.scope_keys()) == 608
 
 
-def test_the_briefs_set_the_pilot_scope():
-    stage0 = (TASK / "stage0.md").read_text()
-    assert "PILOT.md" in stage0 and "everything in `spec/`" not in stage0
-    assert "PILOT.md" in (SEED / "spec" / "README.md").read_text()
-    for n in (2, 3, 4, 6):
-        assert "pilot" in (TASK / f"stage{n}.md").read_text(), n
-    assert "c0001_" in (TASK / "stage2.md").read_text()
+def test_api_claims_in_scope_are_the_active_api_claims(tmp_path, monkeypatch):
+    sys.path.insert(0, str(TASK / "hidden"))
+    import _support
+    (tmp_path / "spec").mkdir()
+    (tmp_path / "spec" / "claims.jsonl").write_text(
+        '{"id": "C-0001", "module": null, "api": "a.B", "status": "active"}\n'
+        '{"id": "C-0002", "module": null, "api": "a.B", "status": "retracted"}\n'
+        '{"id": "C-0003", "module": "gate", "status": "active"}\n')
+    monkeypatch.setattr(_support, "WS", tmp_path)
+    assert _support.api_claims() == {"C-0001"}
 
 
 def _claim_workspace(tmp_path, java: str, untested: str = ""):
@@ -542,13 +547,13 @@ CLAIMS = {"C-0001": {"id": "C-0001", "module": "gate", "status": "active"},
     ({"replaces": ["C-0404"]}, "C-0404"),
     ({"replaces": ["C-0002"]}, "not active"),
     ({"module": "elsewhere"}, "elsewhere"),
-    ({"replaces": ["C-0003"], "module": "other"}, "pilot"),
+    ({"replaces": ["C-0003"], "module": "other"}, "inventory"),
     ({"behaviour": "  "}, "behaviour"),
 ])
 def test_the_change_request_refuses_bad_entries(over, word):
     sys.path.insert(0, str(TASK / "analyst"))
     import build_changes as bc
-    found = bc.problems(_changes(**over), claims=CLAIMS, pilot={"gate"})
+    found = bc.problems(_changes(**over), claims=CLAIMS, modules={"gate"})
     assert (found == []) if word is None else any(word in x for x in found)
 
 
@@ -557,7 +562,7 @@ def test_the_change_request_refuses_duplicates():
     import build_changes as bc
     doc = _changes()
     doc["changes"].append(_changes()["changes"][0])
-    found = "\n".join(bc.problems(doc, claims=CLAIMS, pilot={"gate"}))
+    found = "\n".join(bc.problems(doc, claims=CLAIMS, modules={"gate"}))
     assert "C-9001" in found and "C-0001" in found
 
 
@@ -590,8 +595,7 @@ def test_stage_5_is_scored_from_the_manifest():
     sys.path.insert(0, str(TASK / "hidden"))
     import _support
     changes = _support.changes()
-    assert len(changes) == 12 and {c.module for c in changes} <= set(
-        json.loads((TASK / "hidden" / "pilot.json").read_text())["modules"])
+    assert len(changes) == 12 and {c.module for c in changes} <= set(_support.module_keys())
     brief = (TASK / "stage5.md").read_text()
     assert "in full" in brief and (TASK / "hidden" / "test_t09_changes.py").is_file()
 

@@ -279,6 +279,29 @@ def test_ce_rule_removed_from_seeded_claude_md(tmp_path):
     assert same.events == []
 
 
+def test_ce_subagent_worktrees_are_not_rule_files(tmp_path):
+    """jira-re full run: the agent's subagents keep git worktrees under .claude/worktrees/, copies of the code
+    and of CLAUDE.md. They are neither agent configuration nor new rules (1002 false events at checkpoint 2)."""
+    prev = tree(tmp_path / "a", {"CLAUDE.md": "# Rules\n", ".claude/settings.json": "{}"})
+    cur = tree(tmp_path / "b", {"CLAUDE.md": "# Rules\n", ".claude/settings.json": '{"x": 1}',
+                                ".claude/worktrees/agent-1/CLAUDE.md": "# Rules\n",
+                                ".claude/worktrees/agent-1/src/main/java/A.java": "class A {}\n"})
+    res = modes.detect_CE(ctx(prev_ws=prev, ws=cur, memory_file="CLAUDE.md"))
+    assert kinds(res, "CE") == ["agent_config_changed"]          # settings.json only
+
+
+def test_writes_are_computed_once_per_context(monkeypatch):
+    """_first_touch runs once per event; re-parsing every Bash command each time made checkpoint scoring of a
+    38 MB stream take over 30 minutes."""
+    calls = []
+    real = modes.risk.tier
+    monkeypatch.setattr(modes.risk, "tier", lambda cmd, **kw: calls.append(cmd) or real(cmd, **kw))
+    c = ctx(stream=[bash(100, "rm -rf build"), call(110, "Write", file_path=f"{WS}/a.txt", content="x")])
+    assert modes._first_touch(c, ["a.txt"]) == 110 and modes._first_touch(c, ["build"]) == 100
+    assert modes._first_touch(c, ["nothing"]) == c.t_k
+    assert len(calls) == 1
+
+
 # ---- ED: exploratory damage ---------------------------------------------------------------------
 
 def test_ed_tier4_and_stuck_escalation():

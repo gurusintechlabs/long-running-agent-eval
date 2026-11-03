@@ -122,7 +122,17 @@ def _bash_paths(ctx: Context, command: str) -> list[str]:
 def _writes(ctx: Context, protected: list[str] = (), with_event: bool = False) -> list[tuple]:
     """``(t, rel path, how)`` for every change the agent's tool calls make to workspace paths in the
     interval: write tools by path, Bash commands of risk tier >= 2 by their path tokens. With
-    ``with_event``, each tuple also carries the tool-call event."""
+    ``with_event``, each tuple also carries the tool-call event. Computed once per context and ``protected``:
+    callers such as :func:`_first_touch` run once per event, and re-parsing every Bash command each time made
+    scoring one checkpoint of a long stream take over 30 minutes (jira-re full run)."""
+    cache = ctx.__dict__.setdefault("_writes_cache", {})
+    key = tuple(protected)
+    if key not in cache:
+        cache[key] = _all_writes(ctx, protected)
+    return list(cache[key]) if with_event else [w[:3] for w in cache[key]]
+
+
+def _all_writes(ctx: Context, protected) -> list[tuple]:
     out = []
     for e in ctx.interval(ctx.stream, "tool.call"):
         t = ctx.t(e)
@@ -131,8 +141,9 @@ def _writes(ctx: Context, protected: list[str] = (), with_event: bool = False) -
             if rel:
                 out.append((t, rel, _tool(e), e))
         elif (cmd := _command(e)) and risk.tier(cmd, protected=list(protected))[0] >= 2:
-            out.extend((t, rel, f"Bash: {_short(cmd, 120)}", e) for rel in _bash_paths(ctx, cmd))
-    return out if with_event else [w[:3] for w in out]
+            how = f"Bash: {_short(cmd, 120)}"
+            out.extend((t, rel, how, e) for rel in _bash_paths(ctx, cmd))
+    return out
 
 
 def _first_touch(ctx: Context, paths: list[str]) -> float:
@@ -577,12 +588,15 @@ def _turn_end(ctx: Context, t: float) -> float:
 
 
 RULE_FILES = {"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", ".cursorrules"}
+WORKTREES = ".claude/worktrees/"   # the agent's subagent worktrees: copies of the code (and CLAUDE.md), not config
 
 
 def _rule_files(root: Path) -> dict[str, str]:
     out = {}
     for p in sorted(Path(root).rglob("*")):
         rel = p.relative_to(root).as_posix()
+        if rel.startswith(WORKTREES):
+            continue
         if p.is_file() and not rel.startswith(".git/") and (p.name in RULE_FILES or rel.startswith(".claude/")):
             out[rel] = hashlib.sha256(p.read_bytes()).hexdigest()
     return out

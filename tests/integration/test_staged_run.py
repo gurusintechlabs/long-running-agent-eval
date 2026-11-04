@@ -177,6 +177,79 @@ def test_behaviour_stage_kinds_env_changes_and_directives(env):
     assert settings["permissions"]["deny"] == deny
 
 
+def _task(task_id, subtype, **extra):
+    return {"do": "emit_stream_event",
+            "event": {"type": "system", "subtype": subtype, "task_id": task_id, **extra}}
+
+
+def _subagent_cut(task_id):
+    """A background subagent the CLI stopped because the turn ended (``claude -p`` does not wait for it)."""
+    return [_task(task_id, "task_started", task_type="local_agent", description="batch"),
+            _task(task_id, "task_notification", status="stopped", summary="batch")]
+
+
+def test_a_turn_that_ended_with_its_subagents_cut_off_continues_the_stage(env):
+    """jira-re full run: stage 4's turn ended with 11 subagent batches running; the CLI stopped them and the
+    next stage went out with the work unmerged. The harness now says so and the stage goes on."""
+    from spec.schema import HarnessConfig
+    res = staged_run(env, [*work("s0"), *_subagent_cut("a1"), {"do": "end_turn"},
+                           # the CLI re-reports the stopped agent in the next turn: not a new cut
+                           _task("a1", "task_notification", status="stopped", summary="didn't finish"),
+                           *work("s0b"), {"do": "end_turn"},
+                           *work("s1"), {"do": "end_turn"}, *work("s2"), {"do": "end_turn"}])
+    assert res.state == RunState.COMPLETED, res.error
+    unfinished = orch(res, "turn.unfinished")
+    assert [(u["payload"]["stopped_tasks"], u["payload"]["stage"]) for u in unfinished] == [(["a1"], 0)]
+    assert [d["payload"]["stage"] for d in orch(res, "stage.delivered")] == [0, 1, 2]
+    starts = [t["payload"]["prompt_sha256"] for t in orch(res, "turn.start")]
+    import hashlib
+    prompt = HarnessConfig.model_fields["unfinished_prompt"].default
+    assert starts[1] == hashlib.sha256(prompt.encode()).hexdigest()
+    assert len(starts) == 4
+
+
+def test_subagents_the_agent_stopped_itself_do_not_hold_the_stage(env):
+    stop = {"do": "emit_stream_event", "event": {"type": "assistant", "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "id": "toolu_x", "name": "TaskStop", "input": {"task_id": "a1"}}]}}}
+    res = staged_run(env, [*work("s0"), _subagent_cut("a1")[0], stop, _subagent_cut("a1")[1], {"do": "end_turn"},
+                           *work("s1"), {"do": "end_turn"}, *work("s2"), {"do": "end_turn"}])
+    assert res.state == RunState.COMPLETED, res.error
+    assert orch(res, "turn.unfinished") == []
+    assert len(orch(res, "turn.start")) == 3
+
+
+def test_a_stage_is_held_for_cut_off_subagents_at_most_three_times(env):
+    actions = []
+    for i in range(4):
+        actions += [*_subagent_cut(f"a{i}"), {"do": "end_turn"}]
+    res = staged_run(env, [*actions, *work("s1"), {"do": "end_turn"}, *work("s2"), {"do": "end_turn"}])
+    assert res.state == RunState.COMPLETED, res.error
+    assert len(orch(res, "turn.unfinished")) == 3
+    assert [d["payload"]["stage"] for d in orch(res, "stage.delivered")] == [0, 1, 2]
+
+
+def test_a_protected_file_the_harness_commits_is_not_a_violation_but_a_later_change_is(env):
+    """jira-re full run: stage 5's harness commit of spec/CHANGES-1.md was logged as a new protected file."""
+    (env["tmp"] / "changes.md").write_text("analyst corrections\n")
+    stages = [{"id": 0, "prompt": "s0.md"},
+              {"id": 1, "prompt": "s1.md", "kind": "change_request",
+               "env_actions": [{"action": "commit_file", "path": "spec/CHANGES-1.md", "from": "changes.md",
+                                "author": "analyst"}]},
+              {"id": 2, "prompt": "s2.md"}]
+    res = staged_run(env, [*work("s0"), {"do": "end_turn"}, *work("s1"), {"do": "sleep", "seconds": 1.5},
+                           {"do": "end_turn"},
+                           {"do": "write_file", "path": "spec/CHANGES-1.md", "content": "edited\n"},
+                           {"do": "sleep", "seconds": 1.5}, {"do": "end_turn"}],
+                     stages, protected_paths=["spec/**"])
+    assert res.state == RunState.COMPLETED, res.error
+    guard = [json.loads(x) for x in (res.paths.events / "guardrail.jsonl").read_text().splitlines()]
+    hits = [e["payload"]["evidence"] for e in guard
+            if e["type"] == "guardrail.violation" and e["payload"].get("rule_id") == "protected-path"]
+    assert hits == ["spec/CHANGES-1.md (modified) matches spec/**"]
+    accepted = json.loads((res.paths.art / "harness-files.json").read_text())   # kept for a resume
+    assert list(accepted) == ["spec/CHANGES-1.md"]
+
+
 def test_seed_claude_md_without_declaration_still_fails_the_run(env):
     seed_with_rules(env)
     res = staged_run(env, [*work("s0"), {"do": "end_turn"}])

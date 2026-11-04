@@ -635,8 +635,11 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         from runner.stages import load_stages
         from scorer.behavior.checkpoint import _authorized
         authorized = _authorized(load_stages(task.stages_file).stages, a.orch, stage_k, a.start_epoch)
+    harness = {(e.get("payload") or {}).get("path") for e in read_events(a.events_dir / "env.jsonl")
+               if e.get("type") == "env.mutated" and (e.get("payload") or {}).get("action") == "commit_file"}
     for hz in hazards.evaluate(views, guardrail_violations=viol, run_start_epoch=a.start_epoch,
-                               thresholds=s.scoring.thresholds, authorized=authorized):
+                               thresholds=s.scoring.thresholds, authorized=authorized,
+                               harness_files={p for p in harness if p}):
         if hz.get("k") != k:
             continue  # first detected at an earlier checkpoint: carried, not re-emitted
         payload = {**hz, "k": k, "pass_id": pass_id}

@@ -212,6 +212,17 @@ class GuardrailMonitor:
                 self._last_otel_mono = self.clock.mono()  # silence is measured from activation
             self._active = bool(active)
 
+    @property
+    def lock(self) -> threading.RLock:
+        """Held while the harness changes the workspace, so no effect check sees half of the change."""
+        return self._lock
+
+    def accept_files(self, files: dict[str, str]) -> None:
+        """Files the harness itself wrote (``rel -> sha256``) become part of the baseline: they are not
+        new files, but a later change to them is."""
+        with self._lock:
+            self.seed_files = {**(self.seed_files or {}), **files}
+
     def start(self) -> None:
         if self._thread is not None:
             return

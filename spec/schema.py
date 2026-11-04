@@ -418,6 +418,13 @@ class HarnessConfig(Strict):
     # successful turn means the work is done: the next stage follows, or the run ends.
     recovery_prompt: str = ("Your previous turn ended with an error before it finished. "
                             "Continue the current work from where it stopped.")
+    # Sent after a successful turn that ended while background subagents it started were still running:
+    # ``claude -p`` stopped them when the reply ended, so their work is lost and the stage is not done.
+    unfinished_prompt: str = ("Your previous turn ended while background agents you started were still "
+                              "running. In this environment a turn ends when your reply ends, and background "
+                              "tasks still running are stopped then, so their work is not finished. Continue "
+                              "the current work from where it stopped, and wait for background work to "
+                              "finish before you end your reply.")
     gate: Gate = Gate()
     reset: Reset = Reset()
     interval_cap: IntervalCap = IntervalCap()

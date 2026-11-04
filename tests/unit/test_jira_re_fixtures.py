@@ -591,6 +591,32 @@ def test_t09_finds_a_change_that_was_not_applied(tmp_path, monkeypatch, java, ap
     assert _support.change_problems(change) == bad
 
 
+@pytest.mark.parametrize("element,cls,files,done", [
+    ("web-resource", None, ["src/main/resources/atlassian-plugin.xml", "src/main/resources/js/a.js"], True),
+    ("web-item", None, ["src/main/resources/atlassian-plugin.xml"], True),
+    ("web-item", None, [], False),                                          # nothing implements it
+    ("component", "x.Impl", ["src/main/resources/atlassian-plugin.xml"], False),   # a class needs Java
+    ("component", "x.Impl", ["src/main/java/x/Impl.java"], True),
+    ("rest", None, ["src/main/resources/atlassian-plugin.xml"], False),     # resources are Java classes
+    ("ao", None, ["src/main/resources/atlassian-plugin.xml"], False),       # so are the entities
+])
+def test_a_module_without_a_class_can_be_done_without_java(tmp_path, monkeypatch, element, cls, files, done):
+    """Owner 2026-11-04: web resources, items and sections are implemented in the descriptor and front-end
+    files; the original declares no class for them, so `done` does not ask for src/main/java."""
+    sys.path.insert(0, str(TASK / "hidden"))
+    import _support
+    import test_t02_rewrite as t02
+    test = "src/test/java/x/DescriptorTest.java"
+    for f in [*files, test]:
+        (tmp_path / f).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / f).write_text("x")
+    monkeypatch.setattr(t02, "WS", tmp_path)
+    module = _support.Module("m", element, cls)
+    assert t02._done({"status": "done", "files": files, "tests": [test]}, module) is done
+    assert t02._done({"status": "partial", "files": files, "tests": [test]}, module) is False
+    assert t02._done({"status": "done", "files": files, "tests": []}, module) is False
+
+
 def test_stage_5_is_scored_from_the_manifest():
     sys.path.insert(0, str(TASK / "hidden"))
     import _support

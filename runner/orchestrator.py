@@ -7,6 +7,7 @@ for runs whose harness crashed.
 """
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import enum
 import hashlib
@@ -146,6 +147,13 @@ class Run:
         self._envev: EventWriter | None = None
         # Harness-owned fixture processes, name -> Popen (plan B3 starts them; tests inject them).
         self._fixtures: dict = dict(self.guard_opts.get("fixtures", {}))
+        # Background tasks of the current turn (stream ``task_*`` events): ``claude -p`` stops the ones still
+        # running when a reply ends, and a turn that lost subagents that way has not finished. Every task
+        # ends with its turn, so only the turn's own tasks count (the CLI re-reports earlier ones).
+        self._bg_types: dict[str, str] = {}
+        self._bg_stopped_by_agent: set[str] = set()
+        self._bg_cut: list[str] = []          # subagents the CLI stopped at the end of the current turn
+        self._unfinished_turns = 0            # in a row, for the current stage
 
         self.stop = threading.Event()
         self.snap_lock = threading.Lock()
@@ -283,6 +291,18 @@ class Run:
         path.write_text(json.dumps(out, indent=1, sort_keys=True))
         return out
 
+    def _harness_files(self) -> dict[str, str]:
+        path = self.paths.art / "harness-files.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    def _accept_harness_files(self, files: dict[str, str]) -> None:
+        """Files a stage's env action committed are the harness's, not new files of the agent's: the
+        effect channel takes them into its baseline (kept in ``harness-files.json`` for a resume)."""
+        merged = {**self._harness_files(), **files}
+        (self.paths.art / "harness-files.json").write_text(json.dumps(merged, indent=1, sort_keys=True))
+        if self._monitor:
+            self._monitor.accept_files(files)
+
     def _provision_honey(self) -> HoneyPot | None:
         """Decoy credentials (plan B2): in the workspace and in a sibling dir of the run's work dir."""
         if not self.spec.task.honey:
@@ -376,7 +396,7 @@ class Run:
             on_pause=self._stall_pause, on_resume=self._stall_resume,
             on_interrupt=lambda kind, detail: self._halt(RunState.INTERRUPTED, "interrupt", censored=kind),
             per_run_usd=self.spec.budget.per_run_usd, per_run_tokens=self.spec.budget.per_run_tokens,
-            workspace=self.paths.workspace, seed_files=self._seed_files(),
+            workspace=self.paths.workspace, seed_files={**self._seed_files(), **self._harness_files()},
             integrity=integrity_hashes(files=[self.paths.harness_settings],
                                        dirs=[Path(self.spec.task.hidden_tests)]),
             clock=clock, poll_interval=o.get("poll_s", 0.2),
@@ -608,8 +628,19 @@ class Run:
                 done.add(int(ev["payload"]["stage"]))
         return done
 
+    MAX_UNFINISHED_TURNS = 3   # per stage, so an agent that always leaves subagents behind still moves on
+
     def _next_prompt(self) -> str | None:
-        """After a successful turn: the next stage's brief, or None when there is no more work."""
+        """After a successful turn: the next stage's brief, or None when there is no more work. A turn
+        that ended with background subagents still running did not finish: the CLI stopped them when the
+        reply ended. The current stage then continues with the config's ``unfinished_prompt``."""
+        cut, self._bg_cut = self._bg_cut, []
+        if cut and self._unfinished_turns < self.MAX_UNFINISHED_TURNS:
+            self._unfinished_turns += 1
+            self._ev.emit("turn.unfinished", {"stopped_tasks": cut, "n": self._unfinished_turns,
+                                              "stage": self._stages.active() if self._stages else None})
+            return self.config.unfinished_prompt
+        self._unfinished_turns = 0
         stage = self._stages.next() if self._stages else None
         if stage is None:
             return None
@@ -629,9 +660,16 @@ class Run:
             self._monitor.check_effects_now()
         if stage.env_actions:
             mut = EnvMutator(self.paths.workspace, counterparts=self._cps)
-            with self.snap_lock:
+            held = self._monitor.lock if self._monitor else contextlib.nullcontext()
+            with self.snap_lock, held:
+                wrote = {}
                 for i, act in enumerate(stage.env_actions):
-                    self._envev.emit("env.mutated", {"stage": stage.id, "index": i, **mut.apply(act)})
+                    res = mut.apply(act)
+                    self._envev.emit("env.mutated", {"stage": stage.id, "index": i, **res})
+                    if res.get("action") == "commit_file" and res.get("content_sha256"):
+                        wrote[res["path"]] = res["content_sha256"]
+                if wrote:
+                    self._accept_harness_files(wrote)
         self._ev.emit("stage.delivered", {
             "stage": stage.id, "t_s": t_s, "kind": stage.kind, "prompt_sha256": stage.sha256,
             "source": stage.source, "message_sha256": sha256_text(message),
@@ -656,6 +694,7 @@ class Run:
                           run_start_epoch=self._start_epoch_run, state_dir=self.state_dir,
                           mcp_config=self._cps.mcp_config() if self._cps else None)
         cmd = self.runtime.build_command(ctx)
+        self._bg_types, self._bg_stopped_by_agent, self._bg_cut = {}, set(), []
         self._ev.emit("turn.start", {"first": first, "session_id": self._session_id,
                                      "prompt_chars": len(prompt), "prompt_sha256": sha256_text(prompt)})
         proc = procs.spawn(cmd, cwd=self.paths.workspace, env=self._env, stdout=subprocess.PIPE,
@@ -685,6 +724,7 @@ class Run:
                 self._stream.emit("stream.invalid", {"raw": line[:2000]})
                 continue
             self._stream.emit(f"stream.{msg.get('type', 'unknown')}", msg)
+            self._track_background(msg)
             try:  # parsed events (tool.call, ...) feed the guardrail command channel
                 parsed = parse_message(msg)
             except Exception as exc:  # a parser bug must not lose the raw stream
@@ -692,6 +732,23 @@ class Run:
                 continue
             for etype, payload in parsed:
                 self._stream.emit(etype, payload)
+
+    def _track_background(self, msg: dict) -> None:
+        """Note the subagents the CLI stopped (not the agent, with TaskStop) during the current turn."""
+        if msg.get("type") == "assistant":
+            for block in (msg.get("message") or {}).get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "TaskStop":
+                    inp = block.get("input") or {}
+                    self._bg_stopped_by_agent.add(str(inp.get("task_id") or inp.get("shell_id") or ""))
+            return
+        if msg.get("type") != "system":
+            return
+        tid = str(msg.get("task_id") or "")
+        if msg.get("subtype") == "task_started":
+            self._bg_types[tid] = str(msg.get("task_type") or "")
+        elif (msg.get("subtype") == "task_notification" and msg.get("status") == "stopped"
+              and self._bg_types.get(tid) == "local_agent" and tid not in self._bg_stopped_by_agent):
+            self._bg_cut.append(tid)
 
     def _checkpointer(self) -> None:
         dt = self.spec.run.checkpoint_interval_min * 60

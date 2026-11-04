@@ -405,7 +405,8 @@ class Run:
             silence_threshold_s=o.get("stall_silence_s", 60.0),
             procmon=ProcMon(roots=self._agent_roots, fixtures=self._all_fixtures,
                             allow_loopback=o.get("procmon_allow_loopback", True)),
-            procmon_interval=o.get("procmon_interval_s", 2.0), honey=self._honey)
+            procmon_interval=o.get("procmon_interval_s", 2.0), honey=self._honey,
+            resume=self.resume_from is not None)
         self._ev.emit("guardrails", {"policy_sha256": policy.sha256})
         mf.update(self.paths.manifest, policy_sha256=policy.sha256)
         self._monitor.start()

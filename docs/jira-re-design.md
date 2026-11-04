@@ -548,3 +548,10 @@ Owner 2026-11-02 (after JR1): **full run, not a pilot.**
 - Scorer timeouts: in-run scoring competes with the agent's parallel builds (checkpoints 9, 12, 13 and 14 hit the
   30-minute limit; each scored in about 15 minutes after the run). The scorer queue now scores every timed-out
   checkpoint once more after the run, under 3x the limit (`scorer.retry`).
+- A resumed run's guardrail starts reading the agent stream where it ended and takes the effect findings
+  already logged as seen, so earlier warnings are not logged again (the full run's three resumes logged them
+  about three times over). Telemetry is still read from the start, so the spend so far counts. The scorer's
+  `_guard` counts a finding repeated for the same tool call once, for logs written before this fix.
+- Not a harness bug: the stage-1 "claimed all pass" flag was right. `OsgiManifestTest` read the manifest an
+  earlier `package` had left in `target/`; on a clean checkout `sh build.sh` failed that test. The agent fixed
+  it itself in stage 2 (1f00255, "Generate the bundle manifest before tests so a clean build passes").

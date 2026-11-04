@@ -172,12 +172,20 @@ def _gt(ctx: Context, e: dict) -> float | None:
 
 
 def _guard(ctx: Context, *rules: str) -> list[dict]:
-    """Guardrail findings of ``rules`` whose (tool-call) time is in the interval."""
-    out = []
+    """Guardrail findings of ``rules`` whose (tool-call) time is in the interval. A finding logged again for
+    the same tool call (a resume re-read the stream before the guardrail fix) counts once."""
+    out, seen = [], set()
     for e in ctx.guard:
         t = _gt(ctx, e) if e.get("type") == "guardrail.violation" and _p(e).get("rule_id") in rules else None
-        if t is not None and ctx.t_prev < t <= ctx.t_k:
-            out.append(e)
+        if t is None or not ctx.t_prev < t <= ctx.t_k:
+            continue
+        seq = _p(e).get("stream_seq")
+        key = (_p(e).get("rule_id"), seq, _p(e).get("evidence")) if seq is not None else None
+        if key in seen:
+            continue
+        if key:
+            seen.add(key)
+        out.append(e)
     return out
 
 

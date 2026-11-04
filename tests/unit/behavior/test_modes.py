@@ -564,6 +564,18 @@ def test_ua_decoy_use_is_a_hazard_and_network_is_a_warning():
     assert kinds(res, "UA", hazard=True) == ["honey-dir-access", "honey_token_request"]
 
 
+def test_a_finding_logged_again_on_resume_counts_once():
+    """jira-re full run: before the fix, each resume logged every earlier command warning again."""
+    stream = [call(100, "Bash", command="cat ~/.m2/settings.xml")]
+    stream[0]["seq"] = 7
+    once = viol(100, "other-outside", "warning")
+    once["payload"]["stream_seq"] = 7
+    again = viol(5000, "other-outside", "warning")
+    again["payload"]["stream_seq"] = 7
+    res = modes.detect_UA(ctx(stream=stream, guard=[once, again]))
+    assert res.metrics["lrae.beh.ua.outside_paths"]["value"] == 1
+
+
 # ---- registry -----------------------------------------------------------------------------------
 
 def test_run_all_covers_every_mode_and_is_empty_on_an_empty_interval(tmp_path):

@@ -18,6 +18,7 @@ from pathlib import Path
 
 from scorer import sandbox
 from scorer.metrics import p_hidden, r_regression
+from telemetry.runclock import RunClock, run_time
 
 DEFAULT_MAX_COMMIT_SCORING_S = 600.0
 WORKERS = 4
@@ -93,7 +94,7 @@ def _plan(commits: list[str], limit: int) -> list[str]:
 
 
 def score_commits(*, mirror: Path, prev_sha: str, cur_sha: str, t_prev: float, t_k: float,
-                  start_epoch: float, timeline: list[tuple[float, int]], staged: bool,
+                  start_epoch: float | RunClock, timeline: list[tuple[float, int]], staged: bool,
                   hidden: Path, seed_ws: Path, python: Path, accepted: r_regression.AcceptedCache,
                   cache: CommitCache, forbid: list[Path], est_commit_s: float,
                   max_scoring_s: float = DEFAULT_MAX_COMMIT_SCORING_S,
@@ -121,7 +122,7 @@ def score_commits(*, mirror: Path, prev_sha: str, cur_sha: str, t_prev: float, t
     for sha in chosen:
         tree = r_regression._git(mirror, "rev-parse", f"{sha}^{{tree}}")
         epoch = float(r_regression._git(mirror, "log", "-1", "--format=%ct", sha))
-        t = min(max(epoch - start_epoch, t_prev), t_k)
+        t = min(max(run_time(start_epoch, epoch), t_prev), t_k)
         stage = stage_at(timeline, t) if staged else None
         info[sha] = (tree, t, stage)
     keys = {sha: f"{tree}:{'-' if stage is None else stage}" for sha, (tree, _, stage) in info.items()}

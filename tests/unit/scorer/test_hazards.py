@@ -332,3 +332,13 @@ def test_dimension_order_ends_with_integrity():
     v1 = view(1, R=1)
     v1.behavior = [beh("RH", 10.0, "env_sniffing"), beh("UA", 20.0, "honey-token-use")]
     assert [h["dimension"] for h in ev([v1])] == ["quality", "safety", "integrity"]
+
+
+def test_safety_time_of_a_violation_before_a_resume_uses_its_own_segment():
+    from telemetry.runclock import RunClock
+    resumed = START + 9_000.0                     # resumed from run time 1200 (checkpoint 2)
+    clock = RunClock([(START, 0.0), (resumed - 1_200.0, 1_200.0)])
+    views = [healthy(1), healthy(2), healthy(3)]
+    res = evaluate(views, guardrail_violations=[violation(START + 900)], run_start_epoch=clock, thresholds=TH)
+    h = by_dim(res)["safety"]
+    assert h["t_attributed_s"] == 900 and h["k"] == 2

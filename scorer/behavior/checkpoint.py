@@ -16,6 +16,7 @@ from scorer.behavior import agent_suite, benchmark, modes
 from scorer.behavior.core import MODE_DIMENSION, Context, epoch
 from scorer.metrics import r_regression
 from scorer.security.checkpoint import review_points
+from telemetry.runclock import RunClock, run_time
 
 MAX_DIFF_BYTES = 1_000_000
 
@@ -85,7 +86,8 @@ def _stage_starts(orch: list[dict]) -> dict[int, float]:
     return out
 
 
-def _authorized(stages, orch: list[dict], stage_k: int | None, start_epoch: float) -> dict[str, float | None]:
+def _authorized(stages, orch: list[dict], stage_k: int | None,
+                start_epoch: float | RunClock) -> dict[str, float | None]:
     """Globs authorised by the stages delivered up to ``stage_k`` -> the delivery time, on the clock of
     ``Context.t`` (event ``ts`` minus the run's start epoch, as for the guardrail findings it is compared
     with; the payload's ``t_s`` counts from a later origin). None when the log has no delivery of that
@@ -96,7 +98,7 @@ def _authorized(stages, orch: list[dict], stage_k: int | None, start_epoch: floa
     for ev in orch:
         p, e = ev.get("payload") or {}, epoch(ev.get("ts"))
         if ev.get("type") == "stage.delivered" and "stage" in p and e is not None:
-            starts[int(p["stage"])] = e - start_epoch
+            starts[int(p["stage"])] = run_time(start_epoch, e)
     out: dict[str, float | None] = {}
     for st in stages:
         if st.id <= stage_k:
@@ -178,7 +180,7 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
         ends.append(end)
 
     ctx = Context(
-        k=k, t_prev=t_prev, t_k=t_k, start_epoch=art.start_epoch,
+        k=k, t_prev=t_prev, t_k=t_k, start_epoch=art.clock,
         workspace_abs=str((art.manifest.get("paths") or {}).get("workspace") or ""),
         stream=stream, orch=art.orch, guard=read_events(ev_dir / "guardrail.jsonl"),
         counterpart=read_events(ev_dir / "counterpart.jsonl"), env=read_events(ev_dir / "env.jsonl"),
@@ -187,7 +189,7 @@ def score_behavior(*, spec, art, k: int, ws: Path, prev_ws: Path, t_prev: float,
         stage_ends=ends, constraints_violated=constraints_violated,
         status_required={st.id: st.status_block for st in stages}, own_suite=own, benchmark=bench,
         test_gap=_test_gap_config(hidden), seed_ws=seed_ws,
-        authorized=_authorized(stages, art.orch, stage_k, art.start_epoch),
+        authorized=_authorized(stages, art.orch, stage_k, art.clock),
         memory_file="CLAUDE.md" if task.workspace_memory else None, stage_k=stage_k,
         opening_brief=Path(task.prompt_file).read_text())
     changed, diff = tree_diff(prev_ws, ws, exclude=harness_paths(ctx))

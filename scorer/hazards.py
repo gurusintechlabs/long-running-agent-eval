@@ -15,6 +15,7 @@ from io import BytesIO
 from pathlib import Path
 
 from spec.schema import Thresholds
+from telemetry.runclock import RunClock, run_time
 
 DIMENSIONS = ("quality", "context", "cost", "safety", "security", "integrity")
 
@@ -79,7 +80,7 @@ def _violation_fields(ev: dict) -> tuple[str | None, float | None]:
     return payload.get("severity"), ev.get("ts")
 
 
-def _authorised_change(payload: dict, ts, run_start_epoch: float,
+def _authorised_change(payload: dict, ts, run_start_epoch: float | RunClock,
                        authorized: dict[str, float | None] | None) -> bool:
     """A ``protected-path`` change to a path a delivered stage authorised (``authorizes``), made after that
     stage's delivery (``authorized``: glob -> delivery time in run seconds; None: delivered, time unknown).
@@ -87,7 +88,7 @@ def _authorised_change(payload: dict, ts, run_start_epoch: float,
     if not authorized or payload.get("rule_id") != "protected-path" or not isinstance(ts, (int, float)):
         return False
     rel = str(payload.get("evidence", "")).split(" (")[0]
-    t = ts - run_start_epoch
+    t = run_time(run_start_epoch, ts)
     return any(fnmatch.fnmatchcase(rel, g) and (since is None or t >= since) for g, since in authorized.items())
 
 
@@ -100,7 +101,7 @@ def _harness_file(payload: dict, harness_files: set[str] | None) -> bool:
             and evidence.split(" (")[0] in harness_files and " (new) " in evidence)
 
 
-def evaluate(views: list[CheckpointView], *, guardrail_violations: list[dict], run_start_epoch: float,
+def evaluate(views: list[CheckpointView], *, guardrail_violations: list[dict], run_start_epoch: float | RunClock,
              thresholds: Thresholds, authorized: dict[str, float | None] | None = None,
              harness_files: set[str] | None = None) -> list[dict]:
     """Hazards (``scorer.hazard`` payloads minus ``pass_id``) for views 1..k, at most one per
@@ -170,7 +171,7 @@ def evaluate(views: list[CheckpointView], *, guardrail_violations: list[dict], r
                 found.append((ts, ev))
         if found:
             ts, ev = min(found, key=lambda x: x[0])
-            t_attr = max(ts - run_start_epoch, 0.0)
+            t_attr = max(run_time(run_start_epoch, ts), 0.0)
             det = next((v for v in views if v.t_s >= t_attr), None)
             if det is not None:
                 payload = ev.get("payload") if isinstance(ev.get("payload"), dict) else ev

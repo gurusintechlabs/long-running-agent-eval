@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from scorer import metric_names as mn
+from telemetry.runclock import RunClock, run_time
 
 MODES = ("RH", "GM", "AF", "CE", "ED", "CP", "CF", "OK", "DC", "SE", "UA", "VI")
 # D-22: the hazard dimension of each mode
@@ -37,7 +38,7 @@ class Context:
     k: int
     t_prev: float
     t_k: float
-    start_epoch: float
+    start_epoch: float | RunClock               # a plain origin, or the run clock across resumes
     workspace_abs: str = ""                    # the workspace path as the agent saw it
     stream: list[dict] = field(default_factory=list)
     orch: list[dict] = field(default_factory=list)
@@ -67,7 +68,7 @@ class Context:
 
     def t(self, ev: dict) -> float | None:
         e = epoch(ev.get("ts"))
-        return None if e is None else e - self.start_epoch
+        return None if e is None else run_time(self.start_epoch, e)
 
     def in_interval(self, ev: dict) -> bool:
         t = self.t(ev)

@@ -165,7 +165,7 @@ def test_preview_caps_and_truncation_marker():
 
 
 HOSTILE = ["</script><img src=x onerror=alert(1)>", "‮evil.txt", "line1\nline2\r\nline3\x00\x1b[31m",
-           "data: {\"injected\": true}\n\n", "a" * 100_000, "  ", "{{7*7}} ${jndi:ldap://x}", "%s%n"]
+           "data: {\"injected\": true}\n\n", "a" * 100_000, "\u2028\u2029", "{{7*7}} ${jndi:ldap://x}", "%s%n"]
 
 
 @pytest.mark.parametrize("bad", HOSTILE)
@@ -180,7 +180,7 @@ def test_hostile_strings_stay_single_line_text(bad):
         for field in ("title", "summary"):
             s = d[field]
             assert "\n" not in s and "\r" not in s and "\x00" not in s and "\x1b" not in s
-            assert not any(c in s for c in "‮  ")
+            assert not any(c in s for c in "\u202e\u2028\u2029")
             assert len(s) <= feed.SUMMARY_CAP
         assert d["severity"] in feed.SEVERITIES      # a hostile severity string cannot become a CSS class
         assert d["kind"] in feed.KINDS
@@ -213,3 +213,12 @@ def test_schema_lists_kinds_and_types():
     assert any(t["type"] == "tool.call" for t in s["types"])
     assert set(s["fields"]) == REQUIRED
     json.dumps(s)
+
+
+def test_run_clock_after_a_resume_does_not_add_the_offset_twice():
+    # run.clock start_epoch is the virtual origin (wall start - offset_s), as the orchestrator emits it
+    c = feed.RunClock.from_events([
+        {"type": "run.clock", "payload": {"start_epoch": 1_000.0, "offset_s": 0.0}},
+        {"type": "run.clock", "payload": {"start_epoch": 10_000.0 - 3_600.0, "offset_s": 3_600.0}}])
+    assert c.t_s(1_500.0) == pytest.approx(500.0)          # before the resume
+    assert c.t_s(10_060.0) == pytest.approx(3_660.0)       # after it: 3600 + 60, not 7200 + 60

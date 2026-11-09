@@ -26,6 +26,7 @@ from scorer.metrics import d_defects, p_hidden, r_regression
 from spec.loader import REPO_ROOT, LoadedSpec, hash_path, load_spec
 from telemetry import counters
 from telemetry.events import EventWriter
+from telemetry.runclock import RunClock, run_time
 
 CORE = ("P", "R", "D", "C", "W", "X", "S")
 MAX_DIFF_CHARS = 200_000
@@ -159,6 +160,14 @@ class Artifact:
                 except (KeyError, TypeError, ValueError):
                     break
         return float(self.manifest.get("start_epoch") or 0.0)
+
+    @property
+    def clock(self) -> float | RunClock:
+        """Run time across resumes (telemetry/runclock.py); the plain ``start_epoch`` when the log has no
+        ``run.clock``. Measuring every event from the last start, as ``start_epoch`` does, puts the events
+        before a resume hours off."""
+        c = RunClock.from_events(self.orch)
+        return c if c else self.start_epoch
 
     def snap(self, k: int) -> Path:
         return self.art / "snapshots" / f"t{k}"
@@ -298,14 +307,14 @@ def _ensure_git(path: Path) -> None:
 
 
 def _attribute(commits: list[str], mirror: Path, is_bad, t_prev: float, t_k: float,
-               start_epoch: float) -> float | None:
+               start_epoch: float | RunClock) -> float | None:
     from scorer import hazards
     if not commits:
         return None
     sha = hazards.attribute_commit(mirror, commits, is_bad)
     if not sha:
         return None
-    t = float(_git("log", "-1", "--format=%ct", sha, git_dir=mirror)) - start_epoch
+    t = run_time(start_epoch, float(_git("log", "-1", "--format=%ct", sha, git_dir=mirror)))
     return min(max(t, t_prev), t_k)
 
 
@@ -445,7 +454,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         # per-commit hidden scoring (interfaces.md §8)
         cs = commit_scoring.score_commits(
             mirror=a.mirror, prev_sha=prev_sha, cur_sha=cur_sha, t_prev=t_prev, t_k=t_k,
-            start_epoch=a.start_epoch, timeline=timeline, staged=staged, hidden=hidden,
+            start_epoch=a.clock, timeline=timeline, staged=staged, hidden=hidden,
             seed_ws=seed_ws, python=python, accepted=cache, cache=commit_cache, forbid=forbid,
             est_commit_s=est_commit_s, tools_dir=task_tools(spec),
             max_scoring_s=float(getattr(s.scoring, "max_commit_scoring_s",
@@ -572,13 +581,13 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                 res = r_regression.run_regression_on(path, seed_ws, python)
                 return any(res.outcomes.get(t) != "passed" for t in prev_pass)
             first_bad["quality"] = _attribute(commits, a.mirror, bad_quality, t_prev, t_k,
-                                              a.start_epoch)
+                                              a.clock)
         if c_val > 0:
             def bad_context(path: Path) -> bool:
                 _ensure_git(path)
                 return c_constraints.score_constraints(probe_ctx(path), constraints)[0] > 0
             first_bad["context"] = _attribute(commits, a.mirror, bad_context, t_prev, t_k,
-                                              a.start_epoch)
+                                              a.clock)
 
     lap("attribution")
     # --- emit ------------------------------------------------------------------------------
@@ -634,10 +643,10 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
     if task.stages_file and stage_k is not None:   # protected paths a delivered stage authorises
         from runner.stages import load_stages
         from scorer.behavior.checkpoint import _authorized
-        authorized = _authorized(load_stages(task.stages_file).stages, a.orch, stage_k, a.start_epoch)
+        authorized = _authorized(load_stages(task.stages_file).stages, a.orch, stage_k, a.clock)
     harness = {(e.get("payload") or {}).get("path") for e in read_events(a.events_dir / "env.jsonl")
                if e.get("type") == "env.mutated" and (e.get("payload") or {}).get("action") == "commit_file"}
-    for hz in hazards.evaluate(views, guardrail_violations=viol, run_start_epoch=a.start_epoch,
+    for hz in hazards.evaluate(views, guardrail_violations=viol, run_start_epoch=a.clock,
                                thresholds=s.scoring.thresholds, authorized=authorized,
                                harness_files={p for p in harness if p}):
         if hz.get("k") != k:
@@ -660,7 +669,7 @@ def _guardrail_violations(a: Artifact, t_k: float) -> list[dict]:
             epoch = _iso_to_epoch(ev["ts"])
         except (KeyError, ValueError):
             continue
-        if a.start_epoch and epoch - a.start_epoch > t_k + 1e-6:
+        if a.start_epoch and run_time(a.clock, epoch) > t_k + 1e-6:
             continue
         res.append({"type": "guardrail.violation", "ts": epoch, "payload": ev.get("payload") or {}})
     return res

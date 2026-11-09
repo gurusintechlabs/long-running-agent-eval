@@ -17,6 +17,11 @@ API_REQUEST = "claude_code.api_request"
 DEFAULT_MODELS_YAML = Path(__file__).with_name("models.yaml")
 FALLBACK_WINDOW = 200_000
 COMPACTION_DROP = 0.5  # heuristic: prompt tokens fall by more than this fraction
+# OTel ``query_source`` of the main agent's own requests. Helper agents (``agent:...``, ``subagent``) share its
+# session id but have their own context; compaction and auxiliary calls belong to neither. A request with no
+# source (older CLIs) counts as the main agent's.
+MAIN_SOURCES = frozenset({"sdk", "main"})
+HELPER_PREFIXES = ("agent:", "subagent")
 
 _TOKEN_FIELDS = {"tokens_in": "input_tokens", "tokens_out": "output_tokens",
                  "tokens_cache_read": "cache_read_tokens", "tokens_cache_creation": "cache_creation_tokens"}
@@ -156,20 +161,37 @@ def _p95(values: list[float]) -> float | None:
 
 # -- the counters ------------------------------------------------------------------------------
 
-def _compaction_flags(requests: list[dict], event_sessions: set) -> dict[int, bool]:
-    """id(request event) -> heuristic compaction, for sessions with no stream compaction events."""
-    prev: dict[str, float] = {}
+def request_role(payload: dict) -> str:
+    """``main`` (the main agent), ``helper`` (a helper agent) or ``other`` (compaction, auxiliary calls)."""
+    src = payload.get("query_source")
+    if src is None or src in MAIN_SOURCES:
+        return "main"
+    return "helper" if str(src).startswith(HELPER_PREFIXES) else "other"
+
+
+def _prompt_tokens(p: dict) -> float:
+    return sum(_num(p.get(f)) or 0.0 for f in ("input_tokens", "cache_read_tokens", "cache_creation_tokens"))
+
+
+def _compaction_flags(requests: list[dict], event_sessions: set, resets: list[int] = ()) -> dict[int, bool]:
+    """id(request event) -> heuristic compaction, for sessions with no stream compaction events. Only the main
+    agent's requests count, and the comparison restarts at each resume (``resets``: mono_ns of the later
+    ``run.clock`` events), where a new process starts from a smaller prompt without compacting."""
+    prev: dict[str, tuple[float, int]] = {}
     flags: dict[int, bool] = {}
     for ev in requests:
         p = ev.get("payload") or {}
         sid = p.get("session.id")
-        tokens = sum(_num(p.get(f)) or 0.0 for f in ("input_tokens", "cache_read_tokens", "cache_creation_tokens"))
-        if sid is None or sid in event_sessions:
+        if sid is None or sid in event_sessions or request_role(p) != "main":
             continue
+        tokens, mono = _prompt_tokens(p), ev.get("mono_ns")
         before = prev.get(sid)
-        if before and tokens < before * (1 - COMPACTION_DROP):
+        if before and isinstance(mono, int) and isinstance(before[1], int) \
+                and bisect.bisect_right(resets, mono) > bisect.bisect_right(resets, before[1]):
+            before = None
+        if before and tokens < before[0] * (1 - COMPACTION_DROP):
             flags[id(ev)] = True
-        prev[sid] = tokens
+        prev[sid] = (tokens, mono)
     return flags
 
 
@@ -192,13 +214,15 @@ def interval_counters(events_dir: Path, models_yaml: Path | None = None) -> list
 
     rows = [{"k": i + 1, **{c: 0 for c in _TOKEN_FIELDS}, "cost_usd": 0.0, "tool_calls": 0,
              "compactions": 0, "turns": 0, "api_errors": 0} for i in range(n)]
-    fills: list[list[float]] = [[] for _ in range(n)]
+    fills: list[list[float]] = [[] for _ in range(n)]          # main agent
+    helper_fills: list[list[float]] = [[] for _ in range(n)]
     sessions: list[set] = [set() for _ in range(n)]
     lags: list[list[float]] = [[] for _ in range(n)]
 
     event_sessions = {(e.get("payload") or {}).get("session_id") for e in stream
                       if e.get("type") == "context.compaction"}
-    flags = _compaction_flags(requests, event_sessions)
+    clocks = [e.get("mono_ns") for e in orch if e.get("type") == "run.clock" and isinstance(e.get("mono_ns"), int)]
+    flags = _compaction_flags(requests, event_sessions, sorted(clocks)[1:])
     for ev in requests:
         i = _interval_index(bounds, ev.get("mono_ns"))
         if i is None:
@@ -209,8 +233,10 @@ def interval_counters(events_dir: Path, models_yaml: Path | None = None) -> list
         rows[i]["cost_usd"] += _num(p.get("cost_usd")) or 0.0
         if p.get("session.id"):
             sessions[i].add(p["session.id"])
-        prompt = sum(_num(p.get(f)) or 0.0 for f in ("input_tokens", "cache_read_tokens", "cache_creation_tokens"))
-        fills[i].append(prompt / context_window(p.get("model"), table, swin, default))
+        role = request_role(p)
+        if role != "other":
+            fill = _prompt_tokens(p) / context_window(p.get("model"), table, swin, default)
+            (fills if role == "main" else helper_fills)[i].append(fill)
         rows[i]["compactions"] += flags.get(id(ev), False)
     for ev in otel_all:
         i = _interval_index(bounds, ev.get("mono_ns"))
@@ -242,6 +268,7 @@ def interval_counters(events_dir: Path, models_yaml: Path | None = None) -> list
     for i, row in enumerate(rows):
         row["context_fill_max"] = max(fills[i]) if fills[i] else None
         row["context_fill_last"] = fills[i][-1] if fills[i] else None
+        row["helper_context_fill_max"] = max(helper_fills[i]) if helper_fills[i] else None
         row["sessions"] = len(sessions[i])
         row["otel_lag_ms_p95"] = _p95(lags[i])
         for c in _CUM:

@@ -86,11 +86,13 @@ class FakeRun:
         self.append("agent_stream", "tool.result", {"session_id": "s", "tool_use_id": f"t{n}", "is_error": False,
                                                     "size": 10})
 
-    def api_request(self, cost: float, inp=1000, out=100, cache_read=0, cache_creation=0) -> None:
-        self.append("otel", "claude_code.api_request", {
-            "model": "claude-haiku-5-5", "input_tokens": str(inp), "output_tokens": str(out),
-            "cache_read_tokens": str(cache_read), "cache_creation_tokens": str(cache_creation),
-            "cost_usd": str(cost)})
+    def api_request(self, cost: float, inp=1000, out=100, cache_read=0, cache_creation=0, source=None) -> None:
+        p = {"model": "claude-haiku-5-5", "input_tokens": str(inp), "output_tokens": str(out),
+             "cache_read_tokens": str(cache_read), "cache_creation_tokens": str(cache_creation),
+             "cost_usd": str(cost)}
+        if source is not None:
+            p["query_source"] = source
+        self.append("otel", "claude_code.api_request", p)
 
     def start(self, interval_s: float = 0.05, n: int = 10_000) -> None:
         def run():

@@ -202,3 +202,51 @@ def test_real_fixture_session_counted(tmp_path):
     a, _ = interval_counters(d)
     assert a["sessions"] == 1 and a["context_fill_last"] == pytest.approx(21009 / 200000)
     assert a["cost_usd"] == pytest.approx(0.0063735)
+
+
+# ---- main agent vs helper agents (query_source; owner 2026-11-09)
+
+def src(r, source):
+    r["payload"]["query_source"] = source
+    return r
+
+
+def test_context_fill_counts_the_main_agent_and_tracks_helpers_separately(tmp_path):
+    y = tmp_path / "m.yaml"
+    y.write_text("default_context_window: 1000\nmodels: {}\n")
+    d = build(tmp_path, orch_two(), otel=[
+        src(req("s", 500, mono=1100), "sdk"),
+        src(req("s", 900, mono=1200), "agent:builtin:general-purpose"),   # a helper's own context
+        src(req("s", 950, mono=1250), "compact"),                         # a compaction call: neither
+        src(req("s", 300, mono=1300), "main")])
+    a, b = interval_counters(d, models_yaml=y)
+    assert a["context_fill_max"] == pytest.approx(0.5) and a["context_fill_last"] == pytest.approx(0.3)
+    assert a["helper_context_fill_max"] == pytest.approx(0.9)
+    assert b["helper_context_fill_max"] is None
+
+
+def test_requests_without_a_source_are_the_main_agent(tmp_path):
+    d = build(tmp_path, orch_two(), otel=[req("s", 1000, mono=1100)])
+    a, _ = interval_counters(d)
+    assert a["context_fill_max"] is not None and a["helper_context_fill_max"] is None
+
+
+def test_compaction_heuristic_ignores_helper_requests_in_the_same_session(tmp_path):
+    d = build(tmp_path, orch_two(), otel=[
+        src(req("s", 10, cr=800000, mono=1100), "sdk"),
+        src(req("s", 10, cr=5000, mono=1150), "agent:builtin:general-purpose"),
+        src(req("s", 10, cr=810000, mono=1200), "sdk"),
+        src(req("s", 10, cr=4000, mono=1250), "subagent"),
+        src(req("s", 10, cr=300000, mono=1300), "sdk")])     # a real drop of the main agent's prompt
+    a, _ = interval_counters(d)
+    assert a["compactions"] == 1
+
+
+def test_compaction_heuristic_restarts_at_a_resume(tmp_path):
+    orch = orch_two() + [ev("run.clock", 2500, start_epoch=0, offset_s=1800)]
+    orch.sort(key=lambda e: e["mono_ns"])
+    d = build(tmp_path, orch, otel=[
+        src(req("s", 10, cr=800000, mono=2100), "sdk"),
+        src(req("s", 10, cr=20000, mono=2600), "sdk")])      # after the resume: a fresh process, not a compaction
+    _, b = interval_counters(d)
+    assert b["compactions"] == 0

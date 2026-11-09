@@ -375,8 +375,8 @@ lrae clean                      # remove leftover agent state dirs / ~/.claude.j
 | `tokens_in/out/cache_*` | Σ over `claude_code.api_request` events |
 | `cost_usd` | Σ `cost_usd` over the agent's `claude_code.api_request` events. Judge and pre-flight spend are tracked separately. |
 | `tool_calls` | count of `tool.call`, by tool name |
-| `context_fill` | per request: `(input + cache_read + cache_creation) / context_window(model)`. Per interval: max and last. The window table is in `telemetry/models.yaml`. |
-| `compactions` | stream compaction events. If none are emitted: within one session, a request whose prompt tokens drop > 50% versus the previous request. |
+| `context_fill` | per request: `(input + cache_read + cache_creation) / context_window(model)`. Per interval: max and last, over the **main agent's** requests only (OTel `query_source` `sdk` or `main`, or none). Helper agents share the main session id but have their own context: their max is the separate `helper_context_fill_max`; compaction and auxiliary calls count in neither (owner, 2026-11-09). The window table is in `telemetry/models.yaml`. |
+| `compactions` | stream compaction events. If none are emitted: within one session, a **main-agent** request whose prompt tokens drop > 50% versus the previous main-agent request; the comparison restarts at each resume (owner, 2026-11-09). |
 | `turns`, `sessions` | from the orchestrator |
 | `api_errors`, `retry_s` | count of `claude_code.api_error`; time spent in retries/backoff |
 | `otel_lag_ms` | receive time minus event timestamp; health signal for the budget kill switch |

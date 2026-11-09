@@ -72,7 +72,7 @@ TABLES = ("experiments", "runs", "checkpoints", "metrics", "counters", "hazards"
           "test_outcomes", "stages", "agent_test_runs", "behavior_events", "run_markers")
 # Used when telemetry.counters is unavailable so downstream consumers still see every name.
 ZERO_COUNTERS = ("tokens_in", "tokens_out", "tokens_cache_read", "tokens_cache_creation",
-                 "cost_usd", "tool_calls", "context_fill_max", "context_fill_last", "compactions",
+                 "cost_usd", "tool_calls", "context_fill_max", "context_fill_last", "helper_context_fill_max", "compactions",
                  "turns", "sessions", "api_errors", "otel_lag_ms_p95")
 TOKEN_COUNTERS = ("tokens_in", "tokens_out", "tokens_cache_read", "tokens_cache_creation")
 _CENSOR_BY_STATE = {"COMPLETED": "deadline", "BUDGET_EXHAUSTED": "budget"}

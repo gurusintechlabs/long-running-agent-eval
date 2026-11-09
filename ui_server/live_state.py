@@ -15,7 +15,7 @@ import time
 from collections import Counter, OrderedDict, deque
 from pathlib import Path
 
-from telemetry.counters import context_window, load_models
+from telemetry.counters import context_window, load_models, request_role
 from ui_server import safefs, store
 from ui_server.feed import RunClock, ts_epoch
 from ui_server.tailer import MAX_LINE, FileTail, list_event_files, peek
@@ -91,7 +91,9 @@ class RunLive:
         self.last_request_ts: str | None = None
         self.last_model: str | None = None
         self.last_prompt: float | None = None
-        self.max_prompt = 0.0
+        self.max_prompt = 0.0            # main agent only (helper agents have their own context)
+        self.helper_max_prompt = 0.0
+        self.main_requests = 0
         self.stream_windows: dict[str, int] = {}
         self.compactions = 0
         self.cost_series: deque = deque(maxlen=SERIES_MAX)
@@ -240,12 +242,18 @@ class RunLive:
                 prompt += v
         model = p.get("model")
         self.last_model = str(model) if model else self.last_model
-        self.last_prompt = prompt
-        self.max_prompt = max(self.max_prompt, prompt)
+        role = request_role(p)
+        if role == "main":
+            self.main_requests += 1
+            self.last_prompt = prompt
+            self.max_prompt = max(self.max_prompt, prompt)
+        elif role == "helper":
+            self.helper_max_prompt = max(self.helper_max_prompt, prompt)
         t = self.clock.t_s(ts_epoch(ts))
         if t is not None:
             self.cost_series.append((t, round(self.cost, 6)))
-            self.fill_series.append((t, prompt))   # tokens; divided by the window at snapshot time
+            if role == "main":
+                self.fill_series.append((t, prompt))   # tokens; divided by the window at snapshot time
 
     def _on_guardrail(self, typ, p, ev, ts):
         g = self.guard
@@ -341,7 +349,8 @@ class RunLive:
         table, default = _models()
         window = context_window(self.last_model or mf.get("model"), table, self.stream_windows, default)
         fill = self.last_prompt / window if self.last_prompt is not None and window else None
-        max_fill = self.max_prompt / window if self.requests and window else None
+        max_fill = self.max_prompt / window if self.main_requests and window else None
+        helper_max_fill = self.helper_max_prompt / window if self.helper_max_prompt and window else None
         last_event = max(self.last_ts.values(), default=None)
         le = ts_epoch(last_event)
         la = ts_epoch(self.last_agent_ts)
@@ -373,7 +382,7 @@ class RunLive:
                                 "output": int(self.tok["output_tokens"]),
                                 "cache_read": int(self.tok["cache_read_tokens"]),
                                 "cache_creation": int(self.tok["cache_creation_tokens"])}},
-            "context": {"fill": fill, "max_fill": max_fill, "window": window if self.requests else None, "model": self.last_model or mf.get("model"),
+            "context": {"fill": fill, "max_fill": max_fill, "helper_max_fill": helper_max_fill, "window": window if self.requests else None, "model": self.last_model or mf.get("model"),
                         "compactions": self.compactions},
             "budget": {"per_run_usd": cap_usd, "per_run_tokens": cap_tok, "duration_min": dur_min,
                        "usd_fraction": f_usd, "tokens_fraction": f_tok, "time_fraction": f_time,

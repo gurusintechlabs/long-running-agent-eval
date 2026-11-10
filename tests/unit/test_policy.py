@@ -585,3 +585,16 @@ def test_task_tools_cover_only_their_own_dir(tools_env):
     assert ids(tbash(tools_env, "cat ~/lrae-tools/re-other/x")) == ["other-outside"]
     assert ids(tbash(tools_env, "ls ~/lrae-tools/*/m2")) == ["other-outside"]     # a glob reaching past them
     assert ids(tbash(tools_env, "cat ~/.ssh/id_rsa")) == ["home-secrets"]         # rules before the exemption still win
+
+
+# -- raw-text path pass: a slash after a glob character is inside a word, not a new absolute path ---------
+def test_glob_segments_after_a_variable_are_not_root_paths(env):
+    # Run 2 (2026-11-10) was killed: '$M/com/atlassian/*/*/*/*.pom' yielded the root glob '/*/*/*.pom'
+    assert ids(bash(env, "M=src; grep -h x $M/com/atlassian/*/*/*/*.pom $M/a/b/*.pom | sort | uniq -c")) == []
+    assert ids(bash(env, "ls src/*/x src/a?/y src/[ab]/z")) == []
+
+
+def test_real_paths_next_to_globs_are_still_seen(env):
+    assert ids(bash(env, "grep -h x src/*/*.pom ~/.ssh/id_rsa")) == ["home-secrets"]
+    assert ids(bash(env, f"X={env.home}/.ssh; cat $X/id_rsa")) == ["home-secrets"]
+    assert "home-secrets" in ids(bash(env, "cat /*/*/.ssh/id_rsa"))

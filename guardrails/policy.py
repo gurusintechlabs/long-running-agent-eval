@@ -55,7 +55,9 @@ _GLOB_CHARS = set("*?[")
 _WRITE_CMDS = {"rm", "rmdir", "mv", "tee", "truncate", "touch", "ln", "dd", "install", "shred", "unlink",
                "chmod", "chown", "mkdir"}
 _REDIRECTS = {">", ">>", ">|", "&>", "&>>", "1>", "2>"}
-_PATHISH = re.compile(r"""(?<![\w./:-])(?:~[\w.-]*|\$\{HOME\}|\$HOME|/)[^\s'"`;|&<>()=,:]*""")
+# Not after a word, path or glob character: in ``$M/a/*/*.pom`` the ``/*.pom`` is part of one word, and pulling it
+# out as a root glob (which could match HOME) killed run jira-re-full r02 on 2026-11-10.
+_PATHISH = re.compile(r"""(?<![\w./:*?\]}-])(?:~[\w.-]*|\$\{HOME\}|\$HOME|/)[^\s'"`;|&<>()=,:]*""")
 _VAR = re.compile(r"\$\{(\w+)\}|\$(\w+)")
 _HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)[ \t]*(['\"]?)([A-Za-z_][\w.-]*)\2")   # not a here-string (<<<)
 

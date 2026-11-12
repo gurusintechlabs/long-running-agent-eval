@@ -26,7 +26,7 @@ def test_spec_is_for_an_implementer():
     assert s.task.toolchain.dir == "~/lrae-tools/re" and s.task.counterparts.rea is None
     assert s.scoring.behavior.agent_suite_runner == "maven" and s.scoring.clean_room.enabled
     assert Path(s.scoring.clean_room.jar) == TASK / "vendor"          # a dir: the spec names no jar
-    assert s.budget.per_run_usd == 1000.0 and s.budget.experiment_usd == 4000.0 and s.agent.model == "claude-opus-5-5"
+    assert s.budget.per_run_usd == 1500.0 and s.budget.experiment_usd == 3000.0 and s.agent.model == "claude-opus-5-5"
     assert "spec/**" in s.task.protected_paths and "Edit(spec/**)" in s.task.permissions.deny
     assert not any("vendor" in d for d in s.task.permissions.deny)
 

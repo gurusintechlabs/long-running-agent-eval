@@ -88,6 +88,21 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def resume_offset_s(orchestrator_log: Path, k: int, dt_s: float) -> float:
+    """Run time at which checkpoint ``k`` was taken: a resume from it continues there. A checkpoint taken
+    early (at an interruption) is not at ``k * dt``; jumping there added 25.8 min to jira-re r02."""
+    t_s = None
+    with contextlib.suppress(OSError):
+        for line in orchestrator_log.read_text().splitlines():
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if ev.get("type") == "checkpoint" and ev.get("payload", {}).get("k") == k:
+                t_s = ev["payload"].get("t_s", t_s)   # the latest: a checkpoint retaken after a resume
+    return float(t_s) if t_s is not None else k * dt_s
+
+
 def user_memory_lock(repo_root: Path) -> Path:
     return Path(repo_root) / "runs" / ".user-memory.lock"
 
@@ -544,7 +559,8 @@ class Run:
         memory.assert_empty(self.state_dir)
         shutil.copytree(snap / "workspace", self.paths.workspace, symlinks=True)
         memory.restore_state(snap / "agent_state", self.state_dir)
-        self._offset_s = k * self.spec.run.checkpoint_interval_min * 60
+        self._offset_s = resume_offset_s(self.paths.events / "orchestrator.jsonl", k,
+                                         self.spec.run.checkpoint_interval_min * 60)
         self._ev.emit("run.resumed", {"from_k": k, "offset_s": self._offset_s})
 
     # -- run ------------------------------------------------------------------------------

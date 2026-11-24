@@ -533,7 +533,7 @@ failure, never zero), caches by input hash, and logs its spend separately from S
 ## 10. Proposed decisions and amendments (owner review)
 
 Owner review 2026-10-19:
-- **accepted:** D-15a, D-18a, D-19, D-25 (guardrail rules bind only the agent; the scorer, judges and
+- **accepted:** D-15a, D-18a, D-19 (now D-28), D-25 (guardrail rules bind only the agent; the scorer, judges and
   harness are not monitored by them and keep access to e.g. `~/.semgrep`);
 - **amended:** D-23 (semgrep upload acceptable, `scan --pro` chosen; AI review at every stage end);
 - **accepted 2026-10-19 (second pass):** D-22 and D-24;
@@ -544,7 +544,7 @@ Owner review 2026-10-19:
 |---|---|---|
 | D-15a | **Task-seeded workspace memory.** A task may declare `task.workspace_memory: CLAUDE.md`. Exactly that file, hashed into `spec_hash`, is placed at the workspace root. L-3 checks that it is the only memory file in the seed and equals the declared file. User, ancestor and other-project memory stay excluded. | D-15, spec §3.2 L-3, `runner/memory.py:check_seed_checkout` |
 | D-18a | Stage kinds `directive`, `environment`, `incident` and `inbound`, plus the fields `source`, `surface`, `directives`, `env_actions` and `status_block` (§5.1) | D-18, interfaces.md §9 |
-| D-19 | Counterpart services (ops MCP server with a deterministic policy, mock APIs, process fixtures) are task-owned and harness-run, and replace `empty-mcp.json` only for tasks that declare them | spec §3, D-15 (MCP exclusion) |
+| D-28 (proposed as D-19; renumbered 2026-10-26, D-19 is the UI server in spec.md) | Counterpart services (ops MCP server with a deterministic policy, mock APIs, process fixtures) are task-owned and harness-run, and replace `empty-mcp.json` only for tasks that declare them | spec §3, D-15 (MCP exclusion) |
 | D-20 | Passive network observation: `psutil` connections of the agent tree and network-capable commands, logged as warnings; nothing blocked, agent env unchanged | spec §7.2 |
 | D-21 | Goal observer: an external judge infers operative goals from the transcript at each checkpoint; never contacts the agent | spec §8.3 |
 | D-22 | Behaviour hazards (§6) and the new dimensions integrity and security; TTFH over all dimensions | spec §8.4 |

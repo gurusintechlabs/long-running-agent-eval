@@ -97,18 +97,39 @@ def compute_spec_hash(spec: Spec, extra_files: dict[str, Path] | None = None) ->
             data["task"].pop(key, None)
     if data["task"].get("exploit_tests") is None:
         data["task"].pop("exploit_tests", None)
-    from spec.schema import BehaviorScoring, SecurityScoring
-    if data["scoring"].get("behavior") == BehaviorScoring().model_dump(mode="json"):
+    from spec.schema import BehaviorScoring, CleanRoomScoring, SecurityScoring
+    # J1 fields are left out while unset or default, so specs written before them keep their hash
+    if data["task"].get("toolchain") is None:
+        data["task"].pop("toolchain", None)
+    if data["scoring"].get("clean_room") == CleanRoomScoring().model_dump(mode="json"):
+        data["scoring"].pop("clean_room", None)
+    else:
+        crd = data["scoring"]["clean_room"]
+        for key in ("jar", "extra_jars"):
+            if crd.get(key) is None:
+                crd.pop(key, None)
+            elif isinstance(crd[key], list):
+                crd[key] = [{"sha256": hash_path(Path(p))} for p in crd[key]]
+            else:
+                crd[key] = {"sha256": hash_path(Path(crd[key]))}
+    if data["scoring"]["behavior"].get("agent_suite_runner") == "pytest":
+        data["scoring"]["behavior"].pop("agent_suite_runner")
+    if data["scoring"].get("behavior") == {k: v for k, v in BehaviorScoring().model_dump(mode="json").items()
+                                           if k != "agent_suite_runner"}:
         data["scoring"].pop("behavior", None)
     elif data["scoring"]["behavior"].get("judge_fixtures"):
         jf = data["scoring"]["behavior"]
         jf["judge_fixtures"] = {"sha256": hash_path(Path(jf["judge_fixtures"]))}
     sec = data["scoring"].get("security")
-    if sec == SecurityScoring().model_dump(mode="json"):
+    if sec and sec.get("languages") == ["python"]:   # the default; hashes from before the field stay valid
+        sec.pop("languages")
+    if sec == {k: v for k, v in SecurityScoring().model_dump(mode="json").items() if k != "languages"}:
         data["scoring"].pop("security", None)
     elif sec and sec.get("context_file"):
         sec["context_file"] = {"sha256": hash_path(Path(sec["context_file"]))}
     cps = data["task"].get("counterparts") or {}
+    if cps.get("rea") is None:
+        cps.pop("rea", None)
     if not any(cps.values()):
         data["task"].pop("counterparts", None)
     elif cps.get("ops"):
@@ -160,6 +181,17 @@ def load_spec(path: Path | str, repo_root: Path = REPO_ROOT) -> LoadedSpec:
         beh.judge_fixtures = _resolve(spec_dir, beh.judge_fixtures)
         if not Path(beh.judge_fixtures).is_file():
             raise SpecError(f"scoring.behavior.judge_fixtures: file does not exist: {beh.judge_fixtures}")
+    cr = spec.scoring.clean_room
+    if cr.jar:
+        cr.jar = _resolve(spec_dir, cr.jar)
+        if not Path(cr.jar).exists():
+            raise SpecError(f"scoring.clean_room.jar: does not exist: {cr.jar}")
+    if cr.extra_jars:
+        paths = [_resolve(spec_dir, p) for p in ([cr.extra_jars] if isinstance(cr.extra_jars, str) else cr.extra_jars)]
+        for p in paths:
+            if not Path(p).exists():
+                raise SpecError(f"scoring.clean_room.extra_jars: does not exist: {p}")
+        cr.extra_jars = paths[0] if isinstance(cr.extra_jars, str) else paths
     if sec.context_file:
         sec.context_file = _resolve(spec_dir, sec.context_file)
         if not Path(sec.context_file).is_file():

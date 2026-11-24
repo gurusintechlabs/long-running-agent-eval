@@ -1,0 +1,1245 @@
+{
+ "claims": [
+  {
+   "key": "i1-jira-hooks/jql-structure/descriptor",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "The module is a `jql-function` with key `jql-structure`, child `fname` = `structure` and `list` = `true`. Jira gets 0 as the minimum number of arguments and `JiraDataTypes.ISSUE` as the data type; the function also implements Jira's `ClauseSanitisingJqlFunction`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunction#getMinimumNumberOfExpectedArguments",
+    "com.almworks.jira.structure.query.StructureJqlFunction#getDataType"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/zero-args",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "With no arguments, the function searches the global default structure (`StructureConfiguration.getDefaultStructureId(null)`, project defaults are not consulted) with a query matching every row. If the current user cannot VIEW that structure (`StructureManager.isAccessible(id, VIEW)`, which also covers the unset value 0), validation gives the error `s.jql.error.no-default-structure` ('Default structure is missing or you do not have permissions to view it.'). Paused automation is not checked for the default structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidate",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#getDefaultStructure"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/structure-arg-by-id",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "A structure argument is first trimmed and read as a long (anything unparseable counts as 0). A value > 0 is a structure ID: if the user cannot VIEW it the error is `s.jql.error.bad-structure-id` with the ID as text ('There''s no structure with ID {0} or you don''t have permissions to view it.'). A value <= 0 is treated as a name, not an ID.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#getStructure"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/structure-arg-by-name",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "A structure argument that is not a positive number is looked up with `StructureManager.getStructuresByName(arg, VIEW)` (null argument is treated as an empty string). Exactly one match is that structure. Two or more give the error `s.jql.error.too-many-structures` with the argument ('There is more than one structure with name \"{0}\", please use structure ID instead.') and the structure value 0. No match gives `s.jql.error.unknown-structure` with the argument ('There''s no structure \"{0}\" or you don''t have permissions to view it.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#getStructure"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/hidden-name-lookup",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "When the name matches nothing the user may VIEW and security is not overridden, the name is looked up again with security overridden and no level. If that finds structures, the first one's ID is remembered as the function's structure value (the error stays). This lets a one-argument call tell an existing hidden structure from text that is not a structure, and it is the ID that sanitisation then writes in place of the name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#getStructure"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/one-arg-sjql-fallback",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "With one argument the function first reads it as a structure. If that gives an error, the same text is parsed and validated as an S-JQL query. If the query has no errors, the function searches the global default structure with that query, so `structure(\"child of TS-1\")` runs on the default structure, and the structure's errors are dropped. If the default structure is then not accessible, the messages are the structure's errors followed by `s.jql.error.no-default-structure`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidate"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/one-arg-both-fail",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "With one argument that is neither a usable structure nor a valid S-JQL query: when the structure value is <= 0 (no such structure at all, or an ambiguous name) the default structure is taken and checked as well; when it is > 0 (a positive ID the user cannot view, or a name of a structure hidden from the user) that structure value is kept and the default structure is not looked at. In both cases the messages returned are, in this order, the structure error, then the S-JQL errors, then any default-structure error; each is an error of the `MessageSet`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidate"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/automation-stopped",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "When a structure named by argument resolves and is accessible but `generation-manager` reports it blocked (`isBlocked(ForestSpec.unsecuredStructure(id))`), validation fails with `s.jql.error.automation-stopped` with the structure's name and the ID as text ('Automation is paused for structure \"{0}\" (#{1}).'). The name is '' when reading the structure with VIEW throws `StructureException`. With one argument this does not fall through to S-JQL parsing: the error is reported and the argument stays a structure. With two arguments the S-JQL argument is still parsed and its errors are added after it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#getStructure",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#reportAutomationStopped",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidate"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/two-args",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "With two arguments the first is a structure as described for the one-argument form (no S-JQL fallback) and the second is an S-JQL query. Errors from both are collected, structure errors first. A null query argument is parsed as the text `[]`. A `StructureException` from parsing adds its localized message as an error and the default all-rows query is kept.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidate",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidateSjql"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/too-many-args",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "With three or more arguments validation gives the single error `s.jql.error.bad-number-of-arguments` ('<product> function accepts up to two arguments: an optional structure name and an optional <product> query.'), and the structure value is -1.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidate"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/plugin-unavailable",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "Unless `StructureAuth` security is overridden, a user for whom `StructurePluginHelper.isStructureAvailableToCurrentUser()` is false gets just one error, `s.jql.error.structure-unavailable` ('Sorry, you do not have access to the <product> function.'), whatever the arguments are; the other errors are not returned. The arguments are still resolved, so sanitisation can use them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidate",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#checkStructureAccessible"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/validate-callback",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "Jira's `validate(user, operand, clause)` runs as the given user (`StructureAuth.sudo(user, false, ...)`) and returns the `MessageSet` from the argument rules. In this mode a saved filter referenced by inner JQL in the S-JQL query is checked for referring to the filter being saved (`s.jql.error.cycle`, see `structure-query-parser`). Validate never evaluates the query against the forest and records no statistics.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunction#validate",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#forValidation",
+    "com.almworks.jira.structure.query.StructureQueryValidator#validate"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/get-values-result",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "`getValues` with valid arguments runs the query on the latest forest of `ForestSpec.structure(id)` (secured for the current user) and returns one `QueryLiteral(operand, issueId)` per distinct issue, in the order the query yields rows. Non-issue rows are skipped and an issue on several rows appears once.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunction#getValues",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#eval"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/issue-list-includes-subtree",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "In `getValues` only, a query that consists of nothing but an issue list matches those issues and all their descendants in the structure, not just the issues (`issue in structure(\"S\", \"TS-1\")` also returns everything under TS-1). Any other query keeps its usual meaning. `validate` is not affected.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#eval",
+    "com.almworks.jira.structure.query.StructureQueryImpl#setBackwardsCompatibilityPatch"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/get-values-invalid",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "`getValues` with arguments that fail the rules returns an empty list and does not throw; no forest is read.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunction#getValues"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/forest-failure",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "If reading the forest throws `StructureException`, a warning is logged and `getValues` returns an empty list. The call still counts as valid in the statistics.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#eval",
+    "com.almworks.jira.structure.query.StructureJqlFunction#getValues"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/cycle-guard",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "While `getValues` or `sanitiseOperand` is running for an operand, a nested call on the same thread with an equal `FunctionOperand` (a filter reaching itself through inner JQL) does not evaluate: `getValues` logs a warning and returns an empty list, `sanitiseOperand` returns the operand unchanged. The guard is per thread and per operand: a different operand, or another thread, evaluates normally, and the operand is released when the call ends, also on an exception. `validate` is not guarded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunction#withFunArgs",
+    "com.almworks.jira.structure.query.StructureJqlFunction#getValues",
+    "com.almworks.jira.structure.query.StructureJqlFunction#sanitiseOperand"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/get-values-ignores-context-user",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "`getValues` and `sanitiseOperand` run under the ambient `StructureAuth` user, not under the one they are given: the `QueryCreationContext` user and its security-override flag only wrap the creation of the argument holder, so checking, forest access and query evaluation use whoever `StructureAuth.getUser()` is on the thread, with security not overridden (as the original does). A test: with a context for user A and security override set while the thread's user is B, permissions are those of B.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunction#getValues",
+    "com.almworks.jira.structure.query.StructureJqlFunction#createArgs",
+    "com.almworks.jira.structure.query.StructureJqlFunction#withFunArgs"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/sanitise",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "`sanitiseOperand(searcher, operand)`: when the arguments have no errors it returns the same operand. When they have errors it returns a new `FunctionOperand` with the same name and these arguments: first the structure value as decimal text (-1, 0, the default structure ID or the resolved ID), then the query's sanitised text (`StructureQuery.getSanitizedQueryString`) when that is not null. So a structure name the user cannot see never remains in the JQL shown to them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunction#sanitiseOperand",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#getStructureSanitized",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#getSjqlSanitized"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/sanitise-bypass",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "When dark feature `structure.jql.bypassSanitization` (read once at creation, default false) is on, `sanitiseOperand` returns the operand unchanged without looking at it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunction#sanitiseOperand"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/agile-optimization",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "When dark feature `structure.jql.optimize.check.projects` (read once at creation, default false) is on, `getValues` returns an empty list without evaluation or statistics when it is called from inside one of these Jira Software or issue-create methods: `com.atlassian.greenhopper.service.query.QueryToProjectMapper.getProjectContextIdsForQuery`, `com.atlassian.jira.plugins.issue.create.rest.ContextResolutionHelper.possibleValuesForClause` or `com.atlassian.greenhopper.web.sidebar.ProjectBoardsHelper.getProjectBoards`. The call stack is inspected from the frame of `com.atlassian.query.clause.TerminalClauseImpl` outwards (from the innermost frame when that class is absent), stopping at the first method named `doFilter`. With Jira Software absent no such frame exists and evaluation is normal.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunction$AgileHackChecker#canSkip",
+    "com.almworks.jira.structure.query.StructureJqlFunction$AgileHackChecker#isProjectsCollecting"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/jql-structure/statistics",
+   "module": "jql-structure",
+   "api": null,
+   "behaviour": "Each `getValues` that reaches the argument check adds usage statistics through `statistics-manager` (asynchronous total counts unless noted). Valid: `jqlFun`, unique-user `jqlFun.users`, one of `jqlFun.args.0`, `jqlFun.args.1-sjql`, `jqlFun.args.1-structure`, `jqlFun.args.2`; for the two with S-JQL also unique-user `<name>.users`. For a query with text: `jqlFun.sjql.length` in the value distribution 40, 100, 200, 300, and `jqlFun.sjql.multiLine` adding 1 when the text has a line feed, else 0. One `jqlFun.rel.<x>` for each relation kind used, with x from `empty`, `issueList`, `jql`, `custom.<constraint name>`, `or`, `and` and, for compositions, the binary relations joined by `|`. Invalid: `jqlFun.error`, unique-user `jqlFun.error.users`, and `jqlFun.error.<problem key>` when the S-JQL parser reported one.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlStatistics#record",
+    "com.almworks.jira.structure.query.StructureJqlStatistics#getQueryTypeStat",
+    "com.almworks.jira.structure.query.StructureJqlStatistics#getRelationUsageStats"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/descriptor",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The module is an `activity-streams-provider` with key `structure-activity-provider`, i18n name key `s.streams.provider.name` ('<product>') and a `filter-provider` child. `getActivityFeed(request)` returns a cancellable task; nothing is read until the task is called.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getActivityFeed"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/filter-options",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The filter provider's `getFilterOptions()` returns exactly three options, in this order: `structure` (type SELECT, display name and i18n key `s.streams.option.structure.name`, 'Structure'), `ancestor` (type LIST, unique, display name and i18n key `s.streams.option.ancestor.name`, 'Ancestor Issue Key', no fixed values), `synchronizer` (type SELECT, display name and i18n key `s.streams.option.synchronizer.name`, 'Synchronizer').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureOptionProvider#getFilterOptions",
+    "com.almworks.jira.structure.streams.StructureOptionProvider#getStructureOption",
+    "com.almworks.jira.structure.streams.StructureOptionProvider#getAncestorOption",
+    "com.almworks.jira.structure.streams.StructureOptionProvider#getSynchronizerOption"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/structure-option-values",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The `structure` option's values are the current user's non-archived structures with at least VIEW (`getAllStructures(VIEW, false)`, in that order), empty when there are none. Each map key is `<index>:<structure id>`, the display value is the structure's name. The index starts at 0 and is left-padded with spaces to the number of decimal digits of the list size, so option order survives sorting by key: with 12 structures the keys are ` 0:<id>` ... `11:<id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureOptionProvider#getStructuresMap",
+    "com.almworks.jira.structure.streams.StructureOptionProvider#getKeyFormat"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/synchronizer-option-values",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The `synchronizer` option's values start with `<index>:-2` showing `s.streams.option.synchronizer.none` ('None (changed by a user)') and `<index>:-1` showing `s.streams.option.synchronizer.any` ('Any synchronizer'). Then come the installed synchronizers of every non-archived structure the user can ADMIN, by structure order then the manager's order, keyed `<index>:<instance id>` and shown as `<structure name>: <config description>`. An instance without a resolved synchronizer is left out. Two instances with the same shown text collapse into one, the later instance ID winning. The index is padded as in the `structure` option, to the digit count of (instances + 2).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureOptionProvider#getSynchronizersMap",
+    "com.almworks.jira.structure.streams.StructureOptionProvider#getKeyFormat"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/activities",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "`getActivities()` returns four activity options, all with object type `item` (IRI `http://structure.almworks.com/syndication/types/item`), in the order: verb `add` ('Items added', `s.streams.activity.item.add.name`), `copy` ('Items copied'), `move` ('Items moved'), `remove` ('Items removed'). The verbs `add`, `copy` and `remove` have IRIs under `http://activitystrea.ms/schema/1.0/`; `move` is `http://structure.almworks.com/syndication/verbs/move` with parent verb `update`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureOptionProvider#getActivities",
+    "com.almworks.jira.structure.streams.IssueActivities",
+    "com.almworks.jira.structure.streams.StructureStreams$Verbs",
+    "com.almworks.jira.structure.streams.StructureStreams$ObjectTypes"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/filter-value-parsing",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "In a request, a `structure` or `synchronizer` filter value is parsed as the long after the first ':', or as the whole text when there is no ':' or the ':' is the last character. An empty, null or unparseable value gives no ID (an error is logged for an unparseable one) and is skipped; leading spaces before a ':' are harmless.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.QueryCreator#extractId"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/empty-filter-resolution",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "An inclusive filter that is present but resolves to nothing makes the feed empty, with no history query: issue keys (`Filters.getIssueKeys`), project keys (`Filters.getProjectKeys`), `structure`, `ancestor` or `synchronizer` values. An issue counts only when it exists and `StructurePluginHelper.getIssueError(issue, false)` is null; a project only when `isProjectStructuredForCurrentUser(project)`; a structure only when the user can VIEW it; a synchronizer only when it is -1, -2, or installed on a structure the user can VIEW.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.QueryCreator#createQuery",
+    "com.almworks.jira.structure.streams.QueryCreator#toIssueIds",
+    "com.almworks.jira.structure.streams.QueryCreator#toProjectIds",
+    "com.almworks.jira.structure.streams.QueryCreator#toStructureIds",
+    "com.almworks.jira.structure.streams.QueryCreator#toSynchronizerIds"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/issue-key-lookup",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "Issue keys in the issue and `ancestor` filters are looked up as given, then, when not found and the key changes when upper-cased in the user's locale (`JiraAuthenticationContext.getLocale`), upper-cased.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.QueryCreator#toIssueIds"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/query-mapping",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The history query gets the resolved IDs as sorted unique lists: inclusive and exclusive issue, project, structure and synchronizer lists; inclusive and exclusive ancestors as issue identities (`com.almworks.jira.structure:type-issue`); authors from the standard `USER` filter's IS and NOT values as given; min and max date from `Filters.getMinDate` and `Filters.getMaxDate`; no start ID. Exclusive values that do not resolve are dropped silently.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.QueryCreator#createQuery",
+    "com.almworks.jira.structure.streams.IssueActivities#createQuery",
+    "com.almworks.jira.structure.streams.IssueActivities#getUserFilters"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/not-removes-is",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "IDs named in both the IS and NOT values of `structure`, or of `synchronizer`, are removed from the IS list. When that empties the IS list the query has no inclusion for it, and with `history-service` semantics an empty inclusion means all but the excluded ones, so `structure IS 5 and NOT 5` lists every other visible structure rather than nothing (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.streams.QueryCreator#createQuery"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/single-issue-project-simplified",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "When the filters name exactly one issue and exactly one project and the issue belongs to that project, the project filter is left out of the query. Without a project filter, titles carry no per-project count.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.QueryCreator#createQuery"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/operations-filter",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The operations queried are those of the four activities that Atlassian Streams' `Filters.inActivities(ActivityRequest)` predicate accepts. If none is accepted, or the predicate cannot be obtained (it is invoked by reflection; failures are logged once), the feed is empty without a history query.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.IssueActivities#getOperations",
+    "com.almworks.jira.structure.streams.IssueActivities#inActivitiesPredicate",
+    "com.almworks.jira.structure.streams.QueryCreator#createQuery"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/feed-shape",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The feed has title `s.streams.feed.title` ('<product> Activity Stream'), no subtitle, and one entry per history change. The feed is empty, with no history read, when the app is not available to the current user (`isStructureAvailableToCurrentUser()` false), when no query can be built, or when the task was cancelled before the query.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$StructureActivityTask#call",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$StructureActivityTask#createFeed"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/task-single-use",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "A task can be called once. A second call logs a warning and returns the empty feed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$StructureActivityTask#call"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/history-query-limits",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The task calls `HistoryService.queryActivity(query, request.getMaxResults(), changesLimit, consumer)`. `changesLimit` is dark feature `structure.activitystream.changesLimit`, read at creation, default 10. So `maxResults` limits history entries, not stream entries, and one history entry gives several stream entries.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$StructureActivityTask#call",
+    "com.almworks.jira.structure.streams.StructureActivityProvider"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/timeout-and-cancel",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "While history is read, a `Pinger` ping every 500 ms checks the timeout. `ActivityRequest.getTimeout()` of 100 ms or less means no timeout. When the elapsed time reaches the timeout the task cancels itself and stops pinging, delivery of further entries stops (the consumer answers false) and the feed is empty, with a warning logged. `cancel()` from outside has the same effect without the warning and returns `Result.CANCELLED`. Pinging is stopped when the query ends, also on an exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$StructureActivityTask#cancel",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$StructureActivityTask#ping",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$StructureActivityTask#consume",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$StructureActivityTask#call"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/entry-fields",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "Each change of a history entry gives a `StreamsEntry` with: id and alternate link `<canonical base URL>/secure/StructureBoard.jspa?s=<structure id>&v=<version>` (all changes of an entry share it), posted date from the entry's timestamp in the JVM default zone, the author, the verb of the operation (ADD add, COPY copy, MOVE move, REMOVE remove), application type `com.almworks.jira.structure`, and one activity object: id and link `<canonical base URL>/secure/StructureBoard.jspa?s=<id>`, title the structure's name, type `http://structure.almworks.com/syndication/types/structure`. The base URL is `ApplicationProperties.getBaseUrl(UrlMode.CANONICAL)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$EntryCreator#createEntry",
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getStructureObject",
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getVersionUrl"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/entry-skips-unviewable",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "A change is left out, with no error, when `StructureManager.getStructure(id, VIEW)` throws `StructureException` for its structure. The author's profile comes from `UserProfileAccessor.getUserProfile(user name of the entry's user key)` and is looked up once per user key per feed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$EntryCreator#createEntry",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$UserProfileCache"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/entry-title",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "An entry's title is the i18n text `s.streams.activity.item.<verb>.text` with arguments subject, objects and structure: '{0} added {1} to {2}', '{0} copied {1} in {2}', '{0} moved {1} in {2}', '{0} removed {1} from {2}'. The structure is `<a href=\"<structure url>\">name</a>` with the name HTML-encoded. The entry has no summary; its content is the body.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getTitle",
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getStructureHtml",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$EntryCreator#getItemEntryRenderer",
+    "com.almworks.jira.structure.streams.SimpleRenderer"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/entry-subject",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The subject for a change by a user is `<a href=\"<profile uri>\" class=\"activity-item-user activity-item-author\">full name</a> ` or, without a profile URI, `<b>full name</b> `, the name HTML-encoded and a trailing space kept in both. For a synchronizer change (entry's synchronizer ID > 0) with an installed, resolved synchronizer it is `s.streams.activity.item.synchronizer.known` with the encoded config description and the user text ('Synchronizer \"{0}\" on behalf of {1}'). For an ID < 0, an instance that is not installed, or an unresolved synchronizer it is `s.streams.activity.item.synchronizer.unknown` ('Unknown synchronizer on behalf of {0}'). A null or 0 ID is a user change.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getSubjectHtml",
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getUserHtml"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/objects-single-row",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The objects text of a change whose forest has exactly one row is that row's text: `<a href=\"url\">description</a>` when the item has a URL (description HTML-encoded), else the encoded description, else the encoded text of the item identity when no displayable value was found. A row that no longer exists gives null. Displayable values are fetched once per feed through `StructureUtil.getItemDisplayable` for the single root of a change that has one root, and for all rows on the changes' from- and to-paths; other rows are not fetched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$RowCache#getRowHtmlById",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$RowCache#prepareItemValues",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$RowCache#collectRenderedItems",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$EntryCreator#getForestHtml"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/objects-many-rows",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "For a forest of several rows: when the whole forest is one subtree the text is `s.streams.activity.item.title.item-and-n-sub-items` with the root's text and the row count minus 1 ('{0} and {1,number,integer} {1,choice,1#sub-item|1<sub-items}'); otherwise, also for an empty forest, `s.streams.activity.item.title.n-items` with the row count ('{0,number,integer} items').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$EntryCreator#getForestHtml"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/objects-including-issues",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "When the request filters by issue, the objects text uses the `.including-issues` variant of the key (`...item-and-n-sub-items.including-issues` or `...n-items.including-issues`), naming the filtered issues found among the forest's rows: sorted by issue key, joined by ', ', each `<a href=\"<base>/browse/<key>\" title=\"<encoded summary>\"><key></a>`. An issue that is the root is left out, and when none remains the plain variant is used. With assertions enabled (as the tests run) a forest holding none of the filtered issues throws `AssertionError`; with them disabled the plain variant is used.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$EntryCreator#getIncludingIssuesHtml",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$RowCache#getQueriedIssues",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$RowCache#getIssueHtml"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/objects-including-projects",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "When the request filters by project and not by issue, the objects text uses the `.including-projects` variant, listing per filtered project how many issues of the forest are in it, by project name (`ProjectNameComparator`), joined by ', ', each `s.streams.activity.item.title.including.from-project` ('{0,number,integer} from {1}') with `<a href=\"<base>/browse/<key>\" title=\"<encoded name>\"><key></a>`. Membership is decided with a JQL `project = <id>` through `StructurePluginHelper` issue matching; a `SearchException` for one project is logged and that project is skipped. Projects with no such issue are left out. With assertions enabled (as the tests run) no matching project at all throws `AssertionError`; with them disabled the plain variant is used.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$EntryCreator#getIncludingProjectsHtml",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$ProjectCache#getProjectIssueCounts",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$ProjectCache#collectIssueProjects",
+    "com.almworks.jira.structure.streams.StructureActivityProvider$ProjectCache#getProjectIssueCountHtml"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/entry-body-paths",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "The content of an entry is built from paths: ADD and COPY give the to-path; REMOVE gives the from-path; a MOVE between different parents gives the from-path, a space, then the to-path. Each part is `s.streams.activity.item.<verb>.body.parent-path.<from|to>` with the path's rows joined by ' / ', or the `.top` key for a null or empty path ('from the top level of the structure', 'to the top level of the structure'). Row text is as for a single row. Note that `add` uses `.to` ('under {0}').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getBody",
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getPathHtml"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/entry-body-same-parent-move",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "A MOVE whose from-path and to-path are equal gives one part from `s.streams.activity.item.move.body.parent-path.`: `under.down` when the change's direction is > 0 ('downwards under {0}'), `under.up` when < 0 ('upwards under {0}'), `under` when 0 ('under {0}'), each with `.top` for an empty path ('downwards at the top level of the structure', 'upwards at the top level of the structure', 'at the top level of the structure').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getBody",
+    "com.almworks.jira.structure.streams.StructureActivityProvider#getPathHtml"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-activity-provider/hidden-changes-note",
+   "module": "structure-activity-provider",
+   "api": null,
+   "behaviour": "On the last change of a history entry whose reported change count is greater than the number of changes it carries, the text of `s.streams.activity.changes-hidden` ('+{0} changes hidden'), with {0} = count minus the changes limit, is appended directly to the body, with no separator. For an entry that had fewer changes than the limit and lost some to permission filtering, this reports a negative number, e.g. '+-7 changes hidden' for 3 changes loaded, 2 visible, limit 10 (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.streams.StructureActivityProvider$EntryCreator#getItemEntryRenderer",
+    "com.almworks.jira.structure.streams.StructureActivityProvider#hitLimit",
+    "com.almworks.jira.structure.streams.StructureActivityProvider#isLastChange"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/descriptor",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "The module is a `workflow-condition` with key `structure-workflow-condition`, name 'Issue Matches <product> Query', i18n name key `s.wf.condition.name`, `state=\"disabled\"`, description key `s.wf.condition.desc`, `condition-class` `com.almworks.jira.structure.workflow.StructureWorkflowChecker`, and velocity resources `view`, `input-parameters` and `edit-parameters`. Jira's workflow editor therefore does not offer it until an administrator enables the module.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowConditionFactory"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/checker-contract",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "`com.almworks.jira.structure.workflow.StructureWorkflowChecker` extends Jira's `AbstractJiraCondition`, so `passesCondition(transientVars, args, propertySet)` returns a boolean. It never throws for a bad configuration or an internal failure: every case that blocks the validator (see `structure-workflow-validator`, same order of checks) returns false here with no message, and a `RuntimeException` during the check is logged and gives false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesCondition",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesSafe"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/no-issue-passes",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "With no issue in the transient variables (`AbstractJiraCondition.getIssue` gives null) or an issue without an ID (not created yet), the condition and the validator pass without looking at any argument.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passes"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/caller-context",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "The whole check runs under `StructureAuth.sudo(caller, false, ...)`, where caller is `AbstractJiraCondition.getCallerUser(transientVars, args)`, null for anonymous. Access to the structure, the forest read and query validation switch to the run-as user; everything else, including evaluating the query on the issue's rows, runs as the caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passes",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesForCaller"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/query-evaluated-as-caller",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "The S-JQL query is evaluated on the issue's rows as the transition's caller, not as the run-as user: the run-as user only decides whether the structure is accessible, gets the forest and has the query validated, while `StructureQuery.checkRow` runs in the caller's `StructureAuth` context (as the original does). So inner JQL sees the caller's issues, and a query that is invalid for the caller makes every row not match even if it is valid for the run-as user. With an anonymous caller the query runs as anonymous.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesForCaller",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#checkIssue",
+    "com.almworks.jira.structure.query.StructureQueryImpl#checkRow"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/condition-invalid-query",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "For the condition, a query that parses but fails validation for the run-as user does not stop the check (a warning is logged): it goes on with that query, so an issue on no row of the structure gives `allowUnstructured`, and an issue on a row gives whatever `checkRow` answers, which is false for a query invalid for the caller. A query that does not parse gives false before rows are looked at. The validator blocks in both cases.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#getQuery",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesForCaller"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/statistics",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "When a condition check took more than 1000 ms, `statistics-manager` gets one asynchronous total count of `wf.execution.1sec`, or `wf.execution.10sec` when more than 10000 ms, with `.jql` appended when the query has inner JQL in a composition (the rule `wf-statistics` uses for `wf.installed.hasJqlInComposition`). The validator path records nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#logCondition"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/factory-input-params",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "For a new condition, Jira's `getVelocityParams(\"input-parameters\", null)` gives `runAsLead` true, `structureType` `default`, `allowUnstructured` true, `forValidator` false, no `queryDesc`, and these form values: `factory`; `structures` (what the current user can VIEW, non-archived, in `StructureManager` order); `structureNames` (each structure's name abbreviated to 40 characters with '...'); `namesakeStructures` (the structures whose abbreviated name is shared by another listed structure; the form then adds ID and owner); `examples`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#getVelocityParamsForInput",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#putFormParams"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/factory-examples",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "The form's `examples` is a list of (S-JQL text, label) pairs in this order: `child not in [resolution is empty]` ('All sub-issues must have a resolution'), `descendant not in [resolution is empty]` ('All sub-issues on all levels must have a resolution'), then two status pairs when Jira has statuses named closed or resolved (ignoring case, in `ConstantsManager.getStatuses()` order), then `leaf` ('The issue must not have sub-issues'). With one such status: `child not in [status != <name>]` ('All sub-issues must be {0}') and `descendant not in [status != <name>]` ('All sub-issues on all levels must be {0}'). With several: `[status not in (<a>, <b>)]`, with the `.multiple` labels ('All sub-issues must be {0} or {1}'), where {1} is the last status and {0} the others joined by ', '. Queries use the stored names, labels `Status.getNameTranslation`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#getQueryExamples",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#addStatusBasedExamples"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/factory-edit-and-view-params",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "For `edit-parameters` and `view`, the stored arguments are read as strings (a missing or non-string argument is ''): `runAsLead` and `allowUnstructured` are booleans true only for the text `true`; `structureType` and `queryString` as stored; `structure` and `structureId` only for `manual` (`structureId` a long, -1 when unparseable); `queryDesc` stripped, validator only; `runAsUserName` and, for a found user, `runAsUserFullNameHtml` when not running as lead. `errors` maps a field name to a message. `edit-parameters` adds the form values above. `view` adds only `factory` and `forValidator`. A descriptor of the wrong kind (a condition descriptor for the validator factory or the reverse) adds no stored values.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#putDescriptorParams",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#getVelocityParamsForEdit",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#getVelocityParamsForView",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#stringParam"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/factory-run-as-errors",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "When not running as lead, `errors[\"runAsUserName\"]` is: `s.wf.form.error.run-as-user.not-found` ('Selected user {0} cannot be found.', with `name [key]`, or just the name when name and key are equal) for a stored key with no user; `s.wf.form.error.run-as-user.inactive` ('Selected user is inactive.') for an inactive user, and `runAsUserName` then shows the user's current name; with no stored key, `s.wf.form.error.run-as-user.empty` ('No user was specified.') for a blank name or `s.wf.form.error.run-as-user.name` ('Could not find a user for username \"{0}\".') otherwise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#putDescriptorParams"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/factory-structure-errors",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "`errors[\"structureType\"]` is `s.wf.form.error.structure-type` ('Unknown structure option was selected.') for any value other than `default`, `manual` or `containing`. For `manual`: when the current user cannot VIEW the structure, `errors[\"structureId\"]` is `s.wf.form.error.structure.inaccessible` ('Selected structure (#{0}) does not exist or you don''t have View permissions on it.') for error `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`, else the exception's localized message; when it can but the run-as user cannot, `s.wf.form.error.structure.inaccessible-for-user` ('Selected structure is not accessible to the selected user.'). The run-as check needs a found run-as user. `containing` gives no error here.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#putDescriptorParams"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/factory-query-errors",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "`errors[\"queryString\"]` is the localized message of a `StructureException` from parsing. For a query that parses, it is validated as the run-as user when one was found, else as the current user (which is always so when running as lead), and errors give `s.wf.form.error.query.invalid.for-user` ('The query is invalid for the selected user: {0}') or `s.wf.form.error.query.invalid` ('The query is invalid: {0}') with the messages joined by a space.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#putDescriptorParams",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#validate"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/factory-descriptor-params",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "`getDescriptorParams(formParams)` returns what Jira stores, as strings: `runAsLead`; only when that is `false`, `runAsUserName` stripped of whitespace and `runAsUserKey` of the user with that name (a null value when no such user); `structureType`; only when that is `manual`, `structureId` as given (not validated); `queryString`; `allowUnstructured`. Nothing else is stored for a condition. Each named parameter must be in the form: Jira's single-parameter extraction fails with `IllegalArgumentException` when one is missing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#getDescriptorParams"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-condition/form-owner-text",
+   "module": "structure-workflow-condition",
+   "api": null,
+   "behaviour": "The form's namesake hint uses a user text: empty for a null user or an empty name; `s.manage.user.someone` for a user the viewer may not see (the viewer must be an admin, hold the `USER_PICKER` global permission, or be that user); otherwise the user name, followed by ` (display name) ` when that differs, HTML-encoded. `runAsUserFullNameHtml` is the same text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#formatOwner",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#formatUser",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#canSeeUser"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/descriptor",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "The module is a `workflow-validator` with key `structure-workflow-validator`, name 'Issue Matches <product> Query', i18n name key `s.wf.validator.name`, description key `s.wf.validator.desc`, `validator-class` `com.almworks.jira.structure.workflow.StructureWorkflowChecker`, and velocity resources `view`, `input-parameters` and `edit-parameters`. Unlike the condition it is enabled by default.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowValidatorFactory"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/validate-contract",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "`StructureWorkflowChecker.validate(transientVars, args, propertySet)` returns normally when the transition may go on and otherwise throws `InvalidInputException` with one message: the prefix, a space, the reason. The prefix is `s.wf.validator-message.prefix` ('Workflow transition was blocked by the <product> Validator.') for a failed requirement, or `s.wf.validator-message.prefix.invalid-params` ('Workflow transition was blocked because <product> Validator parameters are incorrect.') for a bad configuration. A `RuntimeException` during the check is logged and becomes the plain prefix with `s.wf.block-reason.exception` ('An internal error occurred.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#validate",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#thr",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesSafe"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/check-1-project",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "First check: when `StructureConfiguration.isProjectEnabled(issue's project)` is false, the transition passes if `allowUnstructured` is `true`; otherwise it is blocked with the invalid-params prefix and `s.wf.block-reason.project-disabled` ('<product> should be enabled for the project that the issue belongs to.'). No other argument is looked at.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesForCaller"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/check-2-run-as-user",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "Second check, the run-as user, invalid-params prefix for all: with `runAsLead` `true` it is the project lead, and with no project or lead the reason is `s.wf.block-reason.run-as-user.lead` ('The project that the issue belongs to must have a lead user.'). Otherwise it is the user with key `runAsUserKey`; none found gives `s.wf.block-reason.run-as-user.manual` ('Could not find the user for username \"{0}\".') with the stored name, or `.manual.no-name` ('No user was specified.') for a blank name. Then an inactive user gives `s.wf.block-reason.run-as-user.inactive` ('User {0} is inactive.'), and a user without `ProjectPermissions.BROWSE_PROJECTS` on the issue gives `s.wf.block-reason.run-as-user.cant-browse-issue` ('The issue is inaccessible to user {0}.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#getRunAsUser"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/check-3-structure",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "Third check, invalid-params prefix: `structureType` `containing` is read as `default` (a warning is logged). A value other than `default` or `manual`, or none, gives `s.wf.block-reason.structure-type` ('Invalid structure option: {0}.'). `manual` reads `structureId`; negative or unparseable gives `s.wf.block-reason.structure.id` ('Invalid structure ID: {0}.') with the stored text. `default` uses `StructureConfiguration.getDefaultStructureId(issue's project)`. A structure the run-as user cannot VIEW, including 0 for no default, gives `s.wf.block-reason.structure.inaccessible` ('Structure #{0} does not exist or is inaccessible to user {1}.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#getStructure",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#getManualStructureId"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/structure-id-number-format",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "In `s.wf.block-reason.structure.inaccessible` the ID goes to Jira's message formatting as a number, not as text, so it appears with the locale's digit grouping ('#1,234'), and likewise in `s.wf.form.error.structure.inaccessible` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#getStructure",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#putDescriptorParams"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/check-4-forest",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "Fourth check: the forest is read as the run-as user from `ForestSpec.unsecuredStructure(id)`, so it is not filtered by anyone's permissions. A `StructureException` gives the invalid-params prefix and `s.wf.block-reason.forest` ('Could not retrieve the forest of structure {0}.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesForCaller"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/check-5-query",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "Fifth check, invalid-params prefix: a `queryString` that does not parse gives `s.wf.block-reason.query.syntax` ('S-JQL query is invalid.'). A missing argument is parsed as ''. A query with errors when validated as the run-as user is parsed again from `getSanitizedQueryString()` and validated again: if that gives errors, the reason is `s.wf.block-reason.query.invalid` ('S-JQL query is invalid for user {0}: {1}') with those messages joined by a space, so only sanitised text reaches the user. If it gives none, or the sanitised text does not parse, the reason is `s.wf.block-reason.query.invalid.generic` ('S-JQL query is invalid for user {0}.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#getQuery",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#throwSanitizedValidationErrors"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/check-6-match",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "Last check, the rows: every row of the forest showing this issue (`com.almworks.jira.structure:type-issue`, the issue ID) is tried with `checkRow` until one matches, so an issue added several times passes when any of its rows matches. With rows and at least one match the transition passes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#checkIssue",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesForCaller"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/unstructured",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "When no row of the forest shows the issue, the transition passes if `allowUnstructured` is `true`. Any other value blocks it with the plain prefix and `s.wf.block-reason.unstructured` ('Issue must be contained in structure {0}.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesForCaller"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/no-match-message",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "When the issue is on rows and none matches, the transition is blocked with the plain prefix and `s.wf.block-reason.match` ('{0}. Checked structure {1} on behalf of user {2}.') with {0} the stripped `queryDesc`, or, when that is empty, `s.wf.block-reason.match.default` ('Issue must match the specified S-JQL query').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#passesForCaller"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/sanitised-names-in-messages",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "In block reasons a structure is shown as `\"<name abbreviated to 40>\" (#<id>)` when the caller can VIEW it, else `#<id>`. A user is shown as `?` when null or blank-named; as the name alone when the display name is equal or blank, or when the caller may not see the user (`USER_PICKER` global permission, admin, or the user themselves); otherwise as `name (display name)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#sanitizedStructureName",
+    "com.almworks.jira.structure.workflow.StructureWorkflowChecker#sanitizedUserName"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/validator-factory-differences",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "The validator's factory works as the condition's (`structure-workflow-condition`), with these differences. `forValidator` is true. For new validators `queryDesc` starts as `s.wf.block-reason.match.default`. `getDescriptorParams` also stores `queryDesc`, unstripped. Edit and view add `queryDesc` stripped of whitespace.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#getVelocityParamsForInput",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#getDescriptorParams",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#putDescriptorParams",
+    "com.almworks.jira.structure.workflow.StructureWorkflowValidatorFactory#isForValidator"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-workflow-validator/view-summary",
+   "module": "structure-workflow-validator",
+   "api": null,
+   "behaviour": "The `view` template shows, as facts: for a validator the `queryDesc` followed by '.' when it is not empty, else `s.wf.view.header` ('Issue must match the <product> query.'); the structure (the default option text, the name of a `manual` structure, the `containing` text with the warning `s.wf.form.structure-type.deprecated.option`, or '?'); the query; allow or block for unstructured issues; the run-as user (project lead, the user text, or '?'); and each message of `errors` beside its field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#getVelocityParamsForView"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/index-monitor-cf-type/descriptor",
+   "module": "index-monitor-cf-type",
+   "api": null,
+   "behaviour": "The module is a `customfield-type` with key `index-monitor-cf-type`, name '<product> Index Monitor', `managed-access-level=\"locked\"` and a `view` velocity resource. Its value type is text and it extends Jira's `AbstractCustomFieldType` behaviour: everything not listed in its claims is Jira's default.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/index-monitor-cf-type/stores-nothing",
+   "module": "index-monitor-cf-type",
+   "api": null,
+   "behaviour": "The field stores no data: `createValue`, `updateValue`, `setDefaultValue` and `validateFromParams` do nothing (no error is added, whatever the input); `remove(field)` returns an empty set of issue IDs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#createValue",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#updateValue",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#setDefaultValue",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#validateFromParams",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#remove"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/index-monitor-cf-type/values-empty",
+   "module": "index-monitor-cf-type",
+   "api": null,
+   "behaviour": "Value reads all give the empty string: `getValueFromIssue`, `getDefaultValue`, `getValueFromCustomFieldParams`, `getStringValueFromCustomFieldParams`, `getStringFromSingularObject` and `getSingularObjectFromString`, for any input including null. `getChangelogValue` returns null, so no change history is written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#getValueFromIssue",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#getDefaultValue",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#getValueFromCustomFieldParams",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#getStringValueFromCustomFieldParams",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#getStringFromSingularObject",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#getSingularObjectFromString",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#getChangelogValue"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/index-monitor-cf-type/bulk-edit-and-config",
+   "module": "index-monitor-cf-type",
+   "api": null,
+   "behaviour": "`availableForBulkEdit` returns the i18n key `s.cf.index.bulk.edit.unavailable` ('This custom field cannot be edited. It is used internally by the <product> app to ensure correct functioning.'), which tells Jira the field cannot be bulk edited. `getConfigurationItemTypes()` returns a new empty list, so the field has no configuration items.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#availableForBulkEdit",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorCFType#getConfigurationItemTypes"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/index-monitor-cf-searcher/descriptor",
+   "module": "index-monitor-cf-searcher",
+   "api": null,
+   "behaviour": "On Jira 9.12 the module is a `customfield-searcher` with key `index-monitor-cf-searcher`, name '<product> Index Monitor Searcher', `restrict application=\"jira\" version=\"[9.0.0,11.0.0)\"`, velocity resources `search`, `view` and `label`, and `valid-customfield-type package=\"com.almworks.jira.structure\" key=\"index-monitor-cf-type\"`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.customfield.IndexMonitorSearcherJ9"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/index-monitor-cf-searcher/init",
+   "module": "index-monitor-cf-searcher",
+   "api": null,
+   "behaviour": "After `init(customField)` the searcher answers: `getSearchInformation()` with the field's ID, its name key and exactly one indexer; a search renderer for the field's clause names (Jira's `CustomFieldRenderer` with the default value provider); a free-text search input transformer for the field; and a clause handler with a `FreeTextFieldValidator`, a `FreeTextClauseQueryFactory` on the field's ID, operators `OperatorClasses.EQUALITY_OPERATORS_WITH_EMPTY` and data type `JiraDataTypes.TEXT`. Before `init` these return null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.customfield.IndexMonitorSearcherJ9#init",
+    "com.almworks.structure.compat.customfield.IndexMonitorSearcherCommon"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/index-monitor-cf-searcher/indexer",
+   "module": "index-monitor-cf-searcher",
+   "api": null,
+   "behaviour": "The searcher's `FieldIndexer` has the custom field's ID as `getId()` and `getDocumentFieldId()`, and `isFieldVisibleAndInScope(issue)` is false. `addIndex(document, issue, prefetchedData)` adds nothing to the document. It reports the issue's ID and project ID to `issue-reindex-tracker`, which then behaves as its claims say. An issue with a null ID is not reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.customfield.IndexMonitorJ9#addIndex",
+    "com.almworks.structure.compat.customfield.IndexMonitorJ9#getId",
+    "com.almworks.structure.compat.customfield.IndexMonitorJ9#getDocumentFieldId",
+    "com.almworks.structure.compat.customfield.IndexMonitorJ9#isFieldVisibleAndInScope"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-ownership-transfer-handler/descriptor",
+   "module": "structure-ownership-transfer-handler",
+   "api": null,
+   "behaviour": "The module is an `ownership-transfer-handler` with key `structure-ownership-transfer-handler` and `restrict application=\"jira\" version=\"[8.7.0,)\"`. It does nothing itself: it gathers the contributions of `structure-anonymize-handler` (shared structures), `view-anonymize-handler` (shared views) and `sync-manager` (synchronizer instances). Jira's defaults apply to the handler's other callbacks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.DelegatingOwnershipTransferHandler"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-ownership-transfer-handler/affected-entities",
+   "module": "structure-ownership-transfer-handler",
+   "api": null,
+   "behaviour": "`getAffectedEntities(param)` finds the user of `param.getCurrentUserKey()`. For a key with no user it returns an empty collection and asks no contributor. Otherwise it returns the contributors' lists concatenated, each entity of type `AffectedEntityType.TRANSFER_OWNERSHIP`, all computed under `StructureAuth.sudo` with security overridden, so everything the contributor would list is seen whoever runs it. The order between contributors is not defined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.DelegatingOwnershipTransferHandler#getAffectedEntities"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-ownership-transfer-handler/entity-conversion",
+   "module": "structure-ownership-transfer-handler",
+   "api": null,
+   "behaviour": "Every entity keeps the contributor's description key and number of occurrences. It gets a link only when the contributor gave both a URI and a link text key; a URI that does not parse gives no link, logged once, and no error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.AnonymizeUtil#convertToAffectedEntity",
+    "com.almworks.jira.structure.anonymize.AnonymizeUtil#convertLink"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-ownership-transfer-handler/update",
+   "module": "structure-ownership-transfer-handler",
+   "api": null,
+   "behaviour": "`update(param)` needs both `getCurrentUserKey()` and `getTransferToUserKey()` to resolve to users. If either does not, it returns a result without errors and does nothing. Otherwise it calls every contributor, under `StructureAuth.sudo` with security overridden, even after an earlier one reported errors, and returns one `ServiceResult` with all errors and warnings merged. A runtime exception from a contributor is not caught.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.DelegatingOwnershipTransferHandler#update",
+    "com.almworks.jira.structure.anonymize.AnonymizeUtil#mergeResults"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-user-key-change-handler/descriptor",
+   "module": "structure-user-key-change-handler",
+   "api": null,
+   "behaviour": "The module is a `user-key-change-handler` with key `structure-user-key-change-handler` and `restrict application=\"jira\" version=\"[8.7.0,)\"`. It gathers the contributions of `history-recorder` (`AO_8BAD1B_HISTORY_ENTRY.C_USER_KEY`), `ao-based-statistics-service` (`AO_8BAD1B_STATISTICS.C_USERKEY`) and `effector-process-manager` (`AO_8BAD1B_EFFECTOR_PROCESS.C_USER_KEY`). Other tables holding user keys, such as `C_OWNER` of synchronizer instances, are not rewritten by this handler.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.DelegatingUserKeyChangeHandler",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-user-key-change-handler/affected-entities",
+   "module": "structure-user-key-change-handler",
+   "api": null,
+   "behaviour": "`getAffectedEntities(param)` finds the user of `param.getOriginal()`; with no such user it returns an empty collection and asks no contributor. Otherwise it returns the contributors' lists concatenated, each entity of type `AffectedEntityType.ANONYMIZE` with the description key, occurrences and link rule of the ownership handler, under `StructureAuth.sudo` with security overridden.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.DelegatingUserKeyChangeHandler#getAffectedEntities",
+    "com.almworks.jira.structure.anonymize.AnonymizeUtil#convertToAffectedEntity"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-user-key-change-handler/update",
+   "module": "structure-user-key-change-handler",
+   "api": null,
+   "behaviour": "`update(param)` calls every contributor with `param.getOriginal()` and `param.getTarget()` under `StructureAuth.sudo` with security overridden, without checking that a user exists for either key, even after an earlier contributor reported errors. It returns one `ServiceResult` with all errors and warnings merged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.DelegatingUserKeyChangeHandler#update",
+    "com.almworks.jira.structure.anonymize.AnonymizeUtil#mergeResults"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-user-key-change-handler/effector-entity",
+   "module": "structure-user-key-change-handler",
+   "api": null,
+   "behaviour": "For a user with effector processes (`AO_8BAD1B_EFFECTOR_PROCESS` rows whose `C_USER_KEY` is the user's key, in any status) the contribution of `effector-process-manager` is one entity with description key `s.anonymize.effector-processes.description` ('<product> effector processes') and the number of processes as occurrences, no link. With no processes it contributes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#getAnonymizeEntities"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-user-key-change-handler/effector-rewrite",
+   "module": "structure-user-key-change-handler",
+   "api": null,
+   "behaviour": "Changing a key from old to new sets `C_USER_KEY` to new in the old key's `AO_8BAD1B_EFFECTOR_PROCESS` rows and, when any row changed, drops the cached processes of those rows and the running-process lists of both keys, so `EffectorProcessManager` shows the new key at once. With no rows nothing is written. Any exception is logged and the result carries the error `s.anonymize.effector-processes.failed` ('Failed to anonymize <product> effector processes'); nothing is thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#changeUserKey",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#changeProcessesUserKey"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-user-anonymization-handler/descriptor",
+   "module": "structure-user-anonymization-handler",
+   "api": null,
+   "behaviour": "The module is a `user-anonymization-handler` with key `structure-user-anonymization-handler` and `restrict application=\"jira\" version=\"[8.7.0,)\"`. It gathers the contributions of `structure-anonymize-handler` (private structures, permission rules), `view-anonymize-handler` (private views) and `favorite-manager` (favourite marks).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.DelegatingUserAnonymizationHandler"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-user-anonymization-handler/affected-entities",
+   "module": "structure-user-anonymization-handler",
+   "api": null,
+   "behaviour": "`getAffectedEntities(param)` finds the user of `param.getUserKey()`; with no such user it returns an empty collection and asks no contributor. Otherwise it returns the contributors' lists concatenated, each entity of type `AffectedEntityType.REMOVE` with the description key, occurrences and link rule of the ownership handler, under `StructureAuth.sudo` with security overridden.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.DelegatingUserAnonymizationHandler#getAffectedEntities",
+    "com.almworks.jira.structure.anonymize.AnonymizeUtil#convertToAffectedEntity"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/structure-user-anonymization-handler/update",
+   "module": "structure-user-anonymization-handler",
+   "api": null,
+   "behaviour": "`update(param)` with a key that has no user returns a result without errors and does nothing. Otherwise it calls every contributor's data deletion under `StructureAuth.sudo` with security overridden, even after an earlier one reported errors, and returns one `ServiceResult` with all errors and warnings merged. A runtime exception from a contributor is not caught.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.anonymize.DelegatingUserAnonymizationHandler#update",
+    "com.almworks.jira.structure.anonymize.AnonymizeUtil#mergeResults"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-structure-configs-factory/descriptor",
+   "module": "slf-structure-configs-factory",
+   "api": null,
+   "behaviour": "The module is a `simple-link-factory` with key `slf-structure-configs-factory`, name 'menu:<product>|Recent Structures Factory', section `wi-structure-link/ws-structure-configs`, weight 50 and `lazy=\"true\"`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.StructureBoardLinkFactoryWorkaround"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-structure-configs-factory/limit",
+   "module": "slf-structure-configs-factory",
+   "api": null,
+   "behaviour": "The number of links is at most max(4, D / 2) with integer division, D being Jira's `jira.max.issue.filter.dropdown.items` (`ApplicationProperties.getDefaultBackedString`); a value that is not a number counts as 10 (a warning is logged). So D = 20 gives 10, D = 10 gives 5, D = 3 gives 4.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.StructureBoardLinkFactory#getLinks0",
+    "com.almworks.jira.structure.util.Util#getMaxDropdownItems"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-structure-configs-factory/order",
+   "module": "slf-structure-configs-factory",
+   "api": null,
+   "behaviour": "Links are the given user's recent structures first (from `recents-manager`, in its order), up to the limit. If the limit is not reached, the structures from `getAllStructures(VIEW)` follow, reordered by `StructureFavoriteManager.sortByPopularity(list, user)`, skipping those already listed, up to the limit. No structure appears twice. When the limit is reached by recents, the viewable list is not read.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.StructureBoardLinkFactory#getLinks0",
+    "com.almworks.jira.structure.webelements.menu.StructureBoardLinkFactory#addRecents",
+    "com.almworks.jira.structure.webelements.menu.StructureBoardLinkFactory#addViewable"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-structure-configs-factory/link-fields",
+   "module": "slf-structure-configs-factory",
+   "api": null,
+   "behaviour": "A link has ID `wi-structure-recent-<id>`, label the structure's name abbreviated to 40 characters ('...' at the end, 37 characters kept), title the trimmed name or, with a non-empty trimmed description, `<name> - <description>`, URL `<base>/secure/StructureBoard.jspa?s=<id>`, and no icon, style or access key. The base URL comes from `VelocityRequestContextFactory.getJiraVelocityRequestContext().getBaseUrl()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.AbstractStructureLinkFactory#createLink",
+    "com.almworks.jira.structure.util.Util#getStructureTooltip"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-structure-configs-factory/runs-as-user",
+   "module": "slf-structure-configs-factory",
+   "api": null,
+   "behaviour": "`getLinks(user, params)` runs as the given user with security not overridden (`StructureAuth.sudo(user, false, ...)`), a null user meaning anonymous. `StructureStoppedException` gives an empty list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.AbstractStructureLinkFactory#getLinks"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-structure-configs-factory/not-ready",
+   "module": "slf-structure-configs-factory",
+   "api": null,
+   "behaviour": "The link factory gets its working part from the plugin's enabled `helper` module (`PluginAccessor.getEnabledPluginModule(\"com.almworks.jira.structure:helper\")`). While that module is not enabled, gives no instance or has no factory, `getLinks` returns an empty list and logs a warning, without an exception, so the menu shows nothing during plugin start or stop. The helper creates the factory once, on first use.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.AbstractLinkFactoryWorkaround#getLinks",
+    "com.almworks.jira.structure.webelements.menu.AbstractLinkFactoryWorkaround#getDelegate",
+    "com.almworks.jira.structure.webelements.menu.AbstractLinkFactoryWorkaround$RealFactoryDelegate#create",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getStructureBoardLinkFactory"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-structure-configs-factory/retry-on-stale-reference",
+   "module": "slf-structure-configs-factory",
+   "api": null,
+   "behaviour": "When the working part throws `IllegalStateException` or an exception of class `org.springframework.osgi.service.importer.ServiceProxyDestroyedException` (a stale service after a plugin reload), the reference is dropped, a warning is logged, the `helper` module is looked up again and the call is retried once. A `StructureStoppedException` during the retry gives an empty list; any other exception of the retry reaches the caller. Any other runtime exception of the first attempt reaches the caller, without retry.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.AbstractLinkFactoryWorkaround#getLinks",
+    "com.almworks.jira.structure.webelements.menu.AbstractLinkFactoryWorkaround#retry",
+    "com.almworks.jira.structure.webelements.menu.AbstractLinkFactoryWorkaround$RealFactoryDelegate#call"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-favorite-structures-factory/descriptor",
+   "module": "slf-favorite-structures-factory",
+   "api": null,
+   "behaviour": "The module is a `simple-link-factory` with key `slf-favorite-structures-factory`, name 'menu:<product>|Favorite Structures Factory', section `wi-structure-link/ws-favorite-structures`, weight 60 and `lazy=\"true\"`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.FavoriteStructureLinkFactoryWorkaround"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-favorite-structures-factory/links",
+   "module": "slf-favorite-structures-factory",
+   "api": null,
+   "behaviour": "Links are the structures of `StructureFavoriteManager.getFavorites(user)` in that order, up to max(4, D / 2) with D as for `slf-structure-configs-factory`. A link has ID `wi-structure-favorite-<id>` and the label, title, URL and empty fields of a recent-structure link.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.FavoriteStructureLinkFactory#getLinks0",
+    "com.almworks.jira.structure.webelements.menu.AbstractStructureLinkFactory#createLink"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-favorite-structures-factory/more-link",
+   "module": "slf-favorite-structures-factory",
+   "api": null,
+   "behaviour": "When there are more favourites than the limit, one extra link follows them: ID `wi-structure-favorite-more`, label `s.desc.structure-link.favorites.more.label` ('more...'), title `s.desc.structure-link.favorites.more.tooltip` ('View all your favorite structures'), URL `<base>/secure/ManageStructure.jspa?view=favorites`. So the list can hold limit + 1 links. With exactly the limit there is no such link.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.FavoriteStructureLinkFactory#getLinks0",
+    "com.almworks.jira.structure.webelements.menu.FavoriteStructureLinkFactory#addMoreLink"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/slf-favorite-structures-factory/runtime",
+   "module": "slf-favorite-structures-factory",
+   "api": null,
+   "behaviour": "`getLinks` has the run-as-user, stopped, helper-not-ready and retry behaviour of `slf-structure-configs-factory`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webelements.menu.AbstractStructureLinkFactory#getLinks",
+    "com.almworks.jira.structure.webelements.menu.AbstractLinkFactoryWorkaround#getLinks",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getFavoriteStructureLinkFactory"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/widget-i18n-transformer/descriptor",
+   "module": "widget-i18n-transformer",
+   "api": null,
+   "behaviour": "On Jira 9.12 the module is a `url-reading-web-resource-transformer` with key `widget-i18n-transformer`, name 'web-resource-transformer:I18n-Jira9' and `restrict application=\"jira\" version=\"[9.0.0,10.0.0)\"`. Web resources use it through `<transformation extension=\"js\"><transformer key=\"widget-i18n-transformer\"/>`, among them `widget-i18n`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.i18n.I18nTransformerJ9"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/widget-i18n-transformer/url-builder",
+   "module": "widget-i18n-transformer",
+   "api": null,
+   "behaviour": "The transformer's `makeUrlBuilder` adds to the web resource URL what `widget-i18n-transformer-common` claims, the `locale` query parameter, and nothing else.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.i18n.I18nTransformerJ9#makeUrlBuilder"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/widget-i18n-transformer/transform",
+   "module": "widget-i18n-transformer",
+   "api": null,
+   "behaviour": "When a resource is transformed, the transformer reads the query parameter `locale` from the request's parameters and asks `widget-i18n-transformer-common` for a bundle for the resource's location and that locale. No bundle: the original resource is served unchanged (`nextResource()`). A bundle: it is served in place of the original as a `DownloadableResource`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.i18n.I18nTransformerJ9#makeResourceTransformer"
+   ]
+  },
+  {
+   "key": "i1-jira-hooks/widget-i18n-transformer/served-resource",
+   "module": "widget-i18n-transformer",
+   "api": null,
+   "behaviour": "The downloadable resource that replaces the original delegates to the bundle: `isResourceModified`, `serveResource`, `streamResource` and `getContentType` behave as `widget-i18n-transformer-cache` claims. `serveResource` sets the content type only when it is not empty, and a failure to get or write the output stream gives `DownloadException`. A failure to flush after writing is only logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.i18n.javax.JavaxGeneratedResource",
+    "com.almworks.structure.compat.i18n.GeneratedResource#serveResource",
+    "com.almworks.structure.compat.i18n.GeneratedResource#streamResource"
+   ]
+  }
+ ]
+}

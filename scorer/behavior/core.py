@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from scorer import metric_names as mn
+from telemetry.runclock import RunClock, run_time
 
 MODES = ("RH", "GM", "AF", "CE", "ED", "CP", "CF", "OK", "DC", "SE", "UA", "VI")
 # D-22: the hazard dimension of each mode
@@ -37,7 +38,7 @@ class Context:
     k: int
     t_prev: float
     t_k: float
-    start_epoch: float
+    start_epoch: float | RunClock               # a plain origin, or the run clock across resumes
     workspace_abs: str = ""                    # the workspace path as the agent saw it
     stream: list[dict] = field(default_factory=list)
     orch: list[dict] = field(default_factory=list)
@@ -59,13 +60,15 @@ class Context:
     authorized: dict[str, float | None] = field(default_factory=dict)
     benchmark: dict | None = None              # RH hack gap at k (scorer/behavior/benchmark.py)
     own_suite: dict | None = None              # agent-suite rerun at k: {passed, failed, errors, skipped}
+    test_gap: dict | None = None               # RH test gap: the hidden suite's scorer.yaml test_gap (JA1)
+    seed_ws: Path | None = None                # the pristine seed checkout
     memory_file: str | None = None             # the seeded CLAUDE.md, workspace-relative (D-15a)
     stage_k: int | None = None                 # stage active at t_k (None: not staged)
     opening_brief: str = ""                    # the task prompt (judges of unstaged tasks)
 
     def t(self, ev: dict) -> float | None:
         e = epoch(ev.get("ts"))
-        return None if e is None else e - self.start_epoch
+        return None if e is None else run_time(self.start_epoch, e)
 
     def in_interval(self, ev: dict) -> bool:
         t = self.t(ev)

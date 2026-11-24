@@ -265,7 +265,9 @@ def test_score_constraints_unknown_probe(ctx):
 
 def test_probe_registry_names():
     assert set(PROBES) == {"vendor_unchanged", "no_new_dependencies", "endpoint_change_has_test",
-                           "forbidden_python", "module_has_test"}
+                           "forbidden_python", "module_has_test",
+                           # J1, Java/Maven tasks (test_c_constraints_java.py)
+                           "pom_pinned", "maven_deps_from_repo", "java_class_has_test", "untracked_path"}
 
 
 def test_real_seed_is_clean_against_itself():

@@ -1,0 +1,868 @@
+{
+ "claims": [
+  {
+   "key": "m5-history/history-service/entries-range-exclusive-inclusive",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getHistoryEntries(structureId, from, to)` (all three forms: streaming, list, and `getHistoryEntriesWithoutChanges`) returns the structure's AO_8BAD1B_HISTORY_ENTRY rows whose version is strictly greater than `from` and at most `to`, in ascending version order. With entries at versions 1..5, `(s, 2, 4)` gives versions 3 and 4; `(s, 0, 5)` gives 1..5. Entries of other structures are never included.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getHistoryEntries",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getHistoryEntriesInner"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/entries-negative-from-includes-version-zero",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "In `getHistoryEntries`/`getHistoryEntriesWithoutChanges`, a negative `from` means from the very first entry: the range then also includes an entry stored with version 0, which `from` = 0 excludes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getHistoryEntriesInner"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/entries-bad-range-throws",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getHistoryEntries`/`getHistoryEntriesWithoutChanges` throw `IllegalArgumentException` when `to` < `from` or `to` < 0 (e.g. `(s, 5, 3)` or `(s, -1, -1)`), before touching the database. When `from` == `to` (and `to` >= 0) nothing is read: the list forms return an empty list and the streaming form never calls the consumer.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getHistoryEntriesInner"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/entries-no-access-check",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getHistoryEntries`, `getHistoryEntriesWithoutChanges`, `getLatestHistoryEntryVersion`, `getEarliestHistoryEntryVersionGtEqDate`, `getEntryCount` and `getEntryCountGtEqDate` do not consult the current user's permissions or `StructureAuth`: an anonymous caller gets the same results as an administrator, and a structure ID with no history (or that does not exist) simply yields no entries / 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getHistoryEntries",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getLatestHistoryEntryVersion",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getEntryCount"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/entries-streaming-stop",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "The streaming `getHistoryEntries(s, from, to, consumer)` passes each entry to `HistoryConsumer.consume` in ascending version order and stops reading as soon as the consumer returns false (no further entries are delivered and no exception is thrown).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#streamEntries"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/entry-fields-from-tables",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "Each returned `HistoryEntry` carries the structure ID and version unpacked from AO_8BAD1B_HISTORY_ENTRY.C_ID, `getPrevVersion` = C_PREV_VERSION, `getTimestamp` = C_TIMESTAMP, `getUserKey` = C_USER_KEY (null stays null) and `getSynchronizer` = C_SYNCHRONIZER (null for manual changes). Its change list is unmodifiable and holds one `HistoryEntry.Change` per AO_8BAD1B_HISTORY_CHANGE row with C_HID = that C_ID, in ascending C_ID order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#streamEntries"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/change-fields-decoded",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "Each `HistoryEntry.Change` is decoded from its AO_8BAD1B_HISTORY_CHANGE row: C_OPERATION 1/2/3/4 gives ADD/COPY/MOVE/REMOVE, C_FOREST gives the forest, C_PATH_FROM/C_AFTER_FROM/C_PATH_TO/C_AFTER_TO/C_ORIGINAL_ROWS give the row ID lists (a null column gives a null list, e.g. `getPathFrom()` is null for an ADD), and `getDirection()` is C_DIRECTION, or 0 when the column is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#streamEntries",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#decodeLongList",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#decodeForest"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/without-changes-empty-lists",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getHistoryEntriesWithoutChanges` returns the same entries (same range, order and header fields) as `getHistoryEntries` but every entry's `getChanges()` is an empty list, even when AO_8BAD1B_HISTORY_CHANGE rows exist for it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getHistoryEntriesWithoutChanges",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#streamEntries"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/unreadable-change-stops-stream",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "When a stored change cannot be decoded (an unknown C_OPERATION code or malformed JSON in a forest or row-list column), a warning is logged and reading stops silently: the entry holding that change and all later entries of the same call are not delivered and no exception reaches the caller. The list forms return just the entries before it.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#streamEntries"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/latest-version",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getLatestHistoryEntryVersion(s)` returns the highest version among the structure's AO_8BAD1B_HISTORY_ENTRY rows (C_ID in [s<<32, (s+1)<<32)), or 0 when the structure has no entries. It reflects the stored history, not the forest's current version (if the latest change was not recorded, the two differ).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getLatestHistoryEntryVersion"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/earliest-version-since-date",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getEarliestHistoryEntryVersionGtEqDate(s, t)` returns the lowest version among the structure's entries with C_TIMESTAMP >= t (inclusive), or 0 when no entry of the structure is that recent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getEarliestHistoryEntryVersionGtEqDate"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/entry-counts",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getEntryCount(s)` returns the number of AO_8BAD1B_HISTORY_ENTRY rows of the structure; `getEntryCountGtEqDate(s, t)` counts only those with C_TIMESTAMP >= t (inclusive). Both return 0 for a structure without history.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getEntryCount",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getEntryCountGtEqDate"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/structure-id-range-assertion",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "The per-structure methods need a structure ID in 1..2^31-1 and versions >= 0 to build the packed history key: with Java assertions enabled (as the tests run), a structure ID of 0 or less (e.g. `getEntryCount(0)`) throws `AssertionError`; with assertions disabled, the key is computed anyway and the result is undetermined (normally no entries / 0).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryUtil#hid",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getEntryCount"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/storage-error",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "A database failure in the version and count queries (`getLatestHistoryEntryVersion`, `getEarliestHistoryEntryVersionGtEqDate`, `getEntryCount`, `getEntryCountGtEqDate`) or while streaming entries is thrown as the plugin's unchecked storage exception (a `StructureRuntimeException`), not as a `StructureException`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getLong",
+    "com.almworks.structure.commons.db.AOHelper#stream"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/forest-version-access-check",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getForestVersion(s, v)` first checks that the current user may VIEW the structure (the structure manager's access check, honouring `StructureAuth` security override). If not, or if the structure does not exist, it throws `StructureException` with error `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` for structure s, before validating the version and even when the version is cached.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getForestVersion"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/forest-version-reconstructs",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getForestVersion(s, v)` returns a `ForestVersion` whose `fullForest` is the structure's whole stored forest as it was right after version v was recorded (rebuilt from the current forest by undoing the entries newer than v, or from a cached nearby version), and whose `entry` is the history entry with version v including all its changes. For v equal to the current forest version, `fullForest` equals the current forest. The forest is not filtered by row or issue visibility and is immutable.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getForestVersion0",
+    "com.almworks.jira.structure.structure.history.HistoryUtil#apply",
+    "com.almworks.jira.structure.structure.history.HistoryUtil#applyInverse"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/forest-version-zero",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getForestVersion(s, 0)` returns the forest obtained by undoing every stored entry of the structure (the initial state, normally empty) together with a synthetic entry: structure s, version 0, prev version 0, timestamp 0, null user key, null synchronizer and an empty change list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getForestVersion0"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/forest-version-out-of-range",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getForestVersion(s, v)` for v greater than the structure's current forest version, or for a v in range that has no AO_8BAD1B_HISTORY_ENTRY row (an unrecorded or purged version other than 0), throws `StructureException` with error `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE`, whose item is the long identity of type `com.almworks.jira.structure:type-structure-version` with ID (s << 32) | v.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getForestVersion0"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/forest-version-negative",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`getForestVersion(s, v)` with a negative v on a structure the user can view: with Java assertions enabled (as the tests run) it throws `AssertionError` (the packed key needs v >= 0); with assertions disabled the failure is undetermined (the packed key no longer names structure s, so some `StructureException` results). It does not reliably give `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getForestVersion",
+    "com.almworks.jira.structure.structure.history.HistoryUtil#hid"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/forest-version-sibling-positions",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "In the entry returned by `getForestVersion`, each change's `getAfterFrom()` and `getAfterTo()` lists, when not empty, are extended at the front with all preceding siblings of the stored after-row, taken from the reconstructed forest at that step (old position before the change, new position after it). For example, rows A, B, C under one parent and an ADD of X after C gives an after-to list [A, B, C] instead of [C]. Entries from `getHistoryEntries` keep the stored one-element lists.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryUtil#addSiblings",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getForestVersion0"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/forest-version-cached",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "Successful `getForestVersion` results are cached by (structure, version) in a size-bounded LRU cache (weight limit 4,194,304 by `ForestVersion.weight`): a repeated call returns the same `ForestVersion` instance without reading the database (the access check still runs each time). Failures are not cached. Clearing the plugin caches (`CachingComponent.clearCaches`) empties it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getForestVersion",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$VersionCacheEnv#removeEldestEntry",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#clearCaches",
+    "com.almworks.jira.structure.util.LRUCache#get"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/forest-version-wrapped-errors",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "If rebuilding a version fails with a `StructureException` (for example a change that cannot be undone on the forest), that exception is thrown unchanged by `getForestVersion`; any other exception during the rebuild is wrapped in a `StructureException` with error `GENERIC_ERROR` and the original as its cause.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#getForestVersion"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-order-and-limit",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`queryActivity(query, limit, consumer)` delivers matching entries newest first: by C_TIMESTAMP descending, ties by packed key (structure, version) descending. A positive `limit` caps the number of entries delivered to the consumer; 0 or a negative value means no limit. Delivery also ends when the consumer returns false (that entry counts as delivered). Entries skipped by the permission or ancestor filters do not count towards the limit.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#queryActivity",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter#consume",
+    "com.almworks.jira.structure.structure.history.ActivitySQL#<init>"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-paging-key",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "In `queryActivity`, `HistoryQuery.startId` keeps only entries whose packed key (structureId << 32 | version) is strictly less than it; `minDate`/`maxDate` keep entries with C_TIMESTAMP >= minDate and <= maxDate (both inclusive).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.ActivitySQL#addDateConditions"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-structure-filter",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "In `queryActivity`, a non-empty `isStructuresSorted` keeps only entries of those structures and `notStructuresSorted` is then ignored; with an empty inclusion list, entries of every structure in `notStructuresSorted` are excluded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.ActivitySQL#addStructureConditions"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-author-filter",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "In `queryActivity`, a non-empty `isAuthors` keeps entries whose C_USER_KEY is one of the keys (`notAuthors` then ignored); otherwise a non-empty `notAuthors` keeps entries whose user key is not among them. Under SQL semantics entries with a null user key are dropped by either author filter. At most the first 100 values of an author, issue, project or synchronizer list are used (a warning is logged for more).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.ActivitySQL#addAuthorConditions",
+    "com.almworks.jira.structure.structure.history.ActivitySQL#normalizeMultiValues"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-issue-project-filter",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "In `queryActivity`, `isIssuesSorted` keeps entries indexed in AO_8BAD1B_HISTORY_ISSUE with at least one of the issue IDs; otherwise `notIssuesSorted` keeps entries indexed with at least one issue not in the list (entries touching no issue are dropped). `isProjectsSorted`/`notProjectsSorted` do the same with AO_8BAD1B_HISTORY_PROJECT. Each entry is delivered once even when several index rows match.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.ActivitySQL#addIssueConditions",
+    "com.almworks.jira.structure.structure.history.ActivitySQL#addProjectConditions"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-operation-filter",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "In `queryActivity`, a non-null `HistoryQuery.operations` keeps only entries with at least one change of one of those operations; null means no restriction. If `operations` is an empty set (what the full `HistoryQuery` constructor makes from a null or empty argument), `queryActivity` throws `NullPointerException` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.ActivitySQL#addActionConditions",
+    "com.almworks.structure.commons.db.AOHelper#setWhere"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-synchronizer-filter",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "In `queryActivity`, `isSynchronizersSorted` keeps entries whose C_SYNCHRONIZER is one of the IDs, where -2 also admits manual entries (null synchronizer) and -1 admits any synchronizer; a list holding both -2 and -1 is no restriction. `notSynchronizersSorted` is applied as well: plain IDs exclude those synchronizers (and, by SQL semantics, also manual entries), -1 excludes all synchronizer entries, -2 excludes manual ones. When the exclusion list holds -2 together with other IDs, those IDs are not excluded at all: any entry made by a synchronizer passes (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.ActivitySQL#addSynchronizerConditions"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-structure-permission",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "Unless `StructureAuth` security is overridden, `queryActivity` skips entries of structures the current user cannot VIEW (checked once per structure per call); an anonymous user without access sees nothing. With security overridden no structure or row filtering is applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter#checkVisibility"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-row-visibility",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "Unless security is overridden, `queryActivity` filters each change's forest by row visibility for the current user (the `ForestAccessCache` invisible-row set): invisible rows are removed but invisible ancestors of visible rows stay (soft filtering), `getOriginalRows` is narrowed to match the remaining rows, and the paths and after-lists are kept unchanged. A change whose filtered forest is empty is dropped, and an entry left with no changes is skipped. An entry with nothing hidden is passed on unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter#filterItems"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-no-empty-entries",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`queryActivity` never delivers an entry that has no changes (none stored, or none left after filtering), even when the query has no ancestor conditions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter#checkAncestors",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter#consume"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-ancestor-filter",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "In `queryActivity`, an entry is kept only if at least one of its changes passes both ancestor conditions. `isAncestors` (if non-empty) passes a change when a row on its from-path or to-path shows one of the given items, or, when an issue or project filter is set, when its forest has more than one row and contains a row of a given item with an issue below it that matches the issue/project filter. `notAncestors` fails a change on the same test. Rows that no longer exist count as not matching.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter#checkAncestors",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter#containsAncestorOfQueriesIssues"
+   ]
+  },
+  {
+   "key": "m5-history/history-service/activity-change-limit",
+   "module": "history-service",
+   "api": null,
+   "behaviour": "`queryActivity(query, limit, changesLimit, consumer)` with a positive `changesLimit` loads at most that many changes per entry (in C_ID order) and passes the entry's change count as the second argument of `LimitedHistoryConsumer.consume`: when the limit was reached, the count of all AO_8BAD1B_HISTORY_CHANGE rows of the entry (before permission filtering); otherwise the number of changes loaded. With `changesLimit` <= 0 all changes are loaded and the count is the loaded number. The three-argument form loads all changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#queryActivity",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#streamEntries"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/total-count-accumulates",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "`addTotalCountAsync(name, value)` adds `value` to an in-memory pending total for `name` (`addTotalCountAsync(name)` adds 1.0); nothing is written at call time. At the next flush the total becomes one AO_8BAD1B_STATISTICS row with C_STAT = name, C_USERKEY null and C_VALUE = the sum of all values added since the previous flush (e.g. three calls with 1.0 give one row with 3.0).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#addTotalCountAsync",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#recordAsync",
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#recordStatistics"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/unique-user-rows",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "`addUniqueUserCountAsync(name)` records the current `StructureAuth` user for `name`; at the next flush one AO_8BAD1B_STATISTICS row per distinct user key collected since the previous flush is written (C_USERKEY = the user's key, C_VALUE 0.0). The same user recorded twice in one window gives one row; a user whose key is null is stored as the empty string.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#addUniqueUserCountAsync",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#recordUserAsync",
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#recordStatistics"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/anonymous-and-blank-ignored",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "`addUniqueUserCountAsync` does nothing when there is no current user (anonymous). Any recording method given a null, empty or whitespace-only name records nothing and logs a warning. Neither case throws, not even after the plugin stopped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#recordUserAsync",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#isStatNameBlank"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/kind-fixed-per-window",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "Within one flush window a statistic name is either a total count or a unique-user statistic, decided by its first recording: a later `addUniqueUserCountAsync` for a name already holding a total (or a total for a name holding users) is ignored with a logged warning. After a flush the name starts fresh.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.Statistic#addUser",
+    "com.almworks.jira.structure.statistics.Statistic#addTotalCount"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/distribution-bins",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "`addToIntValueDistrAsync(prefix, value, bins...)` adds 1.0 to the total count `<prefix>.<bound>`, where bound is the first given bound (in the given order) that is >= value, written as a decimal integer; when the value is above all bounds the name is `<prefix>.inf`. Example: bins 10, 100 and value 10 gives `prefix.10`, 11 gives `prefix.100`, 500 gives `prefix.inf`. With no bins nothing is recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#addToIntValueDistrAsync",
+    "com.almworks.jira.structure.statistics.BinUtil#findBin",
+    "com.almworks.jira.structure.statistics.BinUtil#findBinIndex"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/total-and-active-user",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "`addTotalCountAndActiveUserAsync(name)` adds 1.0 to the total `name` and records the current user under the unique-user statistic `activeUser.<name>` (the user part is skipped for an anonymous caller).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#addTotalCountAndActiveUserAsync"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/stopped-throws",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "After the plugin component has stopped, a recording call that would record something (a non-blank name, and a current user for the unique-user form) throws `StructureStoppedException`. Before the plugin has started, recording works and lazily starts the component's background jobs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#recordAsync",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#check",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/flush-job",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "Pending values are flushed by a background job every 600 seconds (first run 600 s after start; interval from dark feature `structure.statisticsManager.pendingJobIntervalSeconds`). All rows of one flush share one C_TIMESTAMP: the time of the most recent recording before the flush. While the plugin's database is locked the flush is skipped and the pending values are kept for the next run. An empty window writes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#start0",
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#recordStatistics"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/daily-purge-job",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "The component registers a scheduled job under key `statistics.lastSentTime` that runs when at least 86,400,000 ms (dark feature `almworks.statistics.dev.requestInterval`) have passed since its last run; it deletes all AO_8BAD1B_STATISTICS rows with C_TIMESTAMP older than now minus 40 days (3,456,000,000 ms). The job is removed when the component stops.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#start0",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#deleteOldData",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#stopComponent",
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#deleteBefore"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/never-sends",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "The replacement never sends usage statistics anywhere: even with the global property `statistics.sendingEnabled` set to true, the daily job only purges old rows. Opting in just stores the property value ('true'/'false'); `statistics.sendingEnabled` reads as false when unset. (The original posted an aggregated report to the vendor; that is out of scope, SPEC.md §1.8.)",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#maybeSend",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#setSendingEnabled",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#isSendingEnabled"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/statistic-sources",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "`addStatisticSource` registers a `StatisticSource` whose `getStatistics()` map is merged into each statistics report assembled afterwards (after the stored statistics and `dayCount`, later sources overwriting equal names); a source that throws is logged and skipped. The same source added twice is registered twice; `removeStatisticSource` removes one registration and ignores an unknown source. Registrations live in memory only.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#addStatisticSource",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#removeStatisticSource",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#getStatisticsReport"
+   ]
+  },
+  {
+   "key": "m5-history/statistics-manager/enable-offer",
+   "module": "statistics-manager",
+   "api": null,
+   "behaviour": "The 'enable statistics' offer is shown to a user only when sending is not enabled, the user has not dismissed it (Jira user property `com.almworks.jira.structure.statistics.offerRejected` not true) and at least 3 distinct users are recorded under the `userCount` statistic in AO_8BAD1B_STATISTICS. Dismissing sets that user property to true. The user count is cached and re-read only after a flush that contains `userCount` while the cached answer was 'not enough'.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#shouldShowOffer",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#dismissOffer",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#invalidateEnoughUsers",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager$EnoughUsersByReportLoader#load"
+   ]
+  },
+  {
+   "key": "m5-history/generic-item-history-manager/add-records-storage",
+   "module": "generic-item-history-manager",
+   "api": null,
+   "behaviour": "`addRecords(records)` inserts one AO_8BAD1B_GENERIC_ITEM_HISTORY row per record in list order: C_LONG_ID = the item identity's long ID, C_TYPE_ID = the item type's ID (registered in AO_8BAD1B_ITEM_TYPE if new), C_NEW_NAME/C_NEW_DESCRIPTION/C_NEW_PARAMETERS from the new item, C_OLD_* from the old item (all null when it is null), C_AUTHOR = author key, C_TIMESTAMP, C_CREATE. Parameters are stored as JSON, or null when the map is empty. The records' own IDs are ignored; new auto-increment IDs are assigned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#addRecords",
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#createItem",
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#serializeParameters"
+   ]
+  },
+  {
+   "key": "m5-history/generic-item-history-manager/add-records-notifies-tracker",
+   "module": "generic-item-history-manager",
+   "api": null,
+   "behaviour": "After `addRecords`, the `ItemTracker` is told about the changed generic items (each item identity once) and then about the new record items (`CoreIdentities.memoChangeHistoryGroup(newId)` for each stored record), and any cached lookup of those record identities is dropped so `getRecord` sees the new row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#addRecords"
+   ]
+  },
+  {
+   "key": "m5-history/generic-item-history-manager/add-records-storage-failure",
+   "module": "generic-item-history-manager",
+   "api": null,
+   "behaviour": "If storing a record fails with the plugin's storage exception, `addRecords` logs a warning and returns normally: records before it stay stored, it and all later records are not written, and the item tracker is still notified for the records that were stored. After the component has stopped, `addRecords` throws `StructureStoppedException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#addRecords"
+   ]
+  },
+  {
+   "key": "m5-history/generic-item-history-manager/get-record",
+   "module": "generic-item-history-manager",
+   "api": null,
+   "behaviour": "`getRecord(identity)` returns the record for a long identity of type `com.almworks.jira.structure:type-memo-change-history-group` whose ID is an AO_8BAD1B_GENERIC_ITEM_HISTORY.ID, with `getId()` = that ID, the item identity rebuilt from C_TYPE_ID and C_LONG_ID, and author, timestamp and create flag from the row. Any other identity (another type, or a string identity) or a missing row gives null. No permission check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#getRecord",
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#loadRecord",
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#toGenericItemHistoryRecord"
+   ]
+  },
+  {
+   "key": "m5-history/generic-item-history-manager/record-old-item-blank-name",
+   "module": "generic-item-history-manager",
+   "api": null,
+   "behaviour": "A record read back from storage has `getOldItem()` null whenever C_OLD_NAME is null or blank (old description and parameters are then ignored); otherwise the old item has the stored old name, description and parameters. The new item always has the stored new name, description and parameters (empty map when C_NEW_PARAMETERS is null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#toGenericItemHistoryRecord"
+   ]
+  },
+  {
+   "key": "m5-history/generic-item-history-manager/get-record-cached",
+   "module": "generic-item-history-manager",
+   "api": null,
+   "behaviour": "`getRecord` results, including 'not found', are cached per identity (slowly expiring cache, timeout from `structure.genericItemRecord.cache.timeout`); a row changed directly in the database is not seen until the entry expires, `addRecords` creates that record, `removeRecordsForItems` runs, or plugin caches are cleared. A database error while loading throws the plugin's storage exception.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#getRecord",
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#clearCaches"
+   ]
+  },
+  {
+   "key": "m5-history/generic-item-history-manager/load-records",
+   "module": "generic-item-history-manager",
+   "api": null,
+   "behaviour": "`loadRecords(identities, consumer)` ignores identities that are not memo-change-history-group long identities, passes first the records already cached (in input order, skipping cached 'not found'), then reads the rest from AO_8BAD1B_GENERIC_ITEM_HISTORY by ID in chunks of 1000 (dark feature `structure.genericItemHistory.chunkSize`), each chunk in C_TIMESTAMP order. IDs with no row are silently skipped; records read this way are not added to the cache.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#loadRecords",
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#loadAllChunks"
+   ]
+  },
+  {
+   "key": "m5-history/generic-item-history-manager/load-records-for-items",
+   "module": "generic-item-history-manager",
+   "api": null,
+   "behaviour": "`loadRecordsForItems(itemIds, consumer)` passes every AO_8BAD1B_GENERIC_ITEM_HISTORY record whose (C_TYPE_ID, C_LONG_ID) matches one of the given item identities. Identities are grouped by item type (group order unspecified) and read in chunks of 1000, each chunk ordered by C_TIMESTAMP; an item with no history yields nothing. An item type key not yet known is registered in AO_8BAD1B_ITEM_TYPE as a side effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#loadRecordsForItems",
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#loadAllChunks"
+   ]
+  },
+  {
+   "key": "m5-history/generic-item-history-manager/remove-records-for-items",
+   "module": "generic-item-history-manager",
+   "api": null,
+   "behaviour": "`removeRecordsForItems(itemIds)` deletes all AO_8BAD1B_GENERIC_ITEM_HISTORY rows of the given generic items (matched by type and long ID) and then empties the whole record cache, so `getRecord` of a removed record returns null. The item tracker is not notified. An empty collection deletes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#removeRecordsForItems"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/server-initial-version",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "On a single-node server the tracker keeps its journal in memory: it starts at a `DataVersion` with a signature unique to this plugin start and version 1, and each non-null identity passed to `recordChange`/`recordChanges` increases the version by exactly one (an item recorded twice counts twice). Null identities are skipped without changing the version. AO_8BAD1B_ITEM_EVENTS_V2 is not written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.DelegatingItemTracker#<init>",
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker#recordChange0"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/update-empty",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "`getUpdate(v)` with v equal to the current version returns an update with `isEmpty()` true and the current version.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker#getUpdate"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/update-incremental",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "`getUpdate(v)` for a version of the current signature that is behind by n (1 <= n <= 500) recorded changes, all still in the journal, returns an incremental update: `isFull()` and `isEmpty()` false, `getFromVersion()` = v, `getVersion()` = the current version, and `getAffectedItems()` = the set of item identities recorded since v (long and string identities preserved, duplicates collapsed).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker#collectResult",
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker$IncrementalUpdate#getAffectedItems"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/update-full",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "`getUpdate(v)` returns a full update (`isFull()` true, no affected items, version = current) when v is null, has another signature (from an earlier plugin start, or `DataVersion.ZERO`), is newer than the current version, is more than 500 changes behind, or reaches back past the 20,000 most recent changes kept in the journal or past a `reset()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker#getUpdate",
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker#collectResult"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/reset",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "`reset()` forgets the journal and increases the version by one: any `getUpdate` from a version taken before the reset returns a full update, while `getUpdate` from the version right after the reset is empty until something new is recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker#reset"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/record-changes-null-iterable",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "`recordChanges(null)` throws `NullPointerException` (only null elements are tolerated). `recordChanges` with an empty iterable changes nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker#recordChanges"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/reindex-resets",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "When the plugin started, the tracker registers with the plugin's issue-reindex tracking: after a full Jira reindex or a project reindex completes it calls `reset()` (dark features `structure.memoryBasedItemTracker.fullUpdateByFullReindex` / `...fullUpdateByProjectReindex`, both default true; on Data Center `structure.reindexAwareItemTracker.*`), so clients get a full update. Reindexing individual issues does not reset. On stop it unregisters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.DelegatingItemTracker#startComponent",
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker#fullReindexDone",
+    "com.almworks.jira.structure.item.MemoryBasedItemTracker#projectReindexDone"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/works-before-start",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "`recordChange`, `recordChanges`, `getUpdate` and `reset` have no lifecycle check: on a single-node server they work before the component starts and after it stops.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.DelegatingItemTracker#recordChange",
+    "com.almworks.jira.structure.item.DelegatingItemTracker#getUpdate"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/dc-local-immediate-remote-async",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "On Jira Data Center, changes recorded on a node are visible to `getUpdate` on that node immediately and are also queued and written asynchronously by a background thread to AO_8BAD1B_ITEM_EVENTS_V2 (C_TYPEID from AO_8BAD1B_ITEM_TYPE, C_ITEMID or C_ITEMSID, consecutive C_ID in the node's partition from AO_8BAD1B_NODE_SIGNS_V2). Before answering `getUpdate`, a node reads new events of other live nodes (re-checked at most every few minutes through a cache) and records them locally, so they appear on other nodes with a delay.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.item.AOBasedThreadedItemTracker#recordChanges",
+    "com.almworks.jira.structure.item.AOBasedThreadedItemTracker#getUpdate",
+    "com.almworks.jira.structure.item.AOBasedThreadedItemTracker#writeDatabase",
+    "com.almworks.jira.structure.item.AOBasedThreadedItemTracker#validateBeforeReading"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/dc-partition-reinit",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "On Data Center, when a node's queued batch has more than 500 changes, a full update, or would overflow the node's event-ID partition, the node re-initialises its partition instead of writing the events: it gets a new signature in AO_8BAD1B_NODE_SIGNS_V2 and deletes its partition's events, and other nodes that notice the new signature reset their tracking (their clients get a full update).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.item.AOBasedThreadedItemTracker#processEvents",
+    "com.almworks.jira.structure.item.AOBasedThreadedItemTracker#updateNodeSignature"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/dc-remote-issue-waits-for-reindex",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "On Data Center (with `structure.delegatingItemTracker.enableReindexMonitor`, default true), an issue change arriving from another node is recorded right away only if this node reindexed that issue within the last 2 seconds; otherwise it is held back until the local reindex of the issue completes, or until 6 seconds pass (checked on the next read), so that consumers do not see an issue change before the local index has it. Changes of other item types and changes recorded locally are not delayed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.item.ReindexAwareItemTracker#recordRemoteChanges",
+    "com.almworks.jira.structure.item.ReindexAwareItemTracker#postponeEvent",
+    "com.almworks.jira.structure.item.ReindexAwareItemTracker#reindexDone"
+   ]
+  },
+  {
+   "key": "m5-history/item-tracker/dc-cleanup",
+   "module": "item-tracker",
+   "api": null,
+   "behaviour": "The maintenance option `cleanupItemTracker` deletes all rows of AO_8BAD1B_ITEM_EVENTS_V2 and AO_8BAD1B_NODE_SIGNS_V2 (the latter under the event signature cluster lock) and then resets the tracker, so clients get a full update. On a single-node server it does nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.item.DelegatingItemTracker#cleanup",
+    "com.almworks.jira.structure.item.AOBasedThreadedItemTracker#cleanup"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/lifecycle-registration",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "The bridge registers its Jira event listener with Jira's `EventPublisher` when the component starts and unregisters it when it stops; Jira events published before start or after stop are not passed to `IssueListener`s. `addListener`, `removeListener`, `reportChanges` and `reportEvent` work regardless of the lifecycle state.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.EventPublisherIssueEventBridge#startComponent",
+    "com.almworks.jira.structure.event.EventPublisherIssueEventBridge#stopComponent"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/listeners-order-and-duplicates",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "Listeners are called in registration order, synchronously on the reporting thread. `addListener(null)` is ignored; a listener added twice is called twice per event; `removeListener` removes one registration and ignores unknown or null listeners. A listener added or removed during a delivery does not affect that delivery.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.EventPublisherIssueEventBridge#addListener",
+    "com.almworks.jira.structure.event.EventPublisherIssueEventBridge#removeListener",
+    "com.almworks.jira.structure.event.StructureIssueListener#notifyIssueChanged"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/listener-exception-isolated",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "An `Exception` thrown by a listener's `onIssueChanged` is logged and the remaining listeners are still called; the caller of `reportEvent`/`reportChanges` (or Jira's publisher) sees no exception. An `Error` (for example `AssertionError`) is not caught: it stops delivery to later listeners and propagates to the caller (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureIssueListener#notifyIssueChanged"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/notifications-disabled",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "When Jira's `ImportUtils.isEnableNotifications()` is false (e.g. during an import), no listener is called, neither for Jira events nor for `reportEvent`/`reportChanges`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureIssueListener#notifyIssueChanged"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/report-changes",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "`reportChanges(issueIds, type)` delivers one `IssueChangeEvent` per element of the list, in list order (duplicates delivered twice), each with that issue ID, the given change type and no Jira event (`getJiraEvent()` null). A null list does nothing; an empty list does nothing. A null type throws `NullPointerException` at the first element (even if there are no listeners).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.EventPublisherIssueEventBridge#reportChanges",
+    "com.almworks.jira.structure.event.StructureIssueListener#notifyIssueChanged"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/report-event",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "`reportEvent(event)` delivers that same event object to every listener; null is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.EventPublisherIssueEventBridge#reportEvent"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/jira-issue-event-mapping",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "A Jira `IssueEvent` becomes an `IssueChangeEvent` carrying the issue's ID and the original event (`getJiraEvent()`), with the type mapped from the Jira event type: created to ISSUE_CREATED, updated ISSUE_UPDATED, assigned ISSUE_ASSIGNED, resolved ISSUE_RESOLVED, closed ISSUE_CLOSED, reopened ISSUE_REOPENED, deleted ISSUE_DELETED, moved ISSUE_MOVED, work started ISSUE_STARTED, work stopped ISSUE_STOPPED, commented COMMENT_CREATED, comment edited and comment deleted COMMENT_UPDATED, work logged WORKLOG_CREATED, worklog updated WORKLOG_UPDATED, worklog deleted WORKLOG_DELETED, generic event GENERIC_EVENT; any other event type ID gives GENERIC_EVENT. An event without an issue, or whose issue has no ID, is dropped with a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureIssueListener#dispatch",
+    "com.almworks.jira.structure.event.StructureIssueListener"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/jira-wrapped-events",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "An `IssueEventBundle` is unpacked and each contained event handled in order; a `DelegatingJiraIssueEvent` is handled as its `asIssueEvent()`; an `OnCommitIssueEvent` as its wrapped issue event. A Jira `IssueChangedEvent` gives an ISSUE_UPDATED `IssueChangeEvent` for its issue without a Jira event.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureIssueListener#onIssueChange"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/field-values-changed",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "A Jira `FieldValuesChangedEvent` gives a GENERIC_EVENT `IssueChangeEvent` for its issue (no Jira event). If it is for a new issue and its modified fields include `issuelinks`, a second identical notification is sent about 1000 ms later (dark feature `structure.issueListener.linkDiscoveryTimeout`; 0 or less disables the second one).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureIssueListener#onIssueChange"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/issue-link-events",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "Jira `IssueLinkCreatedEvent`/`IssueLinkDeletedEvent` give a `LinkChangeEvent` of type LINK_CREATED/LINK_DELETED with the link's type ID, source issue ID and destination issue ID.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureIssueListener#onIssueLinkCreated",
+    "com.almworks.jira.structure.event.StructureIssueListener#onIssueLinkDeleted"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/remote-link-events",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "For a remote issue link event the bridge looks the link up by ID through Jira's `RemoteIssueLinkManager`. If found with an issue ID, it sends an `IssueChangeEvent` for that issue: REMOTE_LINK_CREATED for create (API or UI) events, REMOTE_LINK_REMOVED for delete events, REMOTE_LINK_UPDATED for update events. If not found and the event is an API create event, it sends REMOTE_LINK_CREATED for every issue having a remote link with the event's global ID (lookup failures are logged). Otherwise nothing is sent, so a delete whose link is already gone reports nothing (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureIssueListener#onRemoteLinkEvent",
+    "com.almworks.jira.structure.event.StructureIssueListener#notifyLinkedIssuesByGlobalId"
+   ]
+  },
+  {
+   "key": "m5-history/event-bridge/issue-property-events",
+   "module": "event-bridge",
+   "api": null,
+   "behaviour": "Jira `IssuePropertySetEvent` and `IssuePropertyDeletedEvent` give an ISSUE_UPDATED `IssueChangeEvent` (no Jira event) for the property's entity ID, only when the property is present and its entity ID is positive.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureIssueListener#onIssuePropertySet",
+    "com.almworks.jira.structure.event.StructureIssueListener#onIssuePropertyDeleted",
+    "com.almworks.jira.structure.event.StructureIssueListener#onIssuePropertyEvent"
+   ]
+  }
+ ]
+}

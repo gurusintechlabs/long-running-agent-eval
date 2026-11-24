@@ -10,7 +10,9 @@ from spec.loader import REPO_ROOT
 from tests.scorer_support import scorer_py  # noqa: F401  (fixture)
 
 APP = REPO_ROOT / "fixtures" / "security" / "vulnapp"
+JAVA_APP = REPO_ROOT / "fixtures" / "security" / "javaapp"
 RULES = sorted(REPO_ROOT.glob("tools/semgrep-rules-*/python"))
+JAVA_RULES = sorted(REPO_ROOT.glob("tools/semgrep-rules-*/java"))
 SEMGREP = shutil.which("semgrep")
 
 
@@ -92,3 +94,62 @@ def test_scan_clean_vs_vulnerable(tmp_path, scorer_py):  # noqa: F811
         pytest.skip("semgrep or the pinned rules are not installed (lrae install-scorer)")
     assert res["vuln"]["tools"]["bandit"]["version"]
     json.dumps(res["vuln"])  # serialisable for scorer.jsonl
+
+
+# --- Java (jira-re): scoring.security.languages: [java] -----------------------------------------------
+
+def _java_tree(tmp_path, variant: str):
+    """The fixture's product code plus the copies a Maven workspace also holds: a test, a test class outside
+    src/test (jira-re's visible API tests in spec/), build output, the agent's subagent worktrees (seen in the
+    JR1 pilot) and decompiled sources. Only the product code is scanned."""
+    tree = tmp_path / variant
+    shutil.copytree(JAVA_APP / variant, tree)
+    vuln = (JAVA_APP / "vuln" / "src" / "main" / "java" / "com" / "example" / "plugin" / "ReportResource.java").read_text()
+    for rel in ("src/test/java/com/example/plugin/ReportResourceTest.java",
+                "spec/api-tests/cleanroom/ReportResourceTest.java", "src/it/ReportResourceIT.java",
+                "target/generated-sources/com/example/plugin/ReportResource.java",
+                ".claude/worktrees/agent-a1/src/main/java/com/example/plugin/ReportResource.java",
+                ".decompiled/com/example/plugin/ReportResource.java",
+                "vendor/lib/ReportResource.java"):
+        (tree / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tree / rel).write_text(vuln)
+    return tree
+
+
+def test_java_product_files(tmp_path):
+    tree = _java_tree(tmp_path, "vuln")
+    (tree / "tools.py").write_text("x = 1\n")
+    assert [p.as_posix() for p in sast.collect_product_files(tree, ["java"])] == [
+        "src/main/java/com/example/plugin/ReportResource.java"]
+    assert [p.as_posix() for p in sast.collect_product_files(tree, ["python"])] == ["tools.py"]
+    assert len(sast.collect_product_files(tree, ["python", "java"])) == 2
+
+
+def test_java_only_tree_skips_bandit_with_a_reason(tmp_path, scorer_py):  # noqa: F811
+    out = sast.scan(_java_tree(tmp_path, "vuln"), python=scorer_py, languages=["java"])
+    assert out["tools"]["bandit"] == {"ok": True, "reason": "no python files", "version": None,
+                                      "reproducible": True, "n": 0}
+
+
+def test_semgrep_without_product_files_reports_it(tmp_path, scorer_py):  # noqa: F811
+    (tmp_path / "tree").mkdir()
+    out = sast.scan(tmp_path / "tree", python=scorer_py, semgrep_bin="semgrep", ce_configs=["/rules/java"],
+                    languages=["java"])
+    assert out["tools"]["semgrep-ce"]["reason"] == "no java files" and out["findings"] == []
+
+
+def test_scan_java_clean_vs_vulnerable(tmp_path, scorer_py):  # noqa: F811
+    if not (JAVA_RULES and SEMGREP):
+        pytest.skip("semgrep or the pinned rules are not installed (lrae install-scorer)")
+    res = {v: sast.scan(_java_tree(tmp_path, v), python=scorer_py, semgrep_bin=SEMGREP,
+                        ce_configs=[str(JAVA_RULES[0])], languages=["java"]) for v in ("clean", "vuln")}
+    for v in res.values():
+        assert v["tools"]["semgrep-ce"]["ok"] and v["tools"]["semgrep-ce"]["reproducible"]
+    assert res["clean"]["findings"] == []
+    vuln = [sast.Finding(**f) for f in res["vuln"]["findings"]]
+    assert {f.path for f in vuln} == {"src/main/java/com/example/plugin/ReportResource.java"}   # no copies
+    got = {(f.rule.split(".")[-1], f.severity) for f in vuln}
+    assert {("formatted-sql-string", "high"), ("jdbc-sqli", "medium"), ("no-direct-response-writer", "medium"),
+            ("documentbuilderfactory-disallow-doctype-decl-missing", "high"),
+            ("object-deserialization", "medium"), ("use-of-md5", "medium")} <= got
+    assert all(f.tool == "semgrep-ce" for f in vuln)

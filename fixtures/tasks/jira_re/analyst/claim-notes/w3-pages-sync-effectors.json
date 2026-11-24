@@ -1,0 +1,1645 @@
+{
+ "claims": [
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/stopped",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "All twelve pages `StructureSync`, `StructureResync`, `StructureSyncEnable`, `StructureSyncEdit`, `StructureSyncDelete`, `SyncAuditLogView`, `StructureProcessStatus`, `StructureProcesses`, `StructureEffectorEdit`, `StructureEffectorProcess`, `StructureEffectorAudit` and `StructureGeneratorEdit`, and each of their commands: while `StructurePluginHelper.isStructureLocked()` is true nothing is done and the 'not ready' page is shown, titled by `str.+stopped+.title` ('<product> Isn't Ready') with the text `str.+stopped+.description.html`. Only `StructureProcessStatus` with `skipLock=true` skips this check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#run",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#checkStopped",
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#checkStopped"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/stopped-during-action",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On any of these pages, when the action fails with an exception whose root cause is `StructureStoppedException`, the same 'not ready' page is shown instead of an error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#run"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/error-mapping",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On any of these pages a `StructureException` that escapes the action shows the page's error outcome with the exception's localized message; any other unexpected exception is not caught and reaches Jira's own error handling (HTTP 500). The error outcome is a full error page, except on `StructureEffectorEdit` and `StructureGeneratorEdit`, where it is dialog content: the title `common.words.error` and one error message per entry.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#run"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/error-page-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The full error page lists the action's error messages (HTML-encoded), a Back link (`s.common.back`) to the current return URL when one is set, and a Jira log-in link back to the same request when nobody is logged in; the text above the list is `str.error.description.html`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getSelfLink",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getSelfLinkEncoded"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/apply-command",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For each alias, `/secure/<alias>!apply.jspa` runs the same logic as `/secure/<alias>.jspa`, but only the `!apply` route passes through Jira's XSRF token check (`atl_token`; a bad or missing token gets Jira's own XSRF page and the action does not run). `/secure/<alias>!default.jspa` behaves as the plain URL. Steps described as 'needing `!apply`' answer with the security-breach page (`/secure/views/securitybreach.jsp`) when reached through the plain URL or `!default`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#doApply",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#doExecute",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#doDefault",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#requireXsrfChecked"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/flag-parsing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Request flags read by these pages (`execute`, `create`, `created`, `edited`, `cancelled`, `keepOwner`, `askOnCancel`, `showPreview`) are true only when the first value of the parameter equals `true`, ignoring case; any other value or a missing parameter is false. `execute=true` marks a form submission. Numeric parameters read the same way (`processId` on `StructureEffectorProcess`) fall back to 0 when missing or not a number.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#getBoolean",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#getLong",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#isExecuted"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/redirect",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When these pages redirect to their return URL in Jira's inline dialog mode (request parameter `inline=true`) they answer HTTP 200 with the header `X-Atlassian-Dialog-Control` = `redirect:<context path + URL>` and no page; otherwise they send an ordinary HTTP redirect. Jira sanitises the return URL (a `returnUrl` request parameter pointing off-site is dropped).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#getRedirect"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/default-return-url",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A `returnUrl` request parameter is kept in place of a page's default return URL: a default is only applied when no return URL was supplied (or the current one is itself a default). An explicit URL given to a redirect by `StructureEffectorProcess`, `StructureEffectorAudit` or `SyncAuditLogView` also yields to a non-blank `returnUrl` request parameter (Jira's redirect rule).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#setDefaultReturnUrl"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/complete",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Where these pages 'finish the dialog', in inline dialog mode the answer is HTTP 200, header `X-Atlassian-Dialog-Control` = `DONE`, and no page. Outside inline dialog mode the outcome is `success`, for which `StructureEffectorEdit`, `StructureEffectorProcess` and `StructureGeneratorEdit` define no page; those steps are used only from dialogs.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#updateEffector",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#doDismiss",
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#updateGenerator"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/access-gate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureResync`, `StructureSyncEnable`, `StructureSyncEdit`, `StructureSyncDelete`, `StructureProcesses`, `StructureEffectorEdit`, `StructureEffectorProcess`, `StructureEffectorAudit`, `StructureGeneratorEdit` (and `StructureProcessStatus` unless `forAdmin` applies) first require `StructurePluginHelper.isStructureAvailableToCurrentUser()`; when it is false the security-breach page is shown and nothing else happens. The pages are open to anonymous requests at Jira level (even with limited anonymous site access), so these checks are the whole gate.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureActionSupport#requireStructureAccessible",
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#action",
+    "com.almworks.jira.structure.webwork.StructureProcesses#action",
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#action",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#action",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#action",
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#action",
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#action"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/common/http-methods",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Accepted HTTP methods: `StructureSyncEnable`, `SyncAuditLogView`, `StructureProcessStatus` and `StructureProcesses` accept only GET; `StructureSync`, `StructureResync`, `StructureSyncEdit`, `StructureSyncDelete`, `StructureEffectorEdit`, `StructureEffectorProcess`, `StructureEffectorAudit` and `StructureGeneratorEdit` accept GET and POST. Other methods are refused by Jira.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEnable",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView",
+    "com.almworks.jira.structure.webwork.StructureProcessStatus",
+    "com.almworks.jira.structure.webwork.StructureProcesses",
+    "com.almworks.jira.structure.webwork.StructureSync",
+    "com.almworks.jira.structure.webwork.StructureResync",
+    "com.almworks.jira.structure.webwork.StructureSyncEdit",
+    "com.almworks.jira.structure.webwork.StructureSyncDelete",
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit",
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/sync-common/check-order",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureResync`, `StructureSyncEnable`, `StructureSyncEdit` and `StructureSyncDelete` take `syncId` (the synchronizer instance ID) and check in this order: <product> access (security-breach page); `syncId` missing or not positive: redirect to `/secure/ManageStructure.jspa?view=recent` (or the supplied `returnUrl`); no installed instance with that ID: error `s.manage.perm.error.nosync` ('Referenced synchronizer ({0}) does not exist or you don't have the required access permissions.'); the instance's structure not available at `PermissionLevel.ADMIN` to the current user: error `s.manage.perm.error.nostructure` ('Referenced structure [{0}] does not exist or you don't have Control permissions on it.'); the user lacks `StructurePluginHelper.isSynchronizationAllowed` or the structure's effective permission does not include ADMIN: security-breach page; structure archived: error `s.manage.perm.error.archived` ('The operation is disabled for archived structures.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#action",
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#initFields",
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#requireSynchronizationAllowed",
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#requireStructureUnarchived"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/sync-common/return-url",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Once those checks pass, the return URL of these four pages is always `/secure/StructureSync.jspa?id=<structure ID>`, replacing any `returnUrl` request parameter; before that (for the error pages) it is the supplied `returnUrl` or `/secure/ManageStructure.jspa?view=recent`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#action",
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#setSyncListAsReturnUrl"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/sync-common/mark-recent",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureResync`, `StructureSyncEnable`, `StructureSyncEdit` and `StructureSyncDelete`, when a change is about to be made, and `StructureSync` when a submitted create is processed, mark the structure as most recently used for the current user (same effect as selecting it on the board).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#makeStructureCurrent",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#updateCurrentStructureInCookie",
+    "com.almworks.jira.structure.webwork.StructureSync#actionCreateExecuted"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/sync-common/instance-description",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Pages that describe an instance show the synchronizer's `getConfigDescription(parameters)` with its `getConfigDescriptionDetails(parameters)` lines (null details mean none). When the instance's synchronizer module is unavailable the description is `s.sync.unavailable-synchronizer` ('Unavailable Synchronizer') with no details.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#getInstanceDescription",
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#getInstanceDetails",
+    "com.almworks.jira.structure.util.Util#getSyncConfigDescription",
+    "com.almworks.jira.structure.util.Util#getSyncConfigDescriptionDetails"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureSync.jspa` takes `id` (structure ID), `synctype` (complete module key of a synchronizer), `create`, `execute`, `created` and `syncId` (the new instance to report); plus, on submit, the parameters of the chosen synchronizer's form. It accepts GET and POST; the create form posts to `/secure/StructureSync!apply.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/gate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSync`: an anonymous user gets the security-breach page first (`StructurePluginHelper.isAuthenticated()` false), then a user without <product> access gets the same. `id` missing or not positive redirects to `/secure/ManageStructure.jspa?view=recent` (or the supplied `returnUrl`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#action",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#initAction"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/structure-admin-required",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSync` needs ADMIN (Control) on the structure. If `StructureManager.getStructure(id, ADMIN)` fails, a user who is not a Jira administrator but can VIEW the structure gets error `s.manage.edit.noaccess` ('You don't have Control permissions on structure {0}'); everyone else, Jira administrators included, gets `s.manage.edit.notfound` ('Structure with id {0} does not exist or you don't have permissions to view it.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#loadStructure",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#getRequiredStructurePermissionLevel"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/list-data",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With no flags, `StructureSync` shows the structure's name and every installed instance from `StructureSyncManager.getInstalledSynchronizersForStructure` in that order. Each row presents: the synchronizer's label, the instance description and detail lines, the owner (the 'Run as User'), and the state. An empty list shows `s.manage.sync.none` ('Not synchronized').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#readStructureData",
+    "com.almworks.jira.structure.webwork.StructureSync#getActiveSynchronizers"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/list-state",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In the `StructureSync` list a row's state is `s.manage.sync.state.na` ('Not Available') when the instance has no synchronizer or it is unavailable; otherwise `s.manage.sync.state.enabled` ('Running') when `StructureSyncManager.isAutosyncEnabled(id)` is true and `s.manage.sync.state.disabled` ('Disabled') when false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#isAvailable",
+    "com.almworks.jira.structure.webwork.StructureSync#isEnabled"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/list-operations",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In the `StructureSync` list, with app permission Synchronization: a Running row offers Disable (`/secure/StructureSyncEnable!apply.jspa?syncId=<id>&atl_token=<token>&enable=0`), also on an archived structure. On a structure that is not archived: a Disabled available row offers Enable (the same URL with `enable=1`) and Resync and Enable (`/secure/StructureResync.jspa?syncId=<id>&enable=true`); an available row offers Edit, named 'Disable and Edit' when Running (`/secure/StructureSyncEdit!apply.jspa?syncId=<id>&atl_token=<token>`) and Resync (`/secure/StructureResync.jspa?syncId=<id>`); every row offers Delete (`/secure/StructureSyncDelete.jspa?syncId=<id>`). Without the permission the row shows `s.manage.sync.op.restricted` ('Restricted') and no operation.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#isEditable",
+    "com.almworks.jira.structure.webwork.StructureSync#isAvailable"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/list-notices",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSync` shows the warning `s.manage.sync.restriction` when the user lacks app permission Synchronization, otherwise `s.manage.sync.archived` when the structure is archived. With the permission it also offers one-time synchronization: links to `/secure/StructureExport.jspa?id=<id>` always and `/secure/StructureImport.jspa?id=<id>` unless archived; and, unless archived, the list of synchronizer types to install.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#isSynchronizationAllowed",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#isArchived"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/type-list",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The synchronizer types offered by `StructureSync` are the enabled `structure-synchronizer` modules whose module object loads and that answer `isAvailable()` and `isAutosyncSupported()` true, sorted by the descriptor's order; each presents its complete key, label, description and rules. None gives `s.manage.addsync.nodescriptors` ('No synchronizers that are capable of automatic synchronization are available').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#getSyncDescriptors",
+    "com.almworks.jira.structure.webwork.StructureSync#isModuleSuitableForAction"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/bad-type",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSync` with `create=true` and a `synctype` that is missing or not among the offered types goes back to the list page with the field error `synctype` = `s.manage.sync.new.badtype` ('Please select a valid synchronization type').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#initDescriptor"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/create-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSync` with `create=true`, a valid `synctype` and no `execute` shows the install form for that type: its label, description and rules, the structure's name, the current user as the 'Run as User', and the synchronizer's parameter form rendered with the module's `addDefaultFormParameters` applied over the request parameters. It changes nothing and needs no XSRF token.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#actionCreate",
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#getDescriptorForm",
+    "com.almworks.jira.structure.webwork.StructureSync#getNewSyncUserKey"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/form-context",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The synchronizer's parameter form is rendered with these context entries: `params` (the context map itself), `descriptor`, `module`, `i18n` (the descriptor's `I18nBean`), `action` (the page, which is also the `ErrorCollection`) and all request parameters. If the module object cannot be loaded the form area shows `s.manage.addsync.descriptor-problem` instead.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#getDescriptorForm",
+    "com.almworks.jira.structure.util.Util#reputFormActionContextParametersInto"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/create-submit-needs-apply",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSync` with `create=true`, a valid `synctype` and `execute=true` needs `!apply` (else the security-breach page). Then it marks the structure recent and calls the module's `buildParametersFromForm(request parameters, page as error collection)`. An exception there is logged and treated as no result; a null result without errors adds `s.manage.addsync.error.noparam` ('Could not configure the synchronizer.'). Any error shows the form again with the submitted values and those errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#actionCreateExecuted",
+    "com.almworks.jira.structure.webwork.SyncSelectedStructureActionSupport#createParams"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/create-install",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When parameters are valid, `StructureSync` calls `StructureSyncManager.installSynchronizer(module, structure ID, parameters, current user)`; the new instance is disabled (see `sync-manager`). On `StructureSynchronizerException` the form is shown again with `s.manage.addsync.error.install` ('Could not install synchronizer, sorry! Error message: {0}'), where {0} is the exception message, followed by ` (<cause message>)` when it has a cause.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#actionCreateExecuted"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/create-redirect",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After a successful install `StructureSync` redirects to `/secure/StructureSync.jspa?id=<structure ID>&created=true&syncId=<new instance ID>`, unless a `returnUrl` was supplied, which is used instead.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#actionCreateExecuted"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/created-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSync` with `created=true` and a `syncId` among the structure's installed instances shows the 'Synchronizer Installed' page (`s.manage.sync.created.title`): `s.manage.sync.created.desc` with the instance ID, the offer `s.manage.sync.enable-offer`, and the choices Resync and Enable (`/secure/StructureResync.jspa?syncId=<id>&enable=true`), Enable without Resyncing (`/secure/StructureSyncEnable!apply.jspa?syncId=<id>&atl_token=<token>&enable=1`) and Done (`/secure/StructureSync.jspa?id=<structure ID>`). With an unknown or missing `syncId` the ordinary list is shown. `created` wins over `create`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#action",
+    "com.almworks.jira.structure.webwork.StructureSync#getInstalledSynchronizer"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSync/create-no-sync-permission-check",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The create steps of `StructureSync` (both the form and the submit) check only the login, <product> access and ADMIN on the structure: a user without app permission Synchronization, or a request on an archived structure, can still install a synchronizer by calling the URL directly, although the list page does not offer it (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSync#action",
+    "com.almworks.jira.structure.webwork.StructureSync#actionCreate"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureResync/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureResync.jspa` takes `syncId`, `enable` (true: also enable autosync; default false) and `execute`. The confirmation form posts to `/secure/StructureResync!apply.jspa` with `syncId`, `execute=true` and `enable`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureResync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureResync/confirm-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureResync` without `execute=true`, after the common synchronizer checks, changes nothing and shows the confirmation (`s.manage.resync.h2`, 'Please Confirm Running Full Synchronization'): structure name, instance description and details, the warning `s.manage.resync.warn.html`, and the lines of the synchronizer's `getPossibleResyncEffects(parameters)` (none when null or when the synchronizer is unavailable). No XSRF token is needed for this view.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureResync#actionManageSync",
+    "com.almworks.jira.structure.webwork.StructureResync#getPossibleEffects"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureResync/enable-notice",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The confirmation of `StructureResync` shows `s.manage.resync.enable.notice` ('Enable synchronizer immediately after Resync') only when `enable=true` and `StructureSyncManager.isAutosyncEnabled(syncId)` is currently false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureResync#initFields",
+    "com.almworks.jira.structure.webwork.StructureResync#isEnabled"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureResync/inconsistent-index",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When `reindex-locker` reports the index consistency check failed, the `StructureResync` confirmation shows `s.manage.resync.inconsistent-index` ('Resync cannot be performed. Index is inconsistent with the database and should be rebuilt.') and its Start Resync control is disabled. The server does not refuse a submission in that state: a submitted resync still runs (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureResync#initFields",
+    "com.almworks.jira.structure.webwork.StructureResync#actionExecuted"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureResync/submit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureResync` with `execute=true` needs `!apply` (else the security-breach page). It marks the structure recent, creates a process handle owned by the current user via `process-handle-manager` with name `s.sync.job.name` ('Full Synchronization: {0}', {0} the synchronizer's config description) and one button to `StructureSync.jspa?id=<structure ID>` captioned `s.manage.title.singular` ('Manage Structure'), then calls `StructureSyncManager.resync(syncId, enable, handle ID)` and redirects to `/secure/StructureProcessStatus.jspa?processId=<handle ID>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureResync#actionExecuted",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getRedirectToProcess"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureResync/schedule-error",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When `StructureSyncManager.resync` throws `StructureSynchronizerException`, `StructureResync` shows the error `s.sync.error.scheduling` ('Error scheduling synchronization: {0}') with the exception message. The process handle created just before is left in place. A handle ID that is not positive gives the same error with {0} = `processId = <id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureResync#actionExecuted",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getRedirectToProcess"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureResync/synchronizer-unavailable",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When the instance's synchronizer is unavailable at submit, `StructureResync` starts nothing and shows the confirmation page again, with `s.sync.error.synchronizer-unavailable` ('Synchronizer {0} ({1}) is currently unavailable.', instance ID and module key) recorded as a field error on `direction`. That page has no such field and lists only general error messages, so the text is not displayed (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureResync#actionExecuted"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEnable/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureSyncEnable!apply.jspa` takes `syncId` and `enable` (default -1). It is reached by GET links carrying `atl_token`. It has no page of its own: it ends in a redirect or an error page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEnable"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEnable/needs-apply",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSyncEnable` through the plain URL `/secure/StructureSyncEnable.jspa` passes the common synchronizer checks and then always shows the security-breach page, changing nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEnable#actionManageSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEnable/set",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSyncEnable!apply` with `enable=1` calls `StructureSyncManager.setAutosyncEnabled(syncId, true)`, with `enable=0` the same with false, marks the structure recent, and redirects to `/secure/StructureSync.jspa?id=<structure ID>`. Any other value of `enable` (including none) changes nothing and redirects the same way.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEnable#actionManageSync",
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#getRedirectToSyncList"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEnable/error",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When `setAutosyncEnabled` throws `StructureSynchronizerException`, `StructureSyncEnable` shows the error `s.manage.sync.error.set-autosync` ('Error enabling/disabling synchronizer: {0}') with its message; the structure stays marked recent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEnable#actionManageSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEnable/archived",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSyncEnable` refuses archived structures for both values of `enable`, with `s.manage.perm.error.archived`, so the Disable link the list shows for a Running row of an archived structure leads to that error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#requireStructureUnarchived"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureSyncEdit.jspa` takes `syncId`, `execute`, `edited`, `cancelled`, `askOnCancel`, `keepOwner` and the parameters of the synchronizer's form. The list opens it as `/secure/StructureSyncEdit!apply.jspa?syncId=<id>&atl_token=<token>`; the form posts to the same `!apply` URL with `execute=true`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/edited-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSyncEdit` with `edited=true`, after the common checks and without any XSRF need, changes nothing and shows the 'done' page: title `s.manage.sync.edited.title` ('Synchronizer Parameters Updated'), `s.manage.sync.edited.desc`, the offer `s.manage.sync.enable-offer`, and the choices Resync and Enable (`/secure/StructureResync.jspa?syncId=<id>&enable=true`), Enable without Resyncing (`/secure/StructureSyncEnable!apply.jspa?syncId=<id>&atl_token=<token>&enable=1`) and Done (`/secure/StructureSync.jspa?id=<structure ID>`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#actionManageSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/cancelled-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSyncEdit` with `cancelled=true` (and not `edited`): when the instance's autosync is enabled it redirects to `/secure/StructureSync.jspa?id=<structure ID>`; otherwise it shows the same 'done' page with title `s.manage.sync.edit-cancelled.title` ('Editing Has Been Cancelled') and text `s.manage.sync.edit-cancelled.desc`. It changes nothing; in particular a synchronizer disabled for editing stays disabled. `edited` wins over `cancelled`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#actionManageSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/needs-apply",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Apart from the `edited` and `cancelled` views, `StructureSyncEdit` needs `!apply`, even to show the form: the plain URL gives the security-breach page, before anything is changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#actionManageSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/open-disables",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Opening the `StructureSyncEdit` form (no `execute`) for an instance with autosync enabled disables it first (`StructureSyncManager.setAutosyncEnabled(syncId, false)`, which records its audit group), shows `s.manage.sync.edit.message.disabled` ('We've disabled this synchronizer so you can edit it safely.'), and makes Cancel go to `/secure/StructureSyncEdit.jspa?cancelled=true&syncId=<id>`. If disabling fails: error `s.manage.sync.edit.error.disable` ('Error disabling synchronizer: {0}'). For an instance already disabled, nothing changes and Cancel goes to the sync list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#actionManageSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/open-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The `StructureSyncEdit` form presents the synchronizer's description and rules, the structure name and the synchronizer's parameter form, filled from the stored parameters with `addFormParameters(stored parameters, form)`. It then runs `buildParametersFromForm` once on those values, as the current user, so that stored values that are now invalid show as errors at once; the result is not stored. An exception or `LinkageError` while filling gives error `s.manage.sync.edit.error.set-form-params` ('An error occurred while retrieving synchronizer parameters: {0}'). Context entries: `params`, `descriptor`, `module`, `i18n`, `action`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#getDescriptorForm0",
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#buildParamsFromForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/synchronizer-unavailable",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSyncEdit`, opened or submitted, for an instance whose synchronizer is unavailable shows the error `s.sync.error.synchronizer-unavailable` ('Synchronizer {0} ({1}) is currently unavailable.', instance ID and module key).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#requireSynchronizer"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/owner-choice",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The form of `StructureSyncEdit` presents the choice 'Current synchronizer owner' / 'Current user' only to a Jira administrator who is not the owner; everyone else is shown the current user as the new 'Run as User'. On submit `keepOwner=true` is honoured only for a Jira administrator (`StructurePluginHelper.isAdmin`); for anyone else the value is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#actionManageSync",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#isAdmin"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/submit-validation",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSyncEdit!apply` with `execute=true` builds parameters with the synchronizer's `buildParametersFromForm(request parameters, page)`. With `keepOwner` honoured and the current user not the owner, this runs as the owner (`StructureAuth.sudo(owner, false, ...)`), so validation sees the owner's rights; otherwise as the current user. An exception or `LinkageError` is logged; a null result without errors adds `s.manage.addsync.error.noparam` ('Could not configure the synchronizer.'). With errors the form shows again with the submitted values and nothing is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#getSyncParamsFromForm",
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#buildParamsFromForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/invalid-for-owner",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When validation ran as the owner and failed, the form also shows `s.manage.sync.error.invalid-for-user` with the owner's name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#isValidatedForOtherUser"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/submit-store",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With valid parameters `StructureSyncEdit` calls `StructureSyncManager.updateSynchronizer(syncId, parameters, new owner)`: new owner is the current user, or null (owner unchanged) when `keepOwner` is honoured. It then redirects to `/secure/StructureSyncEdit.jspa?edited=true&syncId=<id>`; when a `returnUrl` request parameter was supplied it goes to the sync list instead. A `StructureSynchronizerException` (for example autosync re-enabled meanwhile) shows the form with `s.manage.sync.edit.error.update` ('An error occurred while updating synchronizer: {0}').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#updateSync",
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#actionManageSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/ask-on-cancel-after-error",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After a failed submit with `askOnCancel=true` the form shown again keeps Cancel on `/secure/StructureSyncEdit.jspa?cancelled=true&syncId=<id>`; with `askOnCancel` false Cancel goes to the sync list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#actionManageSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncEdit/no-user",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "If there is no current user at submit, without honoured `keepOwner`, `StructureSyncEdit` adds the error `s.manage.sync.edit.error.no-user` ('Could not update synchronizer, please check that you are logged in, sorry!') and stores nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncEdit#updateSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncDelete/confirm-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureSyncDelete.jspa?syncId=<id>` without `execute=true`, after the common checks, changes nothing and shows the confirmation: `s.manage.sync.delete.title` ('Delete Synchronizer'), `s.manage.sync.delete.description.html`, the structure name and the instance description and details. It also works for an instance whose synchronizer is unavailable. The form posts to `/secure/StructureSyncDelete!apply.jspa` with `syncId` and `execute=true`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncDelete#actionManageSync"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncDelete/submit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSyncDelete` with `execute=true` needs `!apply` (else the security-breach page). It marks the structure recent, calls `StructureSyncManager.uninstallSynchronizer(syncId)` and redirects to `/secure/StructureSync.jspa?id=<structure ID>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSyncDelete#actionExecuted"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureSyncDelete/archived",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSyncDelete`, on GET and on submit, refuses an archived structure with `s.manage.perm.error.archived`, so synchronizers of an archived structure cannot be removed from this page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageStructureSyncActionSupport#requireStructureUnarchived"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/SyncAuditLogView.jspa` (also `/secure/admin/SyncAuditLogView.jspa`) is for Jira system administrators only (`GlobalPermissionKey.SYSTEM_ADMIN`): everyone else gets the security-breach page before any parameter is read. It accepts GET only and changes nothing. The Structure-access check is not applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#action",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#checkSystemAdmin"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`SyncAuditLogView` request parameters: `dateFrom`, `timeFrom`, `dateTo`, `timeTo` (text), `syncInstanceId`, `structureId` (numbers, optional), `showEmpty` and `rawTimestamps` (default false), `save` (any non-empty value exports) and `entries` (any non-empty value means 'show the table now').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/time-defaults",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In `SyncAuditLogView`, when both the date and the time of a bound are empty the bound is open: `Long.MIN_VALUE` for from, `Long.MAX_VALUE` for to.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#parseTimestamp"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/time-epoch",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In `SyncAuditLogView` a time field holding a whole number (`timeFrom`, `timeTo`) is used directly as epoch milliseconds, and the matching date field is cleared on the page, whatever it held.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#parseTimestamp"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/date-only",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In `SyncAuditLogView` a date with an empty time is parsed as an ISO date (yyyy-MM-dd) in the current user's time zone by Jira's date formatter, giving the start of that day, for `dateTo` as well as `dateFrom`. A date that cannot be parsed is logged and the bound stays open, with no error on the page.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#parseTimestamp"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/time-patterns",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In `SyncAuditLogView` a time that is not a number is combined with the date as `<date> <time>` (the time alone when the date is empty) and tried against `yyyy-MM-dd ` plus each of these patterns in this order, in the user's time zone: `HH:mm:ss.SSS`, `HH:mm:ss.SSS XX`, `HH:mm:ss.SSS Z`, `hh:mm:ss.SSS a`, `hh:mm:ss.SSS a XX`, `hh:mm:ss.SSS a Z`, `HH:mm:ss`, `hh:mm:ss a`, `HH:mm`, `hh:mm a`. The first that parses gives the bound.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#parseDateTime",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#parseTimestamp"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/time-errors",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When a time cannot be parsed, `SyncAuditLogView` reports one error: empty date and the time is a valid time of day: `str.admin.support.syncAuditLog.error.noDate` ('Date is required when time of day is used.') on the date field; date given and the time alone is a complete date and time: `str.admin.support.syncAuditLog.error.superfluousDate` ('Date shouldn't be set when complete date is specified in Time field.') on the date field; otherwise `str.admin.support.syncAuditLog.error.invalidTimeFormat` ('Invalid time format. Expected time of day formats: {0}.') on the time field, with {0} all patterns quoted and joined as `'a', 'b'`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#parseTimestamp"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/time-error-empty-range",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A bound in error makes the selection empty: a bad from becomes `Long.MAX_VALUE`, a bad to `Long.MIN_VALUE`. The page is then shown with the errors and no entries.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#parseTimestamp"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/selection",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`SyncAuditLogView` selects entries with `SyncAuditLog.getActions(syncInstanceId or 0, structureId or 0, from, to + 1)`, so the to bound is inclusive (`Long.MAX_VALUE` stays as is). Unless `showEmpty=true`, groups without actions are dropped, keeping the order `getActions` returns.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#getActionGroups"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/jump-to-table",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`SyncAuditLogView` with no input errors, no `save` and an empty `entries` redirects to `/secure/SyncAuditLogView.jspa?<original query>&entries=true#entries` (`?entries=true#entries` when there was no query). With `entries` set, or with input errors, the page is shown directly.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#jumpToTable",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#shouldJumpToTable"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/max-groups",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The table of `SyncAuditLogView` shows at most the first N selected groups, N being the dark feature `structure.syncAuditLog.maxGroups` (default 1000). When cut off it shows `str.admin.support.syncAuditLog.actions.cutoff` ('Only the last {0} entries of are shown of the selected {1}. {2}'), with {2} = `...cutoff.time` ('You may specify more precise time to select fewer entries.') when `timeFrom` or `timeTo` is empty, else `...cutoff.syncId` ('You may specify synchronizer instance ID to select fewer entries.') when `syncInstanceId` is not set, else empty. Not cut off and more than 5 groups: `str.admin.support.syncAuditLog.actions.count` ('{0} entries displayed.'). None: `str.admin.support.syncAuditLog.table.none` ('No entries found.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#getMaxGroups"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/row-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Each `SyncAuditLogView` group presents: its time; the structure as `#<id> <abbreviated name>` linking to `/secure/StructureSync.jspa?id=<id>`, or `str.admin.support.syncAuditLog.structure.deleted` ('#{0} (deleted)') when a positive structure ID cannot be read, or nothing for ID 0; the instance ID (nothing for 0); the synchronizer label; the processed description; and, when it has actions, their count (`Actions ({0}):`) and the actions as a JSON list. The structure is read with `StructureManager.getStructure(id, PermissionLevel.NONE)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#getStructure",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#jsonList",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#formatSyncLabel"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/timestamp-format",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`SyncAuditLogView` shows group times as `yyyy-MM-dd HH:mm:ss.SSS XX` in the current user's Jira time zone; with `rawTimestamps=true` as the raw epoch milliseconds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#formatDateTime"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/sync-label",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The synchronizer label of a `SyncAuditLogView` group is nothing for an empty module key, the descriptor's label for a known `structure-synchronizer` module, and `str.admin.support.syncAuditLog.synchronizer.unavailable` ('{0} (unavailable)') with the key otherwise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#formatSyncLabel"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/undo-flag",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In `SyncAuditLogView` a group's actions can be selected for undo only when the group's instance is still installed and its synchronizer is a `UndoingSynchronizer`; the answer is computed once per instance per request.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#isUndoing"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/description-processing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The description a `SyncAuditLogView` group presents is the group's `MapObject` rebuilt recursively, nested maps and lists of maps included, with entries of null value dropped and two rewrites. A numeric `version` directly under `structureEvents`, when the group's structure was found, becomes a map `type`=`link`, `url`=`<base URL>secure/StructureBoard.jspa?s=<structure ID>&v=<version>`, `text`=<version>. A numeric `timestamp` directly under `jiraEvents` or `structureEvents` becomes `HH:mm:ss.SSS` in the user's time zone, unless `rawTimestamps=true`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#processDescription0",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#processDescriptionValue"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/export",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`SyncAuditLogView` with a non-empty `save` writes the groups selected as for the page (not cut to the maximum) as a JSON array and shows no page, even when the time inputs had errors (then the array is empty). Each element has `syncInstanceId`, `syncModuleKey`, `structureId`, `timestamp`, `description` and `actions`; descriptions and actions are written as their own JSON, without the page's rewrites.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#action",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#writeJson"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/export-headers",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The `SyncAuditLogView` export first resets the response, then sets `Content-Type: application/json` and `Content-Disposition: attachment; filename=\"sync-audit-log-<from>-<to>-<sync>-<structure>.json\"`. <from> and <to> are `yyyyMMdd'T'HHmmss.SSS'Z'` in GMT, or `start` and `end` for open bounds; <sync> is the ID or `allSyncs`, <structure> the ID or `allStructures`, by whether the parameter was given. Only with an open to bound it also sets `Last-Modified` to now and `Expires` to now plus 1 ms.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#writeJson",
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#getFilename"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/SyncAuditLogView/export-failure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When writing the `SyncAuditLogView` export fails with an `IOException` it is logged and the outcome is `error`, for which this alias defines no page (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.SyncAuditLogView#action"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcessStatus/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureProcessStatus.jspa` accepts GET only and takes `processId`, `forAdmin`, `skipLock` and `cancel` (all default false or 0).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcessStatus"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcessStatus/for-admin",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`forAdmin=true` on `StructureProcessStatus` takes effect only for a Jira administrator (`StructurePluginHelper.isAdmin`); it then skips the Structure-access check. For others the check applies and the flag reads false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#setForAdmin",
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#action"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcessStatus/skip-lock",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`skipLock=true` on `StructureProcessStatus` skips the 'plugin locked' check for any user, so the status of a running restore can be watched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#checkStopped"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcessStatus/no-id",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureProcessStatus` with `processId` missing or not positive redirects to `/secure/ManageStructure.jspa?view=recent` (or the supplied `returnUrl`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#action"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcessStatus/visibility",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureProcessStatus` shows the error `s.process.noprocess` ('The process with ID {0} does not exist or you don't have access to it.') when `process-handle-manager` has no such process, or when the user is not a Jira administrator and `ProcessInfo.isVisibleTo(current user)` is false. The same answer is given for unknown and forbidden IDs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#init"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcessStatus/cancel-on-get",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureProcessStatus` with `cancel=true` and a visible process calls `ProcessInfo.cancel()` on this GET, with no XSRF check, and shows the page (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#action"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcessStatus/page-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The `StructureProcessStatus` page presents: the process name; the state as `s.process.state.+<PENDING|RUNNING|FINISHED>` ('Pending', 'Running', 'Finished'), empty when the status is unknown; the current activity; `s.process.progress.percent-complete` ('{0,number}% complete') only for a value from 0 to 100; and the buttons. Name, activity and captions are `I18nText` values rendered in the current user's locale; missing ones are empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#getStateText",
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#getProcessName",
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#getActivityText",
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#getPercentComplete"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcessStatus/buttons",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The `StructureProcessStatus` page presents the process's `ProcessDisplayParameters` buttons as caption to URL, in order; two buttons with the same rendered caption collapse to one, in the first position with the last URL. No parameters means no buttons.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#getButtons"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcessStatus/live-update",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "While the process is not finished the `StructureProcessStatus` page keeps itself current through `GET /rest/structure/2.0/process/<id>/info` every 3 seconds and stops when the status reaches finished (status value 2), and its cancel control uses `POST /rest/structure/2.0/process/<id>/cancel`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcessStatus#isProcessFinished"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcesses/filter-structure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureProcesses.jspa` accepts GET only and takes `structureId` (default 0). With a non-zero value the structure must be readable at `PermissionLevel.VIEW`; otherwise the error `s.manage.edit.notfound` ('Structure with id {0} does not exist or you don't have permissions to view it.') is shown. Its HTML-encoded name then pre-selects the structure filter, labelled `s.effector.processes.filter.structure.label` ('{0} (id: {1})').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcesses#resolveStructureName"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcesses/page-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureProcesses` is the 'Manage Effectors' page (`s.effector.processes.title`). It changes nothing. It presents filters by effector name, by structure, by status (all values of `EffectorProcess.Status` in declaration order, labelled `s.effector.process.status.+<NAME>+.name`) and, only for a Jira administrator, by the user who ran the process; the rows are loaded by the page itself over REST.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcesses#getEffectorStatuses",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#isAdmin"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureProcesses/open-to-any-user",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureProcesses` has no permission check beyond <product> access; which processes a user sees is decided by the REST calls behind it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProcesses#action"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureEffectorEdit.jspa` takes `effectorId` (an existing instance), `moduleKey` (a new effector), `structureId`, `effectorName`, `formAction`, `execute` and the parameters of the effector's form. The form posts to `/secure/StructureEffectorEdit!apply.jspa`. It is dialog content.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/resolve-existing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureEffectorEdit` with `effectorId` > 0 reads the instance from `EffectorInstanceManager` and its effector and descriptor by the instance's module key; `structureId` then becomes the instance's owning structure, whatever was sent; and when `effectorName` is blank the name comes from the stored parameter `effectorName`. A `StructureException` from the read gives the error outcome with its localized message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#resolveEffector"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/unknown-instance",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For an `effectorId` with no instance, `EffectorInstanceManager.getEffectorInstance` throws (see `effector-instance-manager`) and `StructureEffectorEdit` answers with its error outcome, carrying that exception's localized message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#resolveEffector"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/resolve-new",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureEffectorEdit` with no positive `effectorId` needs a non-empty `moduleKey`; without one the error outcome has the literal text `either effectorId or moduleKey should be passed`. A key with no effector or no descriptor, as for an instance whose module is gone, gives `s.effector.edit.error.prepare-failed` ('Cannot prepare effector {0} for editing: {1}') with the ID or key and `Unknown effector type`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#resolveEffector"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/flags",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureEffectorEdit` computes for the current user and structure: executable = security overridden or `StructureManager.isEffectorExecutionAllowed(structure, user)`; configurable = security overridden or `isEffectorConfigurationAllowed(structure, user)`. Both are false for a new effector without `structureId` unless security is overridden. Reading the form needs neither: a non-configurable form is presented read-only, with Run only when executable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#resolveEffector"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureEffectorEdit` without `execute=true` presents the effector's form, filled by `Effector.addParametersToForm(stored parameters, form)` for an instance or `addDefaultFormParameters(form)` for a new one. `EffectorUnavailableException` gives the error outcome with its message; any other exception or `LinkageError` gives `s.effector.edit.error.prepare-failed` with the label and message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#renderForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/form-context",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The effector form is rendered from the descriptor's `form` velocity resource with context entries `action`, `i18n`, `descriptor`, `module`, `effectorId` and, when not blank, `effectorName`; after a submission also all request parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#renderForm",
+    "com.almworks.jira.structure.webwork.StructureAutomationEdit#getPlatformFormHtml"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/page-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The form of `StructureEffectorEdit` presents: dialog title (descriptor's, else the complete module key), optional dialog description, width (descriptor parameter `dialogWidth`, default 540, also for a non-numeric value), complete module key, effector ID, structure ID, name, whether the name is generated (the descriptor has a velocity resource `summary`) and then the summary template. The label used in messages is the descriptor's label, else the effector ID.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#getDialogTitle",
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#getDialogWidth",
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#getLabel",
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#hasNameGeneration",
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#getSummaryTemplateHtml"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/submit-run",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureEffectorEdit` with `execute=true` needs `!apply` (else the security-breach page). With `formAction=run` it stores nothing: when not executable it gives the error `s.item.edit.error.no-exec-effectors-perm` ('No \"Execute effectors\" permission for structure {0}.'); otherwise it sets the response header `X-Structure-Effector-Callback: run` and finishes the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#updateEffector"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/submit-save-permission",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Any other `formAction` (`save`, `save-and-run`, none) is a save. When not configurable it gives the error `s.item.edit.error.no-conf-effectors-perm` ('No \"Configure effectors\" permission for structure {0}.') and reads nothing from the form.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#updateEffector"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/submit-parameters",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A save builds the parameters with `Effector.buildParametersFromForm(request parameters, page)`, adding `effectorName` when the form's value is not blank. A blank name is left out when the name is generated; otherwise it is the field error `effectorName` = `s.ext.eff.attribute-to-field.error.name` ('Please enter effector name'). `EffectorUnavailableException` gives the error outcome with its message; any other exception or `LinkageError` gives `s.effector.edit.error.update-failed` ('Cannot update effector {0}: {1}'). Field errors show the form again with the submitted values and store nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#updateEffector"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/save-existing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Saving an existing effector checks `StructureManager.isEffectorConfigurationAllowed(owning structure, current user)` again, this time without regard to security override; when false the error text is the key `s.item.edit.error.no-edit-effector-perm`, which has no message in the bundle (as the original does). Then it calls `EffectorInstanceManager.updateEffectorInstance(id, stored module key, parameters, owning structure)`; a `StructureException` gives its localized message. The dialog then finishes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#updateEffector"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/save-new",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Saving a new effector (no `effectorId`) stores nothing: the response body is the parameters as JSON, with content type `application/json` and UTF-8 encoding, and the dialog finishes. A write failure gives `s.effector.edit.error.response-write-failed` ('Cannot return parameters of effector {0}: {1}').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#updateEffector",
+    "com.almworks.jira.structure.webwork.StructureAutomationEdit#writeJSONToResponse"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/save-and-run",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `formAction=save-and-run`, after a save the response header `X-Structure-Effector-Callback: run` is set when executable. When not executable the error `s.item.edit.error.no-exec-effectors-perm` is shown, but for an existing effector the save has already been stored (as the original does); for a new effector no JSON is written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#setSaveAndRunHeader",
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#updateEffector"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorEdit/no-read-check",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureEffectorEdit` applies no structure permission to reading: any user with <product> access who knows an `effectorId` is shown its stored parameters in the form, even without access to its structure.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#resolveEffector",
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#renderForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/routing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureEffectorProcess.jspa` (dialog content), after the Structure-access check: `processId` > 0 shows that process; otherwise `execute=true` starts one (needs `!apply`, else the security-breach page); otherwise it validates the start and shows the start dialog.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#action"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/show-process",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Showing a process uses `EffectorProcessManager.getProcess(id)`; its failure (see `effector-process-manager`: only the owner, a Jira administrator or an overridden security may read it) gives the error page with its localized message. The view by status: `PENDING`, `CALCULATING`, `QUEUED`, `IN_PROGRESS`: progress; `CALCULATED`: preview; `COMPLETED`, `COMPLETED_WITH_ERRORS`, `CALCULATION_STOPPED`, `APPLY_INTERRUPTED`, `APPLY_STOPPED`, `CALCULATION_FAILED`: result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#showProcess",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getProcess"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/title",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Every view of `StructureEffectorProcess` presents the effectors as a title: for an instance run the names of the instances joined by `, `; for a one-off run the effector's name; a stored `effectorName` wins over the generated summary (see `effector-instance-manager` and the effector's summary). Shown processes also present the status name `s.effector.process.status.+<STATUS>+.name`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getEffectorsTitle",
+    "com.almworks.jira.structure.effector.EffectorUIUtil#getInstanceNames",
+    "com.almworks.jira.structure.effector.EffectorUIUtil#getEffectorName",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#statusHtml"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/run-params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`runParams` is required JSON, tried first as an instance run `{\"effectorId\":[<ids>],\"structureId\":<id>}` and, when that does not parse (any unknown property fails it), as a one-off run `{\"moduleKey\":...,\"params\":{...},\"forestSpec\":...}`. Missing: error `s.effector.process.error.no-run-params` ('Run parameters were not specified.'). Neither form parses: `s.effector.process.error.invalid-run-params` ('Run parameters have invalid format.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#createProcessLauncher",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#readJson",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess$InstanceRunParams",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess$OneOffRunParams"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/instance-run-errors",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For an instance run: `structureId` missing or not positive gives the literal error `No structure ID` (so `{}` gives this); then an empty or missing `effectorId` list gives `s.effector.process.error.no-instances` ('No effector instances were specified.'). A `StructureException` while reading an instance gives `s.effector.process.error.no-instance` ('Effector instance #{0} is not found.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#createInstanceLauncher"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/unknown-instance",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For an `effectorId` value with no instance, `EffectorInstanceManager.getEffectorInstance` throws (see `effector-instance-manager`) and the page answers with its error outcome and the message `s.effector.process.error.no-instance`, `Effector instance #{0} is not found.`, with the id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#createInstanceLauncher",
+    "com.almworks.jira.structure.effector.AOBasedEffectorProcessManager#validateStartProcess"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/one-off-errors",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For a one-off run: no `moduleKey` gives the literal error `No effector module key`; a missing or invalid `forestSpec` gives the error text of `ForestSpec.fromRest`. Missing `params` means an empty map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#createOneOffLauncher",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess$OneOffRunParams"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/start-dialog",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With no `processId` and no `execute`, `StructureEffectorProcess` calls `EffectorProcessManager.validateStartProcess` for the run; a `StructureException` gives the error page with its message. Otherwise it creates nothing and shows the start dialog (`s.effector.process.start.label.title`) with the title, the same `runParams`, and a preview option, on by default, that is offered only when the preview is enabled. The dialog posts to `/secure/StructureEffectorProcess!apply.jspa` with `execute=true`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#validateStart"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/preview-switch",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The preview of effects is available unless the dark feature `structure.effectors.disablePreview` is true; when that feature is on, a `showPreview=true` request is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#isPreviewEnabled",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#startProcess"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/start",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Submitting a start calls `EffectorProcessManager.startProcess` for the run, with confirmation required exactly when preview is enabled and `showPreview=true`; a `StructureException` gives the error page with its message. It then waits for quick completion and redirects to `/secure/StructureEffectorProcess.jspa?processId=<id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#startProcess",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#redirectToProcess"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/quick-completion-wait",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After starting or confirming, `StructureEffectorProcess` polls the process every 200 ms for at most 2 seconds, and stops as soon as the status is none of `PENDING`, `CALCULATING`, `QUEUED`, `IN_PROGRESS`; so a short run lands directly on its preview or result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#waitForQuickCompletion"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/inline-redirect",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In inline dialog mode the redirect to a process adds `inline=true` and `decorator=dialog` to `/secure/StructureEffectorProcess.jspa?processId=<id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#redirectTo"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/process-id-required",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Commands `!applyEffects`, `!dismiss`, `!acknowledge` and `!resume` each go through Jira's XSRF check, the 'plugin locked' check and the Structure-access check; `processId` missing or not positive then gives the literal error `No process ID`; any `StructureException` from the manager (see `effector-process-manager`) gives the error page with its localized message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getProcessId",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#doApplyEffects",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#doDismiss",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#doAcknowledge",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#doResume"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/apply-effects",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureEffectorProcess!applyEffects.jspa` with `processId`, optional `selectedIndexes` and optional `adjustedParameters`: when neither is present (or either is unreadable JSON, which counts as absent) it just calls `EffectorProcessManager.confirm(id)`. Otherwise it first replaces the stored preview, only while the status is `CALCULATED`, keeping the preview's error list, then confirms. It then waits for quick completion and redirects to the process.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#doApplyEffects",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getAdjustedEffectorPreview",
+    "com.almworks.jira.structure.effector.EffectorProcessIO#updatePreview"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/apply-selected-indexes",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`selectedIndexes` is a JSON array of integers into the preview's effects. They are sorted ascending; those below 0 or at or beyond the size are dropped; the kept effects replace the preview in that order. An empty array leaves no effects, and `confirm` then fails with `INVALID_PARAMETER`, shown on the error page. With no `selectedIndexes` all effects stay.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getPreviewIndexes",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getAdjustedEffectorPreview"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/apply-adjusted-parameters",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`adjustedParameters` is a JSON object from effect index (as text) to a parameter map. With `selectedIndexes`, only selected indexes count. An effect with an entry is adjusted through its effect provider when that provider supports adjusting (see `summary-effect-provider`) and stays unchanged otherwise, as does one whose provider is missing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getAdjustedParameters",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#resolveAdjustedEffect"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/apply-bad-input",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On `!applyEffects`: a non-numeric key in `adjustedParameters` (with no `selectedIndexes`), a duplicate index in `selectedIndexes` while `adjustedParameters` has an entry for it, or a process with no preview while either parameter is present each fail with an unchecked exception that reaches Jira's error handling (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getAdjustedParameters",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getAdjustedEffectorPreview"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/dismiss",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureEffectorProcess!dismiss.jspa` calls `EffectorProcessManager.deleteCalculated(processId)` and finishes the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#doDismiss"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/acknowledge",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureEffectorProcess!acknowledge.jspa`: a process in `CALCULATION_STOPPED` or `CALCULATION_FAILED` is deleted with `deleteCalculated`; any other status goes to `acknowledgeFinished`. Then it finishes the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#doAcknowledge"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/resume",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureEffectorProcess!resume.jspa` calls `EffectorProcessManager.resumeInterrupted(processId)` and redirects to the process, with no wait.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#doResume"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/result-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The result view of `StructureEffectorProcess` presents, for `COMPLETED`, `COMPLETED_WITH_ERRORS`, `APPLY_INTERRUPTED` and `APPLY_STOPPED`: applied count (`s.effector.process.result.label.total-changes`, 'Total changes: {0}', records without error) and, when above 0, the error count (`...total-errors`, 'Total changes not made: {0}'); when any record exists, a link to `/secure/StructureEffectorAudit.jspa?processId=<id>`. `CALCULATION_FAILED` presents the first error of the stored preview, nothing when there is none. `APPLY_INTERRUPTED` offers Resume. All offer Acknowledge.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getApplyTotals",
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#getCalculationError"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorProcess/preview-progress-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The preview view of `StructureEffectorProcess` posts to `!applyEffects` with `processId`, `selectedIndexes` and `adjustedParameters`, and offers Apply selected, Apply all and Dismiss (`!dismiss`). The progress view offers continuing in the background and Abort.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorProcess#showProcess"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorAudit/view",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureEffectorAudit.jspa?processId=<id>`, after the Structure-access check, reads the process with `EffectorProcessManager.getProcess`; failure (unknown ID, 0, or not the user's process: see `effector-process-manager`) gives the error page with its localized message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#action"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorAudit/structure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureEffectorAudit` presents the process's structure: the stored `structureId`, or for a one-off run the forest spec's structure. It may be none. The name is read at `PermissionLevel.VIEW`; when that fails the page does not fail but presents `s.effector.processes.no-structure` ('#{0} (deleted)'). When readable the name links to `/secure/StructureBoard.jspa?s=<id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#action"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorAudit/page-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureEffectorAudit` presents the run's name, the user (display name, with an 'inactive' mark when so, or the raw key when the user no longer exists), start and finish time in Jira's complete date format for the logged-in user (empty when null), and the status (`s.effector.process.status.+<STATUS>+.name`). The effect records are loaded by the page over REST.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#processName",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#user",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#startTime",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#finishTime",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#statusHtml"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorAudit/process-name",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The run's name on `StructureEffectorAudit`: a revert process shows `s.effector.processes.undo.of-process` ('Revert of {0}') with {0} a link to `/secure/StructureEffectorAudit.jspa?processId=<reverted ID>`; an instance run the names of its instances; a one-off run the effector's name; otherwise empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#processName",
+    "com.almworks.jira.structure.effector.EffectorUIUtil#getProcessName"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorAudit/successful-count",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureEffectorAudit` offers Revert all only when at least one effect record has no error; if the records cannot be read the count is 0 (logged), and the page still shows.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#getSuccessfulRecordsCount"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorAudit/undo",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureEffectorAudit!undoEffects.jspa` (through Jira's XSRF check, plugin-lock check and Structure-access check) calls `EffectorProcessManager.startUndoProcess(processId, indexes)` and redirects to `/secure/StructureProcesses.jspa`. `selectedIndexes` is a JSON integer array, sorted ascending; missing, empty text or unreadable JSON means null (all records). A `StructureException` gives the error page with its localized message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#doUndoEffects",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#getRecordIndexes"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureEffectorAudit/resume",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureEffectorAudit!resume.jspa` (same checks; the page calls it by GET with `atl_token`) calls `EffectorProcessManager.resumeInterrupted(processId)` and redirects to `/secure/StructureProcesses.jspa`. The page offers it only when the status is `APPLY_INTERRUPTED`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#doResume",
+    "com.almworks.jira.structure.webwork.StructureEffectorAudit#isInterrupted"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/params",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureGeneratorEdit.jspa` takes `generatorId` (an existing generator), `moduleKey` (a new one), `params` (JSON object of initial parameters; empty or unreadable means none), `structureId`, `quickTransform`, `quickTransformName`, `transform`, `execute` and the parameters of the generator's form. The form posts to `/secure/StructureGeneratorEdit!apply.jspa`. It is dialog content.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/transient",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureGeneratorEdit` with a positive odd `generatorId` (a transient generator) gives the error `s.generator.edit.error.not-editable` ('Generator {0} is not editable.'), for viewing as well as saving.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#resolveGenerator",
+    "com.almworks.jira.structure.row.IdPartitioning#isTransientId"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/existing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureGeneratorEdit` with a positive even `generatorId` resolves it through `generator-manager` (a `StructureException` gives the error outcome with its localized message) and then needs `StructureManager.isAccessible(owning structure, PermissionLevel.AUTOMATE)`, also for viewing. Otherwise (including a generator with no owning structure) it gives `s.item.edit.error.no-automate-perm` ('No \"Automate\" permission for structure {0}.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#resolveGenerator"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/new",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureGeneratorEdit` with no positive `generatorId` needs a non-empty `moduleKey`, else the error has the literal text `either generatorId or moduleKey should be passed`. It resolves that module with the `params` parameters and no owner through `generator-manager`; a `StructureException` gives its localized message. No structure permission applies.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#resolveGenerator"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/unknown-kind",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A resolved generator that is none of inserter, extender, grouper, filter or sorter gives `s.generator.edit.error.prepare-failed` ('Cannot prepare generator {0} for editing: {1}') with the ID or key and `Unknown generator type`; one with no descriptor gives the same with `Missing generator descriptor`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#resolveGenerator",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#createDriver"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/form-values",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureGeneratorEdit` without `execute=true` fills the form with default values only for a new generator without `params` (`addDefaultFormParameters`), otherwise from its parameters (`addParametersToForm`). `GeneratorUnavailableException` gives the error outcome with its message; any other exception or `LinkageError` gives `s.generator.edit.error.prepare-failed` with the label and message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#renderForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/form-context",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The generator form is rendered from the descriptor's `form` velocity resource, followed by the `form` velocity resource of the generator's module type (`structure-inserter` and the like, when it has one), with context entries `action`, `i18n`, `descriptor`, `module`, `generatorId`, `quickTransform`, `quickTransformName`, `transform`, `canHandleUpdates`, `allowUpdates`; after a submission also all request parameters. `StructureEffectorEdit` adds its module type's form the same way.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#renderForm",
+    "com.almworks.jira.structure.webwork.StructureAutomationEdit#getPlatformFormHtml",
+    "com.almworks.jira.structure.webwork.StructureEffectorEdit#renderForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/update-handling-parameters",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`canHandleUpdates` is true when the generator is an `ActionHandlingGenerator` not marked `ActionHandlingAlwaysAllowed`. `allowUpdates` is, for defaults, the opposite of dark feature `structure.generator.defaults.disableUpdates`, and otherwise the opposite of the stored `disableActions`. On save, a generator with `canHandleUpdates` and no true `allowUpdates` in the form stores `disableActions` = true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#addDefaultFormParameters",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#addParametersToForm",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/filter-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For a filter, the form values are `showSubItems` (default false) and `level`; a save stores `level` and `showSubItems`. A `level` that is not a positive number, unless blank, is the field error `level` = `s.gen.filter.error.level` ('Value is invalid! It must be a number greater than 0.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.FilterDriver#getDriverParametersFromForm",
+    "com.almworks.jira.structure.forest.gfs.FilterDriver#addDriverParametersToForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/grouper-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For a grouper, the form values are `level` and `includeGroups`; a save stores both. A `level` that is not a positive number, unless blank, is the field error `level` = `s.gen.grp.error.level` ('Value is invalid! It must be a number greater than 0.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GrouperDriver#getDriverParametersFromForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/sorter-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For a sorter, the form values are `desc`, `from`, `to` and `canReverse` (defaults: `canReverse` only); a save stores `from`, `to`, `desc`. A `from` or `to` that is not a positive number, unless blank, is a field error on that field with `s.gen.sort.error.level` ('Value is invalid! It must be a number greater than 0.'); `from` > `to`, both given and `to` positive, is `s.gen.sort.error.range` ('Levels range is invalid! \"From level\" must be not greater than \"To level\".') on `from`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.SorterDriver#getDriverParametersFromForm"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/extender-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For an extender, the form values are `from` and `to` (default `to` = 10); a save stores both. The errors are as for a sorter, with `s.ext.gen.extender.error.level` ('Please enter a valid number') and `s.ext.gen.extender.error.range` ('Please enter a valid level range').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.ExtenderDriver#getDriverParametersFromForm",
+    "com.almworks.jira.structure.forest.gfs.ExtenderDriver#addDriverDefaultFormParameters"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/quick-transform",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When the submitted form has `quickTransform` true, `StructureGeneratorEdit` adds `quickTransform` = true to the parameters, and `quickTransformName` when not empty; an empty name is the field error `quickTransformName` = `s.generator.edit.error.emptyQuickTransformName` ('Please enter a name for the quick transformation.').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#updateQuickTransformParams"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/submit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureGeneratorEdit` with `execute=true` needs `!apply` (else the security-breach page). `GeneratorUnavailableException` while building parameters gives the error outcome with its message; any other exception or `LinkageError` gives `s.generator.edit.error.update-failed` ('Cannot update generator {0}: {1}'). Field errors show the form again, with the just-built parameters and the submitted values, and store nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#updateGenerator"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/save-existing",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Saving an existing generator needs `StructureManager.isGeneratorConfigurationAllowed(owning structure, current user)`, else `s.item.edit.error.no-automate-perm`. It then calls `updateGenerator(id, descriptor's complete key, parameters, owning structure)`; a `StructureException` gives its localized message; the dialog then finishes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#updateGenerator"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/save-new",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Saving a new generator stores nothing: the response body is the parameters as JSON, content type `application/json`, UTF-8, and the dialog finishes. A write failure gives `s.generator.edit.error.response-write-failed` ('Cannot return parameters of generator {0}: {1}').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#updateGenerator",
+    "com.almworks.jira.structure.webwork.StructureAutomationEdit#writeJSONToResponse"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/run-as-user",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The form of `StructureGeneratorEdit` presents a 'run as' user (not for a quick transform): for a new generator without `structureId`, the current user; otherwise the owner of the generator's owning structure, or of `structureId` for a new one, read at `PermissionLevel.VIEW`. An unreadable structure or none presents no user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#getRunAsUser0"
+   ]
+  },
+  {
+   "key": "w3-pages-sync-effectors/ww-structure/StructureGeneratorEdit/page-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The form of `StructureGeneratorEdit` presents the dialog title (descriptor's, else the complete module key) and width (descriptor parameter `dialogWidth`, default 540, also for a non-numeric value). The label in messages is the descriptor's label, else the generator ID. A generator class annotated `NotConfigurable` keeps its form hidden but still submits its values.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#getDialogTitle",
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#getDialogWidth",
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#getLabel",
+    "com.almworks.jira.structure.webwork.StructureGeneratorEdit#isConfigurable"
+   ]
+  }
+ ]
+}

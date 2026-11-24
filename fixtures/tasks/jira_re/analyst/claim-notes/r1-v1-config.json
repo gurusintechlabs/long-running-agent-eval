@@ -1,0 +1,937 @@
+{
+ "claims": [
+  {
+   "key": "r1-v1-config/rest-v1/gate-loggedin-exact",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Common access gate of `rest-v1` and `rest-v2`: the `loggedIn` check looks at the first `loggedIn` query parameter only and matches the exact lower-case text `true`. `loggedIn=TRUE`, `loggedIn=1`, or `loggedIn=false&loggedIn=true` do not trigger it; the caller then goes on to the next gate step. The caller counts as anonymous when `StructureAuth.getUser()` is null. The 401 has no body and carries `Cache-Control: no-cache, no-store`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.rest.interceptor.StructureRestInterceptorCommon#isAuthorizedOrAnonymous"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/gate-admin-replaces-use-check",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Common access gate: a marker on the method wins over one on its resource class. When either is present only the administrator check runs: a Jira administrator without the plugin's 'use' permission passes, and a resource marked system-administrator-only asks for Jira's system administrator permission instead of administrator. An anonymous caller on a marked endpoint gets 403 `permission violation` (401 only with `loggedIn=true`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.rest.interceptor.StructureRestInterceptorCommon#isAccessGranted"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/gate-admin-resources-list",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Administrator-only resources beyond the four endpoints SPEC.md §1.3 lists: every method of `/rest/structure/2.0/attribute-sensitivity`, `/rest/structure/2.0/configuration` and `/rest/structure/2.0/dark-features` needs a Jira administrator (the last also a websudo session), and every method of `/rest/structure/2.0/cloudmigration` needs a Jira system administrator. A plain administrator gets 403 `permission violation` on `cloudmigration`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSensitivityResource",
+    "com.almworks.jira.structure.rest.v2.javax.ConfigurationResource",
+    "com.almworks.jira.structure.rest.v2.javax.DarkFeaturesResource",
+    "com.almworks.jira.structure.rest.v2.javax.CloudMigrationResource"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/mapper-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Exception mapper of `rest-v1` and `rest-v2`: an `InvocationTargetException` is unwrapped to its cause first (one without a cause gives 500 with an empty text body). The first matching rule then wins, in this order: unparseable JSON; plugin stopped or job failure; explicit error response; invalid input; forest lock timeout; domain error; anything else. So an explicit error response wrapping a stopped-plugin exception answers 503, not its own status, and a domain error whose root cause is invalid data answers 400 `Invalid request data`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.RestExceptionMapper#toResponse"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/mapper-json-error",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Exception mapper: the 400 for unparseable JSON applies to every exception descending from Jackson 1's `org.codehaus.jackson.JsonProcessingException`, so a well-formed body that cannot be bound to the target shape (mapping failure) is answered the same way as broken syntax. The error object has `error` = `Cannot parse request JSON`, `message` and `localizedMessage` both from the exception, and no `code`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.RestExceptionMapper#getJsonProcessingErrorResponse"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/mapper-503-conditions",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Exception mapper: 503 `service unavailable` is given when the root cause of the exception chain, at any depth, is a `StructureStoppedException`, or when the exception itself (not a cause of it) is a `StructureJobException`. A `StructureJobException` wrapped in another exception is not matched by this rule.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.RestExceptionMapper#handleKnownExceptions"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/mapper-invalid-input-conditions",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Exception mapper: the 400 `Invalid request data` applies when the root cause of the chain, at any depth, is the plugin's invalid-data exception, or when the exception itself is an `IllegalArgumentException` or a subclass such as `NumberFormatException`. An `IllegalArgumentException` that is only a cause of another exception is not matched and ends up as a 500. The body's `message` is the message of the outer exception, and `code` and `localizedMessage` are absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.RestExceptionMapper#handleKnownExceptions",
+    "com.almworks.structure.commons.rest.RestStructureError#invalidData"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/mapper-domain-error-body",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Exception mapper, domain error (`StructureException`): `code` is the numeric code and `error` is `<NAME>[<code>]`, for example `INVALID_PARAMETER[2400]` and `INVALID_JQL[6003]`, for public and for the plugin's own codes. `structureId` and `viewId` appear only when positive. `rowId` is always present, 0 when the error has no row. `itemId` and `itemDescription` appear only when the error names an item. `message` and `localizedMessage` come from the exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.RestStructureError#structureException",
+    "com.almworks.jira.structure.error.InternalErrors#toString",
+    "com.almworks.jira.structure.api.error.StructureErrors#toString"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/mapper-unmapped-500",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Exception mapper, anything else: 500 with the exception's message as plain text. An exception without a message (a null message) gives 500 with no body and no content type. An `IllegalAccessException` raised by the invocation gives 500 with its message and is not logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.RestExceptionMapper#getErrorResponse",
+    "com.almworks.structure.commons.rest.RestExceptionMapper#toResponse",
+    "com.almworks.structure.compat.rest.ResponseData#error"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/mapper-logging",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Exception mapper logging: an unmapped exception is logged at error level with the text `[<product> REST API] error when calling <HTTP method> /<path and query relative to the REST base>`. A stopped-plugin or job failure, invalid input, and a domain error outside the not-found and no-permission categories are logged only discreetly (warning without stack trace unless debug logging is on). Not-found and no-permission domain errors, explicit error responses, JSON errors and lock timeouts are not logged.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.rest.RestExceptionMapper#logError",
+    "com.almworks.structure.commons.rest.RestExceptionMapper#buildDebugName"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/mapper-no-cache",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "Every reply built by the exception mapper and by the common access gate carries `Cache-Control: no-cache, no-store`, whatever its status; plain-text replies with a message have `Content-Type: text/plain`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.rest.ResponseData#error",
+    "com.almworks.structure.compat.rest.javax.JavaxRestUtil#createResponseFromData"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/date-format-style",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/dateFormatStyle`: it lists the seven styles of `format-helper` in that module's order, each with `style` and `sample`, where `sample` is the time of the request formatted by that style for the current user. There are no parameters, and anonymous callers who pass the gate get samples in Jira's default locale.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getDateFormatStyles",
+    "com.almworks.jira.structure.util.FormatHelper#listStylesForCurrentUser"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/user-picker-permission",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/userPickerPermission`: it answers exactly Jira's `GlobalPermissionManager.hasPermission(USER_PICKER, user)` for the `StructureAuth` user, null for anonymous. There is no administrator shortcut: an administrator without the user picker permission gets `false`, unlike `canBrowseUsers` of `GET /rest/structure/1.0/config/widget`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#hasUserPickerPermission"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/timezone",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/timezone`: an omitted or empty `name` uses `TimeZoneManager.getLoggedInUserTimeZone()`. Any other value goes through `java.util.TimeZone.getTimeZone`, so `GMT+2` answers `GMT+02:00`, and a blank or unknown id answers `GMT` with 200, never an error. `offset` is the negated offset of the zone at the time of the request, so it follows daylight saving.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getTimeZone",
+    "com.almworks.jira.structure.rest.v1.data.RestTimeZone"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/roles-anonymous",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/roles`: an anonymous caller who passes the gate gets 403 with no body and no content type. A logged-in caller gets every role from Jira's `ProjectRoleManager.getProjectRoles()` in that order, with `id`, `name` and `description`. The list is not limited by the caller's memberships.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getRoles",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getAvailableRoles"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/groups-assignable",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/groups` with `assignable=true`: the reply is `StructurePluginHelper.getAvailableGroupsForCurrentUser()` in its order, so no 'browse users' permission is needed. The rule choosing the groups is the helper's (see C-0008). Null group entries are dropped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getGroups",
+    "com.almworks.jira.structure.rest.v1.data.RestGroup$Seq#fromGroups"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/groups-all",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/groups` without `assignable` or with `assignable=false`: the caller, taken from `StructureAuth`, must hold Jira's administer or user picker global permission. Otherwise the reply is 403 with the plain text `listing all groups requires \"Browse Users\" permission`. Anonymous callers hold neither unless Jira grants the user picker to anonymous. When allowed, every group of `GroupManager.getAllGroups()` is listed in that order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getGroups",
+    "com.almworks.jira.structure.rest.javax.AbstractStructurePluginResource#canBrowseUsers"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/projects-permission-parsing",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/projects`: `permission` goes through Jira's `ProjectPermissions.systemProjectPermissionKeyByShortName`, which ignores case and matches by prefix. So `browse`, `Browse` and `BROWSE_PROJECTS` select Browse Projects, and `create`, `CREATE`, `createIssue` and `createattachment` select Create Issues. Everything else gives 400 `invalid permission requested`: names of other permissions, names with no match, and a blank value such as `permission=`. The check comes before any project is read. Only an omitted parameter means Browse Projects.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getProjects",
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#isPermissionAllowed"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/projects-filter-and-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/projects`: the candidates are `StructureConfiguration.getCurrentlyEnabledProjects()`, filtered by the chosen permission for the Jira-logged-in user (`StructurePluginHelper.getUser()`) and sorted with Jira's `ProjectNameComparator`. Each entry has `key`, `id`, `name`, `description` and `iconUrl` = `AvatarService.getProjectAvatarURL(project, SMALL)`. With no matching project the reply is 200 with an empty `projects`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getProjects"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/projects-with-roles",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/projects` with `withRoles=true`: a logged-in caller gets the same `userRoles` on every project (ids of all Jira project roles, roles with a null id skipped) and `roles` holding those roles, in no fixed order. An anonymous caller gets `userRoles: []` on every project and no `roles`. With no project in the reply `roles` is absent too, even for a logged-in caller. Without `withRoles`, `userRoles` and `roles` are both absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getProjects"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/project-query-parsing",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/types`, `GET /rest/structure/1.0/config/statuses` and `GET /rest/structure/1.0/config/transitions` read `projects` the same way: only the exact text `*` means all, and other values are split on commas with pieces trimmed. Empty pieces and pieces that are not integers are skipped silently, so `projects=abc` is an empty selection with 200, not an error. The set selected from is `StructurePluginHelper.getStructureProjectsForCurrentUser()`. `types` is split the same way, trimmed and compared as strings against the ids of the selected projects' types; unknown ids are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.Util#getProjectsByPidQuery",
+    "com.almworks.jira.structure.util.Util#getTypesByIdQuery",
+    "com.almworks.jira.structure.util.Util#decodeList"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/types-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/types`: types of all selected projects' issue type schemes (`IssueTypeSchemeManager.getIssueTypesForProject`) are merged by id, sub-task types included, and sorted by Jira's standard order for issue constants, which is by name. Each element has `id`, translated `name` and `description`, `iconUrl` from `getCompleteIconUrl()`, `sequence` and `subTask`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getTypes",
+    "com.almworks.jira.structure.util.Util#getIssueTypesForProjects",
+    "com.almworks.jira.structure.rest.v1.data.RestIssueType"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/workflow-selection",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/statuses` and `GET /rest/structure/1.0/config/transitions` choose workflows from `WorkflowSchemeManager.getWorkflowMap(project)` of each selected project; a project with a null map is skipped. Each selected type uses the workflow name mapped to its id. A type with no name or an empty name uses the map's default entry (null key). Names are merged, and a name for which `WorkflowManager.getWorkflow` returns null is skipped. No selected project or no selected type means no workflows and an empty list with 200.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.Util#getWorkflows"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/statuses-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/statuses`: the linked statuses of all selected workflows are merged without duplicates and sorted by Jira's natural order of `StatusCategory`; statuses of equal category keep their merge order, which depends on workflow order and is not fixed. Each element has the `issue-status-constant` keys, `color` being `getStatusCategory().getColorName()`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getStatuses",
+    "com.almworks.jira.structure.rest.v1.data.RestIssueStatus"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/transitions-missing-status",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/transitions`: a null or empty `status` gives 400 `must have status` before anything else is read. A `status` for which `ConstantsManager.getStatus` returns null gives 400 `unknown status`, also when the project or type selection is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getTransitions"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/transitions-selection",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/transitions`: for each selected workflow with a step linked to the status, it lists the workflow's actions from `getAllActions()`, skipping the initial action and any action without an unconditional result. An action is listed when its unconditional result names exactly that step. An action whose result stays in the current step is therefore not listed, even when it is available from that status. A workflow without such a step adds nothing. A known status that no selected workflow uses gives 200 with empty `transitions`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getTransitions"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/transition-fields",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/transitions`: each entry has `workflow` = the workflow name, `action` = the action id, `name` = the action name, and `sourceStatuses` = the statuses linked to `JiraWorkflow.getStepsForTransition(action)` (steps with no linked status skipped) as `issue-constant`, without `color`. The same transition is listed once per workflow that has it; no merging is done across workflows.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.data.RestWorkflowTransition"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/license-fixed",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/license`: for a Jira administrator it answers 200 with a `license-info` that reports the fixed state of `license-manager`, with exactly the values of SPEC.md 1.1: `type` `commercial`, `licensee` and `serial` empty, `unlimitedUsers` true, `maxUsers` 0, `serverLocked` false, `marketplaceLicense` false and `source` `none`; `licensedServers`, `licenseExpiration` and `maintenanceExpiration` are absent. It reads no stored licence, and non-administrators get the gate's 403.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getLicense"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/licenses-fixed",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/licenses`: for a Jira administrator it answers 200 with an object that always has the key `com.almworks.jira.structure` and one key per companion extension reporting a product key, by `StructureCoreExtension.getAppSupportInfo()`. Every value is the same fixed `license-info` as `GET /rest/structure/1.0/config/license`, for the extensions too. Non-administrators get the gate's 403.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ConfigResource#getLicenses"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-update-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate`: a missing `issue` gives 400 `no issues requested`. A non-existent issue gives 200 with `issue` echoed and top-level `error`, i18n `s.rest.config.fields.bad-issue-id` ('The requested issue does not exist or you don't have permission to view it. Try reloading the page, or speak with your Jira administrator.'), as does an issue with a project the `StructureAuth` user cannot browse. On that path `canChangeOriginalEstimate` is false and `fields` is absent. An issue in a project where the plugin is disabled is served normally; no project check is made.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getUpdateFields",
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-update-field-filter",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate` and `GET /rest/structure/1.0/config/fields/forCreate`: with no `field`, all fields of Jira's screen renderer for the operation are taken except `issuelinks`, `worklogged` and `attachment`. With `field` given, exactly those ids are taken, and an explicitly requested `issuelinks`, `worklogged` or `attachment` is rendered when it is on the screen.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/field-entry-rendering",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate` and `GET /rest/structure/1.0/config/fields/forCreate`: each field on the screen gets an entry with `name` = its name key translated for the user. When Jira says it is not shown for the issue, when ScriptRunner lists it as read-only for the issue, or when rendering throws, the entry has `error` = `s.rest.config.fields.not-applicable` ('Cannot edit {0} of issue {1}.', field name, issue key) and no HTML. Otherwise it has `createHtml` for create or `editHtml` for update, rendered with display parameters `theme` = `aui`, `noHeader` = `true`, `isFirstField` = true and `isLastField` = true. A failure in one field never fails the reply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields",
+    "com.almworks.jira.structure.util.IssueFieldsPseudoAction#createDisplayParams"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/field-not-on-screen",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate` and `GET /rest/structure/1.0/config/fields/forCreate`: a requested id that is not on the screen, unknown ids included, gets an entry holding only `error` = `s.w.config.fields.load-got-nothing` ('No editor for this field, sorry. Perhaps it's read-only, or not added to the edit screen.'), with no `name`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/field-values-prefill",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate`: before rendering, every field shown for the issue is filled from the issue. A field whose fill-in throws is skipped silently here (and rendered without its value). ScriptRunner's read-only list is asked only for an issue with an id; when ScriptRunner is absent no field is read-only for that reason. A prospective issue of `GET /rest/structure/1.0/config/fields/forCreate` is not filled this way.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/can-change-original-estimate",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate` and `GET /rest/structure/1.0/config/fields/forCreate`: when fields are loaded, `canChangeOriginalEstimate` is true if the issue has no time spent, or time spent is not positive, or Jira's option `jira.timetracking.estimates.legacy.behaviour` is off. The key is always in the reply and is false on every path that loads no fields, including the top-level `error` paths and the project and issue type picker case.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields",
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#isTimeTrackingLegacyMode"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/no-renderer",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate` and `GET /rest/structure/1.0/config/fields/forCreate`: when Jira gives no screen renderer, the reply is 200 with top-level `error` = `s.rest.config.fields.no-renderer` ('Cannot load renderer for issue {0}.', issue key or empty) and `fields` as an empty object.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/status-editor-html",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate` with `field=status`: the `status` entry has `name` = the literal `status` and `editHtml` = `<select class=\"s-issue-status-editor\" name=\"status\">` holding one option per line, of the form `<option value=\"<status id>\" status-color=\"<category colour name>\" selected-or-empty data-transition-with-view=\"<action id or empty>\"><HTML-escaped status name></option>`. `selected` is present on the issue's current status. The action id is filled only when the transition has a non-empty view.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.StatusEditorRenderer#renderHtml",
+    "com.almworks.jira.structure.util.StatusEditorRenderer#option",
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadStatusField"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/status-editor-options",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate` with `field=status`: the options are the issue's current status first, then the target status of each action of Jira's `IssueWorkflowManager.getSortedAvailableActions(issue, user)` in that order, without duplicates. An option's transition is looked up in the issue's workflow from the current status; when none or several lead there, its action is empty but the option stays. `status` is only rendered when requested by name, never in the all-fields case.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueTransitionHelper#collectAccessibleStatusTransitions",
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/status-editor-failure",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forUpdate` with `field=status`: when the status editor cannot be built (no workflow for the issue, current status not in the workflow, or any exception), the entry for `status` carries the generic `s.w.config.fields.load-got-nothing` text, not `s.rest.config.fields.not-applicable` (as the original does). The reply stays 200 and other fields are unaffected.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadStatusField",
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-create-bad-args",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forCreate`: with neither `sample` nor both `project` and `issuetype`, the reply is 400 `specify either sample issue, or project and type or both`. Unless the project-and-type picker case applies, an unknown `project` gives 400 with the message of Jira's `IllegalArgumentException`, and an `issuetype` that gives no issue type gives 400 `cannot find issue type`. Nothing else is rendered in those cases.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getCreateFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-create-sample",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forCreate` with `sample`: a sample that does not exist or that the `StructureAuth` user cannot browse gives 200 with `issue` = the sample id, `forCreate` true and top-level `error` = `s.rest.config.fields.bad-issue-id`, even when `project` and `issuetype` are given. Otherwise a missing `project` or `issuetype` is taken from the sample, and `project` and `issueType` are echoed in the reply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getCreateFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-create-prospective-issue",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forCreate`: the prospective issue is new and is never stored. For each item of Jira's create screen except `project`, `summary` and, unless the sample is a sub-task, `issuetype`, values are copied from the sample or defaulted and applied to the prospective issue, so later fields see the earlier values. The sample's parent id is set on the prospective issue when the sample is a sub-task. An exception here is not caught per field and goes to the exception mapper.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getCreateFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-create-copied-fields",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forCreate` with a sample: a field's value is copied from the sample when its id is one of `issuetype`, `assignee`, `environment`, `priority`, `security`, `versions`, `fixVersions`, `components`, or when it is a custom field that is required in the field layout. Every other field gets Jira's default (`populateDefaults`) instead of the sample's value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getCreateFields",
+    "com.almworks.structure.commons.util.JiraFieldUtils#isFieldCopiedFromSample"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-create-summary-rendered",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forCreate`: `summary`, and `project` or `issuetype` if the create screen has them, are skipped only for filling values. They are still rendered like any other field when selected, so `summary` appears with `createHtml` in the all-fields reply when it is on the create screen.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getCreateFields",
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-create-browse-on-project",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forCreate`: the Browse Projects check also applies to the prospective issue. A caller who cannot browse the target project gets 200 with top-level `error` = `s.rest.config.fields.bad-issue-id` and no `fields`, with `forCreate`, `project` and `issueType` still set. `structuredProjects` is absent outside the picker case, and no Create Issues permission or plugin enablement is checked here.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-create-picker-case",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forCreate`: when `sample` is absent and `field` holds exactly `project` and `issuetype` once each, in any order, the picker case applies even if `project` or `issuetype` parameters are given. The reply has `forCreate` true, `fields` with those two ids, each holding `createHtml` from Jira's project and issue type system fields for a new issue. If the HTML is null or empty, the entry has `error` = `s.w.config.fields.load-got-nothing` instead. No `name` is set, and neither `issue`, `project` nor `issueType`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getProjectAndIssueTypeFieldsForCreate",
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#putFieldCreateHtml"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-create-structured-projects",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forCreate`, picker case: `structuredProjects` is absent when `StructureConfiguration.isEnabledForAllProjects()` is true. Otherwise it holds the ids, in no fixed order, of the projects in both `PermissionManager.getProjects(CREATE_ISSUES, user)` and `getCurrentlyEnabledProjects()`, for the Jira-logged-in user; it is an empty array when there are none. The case itself needs no permission beyond the gate.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getProjectAndIssueTypeFieldsForCreate"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/for-create-field-project-issuetype-dropped",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forCreate`: when `sample` is absent, one `project` and one `issuetype` are removed from the `field` list before anything else, and if the picker case does not apply the remaining list is used. So `field=project&field=assignee` renders only `assignee`, and `field=project` alone, with `project` and `issuetype` parameters, leaves an empty list and renders all fields (as the original does). With `sample` the list is used as given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getCreateFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/generic-item-param-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forGenericItemUpdate`: checks run in this order after the gate: a missing `type` gives 400 `no item type requested`; a missing `field` gives 400 `no field requested`; a `type` other than exactly `memo` or `planning-task` gives 400 `item type is not supported`, an empty `type` included. A `type` long enough to make the full type id exceed 190 characters is rejected by `ItemIdentity` with the mapper's 400 `Invalid request data`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getGenericItemUpdateFields",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#isFieldSupportingGenericItemType",
+    "com.almworks.jira.structure.api.item.ItemIdentity"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/generic-item-identity-echo",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forGenericItemUpdate`: `id`, `itemId` (`com.almworks.jira.structure:type-<type>/<id>`) and `itemType` are in the reply on every 200 path, also when it carries `error`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getGenericItemUpdateFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/generic-item-no-access-check",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forGenericItemUpdate`: the item is looked up by id and its stored type must equal the requested type. A missing item, id 0, or an item of the other type gives 200 with `error` = `s.rest.config.fields.bad-item-id` ('The requested item does not exist or you don't have permission to view it. Try reloading the page, or speak with your Jira administrator.'). No ownership or per-item permission check is made: any caller past the gate gets the editor of any existing memo or planning task.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadGenericItemField",
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessorManager#getFieldAccessor",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#getItem"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/generic-item-field-errors",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forGenericItemUpdate`: a `field` unknown to `structure-field-manager` or hidden by the item's field configuration gives 200 with `error` = `s.rest.config.memo.fields.not-supported` ('Editing of '{0}' is not supported for this item.', the requested id). A visible but not editable field gives `error` = `s.ext.type.memo.error.uneditable-field` ('Field {0} isn't editable', the name translated to the user's locale). The configuration is that of `generic-item-field-config-service`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadGenericItemField"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/generic-item-editor",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forGenericItemUpdate`: on success `fields` has the one requested id, with `id`, `name` = the field's plain, untranslated name, and `editHtml` = the HTML of the field's type for the item's current value and field configuration. When reading or rendering throws, the entry has `error` = `s.rest.config.memo.fields.not-applicable` ('Cannot edit {0} of memo {1}.', field name, item id) and no HTML, the word 'memo' being used for planning tasks too. The reply stays 200.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#loadGenericItemField",
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getGenericItemEditHtml"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/memo-update-shortcut",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/fields/forMemoUpdate`: it answers exactly as `GET /rest/structure/1.0/config/fields/forGenericItemUpdate` with `type` = `memo`, `id` = `memoId` and `field` = `fieldId`. A missing `memoId` gives 500 before `fieldId` is looked at, so with both missing the reply is 500, not 400. A missing `fieldId` alone gives 400 `no field requested`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.FieldsConfigResource#getMemoUpdateFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-context-check",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/ui`: a context exists when `forIssue` is positive, `forProject` is non-empty, or `forAgileBoard` is positive. Without one the reply is 400 `missing forIssue or forProject or forAgileBoard`, before any issue or project is read. So `forIssue=0` alone is a 400, but `forIssue=0&forProject=KEY` passes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#checkContext"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-page-by-presence",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/ui` and `POST /rest/structure/1.0/config/ui`: the page type goes by which parameters are present, not by their being positive or non-empty: any `forAgileBoard`, even 0, makes it the agile board page; otherwise any `forProject`, even empty, the project page; otherwise the issue page. On the agile board page the auto-switch mode is always `off`, by `structure-configuration`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#getPageForContext"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-issue-errors",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/ui` and `POST /rest/structure/1.0/config/ui`: any non-null `forIssue`, also 0 or negative, is looked up. A missing or not browsable issue gives 404 with plain text `cannot process settings for issue <id>, code ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE[4700]`. So `forIssue=-1&forProject=KEY` passes the context check and then answers 404. An issue with no project gives 500 `issue <issue> without a project`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#validateIssue",
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#getIssueError"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-issue-project-not-checked",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/ui` and `POST /rest/structure/1.0/config/ui`: the issue is checked without the project-enablement check, so an issue in a project where the plugin is disabled is served like any other, with or without `forAgileBoard`. It is never rejected for that reason.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#getIssueError",
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#validateIssue",
+    "com.almworks.jira.structure.api.StructurePluginHelper#getIssueError"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-project-resolution",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/ui` and `POST /rest/structure/1.0/config/ui`: a resolved issue decides the project, and `forProject` is then ignored without being checked, even if it does not exist. Without an issue, a non-null `forProject` is looked up by key: an unknown key, an empty key, or a project the `StructureAuth` user cannot browse all give 404 with plain text `cannot process settings for the project`. With neither, the project is null and the instance-wide values apply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#validateProject"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-config-fields-by-page",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/ui` and `POST /rest/structure/1.0/config/ui`: on the project page the reply has `projectAdmin`, true when a project is known and the user has Administer Projects on it, and no issue keys. On any other page with a resolved issue, agile board page included, it has `autoCollapse` and `keepStructureWhenNavigating` (true when unset) and `issueMissingFromInitialStructure`, and no `projectAdmin`. On an agile board page with no issue it has none of those keys.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#getIssuePageConfig0"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-config-common-fields",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/ui` and `POST /rest/structure/1.0/config/ui`: `autoSwitch`, the code of the strategy from `ui-configurator`, and `userConfigurable`, true when `StructureAuth.getUser()` is non-null, are always present. `singleStructure` is true or absent, never false. `defaultStructure` and `initialStructure` are absent when `ui-configurator` gives none, and otherwise are `structure-summary` objects without permissions or owner.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#getIssuePageConfig0"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-issue-missing",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/ui`: `issueMissingFromInitialStructure` is true when there is no initial structure or when the issue is not in that structure's stored forest, checked without any access check.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#getIssuePageConfig0"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-preferred-only-get",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/ui`: `preferredStructure` and the cookie `structure3.navigation.hint` go to `ui-configurator` unvalidated; an unknown, unviewable or malformed value is skipped and never gives an error. `POST /rest/structure/1.0/config/ui` honours the cookie but has no preferred structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#getUIConfig",
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#updateUIConfig"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-post-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/config/ui`: checks run in this order, the first failure answering: anonymous gives 403 `permission violation`; a null body gives 400 `null request`; no context gives 400 `missing forIssue or forProject or forAgileBoard`; the issue (only when `forIssue` is positive) and the project give their errors; an `autoSwitch` other than exactly `off`, `withIssue` or `default` gives 400 `unknown auto-switch mode`, an empty string included. Nothing is stored unless all of these pass.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#updateUIConfig"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-post-store",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/config/ui`: it stores through `StructureConfiguration.setUISettings(user, project, settings)` for the caller only, never instance-wide values. `project` is the issue's project or the `forProject` project, and null when only `forAgileBoard` is given. The auto-switch mode is set for `StructurePage.ISSUE_VIEW` when `forIssue` is positive, and otherwise for `StructurePage.PROJECT_TAB`, also on the agile board. `autoCollapse` and `keepStructureWhenNavigating` are set when non-null, so JSON null means unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#updateUIConfig"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-post-nothing-set",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/config/ui`: with no `autoSwitch`, `autoCollapse` or `keepStructureWhenNavigating` in the body, `setUISettings` is not called at all and the reply is the current panel configuration with 200.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#updateUIConfig"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/ui-post-stored-then-404",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/config/ui` with a non-positive `forIssue` plus a valid `forProject`: the preferences are stored for the project and the recomputed configuration then fails with the 404 of an unknown issue, so the caller sees an error although the change was saved (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#updateUIConfig",
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#validateIssueOrProject",
+    "com.almworks.jira.structure.rest.v1.javax.UIConfigResource#validateIssue"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-versions",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `structureVersion` is the installed plugin version and `jiraVersion` the Jira version from `BuildUtilsInfo` (null if unavailable). `jiraClusterNodeId` is `ClusterManager.getNodeId()`. `jiraEmailNotificationsEnabled` is the opposite of `MailFactory.getSettings().isSendingDisabled()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getWidgetConfig",
+    "com.almworks.structure.commons.util.CommonUtil#getJiraVersion",
+    "com.almworks.jira.structure.util.Util#getStructureVersion"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-licence-fixed",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `licenseInvalid` is never in the reply, since the plugin always counts as licensed (`license-manager`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getWidgetConfig"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-date-formats",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `jiraDateTimeFormats` holds `dateFormat`, `dateTimeFormat`, `datePickerJavascriptFormat` and `datePickerJavaFormat` from Jira's default-backed application properties `jira.lf.date.dmy`, `jira.lf.date.time`, `jira.date.picker.javascript.format` and `jira.date.picker.java.format`. `firstDayOfWeek` is `Calendar.getInstance(locale).getFirstDayOfWeek() - 1`, with the locale of the `StructureAuth` user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getJiraDateTimeFormats"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-fields",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `jiraFields` starts from `FieldManager.getAvailableNavigableFields(user)` for the Jira-logged-in user. A custom field is left out when its type has neither a view template nor a column view template. The rest are sorted with Jira's `FieldNameComparator` for the user's language. Each has `id`, `name` and `visible`; `type`, `items`, `customId` and `custom` come from `getJsonSchema()` and are given only for a field implementing Jira's `RestAwareField`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getFields",
+    "com.almworks.jira.structure.rest.v1.data.RestWidgetConfig#convertFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-field-visible",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: a field's `visible` is true when its id appears on any tab of any screen from `FieldScreenManager.getFieldScreens()`, whatever the project or scheme.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#visibleFieldIds",
+    "com.almworks.jira.structure.rest.v1.data.RestWidgetConfig#convertFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-field-exception",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: a Jira `FieldException` while listing fields gives 500 with plain text `cannot retrieve columns: <message>` and a warning in the log.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getWidgetConfig"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-rank-fields",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `jiraAgileRankFields` holds the numeric ids from Jira Software's `RankService.getRankFields()`. It is an empty array, never an error, when Jira Software is absent, the service is not found, or the lookup throws any exception or linkage error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getAgileRankFields"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-capabilities",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`, all for the Jira-logged-in user: `canCreate` comes from `permissions-cache`; `canBrowseUsers` is true for an administrator or with the global user picker permission; `canBulkChange` is the global bulk change permission; `canCreateViews`, `canShareViews` and `canManageGlobalSavedColumns` are the `StructurePluginHelper` answers; `canCreatePerspective` is the `perspective-manager` answer; `canRunEffectorsOnQueryResults` is the `CoreAppPermissions.EXECUTE_EFFECTORS_ON_QUERIES` answer of `permissions-cache`. All are always present as booleans.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getWidgetConfig"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-admin-anonymous",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `admin` is true for a Jira administrator and absent otherwise; `anonymous` is true for an anonymous caller and absent otherwise. Neither is ever false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getWidgetConfig"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-features",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `features.useStructuresActionsLink` is the setting `structure.feature.useStructuresActionsLink` (default true). `features.altInitialValuesInDialog` is present, as true, only when the setting `structure.feature.altInitialValuesInDialog` is on (default off). These settings are read as a Jira application property when non-empty, else as a JVM system property.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getFeatures",
+    "com.almworks.jira.structure.api.darkfeature.DarkFeatures#getBoolean"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-help-flags",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: with the setting `structure.welcome.enabled` off, `hideHelp` is true and `hideHelpAdminTips` absent. With it on (default) `hideHelp` is absent and `hideHelpAdminTips` is true only when `help-content-manager` has no stored content. Neither is ever false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getWidgetConfig"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-extensions",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `extensions` maps each extension's key to its `StructureCoreExtension.getConfigurationForWidget()`, in the extensions' order, skipping null or empty maps. It is absent when nothing remains.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getExtensionsMap"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-export-links",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `exportLinks` comes from the web interface manager's displayable web items of location `structure.export.menu`, asked with a context holding the HTTP request under `request`, in that order. Each has `label`, `title`, `iconClasses` = the item's style class, `moduleKey` = its complete key and `url`. It is absent when there are none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getExportLinks"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-external-item-types",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `externalGenericItemTypes` lists item types of other apps: types implementing `GenericItemType` whose descriptor is not hidden and whose plugin key is not `com.almworks.jira.structure`. A type with an empty title or empty new-item title is left out with a warning. A type without a weight gets `Integer.MAX_VALUE`. They are sorted by weight, then title. The array is empty, not absent, when there are none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getExternalGenericItemTypes",
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#createRestGenericItemType"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-async-backoff",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `restAsyncBackoff` comes from the setting `structure.rest.async.backoff`, read once when the plugin starts (Jira application property when non-empty, else JVM system property): comma-separated integers, each trimmed, in the given order. It is absent when unset or empty, and also when any piece is not an integer, in which case a warning is logged and no partial list is used.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#readRestAsyncBackoff",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getRestAsyncBackoff"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-global-error",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `globalError` is `sw.widget.ph.global-error.inconsistent-index` in the current user's language ('Index is inconsistent with the database and should be rebuilt. <product> will be in read-only mode until the problem is resolved.') while `reindex-locker` says the index consistency check failed, and absent otherwise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#checkGlobalErrors"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/widget-enabled-plugins",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget`: `enabledPlugins` holds those keys of `PluginAccessor.getEnabledPlugins()`, in that order, that are `is.origo.jira.tempo-plugin`, `com.tempoplugin.tempo-plan-core` or `com.jiraeditor.jeditor`. It is an empty array when none of those apps is enabled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getEnabledPlugins"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/link-action-get",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget/issueLinkAction`: for a logged-in caller the value of the Jira user preference `structure.board.issueLinkAction` is used when it is one of the three codes; an unknown stored value is ignored with a warning. Otherwise, and always for anonymous callers, the instance default applies, and without one `showDetails`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#getBoardIssueLinkAction",
+    "com.almworks.jira.structure.settings.BoardIssueLinkActionOption#getOptionForUser"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/link-action-instance-default",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/config/widget/issueLinkAction`: the instance default is read once when the plugin starts, from setting `structure.board.issueLinkAction` (Jira application property when non-empty, else JVM system property). An unknown value counts as no default, and a later change needs a plugin restart.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.BoardIssueLinkActionOption#fromSystemProperty",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getBoardIssueLinkActionSystemPropertyValue"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/link-action-post-store",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/config/widget/issueLinkAction`: for a logged-in caller a known `type` is stored with `setString` under `structure.board.issueLinkAction` in the caller's Jira extended preferences (`UserPreferencesManager`), and takes effect at the next read. The caller's own value is the only one changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#setBoardIssueLinkAction",
+    "com.almworks.jira.structure.settings.BoardIssueLinkActionOption#setOptionForUser"
+   ]
+  },
+  {
+   "key": "r1-v1-config/rest-v1/link-action-post-errors",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/config/widget/issueLinkAction`: anonymous callers get 400 with plain text `cannot set issue link action for anonymous user`, whatever the body. For a logged-in caller an unknown or missing `type` gives 400 with `structure-error` `INVALID_PARAMETER` and message `Invalid <product> Board link action '<type>'` (`null` for a missing `type`), and nothing is stored. A null body gives 500. A failure of Jira's preference store goes to the exception mapper.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource#setBoardIssueLinkAction",
+    "com.almworks.jira.structure.settings.BoardIssueLinkActionOption#setOptionForUser"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,1468 @@
+{
+ "claims": [
+  {
+   "key": "w2-pages-admin/ww-structure/common-apply-and-xsrf",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For the aliases StructureDefaults, StructureProjectSettings, StructureBackup, StructureRestore, StructureMigrate, StructureMaintenance, StructureSupport, StructureAOSupport, ClearStructureCaches and StructureRemoveAdjustments, `/secure/<alias>.jspa` and `/secure/<alias>!default.jspa` run the page without a token check, and `/secure/<alias>!apply.jspa` runs exactly the same page logic behind Jira's XSRF check (a missing or wrong `atl_token` gets Jira's XSRF failure answer and the page logic does not run). Every submit form of these pages posts to `!apply` with `execute=true`, except ClearStructureCaches, whose form posts `confirm=true` (see `structure-info`). A request with `execute=true` that did not come through `!apply` gets the security-breach page and changes nothing (where the page reaches that point). `execute` and all boolean flags below are true only for the text `true`, ignoring case.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#doApply",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#doExecute",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#doDefault",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#requireXsrfChecked",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#isExecuted",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#getBoolean"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/common-stopped",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "While `StructurePluginHelper.isStructureLocked()` is true (for example during a restore or migration), every page of this group answers with the 'disabled' page in its 'not ready' form (`str.+stopped+.title` = `<product> Isn't Ready`, and the description `str.+stopped+.description.html`) before any permission check, and changes nothing. Exceptions: StructureSupport, StructureAOSupport and StructureLicenseDetails are never stopped (the first two stay usable to recover from a stuck lock); `/secure/admin/StructureAdmin!view.jspa` still renders; and the StructureAdmin edit commands have their own form of this answer. All StructureMigrationConfigurations commands are stopped like the rest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#run",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#checkStopped",
+    "com.almworks.jira.structure.webwork.StructureSupport#checkStopped",
+    "com.almworks.jira.structure.webwork.StructureAOSupport#checkStopped",
+    "com.almworks.jira.structure.webwork.StructureAdmin#doView"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/common-errors",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "While a page of this group runs, a `StructureException` it does not handle itself gives the plain error page listing the exception's localized message. Any throwable whose root cause is `StructureStoppedException` gives the 'disabled' page in its 'not ready' form with the error message `<product> plugin is not ready`. Every other exception propagates to Jira.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#run"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/common-security-breach",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`checkAdmin` style gates: a page gated on Jira administrators asks Jira for `GlobalPermissionKey.ADMINISTER`, a page gated on system administrators for `GlobalPermissionKey.SYSTEM_ADMIN`; anybody else, anonymous included, gets Jira's standard security-breach page (`/secure/views/securitybreach.jsp`), with nothing read or changed. Being a Jira administrator is not enough for a system-administrator page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#checkAdmin",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#checkSystemAdmin"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/common-http-methods",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "All aliases of this group accept GET and POST, except PerformanceAuditLogView, StructureDarkFeatures, StructureAttributeSensitivity, StructureAttributeTroubleshooting and StructuredJqlTroubleshooting, which declare GET only to Jira's request-method check. All are declared reachable under Jira's anonymous-site-access rule (the page's own gate decides, so anonymous callers get the page's refusal, not Jira's login handling at the framework level).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin",
+    "com.almworks.jira.structure.webwork.PerformanceAuditLogView",
+    "com.almworks.jira.structure.webwork.StructureDarkFeatures",
+    "com.almworks.jira.structure.webwork.StructureAttributeSensitivity",
+    "com.almworks.jira.structure.webwork.StructureAttributeTroubleshooting",
+    "com.almworks.jira.structure.webwork.StructuredJqlTroubleshooting"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/common-redirects",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When a page below 'redirects' to a URL it uses Jira's completion redirect, which also serves requests from inline dialogs; and when the request carries `returnUrl`, Jira's redirect goes there in place of the page's own target (StructureAdmin forms pass `returnUrl` through for that reason).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.web.FunnelledActionSupport#getRedirect",
+    "com.almworks.structure.commons.web.FunnelledActionSupport#returnInlineCompleteOrRedirect",
+    "com.almworks.jira.structure.webwork.StructureAdmin#doSetProjects"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/common-process-redirect",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After starting a background process, a page redirects to `/secure/StructureProcessStatus.jspa?processId=<id>&forAdmin=true`; for restore and migrate `&skipLock=true` is added as well, because the plugin is locked while they run. A process id of 0 or less gives the plain error page with `Error scheduling synchronization: processId = <id>` (`s.sync.error.scheduling`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureActionSupport#getRedirectToProcess"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/common-never-licence-blocked",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "No page of this group is ever refused, disabled or restricted on licence grounds, and none shows a licence warning: the check the original makes before restore, migrate and maintenance always passes, the page-level 'licensed' answer that templates ask is always true, submit controls are never disabled for that reason, and the maintenance page shows the schedule whenever one is on (SPEC.md section 1.1).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdminActionSupport#isLicensed",
+    "com.almworks.jira.structure.webwork.StructureAdminActionSupport#checkLicensed"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/admin-view",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureAdmin!view.jspa`: Jira administrators only. It shows: whether Structure is enabled for all projects, or else the picked projects by name; then one section for each of the nine `CoreAppPermissions`, in their declared order, with its section title and label (`str.admin.config.permission.+<key>+.section-title`, `.section-label`), and either the 'anyone' label when `StructureConfiguration.isAllowedForAnyone` is true, or the permission's subjects by display text, or the 'nobody' label when there are none, plus an edit link `StructureAdmin!editAppPermission.jspa?permission=<key>`, and a link to `StructureAdmin!editProjects.jspa`. Editing is always offered.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin#doView",
+    "com.almworks.jira.structure.webwork.StructureAdmin#getAppPermissions",
+    "com.almworks.jira.structure.webwork.StructureAdmin#isConfigAllowed",
+    "com.almworks.jira.structure.webwork.StructureAdmin#getEditLinkHref"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/admin-view-sync-note",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On the configuration page the `synchronization` section alone can carry a note (`str.admin.config.permission.+synchronization+.note`): it is shown when the plugin is not locked and the sync-enabled-or-installed answer (see `helper`) is false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin#hasPermissionNote",
+    "com.almworks.jira.structure.webwork.StructureAdmin#getPermissionNote"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/admin-bare-alias",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureAdmin.jspa` without a command requires a Jira administrator and then finishes with a 'success' result for which the descriptor maps no page, so only the five commands render anything (as the original does). What Jira answers for that missing page could not be determined; a replacement may show the same page as `StructureAdmin!view`.",
+   "confidence": "low",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin#action"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/admin-edit-access-order",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureAdmin!editProjects`, `StructureAdmin!setProjects`, `StructureAdmin!editAppPermission` and `StructureAdmin!setAppPermission` check in this order: while the plugin is locked they answer with the 'disabled' page in its generic form (`str.+disabled+.title` = `Operation Not Permitted`), for anybody; then a caller who is not a Jira administrator gets the security-breach page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin#checkEditAccess"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/admin-edit-projects",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureAdmin!editProjects.jspa` presents the form for enabled projects: every Jira project (`ProjectManager.getProjectObjects()`), the current all-or-some choice, and the picked projects. It changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin#doEditProjects",
+    "com.almworks.jira.structure.webwork.StructureAdmin#getAllProjects"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/admin-set-projects",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureAdmin!setProjects.jspa` (Jira XSRF check required) reads `allSome` and `projectsList`. If either is missing it changes nothing and redirects to `/secure/admin/StructureAdmin!view.jspa`. Otherwise it stores `StructureConfiguration.setEnabledForAllProjects(true)` when `allSome` is `all` ignoring case (any other value is false), stores `projectsList` unchanged with `setPickedProjectIds` (also when all is chosen), clears all plugin caches on all nodes (`structure-cache-helper`) and redirects to the same page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin#doSetProjects"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/admin-edit-permission",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureAdmin!editAppPermission.jspa?permission=<key>`: a `permission` that is missing or is not a `CoreAppPermissions` key redirects to `/secure/admin/StructureAdmin!view.jspa`. Otherwise the page presents the permission's edit subtitle, label, 'anyone' label, its current subjects (`StructureConfiguration.getPermissionSubjects`), the current Jira user's available groups, all projects, the available project roles, and the subject search limit. Its cancel target is the absolute `returnUrl` when given, else `StructureAdmin!view.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin#doEditAppPermission",
+    "com.almworks.jira.structure.webwork.StructureAdmin#getAppPermission",
+    "com.almworks.jira.structure.webwork.StructureAdmin#getCancelUrl",
+    "com.almworks.jira.structure.webwork.StructureAdmin#getAvailableGroups",
+    "com.almworks.jira.structure.webwork.StructureAdmin#getAvailableProjectRoles"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/admin-subject-limit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The subject search limit on the permission edit page is dark feature `structure.create.namesSearch.resultLimit`, default 20; zero or a negative value means 20.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin#getSubjectsMaxResults",
+    "com.almworks.jira.structure.util.Util#subjectSearchResultLimit"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/admin-set-permission",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureAdmin!setAppPermission.jspa?permission=<key>` (Jira XSRF check required) reads `permission`, `permissionMode` and `permissionSubjects`. An unknown or missing `permission`, or a missing `permissionMode` or `permissionSubjects`, changes nothing and redirects to `/secure/admin/StructureAdmin!view.jspa`. Otherwise it stores `setAllowedForAnyone(permission, mode is 'anyone' ignoring case)`, stores `permissionSubjects` unvalidated with `setPermissionSubjectsEncoded` (the list is kept also in 'anyone' mode; the form sends mode `anyone` or `selection`), clears all plugin caches on all nodes and redirects to the same page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAdmin#doSetAppPermission"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/defaults-gate-and-dispatch",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureDefaults.jspa`: Jira administrators only. The flags `selectDefaultStructure`, `selectUIDefaults`, `selectProjectDefaultStructure`, `selectAutomationDefaults` and `selectOtherDefaults` choose a sub-page, tested in that order, so the first flag that is `true` wins. With none of them the main page is shown. Each sub-page shows its form on a request without `execute=true`; with it, the submit requires `!apply`, otherwise the security-breach page. A successful submit redirects to `StructureDefaults.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureDefaults#action",
+    "com.almworks.jira.structure.webwork.StructureDefaults#redirectToStart"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/defaults-main-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The main defaults page presents: the system default structure (name, link to `/secure/StructureBoard.jspa?s=<id>`, shown only when the current user may view it); for each currently enabled project its name and key and either its own default structure or a note that it uses the system default, with a change link `StructureDefaults.jspa?selectProjectDefaultStructure=true&projectId=<id>`; the global default view settings (`StructureViewManager.getDefaultViewSettings()`): each associated view the user may view with name, description and id, plus `(only on <pages>)` (`s.admin.defaults.views.limit`) when its menu pages differ from all pages; the default view per page of `ViewSettings.PAGES_WITH_DEFAULT_VIEW`; the auto-switch strategies for issue and project pages; keep-structure and auto-collapse; the default generation time limit; and, only when manual adjustments are enabled in `adjustment-service`, the 'allow manual adjustments for new structures' setting.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureDefaults#prepareData",
+    "com.almworks.jira.structure.webwork.StructureDefaults#getSystemDefaultStructure",
+    "com.almworks.jira.structure.webwork.StructureDefaults#hasSystemDefaultStructure",
+    "com.almworks.jira.structure.webwork.StructureDefaults#isDefaultStructureSetForProject",
+    "com.almworks.jira.structure.webwork.StructureDefaults#getViewLimitedText",
+    "com.almworks.jira.structure.webwork.StructureDefaults#getDefaultView",
+    "com.almworks.jira.structure.webwork.StructureDefaults#isOtherDefaultsShown"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/defaults-ui-values-unset",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With nothing stored, the defaults page reads the auto-switch strategy of the issue page as `AutoSwitchStrategy.PLUGIN_DEFAULT_AUTOSWITCH_STRATEGY` and of the project page as `AutoSwitchStrategy.AUTOSWITCH_OFF`; auto-collapse and keep-structure read as true when the stored `UISettings` value is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureDefaults#getAutoSwitch",
+    "com.almworks.jira.structure.webwork.StructureDefaults#getAutoCollapse",
+    "com.almworks.jira.structure.webwork.StructureDefaults#getKeepStructureWhenNavigating"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/defaults-select-structure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`selectDefaultStructure=true`: the form lists all structures regardless of the caller's own access, except that only non-archived ones appear (`getAllStructures(null)` as superuser). On submit `sid` must be positive and name a structure the current user can view at `PermissionLevel.VIEW`; otherwise the form returns with field error `sid` = `Please select a valid default structure.` (`s.admin.defaults.sid-invalid`) and nothing is stored. So an administrator without view access to a listed structure cannot pick it. Valid: `StructureConfiguration.setDefaultStructureId(null, sid)`. The system default cannot be cleared here (`sid=-1` is an error).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureDefaults#selectDefaultStructure",
+    "com.almworks.jira.structure.webwork.StructureDefaults#checkValidSid",
+    "com.almworks.jira.structure.webwork.StructureDefaults#getViewableStructures"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/defaults-project-structure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`selectProjectDefaultStructure=true` with `projectId`: a missing, zero or negative id, a project Jira does not know, or a project not enabled for <product> redirects to `StructureDefaults.jspa` without changes. The form shows the project, whether it has its own default (false when that structure cannot be viewed by the caller) and the list of structures. On submit `sid=-1` exactly removes the project's default (`setDefaultStructureId(project, null)`); any other value must pass the rule of the system default (positive and viewable, else field error `sid`), and is then stored for the project.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureDefaults#setProjectDefaultStructure",
+    "com.almworks.jira.structure.webwork.StructureDefaults#checkValidSid"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/defaults-ui-submit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`selectUIDefaults=true` submit reads `autoSwitchIssuePage` and `autoSwitchProjectPage` as `AutoSwitchStrategy` string codes. An unknown or missing code gives field error `autoSwitchIssuePage` or `autoSwitchProjectPage` = `Please select a valid auto-switch setting.` (`s.admin.defaults.autoswitch-invalid`), checked in that order, and stores nothing. The issue page may hold any strategy; the form offers only `AutoSwitchStrategy.AUTOSWITCH_OFF` and `DEFAULT_STRUCTURE` for the project page but the submit accepts any. Valid values are stored with `setUISettings(null, null, bean)` with `autoCollapse` and `keepStructureWhenNavigating` from their parameters (true or false; when a parameter is missing the bean's value stays null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureDefaults#selectUIDefaults",
+    "com.almworks.jira.structure.webwork.StructureDefaults#getAutoSwitchStrategiesForProjectPage"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/defaults-automation",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`selectAutomationDefaults=true`: the form shows the global limit from `generation-manager` with minimum 5 and the hard limit as maximum. Submit reads `generationTimeDefaultLimit` (seconds, missing means 0). A value below 5 or above the hard limit gives the plain error page with `Generation time limit must be between 5 and <hard limit> seconds.` (`s.admin.defaults.automation.defaultLimit.bounds`) and stores nothing. Otherwise the limit is stored as the global limit in `generation-manager` and a warning naming the user key and the value is logged. With assertions enabled an anonymous caller would be an `AssertionError`, but the admin gate makes that unreachable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureDefaults#selectAutomationDefaults",
+    "com.almworks.jira.structure.webwork.StructureDefaults#loadAutomationSettings"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/defaults-other",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`selectOtherDefaults=true`: the form shows `adjustment-service`'s new-structure setting. Submit stores `allowManualAdjustments` (missing means false) as that setting. The submit is accepted even when manual adjustments are switched off globally, although the main page then hides the setting.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureDefaults#selectOtherDefaults",
+    "com.almworks.jira.structure.webwork.StructureDefaults#loadOtherDefaultsSettings"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/projectsettings-gate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureProjectSettings.jspa?projectKey=<key>`: `projectKey` is URL-decoded when read. A missing key redirects to `/secure/project/ViewProjects.jspa`. An unknown project, or a user without `ProjectPermissions.ADMINISTER_PROJECTS` on it (anonymous included), redirects to `/plugins/servlet/project-config/<url-encoded key>`: no security-breach page and no Structure-access check. Project administrators need no Jira administrator right.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#action",
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#redirectToProjectPage",
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#setProjectKey"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/projectsettings-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The project settings page presents: project name and key; whether the project is enabled for <product>; when enabled, the system default structure (or an 'invisible structure' text when it is unset, archived or not viewable), and the project's own default, which counts as set only if `isDefaultStructureSetForProject` is true and it can be viewed; a list of structures the current user can view at `PermissionLevel.VIEW`. When disabled: a disabled note and, for Jira administrators (global `ADMINISTER`), a link to `/secure/admin/StructureAdmin!view.jspa`, otherwise a hint. An archived structure counts as not set when shown, even if still stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#action",
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#isSystemStructureSet",
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#isProjectStructureSet",
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#canUserEnableProject",
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#getViewableStructures"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/projectsettings-submit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Submit with `execute=true` through `!apply` (a plain URL gives the security-breach page): a negative `sid` removes the project's default (`setDefaultStructureId(project, null)`). Otherwise `sid` must be positive and viewable at `PermissionLevel.VIEW`, else the page returns with field error `sid` = `Please select a valid default structure.`; valid values are stored for the project. It then redirects to `StructureProjectSettings.jspa?projectKey=<key>`, the key not encoded again. The submit does not test that the project is enabled for <product>.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#changeDefaultStructure",
+    "com.almworks.jira.structure.webwork.StructureProjectSettings#checkValidSid"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-gate-order",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureBackup.jspa`: system administrators only (`checkSystemAdmin`). A positive `backupProcessStateId` shows that result. Otherwise, without `execute=true` it shows the options form. With `execute=true` the request must have come through `StructureBackup!apply.jspa`, or the security-breach page is shown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup#action"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-form-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The backup options form presents: the safe export directory path (the canonical path of `JiraHome.getExportDirectory()` with a trailing separator, or empty when none, or when it cannot be resolved), a warning when there is no export directory, `backupFilename`, the checkboxes `backupHistory` and `backupGenericItemHistory` (both checked on first display, afterwards as submitted), and one `backup-ext-<plugin key>` checkbox per plugin that provides a `StructureBackupProvider`, labelled with the plugin's name (all checked on first display).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup#getSafeBackupPath",
+    "com.almworks.jira.structure.webwork.StructureBackup#isBackupHistoryDisplayed",
+    "com.almworks.jira.structure.webwork.StructureBackup#isBackupGenericItemHistoryDisplayed",
+    "com.almworks.jira.structure.webwork.StructureBackup#loadExtensionInfos",
+    "com.almworks.jira.structure.webwork.BackupFileUtil#safeDirectoryPath"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-file-validation",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On submit the file is checked in this order, each failure showing the options form with an error on `backupFilename`: no export directory: `Backup is not possible without \"export\" sub-directory in your Jira home.` (`str.admin.backup.no-safe-path`); blank name: `Please enter backup file name.` (`str.admin.backup.nofilename`); the export directory joined with the name, normalised without resolving symbolic links, is not under the export directory: `The file path is not safe. It should be a sub-directory of <dir>.` (`str.admin.backup.unsafe-filename`); a path the platform cannot represent: `The file name is invalid.` (`str.admin.file.invalid-name`). Sub-directories under the export directory are allowed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup#buildBackupFile",
+    "com.almworks.jira.structure.webwork.BackupFileUtil#isFileOutsideDirectory"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-operation-settings",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A submit creates its `BackupOperation` with `setFile`, `setUseZip(true)`, `setBackupHistory` and `setBackupGenericItemHistory` true only when `backupHistory` and `backupGenericItemHistory` are `true` (a missing checkbox means false), and `setBackupExtensions` with exactly the plugin keys whose `backup-ext-<key>` is `true` among plugins providing a backup provider (none checked gives the empty set, so no extension data). The page uses `getFinalFile()` for all that follows, so a name without a dot gets `.zip`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup#createBackupOperation",
+    "com.almworks.jira.structure.webwork.StructureBackup#setExtensionInfosFromForm",
+    "com.almworks.jira.structure.webwork.StructureBackup#setBackupHistoryFromForm"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-existing-file",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "If the final file exists and cannot be written, the options form returns with `Cannot overwrite file: <path>` (`str.admin.backup.file.unwriteable`). If it exists and `confirm` is not true, a confirmation page is shown with the absolute destination path that resubmits `backupFilename`, `backupHistory`, `backupGenericItemHistory`, the selected `backup-ext-<key>` flags, `execute=true` and `confirm=true`; nothing is written yet. Cancelling goes to `StructureBackup.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup#setAndCheckDestinationFile"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-start",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "To start, the page tries the Jira cluster lock `com.almworks.jira.structure.backup` without waiting. If it is held the options form returns with `Another backup process is running currently. Please monitor Jira logs to see when it finishes.` (`str.admin.backup.error.alreadyRunning`). Otherwise it releases it at once, creates a process with display name `Backing Up <product> Data` (`str.admin.backup.process.name`) for the current user, submits a background job for that user in the `system` queue of job-manager, and redirects to the process page with `forAdmin=true` and no `skipLock`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup#runBackupJob"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-job",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The backup job sets the process running, waits up to 10 minutes for the same cluster lock, and if that fails records the result 'already running' without backing up. With the lock it runs the backup and logs `backup started` and `backup finished` at warning level, always releasing the lock. The process is set finished in all cases. An `Error` other than `LinkageError` thrown by the backup propagates after its text is recorded; the result is then not stored (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup$BackupJob#doJob",
+    "com.almworks.jira.structure.webwork.StructureBackup$BackupJob#runBackupProcess",
+    "com.almworks.jira.structure.webwork.StructureBackup$BackupJob#doBackup"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-result-state",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When the job ends it stores its outcome in `stateful-manager` (the destination path, or an error text) and adds to the process a button `Show Result` (`str.admin.backup.process.showResult`) that links to `<relative base URL>/secure/admin/StructureBackup.jspa?backupProcessStateId=<state id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup$BackupJob#setResult"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-show-result",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`?backupProcessStateId=<id>` with id above 0: a stored error text appears on the options form as the `backupFilename` error; a success shows the result page with the absolute destination file path. An id whose state cannot be read (unknown, or not accessible per `stateful-manager`) shows on the options form `We are not sure about the result of the backup process. Please refer to Jira logs for more information.` (`str.admin.backup.error.noState`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup#showBackupProcessState"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/backup-general-errors",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A `StructureJobException` while starting shows the options form with `Error occurred during the backup: <localized message HTML-encoded>` (`str.admin.backup.exception`). A runtime exception or `LinkageError` in the page or in the job gives the same text with the exception's message (its `toString()` when the message is empty) abbreviated to 256 characters, and is logged at error level.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureBackup#action",
+    "com.almworks.jira.structure.webwork.StructureBackup#throwGeneralBackupProblem",
+    "com.almworks.jira.structure.webwork.StructureBackup#getErrorText"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-gate-order",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureRestore.jspa`: system administrators only. With `stateId` it shows that restore's result. Without `execute=true` it shows the form. With `execute=true` the request must have come through `StructureRestore!apply.jspa`, otherwise the security-breach page is shown. Then the file checks run.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore#action"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-form-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The restore form presents: the import directory path (canonical `JiraHome.getImportDirectory()` with trailing separator, or empty), whether structures with content exist (a warning that a restore clears them), `restoreFilename`, and the `restoreHistories` checkbox, checked on first display.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore#getSafeRestorePath",
+    "com.almworks.jira.structure.webwork.StructureRestore#isStructurePresent"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-file-validation",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`restoreFilename` is trimmed when set. Checks, in this order, each showing the form with an error on `restoreFilename`: empty: `Please enter full path and name of the backup file.` (`str.admin.restore.nofilename`); no import directory: `Restore is not possible without the \"import\" sub-directory in your Jira home.` (`str.admin.restore.no-safe-path`); a relative name is taken under the import directory, an absolute path as it is, and after normalisation (no symbolic-link resolution) the file must be under the import directory, else `The file path is not safe. It should be within the import directory <dir>.` (`str.admin.restore.unsafe-filename`); unrepresentable path: `The file name is invalid.`; missing file: `File <absolute path> does not exist.` (`str.admin.restore.error-nofile`); a directory or unreadable file: `File <absolute path> is not a file, or Jira cannot read from it.` (`str.admin.restore.noaccess`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore#action",
+    "com.almworks.jira.structure.webwork.StructureRestore#setRestoreFilename",
+    "com.almworks.jira.structure.webwork.BackupFileUtil#isFileOutsideDirectory"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-format-fallback",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A readable file is checked with `RestoreOperation.checkBackupFile()` of `StructureBackupManager.restore()`. If that throws, the legacy restore of formats `0.4` and `2.3` (SPEC.md section 1.6) checks it instead. If both throw, both failures are logged and the form shows `This is not a valid backup file (<message of the first failure>)` (`str.admin.restore.badfile`). The operation that accepted the file is the one used.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore#action",
+    "com.almworks.jira.structure.backup.RestoreOperationImpl2x"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-histories-default",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`restoreHistories` is passed to `RestoreOperation.setRestoreHistory`. A submit without that parameter means false, so history is then not restored, unlike the default of the operation itself. The form's checkbox is on by default.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore#action",
+    "com.almworks.jira.structure.webwork.StructureRestore#setRestoreHistories"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-confirm",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After the file passes, if `confirm` is not true and the plugin holds at least one structure with a non-empty forest (checked with no access check, archived structures included), a confirmation page is shown, which resubmits `restoreFilename`, `restoreHistories`, `confirm=true` and `execute=true`, and links to `StructureBackup.jspa`; nothing has changed yet. With only empty structures, or no structures, no confirmation is asked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore#action",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#hasStructuresWithContentNoAccessCheck"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-start",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "To start, the page creates a process for the current user with display name key `str.admin.restore.process.name`, submits a background job for that user in the `system` queue of job-manager, and redirects to the process page with `forAdmin=true&skipLock=true`. A `StructureJobException` shows the form with `An error occurred during the restore operation: <message>` (`str.admin.restore.exception`); a runtime exception or `LinkageError` gives the same text with the exception's `toString()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore#runRestore",
+    "com.almworks.jira.structure.webwork.StructureRestore#throwGeneralRestoreProblem"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-job-progress",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "While the restore job runs, the process is running and offers an Abort button (`str.admin.restore.process.abort`) whose confirm text key is `sw.admin.restore.process.abort-confirm`. Every 1000 ms the process receives the activity and percent of `RestoreOperation.getProgressGauge()`; when the process has been cancelled the gauge is cancelled and the Abort button removed. When the job ends the process is finished, the Abort button is removed, and progress is reported a last time.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore$RestoreJob#doJob",
+    "com.almworks.jira.structure.webwork.StructureRestore$RestoreJob#ping",
+    "com.almworks.jira.structure.webwork.StructureRestore$RestoreJob#showAbortButton",
+    "com.almworks.jira.structure.webwork.StructureRestore#addButton",
+    "com.almworks.jira.structure.webwork.StructureRestore#removeButton"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-job-result",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The job stores in `stateful-manager`: the file name; on normal return success, whether the process was cancelled, the operation's `getErrorsContainer()` and `getStructureNames()`, and the name of structure id 1 when that structure exists and has no owner; on an exception or `LinkageError` that throwable, marked failed. It then adds a button `Show Result` (`str.admin.restore.process.showResult`) to `<base URL>/secure/admin/StructureRestore.jspa?stateId=<state id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore$RestoreJob#doJob",
+    "com.almworks.jira.structure.webwork.StructureRestore$RestoreJob#setResult",
+    "com.almworks.jira.structure.webwork.StructureRestore#getUnownedGlobalStructureName"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-show-result",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`?stateId=<id>`: an unreadable state shows the form with `We are not sure about the result of the restore process. Please refer to Jira logs for more information.` (`str.admin.restore.error.noState`). A failed restore shows the form with `An error occurred during the restore operation: <exception toString>`. Otherwise the result page shows, by whether the process was aborted, the title `<product> Restore Operation Was Aborted` or `<product> Restore Operation Completed Successfully`; for an unowned structure 1 a note with its name and the link `/secure/EditStructure.jspa?id=1`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore#showRestoreResult"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/restore-result-warnings",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The restore result lists `The restore operation produced following warnings:` when the `ErrorsContainer` has invalid structures or other problems. For each invalid structure, in the order reported: its name (HTML-encoded; `?` when unknown) and id, its other problems, its field-resolution problems, invalid items of its forest and of its history (only those having a message, by item identity, issues by issue id), and its invalid synchronizers, by id with their message when one exists. Then the general other problems.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRestore#getInvalidStructures",
+    "com.almworks.jira.structure.webwork.StructureRestore#getInvalidItemMessage",
+    "com.almworks.jira.structure.webwork.StructureRestore#hasInvalidItemMessage",
+    "com.almworks.jira.structure.webwork.StructureRestore#getInvalidItemsForStructure",
+    "com.almworks.jira.structure.webwork.StructureRestore#getInvalidItemsForHistory",
+    "com.almworks.jira.structure.webwork.StructureRestore#getInvalidSynchronizersForStructure",
+    "com.almworks.jira.structure.webwork.StructureRestore#getStructureName"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/maintenance-gate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMaintenance.jspa`: system administrators only. `editScheduledParams=true` selects the scheduled form, tested first. Without it the main page is shown; on the main page, and on the run submit, the display parameters of the running process, if any, are set to the name `s.admin.maintenance.job.name` (`<product> Maintenance`) with a Back button to `StructureMaintenance.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMaintenance#action",
+    "com.almworks.jira.structure.webwork.StructureMaintenance#setupUI",
+    "com.almworks.jira.structure.webwork.StructureMaintenance#createDisplayParameters"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/maintenance-main-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The main maintenance page presents, from `maintenance-manager`: an error note when the last run was not successful; when scheduling is on, the last scheduled and next scheduled run times, otherwise an 'unscheduled' note; a link to the scheduled form; and either, when a maintenance process runs, a link to `StructureProcessStatus.jspa?processId=<id>&forAdmin=true`, or the last manual run time and the run-now form with the manual form values. Times of null show as empty, 0 as `never performed` (`s.admin.maintenance.last.run.never`), others in the request's locale with medium date and full time style.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMaintenance#formatTime",
+    "com.almworks.jira.structure.webwork.StructureMaintenance#hasCurrentlyRunningProcess",
+    "com.almworks.jira.structure.webwork.StructureMaintenance#getCurrentlyRunningProcess"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/maintenance-run-now",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Run-now is a submit with `execute=true` through `StructureMaintenance!apply.jspa` (a plain URL gives the security-breach page). All single-valued request parameters are passed to `maintenance-manager`'s run-once parameters. When they are rejected: `Could not apply parameters, sorry! Some parameters were either missing or contained invalid values.` (`s.admin.maintenance.error.bad.form`). When the run returns 0: `Maintenance wasn't started because it was already running.` (`s.admin.maintenance.error.already.running`). On `StructureJobException`: `Maintenance job could not start, please check Jira logs for details.` (`s.admin.maintenance.error.not.started`). All three show on the main page as its error message. Otherwise the new process gets its display parameters and the page redirects to it with `forAdmin=true`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMaintenance#action",
+    "com.almworks.jira.structure.webwork.StructureMaintenance#getFormParams"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/maintenance-scheduled-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`editScheduledParams=true` without `execute=true` shows the scheduled form: `scheduled`, `crontabEnabled`, `scheduledHour` (0 to 23), `scheduledMinute` (offered in steps of 5), the JVM default time zone's long display name in US English, `crontabSchedule`, and the scheduled task values.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMaintenance#actionScheduled",
+    "com.almworks.jira.structure.webwork.StructureMaintenance#getJvmTimeZone"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/maintenance-scheduled-submit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `execute=true` (through `!apply`, else the security-breach page) the parameters go to `maintenance-manager`'s scheduled save. Success redirects to `/secure/admin/StructureMaintenance.jspa`. A false result, or an invalid-parameter error, returns to the scheduled form with `s.admin.maintenance.error.bad.form`; an invalid-parameter error also adds a field error named by its parameter key with its message (key `crontab` for a schedule problem, and the form then keeps the submitted `crontabSchedule` and shows `s.admin.maintenance.crontab.schedule.error`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMaintenance#actionScheduled"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-gate-order",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMigrate.jspa`: system administrators only. With `stateId` it shows that migration's result. Without `execute=true` it shows the input form (the import directory path and `restoreFilename`). With `execute=true` the request must have come through `StructureMigrate!apply.jspa`, otherwise the security-breach page is shown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#action",
+    "com.almworks.jira.structure.webwork.StructureMigrate#getSafeMigratePath"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-file-validation",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`restoreFilename` is trimmed and validated exactly as on the StructureRestore page, in the same order and with the same messages (empty, no import directory, outside the import directory, invalid path, missing, not a readable file), each shown as an error on `restoreFilename` on the input form.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#action",
+    "com.almworks.jira.structure.webwork.StructureMigrate#setRestoreFilename"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-format-check",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The file is then checked by the current reader only: root `structure-backup` with a version accepted by `RestoreOperation.checkBackupFile()` (`3.0`, `3.3`, `5.0`). There is no legacy fallback: a format `0.4` or `2.3` file, which the StructureRestore page accepts, gives `This is not a valid backup file (<message>)` (`str.admin.restore.badfile`) here.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#action",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#checkBackupFile",
+    "com.almworks.jira.structure.backup.BackupXMLReader3x"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-preview-step",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A valid file with `optionsPassed` not true is read without changing any data, and the options page is shown. An `IOException` while reading shows the input form with `An error occurred during the restore operation: <exception toString>`. The preview is read with the permissions, synchronizers, histories, generic-item history, manual adjustments and configuration sections of the file.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#action",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#setFile",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#readAndCheck"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-preview-structure-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The options page lists each structure of the backup with a non-zero id, sorted by name with the current user's collator: id, name, description, archived or not, row count, the project keys of its issues (each with the project's name when known, the bare key marked otherwise), and whether it has synchronizers, manual adjustments (column shown only when manual adjustments are globally enabled), history and generic-item history. A structure with id 0 is logged and left out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#setPreviews",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#processStructure",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#getPreviews",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#processSynchronizers",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#processHistoryEntries",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#processGenericItemHistory"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-preview-unresolved-projects",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A structure with any project key that `ProjectManager.getProjectObjByKeyIgnoreCase` does not find cannot be selected: it is listed in a separate read-only table, under a notice, and a warning naming its id, name and project keys is logged. When no selectable structure remains, the notice `s.admin.migrate.error.nostructures` is shown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#setPreviews",
+    "com.almworks.jira.structure.webwork.StructureMigrate#action"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-preview-overwrite",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For each previewed structure: if a structure with the same id exists here (`isAccessible(id, null)`), it is an overwrite by id; otherwise, if `getStructuresByName(name, null, true)` finds any, the first one's id is an overwrite by name. The form then offers `st-<id>-overwrite` with hidden `st-<id>-overwrite-id` (the target id) and `st-<id>-overwrite-by-name`, and warns `A structure with same ID already exists` (`str.admin.migrate.options.warn.overwriteId`) or `A structure with same name already exists (ID <n>)` (`...warn.overwriteName`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#setPreviews"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-preview-warnings",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "For a selectable structure other than id 1 whose owner is not resolved, the options page warns `Unable to read structure owner. User \"<caller>\" will become its owner.` when the backup names no owner, else `Structure owner (user \"<key>\") was not found in this Jira instance. User \"<caller>\" will become its owner.`, where the key shown is the owner's user name when the backup has one, else its key. When permissions would not survive unchanged it warns `<product> permissions cannot be fully restored.`. Below the options it warns when any synchronizer's owner is missing (`str.admin.migrate.options.warn.synchronizersUnresolved`) and when the configuration names missing entities (`...warn.configurationUnresolved`); the latter means enabled projects, or a known `CoreAppPermissions` permission, with no all-or-anyone flag in the backup, or with a project or subject that cannot be resolved.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#processStructure",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#processConfiguration",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#processEnabledProjects",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#processEnabledPermission",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#isSynchronizerOwnersResolved",
+    "com.almworks.jira.structure.webwork.StructureMigrate#getGlobalStructureId"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-options-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The options form submits to `StructureMigrate!apply.jspa` with `restoreFilename`, `optionsPassed=true`, `execute=true`, one `migrate-st-<id>` per selected structure, and these checkboxes, all checked on first display: `migratePermissions`, `migrateSynchronizers`, `migrateManualAdjustments` (only when manual adjustments are globally enabled), `migrateHistories`, `migrateFavoriteStructures`, `migrateViews`, `migrateViewAssociations`, `migrateStructureProperties`, `migrateStructureItemProperties`, `migrateConfiguration`, `migrateDarkFeatures`, `migrateSavedColumns`, `migrateGenericItemHistory`, `migrateNotes`, and `migrate-ext-<key>` for each extension key found in the file (labelled with the plugin's name, else the key). A missing parameter means false. `migratePerspectives` is accepted but not offered.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#getExtensionKeys",
+    "com.almworks.jira.structure.webwork.StructureMigrate#getExtensionName",
+    "com.almworks.jira.structure.webwork.StructureMigrate#isManualAdjustmentServiceEnabled",
+    "com.almworks.jira.structure.backup.MigratePreviewOperation#processExtensionData"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-selection-decoding",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "On submit with `optionsPassed=true` the selected structures are the parameters `migrate-st-<id>` with value `true`; a non-numeric or zero id is logged and skipped. For each: with no `st-<id>-overwrite-id` (or 0) the structure keeps its backup id. With a target id: `st-<id>-overwrite` true replaces that target (the new structure takes the target's id); otherwise `st-<id>-overwrite-by-name` true keeps the backup id; otherwise (an existing id not to be overwritten) it gets a new id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#getSelectedStructures"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-no-selection",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A submit with no selected structure logs a warning and shows the input form with `An error occurred during the restore operation: no structures to restore`. A failure preparing the operation shows the same text with the exception's `toString()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#action"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-start",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "To start, the page creates a process named `Migrating <product> Data from Backup` (`str.admin.migrate.process.name`) for the current user, submits a background job for that user in the `system` queue of job-manager, and redirects to the process page with `forAdmin=true&skipLock=true`. `StructureJobException` shows the input form with `str.admin.restore.exception` and its message; any other exception or `LinkageError` the same with `toString()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#runMigration",
+    "com.almworks.jira.structure.webwork.StructureMigrate#throwGeneralRestoreProblem"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-job-result",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The migration job sets the process running, runs, and stores in `stateful-manager` the file name and either success with the `ErrorsContainer`, the structure names and the changed perspective ids, or the throwable; the process is finished in all cases, and gets a button `Show Result` (`str.admin.restore.process.showResult`) to `<base URL>/secure/admin/StructureMigrate.jspa?stateId=<state id>`. The migration has no Abort button and reports no progress to the process.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate$MigrationJob#doJob",
+    "com.almworks.jira.structure.webwork.StructureMigrate$MigrationJob#setResult"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-show-result",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`?stateId=<id>`: an unreadable state shows the input form with `str.admin.restore.error.noState`. A failed migration shows the input form with `An error occurred during the restore operation: <exception toString>`. Otherwise the result page shows `str.admin.migrate.successful.title` and description and, when present, `The restore operation produced following warnings:` with the problems listed as on the restore result page (structures here under their new ids; no synchronizer list), the general other problems, and the changed perspective ids.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrate#showMigrationResult",
+    "com.almworks.jira.structure.webwork.StructureMigrate#getChangedPerspectiveIds",
+    "com.almworks.jira.structure.backup.MigrateOperation#getMigrateErrors",
+    "com.almworks.jira.structure.backup.MigrateOperation#getStructureNames"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-lock-and-caches",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A migration holds the plugin's database lock for the whole read (so `StructurePluginHelper.isStructureLocked()` is true) and releases it in all cases. It first reads the whole file once to confirm it is well-formed; a failure there changes nothing. Once writing has started, plugin caches are cleared on all cluster nodes at the end, even after a failure. Unlike a restore, no tables are dropped: data not named in the selection is left as it is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#migrate",
+    "com.almworks.jira.structure.backup.MigrateOperation#afterRead",
+    "com.almworks.jira.structure.backup.BackupXMLReader#read"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-replace-structure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A selected structure with a target id: when a structure with that id exists, its view settings are cleared and its synchronizers uninstalled (a failure of either is reported under the structure as `Failed to clear view settings` or `Failed to uninstall synchronizers`, and the migration goes on), it is deleted, and the new one is inserted with that id. Structures with no target id are inserted after all others, with new generated ids. A `StructureException` reports `Failed to restore structure: ...` under the structure in `ErrorsContainer.getStructureOtherProblems()`, and the others continue. Forest versions are set to the backup's after histories are read.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processStructure",
+    "com.almworks.jira.structure.backup.MigrateOperation#deleteOldStructure",
+    "com.almworks.jira.structure.backup.MigrateOperation#saveStructure",
+    "com.almworks.jira.structure.backup.MigrateOperation#afterStructuresRead",
+    "com.almworks.jira.structure.backup.MigrateOperation#afterHistoriesRead"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-owner",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A migrated structure's owner resolves as: a user reference by user name, then by key; else the flat owner subject if that user exists. When unresolved, or when there are warnings, the owner is the user who started the migration and the structure gets the problem `Owner changed to \"<caller name>\": <warnings>` (`s.admin.migrate.owner.warning`). Migrated views follow the same rule, with `Owner for view \"<name>\" (#<id>) changed to \"<caller>\": <warnings>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#convertStructure",
+    "com.almworks.jira.structure.backup.MigrateOperation#updateOrCreateView",
+    "com.almworks.jira.structure.backup.AbstractMigrateOperation$MigrateResolver#resolveUser",
+    "com.almworks.jira.structure.backup.PermissionResolver#resolveOrCheckOwner"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-permissions",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Migrated permission rules: structured rules in the backup are preferred, resolving users by name then key, projects by key, roles by name; a missing user, project or role drops the rule and adds a warning; a missing group keeps the rule and warns. A role subject without a project is dropped. A `SetLevel` of `PermissionLevel.NONE` is kept with warning `Invalid permission level`. Flat rule strings are kept if the user exists, or for any group; every flat project-role rule is dropped with `Role-based permissions are not supported during migration`. With `migratePermissions` false no rules are read. Warnings appear under the structure as `Please check permissions: <warnings>` (`s.admin.restore.permissions.warning`), joined with `, `.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#convertStructure",
+    "com.almworks.jira.structure.backup.PermissionResolver#resolveOrCheckPermissions",
+    "com.almworks.jira.structure.backup.PermissionResolver#resolveSubject",
+    "com.almworks.jira.structure.backup.AbstractMigrateOperation$MigrateResolver#checkProjectRole"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-apply-rules",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "An `ApplyStructure` permission rule survives migration only if its structure is also selected; otherwise it is dropped with `\"Apply Permissions\" rule cannot be migrated because the target structure is not migrated`. After all structures are stored, kept rules are rewritten to the migrated structure's new id, as superuser; a rule whose structure failed to migrate is dropped with the same warning; a `StructureException` reports `Failed to migrate permissions` under the structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#migrateApplyStructurePermissions",
+    "com.almworks.jira.structure.backup.MigrateOperation#replaceApplyStructureRule"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-item-resolution",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Forest items are resolved on this instance: an issue by `key`; a project by `key`; a component or version by `projectKey` and `name`; a generator or effector is created anew from `moduleKey` and `parameters`, with no owning structure; a folder is created anew from `name`; a row `item` with a `name` is created as a new generic item of its type with `name`, `description`, `parameters`; any other item keeps its id. A failed create adds `Failed to create generator`, `Failed to create effector`, `Failed to create folder` or `Failed to create item <type>` to the other problems. Each backup item is resolved once per migration, so structures that share it share the result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#resolveItem",
+    "com.almworks.jira.structure.backup.MigrateOperation#resolveIssue",
+    "com.almworks.jira.structure.backup.MigrateOperation#createGenerator",
+    "com.almworks.jira.structure.backup.MigrateOperation#createEffector",
+    "com.almworks.jira.structure.backup.MigrateOperation#createFolder",
+    "com.almworks.jira.structure.backup.MigrateOperation#resolveComponent",
+    "com.almworks.jira.structure.backup.MigrateOperation#resolveVersion",
+    "com.almworks.jira.structure.backup.MigrateOperation#createGenericItem",
+    "com.almworks.jira.structure.backup.BackupXMLReader3x#resolveItem"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-unresolved-items",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "An item that cannot be resolved stays in the forest as a row with `CoreIdentities.MISSING_ITEM` and is reported among the invalid items of the structure, unlike a full restore which keeps the original id. Each row gets a new row id; a backup row seen again (for example in history) maps to the same new row. An item of a `StructureOwnedItemType` is asked for its copy owned by the new structure; a failure is logged and the item used as it is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#keepUnresolvedItems",
+    "com.almworks.jira.structure.backup.MigrateOperation#resolveRow",
+    "com.almworks.jira.structure.backup.BackupXMLReader3x#readItemForest"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-manual-adjustments",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateManualAdjustments`, a structure's adjustments are stored with row ids mapped to the new rows. An `add` whose fragment has only missing items, or a `move` whose moved or under position became missing, is dropped; a position with an unknown row or a missing item becomes `missing`. A runtime failure reports `Failed to migrate manual adjustments for structure <id>` under the structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#saveStructure",
+    "com.almworks.jira.structure.backup.MigrateOperation$AdjustmentMapper#mapAdd",
+    "com.almworks.jira.structure.backup.MigrateOperation$AdjustmentMapper#mapMove",
+    "com.almworks.jira.structure.backup.MigrateOperation$AdjustmentMapper#mapRowIdentity"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-synchronizers",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateSynchronizers`, each synchronizer whose structure migrated and whose owner resolves (user name, then key) is installed anew with new id, keeping module key, parameters and autosync flag. One with an unresolved owner, or an unmigrated structure, is left out without a problem being reported. A `StructureSynchronizerException` reports `Failed to restore synchronizer: ...` under the structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processSynchronizers",
+    "com.almworks.jira.structure.backup.MigrateOperation#convertSynchronizer"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-history",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateHistories`, history entries of migrated structures are written with their versions, timestamps and user keys, with rows mapped to the new rows and the synchronizer id mapped (0 when it did not migrate). Entries of structures that were not migrated are dropped silently.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processHistoryEntries",
+    "com.almworks.jira.structure.backup.MigrateOperation#convertHistoryEntry"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-favorites",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateFavoriteStructures`, for each user key of the backup that exists here, each favourite whose structure was migrated is set on the new id. Others are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processFavorites"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-notes",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateNotes`, each note of the backup is matched to a note here with the same id: when it is equal, it is reused, otherwise a new note is created with its name, permission scheme and archived flag. A scheme of a structure-based note is rewritten to the migrated structure's id; when that structure did not migrate it stays if the note is unchanged, else it becomes `none`. Notes columns of migrated views, and item properties of notes, then use the new note id; a note property with no matching note is skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processNotes",
+    "com.almworks.jira.structure.backup.MigrateOperation#determineNewPermissionScheme",
+    "com.almworks.jira.structure.backup.MigrateOperation#mergeOrCreateNote",
+    "com.almworks.jira.structure.backup.MigrateOperation#processMigratedNoteProperty",
+    "com.almworks.jira.structure.backup.MigrateOperation#replaceNote"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-saved-columns",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateSavedColumns`, each saved column of a source that supports backup is kept when the one with the same id here has equal parameters and additional data, otherwise it is created from the backup; a `StructureException` reports `Failed to migrate saved column ...`. Columns of migrated views are repointed to the resulting ids; a reference with no result is removed from the column's parameters, and `bundled` columns stay as they are.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processSavedColumns",
+    "com.almworks.jira.structure.backup.MigrateOperation#replaceSavedColumn"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-views",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateViews`, a view with the same id and an equal specification here is reused unchanged; otherwise a new view is created (with new id), with owner and permissions resolved. A failure reports `Failed to migrate view ...` in other problems; permission warnings report `Please check permissions for view \"<name>\" (#<id>): <warnings>`. With `migrateViewAssociations` (read only when `migrateViews` is on), a migrated structure's view settings are stored with associated views mapped to the local ids; views that did not resolve are removed, and if none remain nothing is stored; a `StructureException` reports `Failed to migrate view settings ...`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processViews",
+    "com.almworks.jira.structure.backup.MigrateOperation#updateOrCreateView",
+    "com.almworks.jira.structure.backup.MigrateOperation#processViewSettings",
+    "com.almworks.jira.structure.backup.MigrateOperation#convertViewSettings"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-configuration",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateConfiguration`, enabled projects are overwritten: projects resolved by key are stored as picked; 'enabled for all' is the backup's flag, or, when absent, true exactly when the backup lists no project. Each app permission is overwritten likewise (`setAllowedForAnyone` and `setPermissionSubjects`, keeping the resolved subjects; a role without a project is allowed here). Any flag missing, or any subject or project unresolved, reports `Please check the \"<section>\" section of <product> configuration: <details>`, or `str.admin.migrate.unresolved-projects` or `str.admin.migrate.unresolved-permission` when no details exist. An unknown permission reports `An unknown <product> app permission named \"<name>\" is found in the backup file. Please check <product> configuration.`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processConfiguration",
+    "com.almworks.jira.structure.backup.BackupConfigurationUtil#processConfiguration"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-attribute-sensitivity",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`migrateConfiguration` also merges attribute sensitivity settings: the stricter of the backup's and the current `AttributeSensitivityMode` (`PERMISSIVE` < `STANDARD` < `STRICT`) is stored, and the non-sensitive attributes are the union of both. An invalid mode counts as `PERMISSIVE` and reports `Attribute sensitivity mode is invalid: <n>. It has been ignored.`. An invalid attribute spec is skipped with `Non-sensitive attribute has an invalid spec: <spec>. This attribute has been skipped.`. Once, if a spec is or contains a `customfield` attribute, the warning `s.admin.migrate.attribute-settings.nonsensitive.attributes.customfield-included` is reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processAttributeSensitivitySettings",
+    "com.almworks.jira.structure.backup.MigrateOperation#isCustomFieldUsedInParams"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-dark-features",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateDarkFeatures`, the backup's dark-feature values are written to Jira application properties, and any known dark-feature key that has a value here but is absent from the backup is cleared, exactly as a restore does. A failure is logged only.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processDarkFeatures",
+    "com.almworks.jira.structure.darkfeature.DarkFeaturesHelper#restoreValues"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-properties",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateStructureProperties` and `migrateStructureItemProperties`, properties of migrated structures are stored on the new structure id; others are skipped. An item property that fails on an illegal argument is logged and skipped, and a storage failure stops item properties with a logged warning, without a reported problem. The global `properties` section is never migrated, unlike in a restore.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processStructureProperties",
+    "com.almworks.jira.structure.backup.MigrateOperation#processStructureItemProperties",
+    "com.almworks.jira.structure.backup.MigrateOperation#processProperties"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-perspectives-not-migrated",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Perspectives are never migrated: even with `migratePerspectives=true` the section is read and ignored, so the changed perspective ids on the result page are always empty (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processPerspectives",
+    "com.almworks.jira.structure.backup.MigrateOperation#getChangedPerspectiveIds"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-generic-item-history",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `migrateGenericItemHistory`, existing history records of the items named by the backup are removed, and the backup's records added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processGenericItemHistory"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migrate-extensions",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Extension data is passed to `StructureBackupProvider.migrate` only for extensions selected by `migrate-ext-<key>`, with a `MigrationMapping` of backup to new structure ids and of backup to resolved items (owned items replaced by their new copies), and a reporter whose messages go to the other problems.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.backup.MigrateOperation#processExtensionData",
+    "com.almworks.jira.structure.backup.MigrationMappingImpl"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-bare-alias",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMigrationConfigurations.jspa` without a command redirects to `/secure/admin/StructureMigrationConfigurations!list.jspa`, for anybody, with no permission check of its own. Every named command requires a system administrator, and otherwise gives the security-breach page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#action",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#doList",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#redirectToList"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-list",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMigrationConfigurations!list.jspa` shows every configuration of `migration-configuration-manager`, most recently edited first, each with: name, linking to `!edit` for a draft and `!view` for others; structures; editing user; status; run time; and actions: publish (`StructureMigrationConfigurations!publish.jspa?id=<id>&list=true&atl_token=<token>`) for `DRAFT`, make draft (`StructureMigrationConfigurations!draft.jspa?id=<id>&atl_token=<token>`) for `READY`, and delete. With no configurations it shows an empty note and a link to `!create`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#doList",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#getConfigurations",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#getRunAt"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-list-cells",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The list's structures cell: no structure ids shows `All structures`; up to 3 shows all, comma separated; more than 3 shows the first two and `and <n-2> more` (`s.admin.migrate-to-cloud.table.n-structures`). Each is a link to `/secure/StructureBoard.jspa?s=<id>` with the abbreviated name, or `#<id>` when it cannot be viewed. The editing user shows as display name with a profile link, or the raw key when the user is unknown. The run time uses the logged-in user's complete date-time style and is empty when never run. Status names: `Draft`, `Ready`, `Running`, `Done`, `Failed` (`s.admin.migrate-to-cloud.status.+<STATUS>`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#getStructuresHtml",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#getCreatedByHtml",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#getStatusHtml",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#getRunAt"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-create",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMigrationConfigurations!create.jspa` shows an empty form: no id, empty name, all-structures false, no structure ids, status `Draft` with its description, one `migrate-ext-<key>` checkbox per plugin with a backup provider (all checked), the total number of structures including archived ones, counted as superuser, and the title `s.admin.migrate-to-cloud.create.title`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#doCreate",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#getTotalStructures",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#getEditPageTitle"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-edit-view",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMigrationConfigurations!edit.jspa?id=<id>` and `/secure/admin/StructureMigrationConfigurations!view.jspa?id=<id>` behave identically: a missing or unknown `id` redirects to the list; otherwise the form shows the stored name, status and description, last editor and time (`s.admin.migrate-to-cloud.edit.edited-by`), comma-joined structure ids, all-structures true exactly when no ids are stored, and extension checkboxes checked per the stored keys. It is editable only for `DRAFT`, whose title is `s.admin.migrate-to-cloud.edit.title`; other statuses use `s.admin.migrate-to-cloud.view.title`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#doEdit",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#doView",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#getEditedByHtml",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#isDraftConfiguration"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-save-validation",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMigrationConfigurations!save.jspa` (Jira XSRF check required) reads `id`, `name`, `structureIds`, `allStructures` and `migrate-ext-<key>`. Checks, in order: with an `id`, an unknown configuration gives the error page `Migration configuration #<id> does not exist.` (`s.admin.migrate-to-cloud.edit.save-error.not-found`), and a non-draft one the error page `Migration configuration \"<name>\" is in the \"<status>\" status and cannot be edited.` (`...save-error.not-editable`). Then, on the form with a field error: blank `name`: `Please enter a configuration name.`; trimmed name over 190 characters: `Please choose a shorter name. The maximum length of a configuration name is 190 characters.`; a name held exactly by another configuration: `Please enter a unique name. This name is already used.` (`name` errors); then the structure ids.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#doSave",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#saveConfiguration"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-structure-ids",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`structureIds` is a comma-separated list of decimal ids with no spaces, kept in order, duplicates included. Empty, with `allStructures` true, means all structures (an empty list). Empty otherwise: `Please select at least one structure to migrate or use the \"Migrate all structures and views\" option.`. A value that is not a number: `The value must contain a comma-separated list of structure IDs.`. Ids that cannot be viewed at `PermissionLevel.VIEW`: `Structures with these IDs do not exist: <ids joined with \", \">`. A non-empty valid list is used even when `allStructures` is true. All are field errors on `structureIds`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#parseStructureIds"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-save-store",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A valid save stores name (trimmed), status `DRAFT`, the structure ids, the extension keys with `migrate-ext-<key>` true, no run time, the current time as edit time and the current user's key as editor, through `migration-configuration-manager`: a create without `id`, an update with it, and redirects to the list. A storage failure gives the error page `Error while saving configuration: <message>` (`s.admin.migrate-to-cloud.edit.save-error`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#saveConfiguration",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#saveConfiguration0"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-publish",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMigrationConfigurations!publish.jspa` (Jira XSRF check required) without `list=true` is a save from the form, with all the save's checks, storing status `READY`. With `list=true` it uses no form values: without `id` it just redirects to the list; an unknown id gives the not-found error page; a `DRAFT` is stored as `READY` with its name, structures and extensions, no run time, the current time and user; any other status changes nothing. Both redirect to the list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#doPublish",
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#publishConfiguration"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-draft",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMigrationConfigurations!draft.jspa` (Jira XSRF check required): without `id` it redirects to the list; an unknown id gives the not-found error page; a status other than `READY` gives the error page `Migration configuration \"<name>\" is in the \"<status>\" status and cannot be converted to draft.` (`...save-error.not-ready`). A `READY` one is stored as `DRAFT`, keeping name, structures and extensions, with no run time, the current time and user, and redirects to `/secure/admin/StructureMigrationConfigurations!edit.jspa?id=<id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#doDraft"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-delete",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureMigrationConfigurations!delete.jspa` (Jira XSRF check required): without `id` it redirects to the list; an unknown id gives the not-found error page; otherwise the configuration is deleted whatever its status and the page redirects to the list. A failure gives the error page `Error while deleting configuration #<id>: <message>` (`s.admin.migrate-to-cloud.edit.delete-error`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations#doDelete"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/migconf-local-only",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The StructureMigrationConfigurations pages only keep configurations in `AO_8BAD1B_MIGRATION_CONFIG`; they start no migration and contact nothing. What a migration does with a configuration belongs to `cloud-data-migrator`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureMigrationConfigurations"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/support-gate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureSupport.jspa`: system administrators only. It also works while the plugin is locked. `showStatistics=true`, tested first, shows the statistics page. Without `execute=true` the support page is shown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSupport#action",
+    "com.almworks.jira.structure.webwork.StructureSupport#checkStopped"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/support-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The support page presents these local tools: a link to `/secure/admin/SyncAuditLogView.jspa?dateFrom=<date>&showEmpty=true`, where the date is `yyyy-MM-dd` three days before today; a note about synchronization when the plugin is not locked and the sync-enabled-or-installed answer is false; links to `/secure/admin/PerformanceAuditLogView.jspa?save=saveToFile` (download) and `/secure/admin/PerformanceAuditLogView.jspa` (view); `/secure/admin/StructureAttributeTroubleshooting.jspa`; `/secure/admin/StructuredJqlTroubleshooting.jspa` and Jira's `/secure/admin/IndexAdmin.jspa` (`s.admin.sjqlTroubleshooting.text`); `/secure/admin/StructureAOSupport.jspa`; the clear-caches form of ClearStructureCaches; and the usage-statistics setting. The page starts no support bundle and contacts nobody from the server.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSupport#getDateIso8601",
+    "com.almworks.jira.structure.webwork.StructureSupport#showSynchronizationNote",
+    "com.almworks.jira.structure.webwork.StructureSupport#getSjqlTroubleshootingHtml"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/support-date-timezone",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The sync-audit link's date is computed on a calendar in the user's Jira time zone but formatted in the JVM's default zone, so the user's zone has no effect on the result (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSupport#getDateIso8601"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/support-statistics-setting",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Submit with `execute=true` through `StructureSupport!apply.jspa` (a plain URL gives the security-breach page) stores `sendingEnabled` (`true` ignoring case, missing means false) with `statistics-manager` as the global property `statistics.sendingEnabled` and redirects to `/secure/admin/StructureSupport.jspa`. Nothing is ever uploaded (SPEC.md section 1.8).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSupport#action"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/support-statistics-report",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`StructureSupport.jspa?showStatistics=true` shows the report of `statistics-manager` as text lines `<name>: <value>` joined by newlines. The first is `Report interval: <start> - <now>` (`s.admin.statistics.report.general.interval`), both dates in US medium date style. Then one line per statistic, in the report's order, with the value in `#.##` format. The text is HTML-encoded, and the display height is the line count clamped to 6..24.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureSupport#actionShowStatistics",
+    "com.almworks.jira.structure.webwork.StructureSupport#getReportLineCount"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/aosupport",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureAOSupport.jspa`: system administrators only, and it works while the plugin is locked. It shows whether the plugin's tables are locked (`s.admin.ao.lock.locked` with an unlock form, or `s.admin.ao.lock.unlocked`). A submit with `execute=true` through `StructureAOSupport!apply.jspa` (a plain URL gives the security-breach page) force-unlocks through `structure-database-provider` when the tables are locked, does nothing when they are not, and redirects to `/secure/admin/StructureAOSupport.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAOSupport#action",
+    "com.almworks.jira.structure.webwork.StructureAOSupport#isLocked",
+    "com.almworks.jira.structure.webwork.StructureAOSupport#forceUnlock",
+    "com.almworks.jira.structure.webwork.StructureAOSupport#checkStopped"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/clearcaches-gate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/ClearStructureCaches.jspa`: any user for whom `StructurePluginHelper.isStructureAvailableToCurrentUser()` is true, anonymous included when allowed. Others are refused with nothing cleared. The descriptor maps no page for that refusal, so what Jira shows then could not be determined (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ClearStructureCaches#action",
+    "com.almworks.jira.structure.webwork.StructureActionSupport#requireStructureAccessible"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/clearcaches-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/ClearStructureCaches.jspa` without `confirm=true` clears nothing and shows the form: `action` (only `clearOwnCaches` for a non-administrator; administrators also get `clearUserCaches`, `clearAllCaches` and, on Data Center, `clearClusterCaches`), `user` (default: the current user's name), and a warning that clearing may affect performance.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ClearStructureCaches#action"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/clearcaches-return",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The target after clearing, and the form's back link, is the `returnUrl` parameter when given, else the `redirect` parameter, else `/secure/StructureBoard.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ClearStructureCaches#initRedirect"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/clearcaches-submit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With `confirm=true` the request must have come through `ClearStructureCaches!apply.jspa`, otherwise the security-breach page. `action=clearOwnCaches` clears the caller's caches for any caller. `clearUserCaches`, `clearAllCaches` (this node) and `clearClusterCaches` (all nodes; accepted on a single node too) need `StructurePluginHelper.isAdmin()`, else the security-breach page. After clearing it redirects. An unknown or missing `action` logs a warning, clears nothing and shows the form. These use `structure-cache-helper`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ClearStructureCaches#action"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/clearcaches-user",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`action=clearUserCaches` finds the user by `user` as a user name (`UserManager.getUserByName`). A missing `user` or an unknown name logs a warning and clears nothing, and the page still redirects as after success.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ClearStructureCaches#clearUserCaches"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/perflog-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/PerformanceAuditLogView.jspa`: system administrators only. It shows the sensitive-data warning (`str.admin.support.performanceAuditLog.sensitive.data.warning`, `Please note that the log may contain sensitive data. Please review it before sending.`) and the text dump of `performance-observer`'s log, and a form that repeats the request with a non-empty `save`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.PerformanceAuditLogView#action",
+    "com.almworks.jira.structure.webwork.PerformanceAuditLogView#dumpInfo"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/perflog-text-format",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The dump writes each `NodeInfo` title on its own line, indented with two spaces per level, the root at level 0, children in order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.PerformanceAuditLogView#writeRecursively"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/perflog-download",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With a non-empty `save` parameter the response is reset and sent as a download: `Content-Type: text/plain`, `Content-Disposition: attachment; filename=\"performance-audit-<UTC yyyyMMdd'T'HHmmss.SSS'Z'>.log\"`, UTF-8, buffer size 8192, `Last-Modified` now, `Expires` 1 ms later. The body is the sensitive-data warning, an empty line, then the dump. No page is rendered. An `IOException` is logged with the page's 'error' outcome, for which the descriptor maps no page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.PerformanceAuditLogView#writeToFile",
+    "com.almworks.jira.structure.webwork.PerformanceAuditLogView#getFileName"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/perflog-collect-failure",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When collecting the log throws an `Exception` or `LinkageError`, the dump is the single line `Encountered error while collecting information: <exception>`. When `performance-observer` returns null (no provider registered) the dump fails with `NullPointerException` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.PerformanceAuditLogView#getInfoTree",
+    "com.almworks.jira.structure.webwork.PerformanceAuditLogView#writeRecursively"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/darkfeatures",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureDarkFeatures.jspa`: GET only, requires a Jira administrator and a WebSudo session (Jira asks for it first). The page shows a warning, a form to add a key named `darkFeatureKey`, a key/value table, and a load-failure message; the values are read and changed through the dark-features resource of `rest-v2`, not by the page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureDarkFeatures#action",
+    "com.almworks.jira.structure.webwork.StructureDarkFeatures"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/attrsensitivity",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureAttributeSensitivity.jspa`: GET only, Jira administrators only. The default return URL is the page itself. The page presents the sensitivity mode choice (standard 0, strict 1, permissive 2) and the list of non-sensitive attributes with add, edit and delete; values load and save through REST, not by the page. The descriptor maps no page for the 'disabled' outcome, so what a request during a lock sees could not be determined (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAttributeSensitivity#action",
+    "com.almworks.jira.structure.webwork.StructureAttributeSensitivity#includeCalendarResource"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/attrtrouble-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureAttributeTroubleshooting.jspa`: system administrators only. It shows the warning `str.admin.support.attributeTroubleshooting.sensitive.data.warning` and a text dump of `attribute-detailed-log-provider`'s dump, and a form that repeats the request with a non-empty `save`. A non-empty `without-cache-info` asks the provider to omit cache info, on the page and in the download.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAttributeTroubleshooting#action",
+    "com.almworks.jira.structure.webwork.StructureAttributeTroubleshooting#dumpInfo",
+    "com.almworks.jira.structure.webwork.StructureAttributeTroubleshooting#isWithoutCacheInfo"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/attrtrouble-format",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The dump is four headed sections at column 0, in order `Cache info`, `Historical stat`, `Total stat`, `Broken attributes`, each followed by its `NodeInfo` tree starting at level 1, with two spaces per level. A null part or null list writes only the heading.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAttributeTroubleshooting#dumpAndWriteAll",
+    "com.almworks.jira.structure.webwork.StructureAttributeTroubleshooting#writeRecursively"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/attrtrouble-download",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With a non-empty `save` the response is a download like the performance log's (same headers, buffer and encoding), named `attribute-statistic-<UTC yyyyMMdd'T'HHmmss.SSS'Z'>.log`, with the warning, an empty line, then the dump. An `IOException` is logged, with the 'error' outcome for which the descriptor maps no page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureAttributeTroubleshooting#writeToFile",
+    "com.almworks.jira.structure.webwork.StructureAttributeTroubleshooting#getFileName"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/sjql-page",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructuredJqlTroubleshooting.jspa`, also under `/secure/admin/`: GET only, for any user with `StructurePluginHelper.isStructureAvailableToCurrentUser()` true, not only administrators; others get the security-breach page. The page presents instructions and inputs for a structure (`structureArg`), an S-JQL query (`queryArg`) and whether to include relation output (`includeRelOutput`). It changes nothing itself; running a query happens through REST from the page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructuredJqlTroubleshooting#action"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/licensedetails",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/admin/StructureLicenseDetails.jspa`: Jira administrators only; others get the security-breach page. It reports the fixed state for the plugin and every recognised extension: licensed, valid, not expiring (SPEC.md section 1.1). It accepts, reads, validates and stores no licence and makes no network call; request parameters and submits change nothing, and the same page is shown.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureLicenseDetails"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/removeadj-gate",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureRemoveAdjustments.jspa?id=<structure id>`: an anonymous caller gets the security-breach page, then so does a user without <product> access. With `id` missing or not positive it redirects to the `returnUrl`, whose default is `/secure/ManageStructure.jspa?view=recent`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRemoveAdjustments#action",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#initAction",
+    "com.almworks.jira.structure.webwork.ManageStructureActionSupport#setManageStructureAsReturnUrl"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/removeadj-structure-access",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The structure must be readable at `PermissionLevel.ADMIN`. Otherwise the plain error page says `You don't have Control permissions on structure <id>` (`s.manage.edit.noaccess`) to a non-administrator who can view it, and `Structure with id <id> does not exist or you don't have permissions to view it.` (`s.manage.edit.notfound`) to everybody else. An archived structure is accepted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#loadStructure",
+    "com.almworks.jira.structure.webwork.ManageSelectedStructureActionSupport#getRequiredStructurePermissionLevel"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/removeadj-facts",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The page presents the structure's id, name, description, owner, and the adjustments, as one of: `Manual adjustments are disabled for this Jira` when `adjustment-service` is off; `Manual adjustments are disabled for this structure` when off for the structure; `None` when there are none; otherwise their count. The confirm control is always present, and cancel returns to the return URL.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRemoveAdjustments#readStructureData",
+    "com.almworks.jira.structure.webwork.StructureRemoveAdjustments#getAdjustmentCount",
+    "com.almworks.jira.structure.webwork.StructureRemoveAdjustments#serviceDisabled",
+    "com.almworks.jira.structure.webwork.StructureRemoveAdjustments#adjustmentsDisabledForStructure",
+    "com.almworks.jira.structure.webwork.StructureRemoveAdjustments#structureHasNoAdjustments"
+   ]
+  },
+  {
+   "key": "w2-pages-admin/ww-structure/removeadj-submit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Submit with `execute=true` through `StructureRemoveAdjustments!apply.jspa` (a plain URL gives the security-breach page) deletes the structure's manual adjustments in `adjustment-store` only when the service is on, the structure has them on, and it has some; in the other cases nothing changes. Both finish with Jira's inline-complete-or-redirect to the return URL.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.webwork.StructureRemoveAdjustments#action",
+    "com.almworks.jira.structure.webwork.StructureRemoveAdjustments#removeManualAdjustments"
+   ]
+  }
+ ]
+}

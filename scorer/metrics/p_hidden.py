@@ -8,7 +8,9 @@ counts as failed and the reason is returned.
 
 Tasks without a server (``scorer.yaml`` has no ``app_cmd``, e.g. minidb) skip the app: the hidden
 tests drive the agent's program themselves, in subprocesses, through ``test_env`` placeholders
-``{ws}`` (the temp copy of the snapshot) and ``{python}`` (the scorer venv interpreter).
+``{ws}`` (the temp copy of the snapshot) and ``{python}`` (the scorer venv interpreter). ``{tools}`` is the
+task's toolchain dir (``task.toolchain.dir``; empty when the spec has none), for suites that build the
+agent's code with it (jira-re's public-API tier, phase JA1).
 """
 from __future__ import annotations
 
@@ -124,7 +126,7 @@ def collect_ids(python: Path, hidden: Path, env: dict[str, str], cwd: Path,
 
 def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
                  forbid: list[Path] | None = None, stage: int | None = None,
-                 timing: bool = True) -> dict:
+                 timing: bool = True, tools_dir: Path | None = None) -> dict:
     """Return ``{"value", "detail"}`` for the P metric.
 
     Timing tests (``scorer.yaml`` ``timing_k``, a pytest ``-k`` expression) assert wall-clock limits.
@@ -162,7 +164,7 @@ def score_hidden(snapshot_ws: Path, hidden: Path, python: Path, *,
                            if has_app else (True, ""))
                 suite = SuiteResult()
                 if ok:
-                    t_env = {k: _fmt(v, port, db, app_dir, python)
+                    t_env = {k: _fmt(v, port, db, app_dir, python).replace("{tools}", str(tools_dir or ""))
                              for k, v in (cfg.get("test_env") or {}).items()}
                     t_env.setdefault("LRAE_APP_URL", url)
                     t_env.setdefault("LRAE_APP_DB", str(db))

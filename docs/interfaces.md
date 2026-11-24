@@ -204,7 +204,8 @@ hazard event of the mode; VI = the `security` hazard), `incidence_by_hour`, `inc
 interval_counters(events_dir: Path, models_yaml: Path | None = None) -> list[dict]
 # one dict per checkpoint k (1-based, in order), each {"k": k, "<name>": value, ...}
 # names: tokens_in, tokens_out, tokens_cache_read, tokens_cache_creation, cost_usd, tool_calls,
-#        context_fill_max, context_fill_last, compactions, turns, sessions, api_errors, otel_lag_ms_p95
+#        context_fill_max, context_fill_last (main agent only), helper_context_fill_max (helper agents),
+#        compactions, turns, sessions, api_errors, otel_lag_ms_p95
 # plus cumulative variants prefixed "cum_" for tokens_*, cost_usd, tool_calls, compactions, turns.
 cumulative_cost(otel_events: Path) -> float                       # unchanged signature
 cumulative_tokens(otel_events: Path) -> int
@@ -372,7 +373,7 @@ stages:
 
   Both are hashed only when set, so existing specs keep their hash.
 
-## 10. Counterparts (D-19, plan B3)
+## 10. Counterparts (D-28, plan B3)
 
 `task.counterparts` (spec): `ops: {policy_file}` and/or `embed: {dims}`. They start in PREPARING,
 before the agent env is built, and stop in FINALIZING. Their events go to

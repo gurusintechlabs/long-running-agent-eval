@@ -1,0 +1,1362 @@
+{
+ "claims": [
+  {
+   "key": "c5-integrations/sprint-tracker/listener-lifecycle",
+   "module": "sprint-tracker",
+   "api": null,
+   "behaviour": "When the `sprint-tracker` component is initialised it registers one issue listener with the `IssueEventBridge` (the `event-bridge` component); when the component is destroyed it removes that same listener. Before initialisation and after destruction it reacts to no events.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.agile.AgileSprintChangesTracker#afterPropertiesSet",
+    "com.almworks.jira.structure.integration.agile.AgileSprintChangesTracker#destroy"
+   ]
+  },
+  {
+   "key": "c5-integrations/sprint-tracker/subtasks-get-sprint-updated",
+   "module": "sprint-tracker",
+   "api": null,
+   "behaviour": "When the event bridge delivers an `IssueChangeEvent` of type `JiraChangeType.ISSUE_UPDATED` that carries a Jira `IssueEvent` whose change log contains at least one change item whose field name is one of the configured sprint field names, the component asks Jira's `SubTaskManager` for the sub-task links of the event's issue and, for every sub-task link with a non-null destination id, reports a new `IssueChangeEvent` of type `JiraChangeType.GH_SPRINT_UPDATED` for that sub-task's issue id back to the `IssueEventBridge`, one event per sub-task, in the order Jira returns the links. No extra event is reported for the parent issue itself.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.agile.AgileSprintChangesTracker",
+    "com.almworks.jira.structure.integration.agile.AgileSprintChangesTracker#isSprintFieldChanged"
+   ]
+  },
+  {
+   "key": "c5-integrations/sprint-tracker/sprint-field-names-setting",
+   "module": "sprint-tracker",
+   "api": null,
+   "behaviour": "The sprint field names are read once, when the component is created, from dark feature `structure.sprint.field.names` (default `Sprint`), split at commas without trimming; a change item matches only when its field name equals one of these strings exactly (case-sensitive). For example with the default only change items whose field is `Sprint` count; with `Sprint,Iteration` both `Sprint` and `Iteration` count.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.agile.AgileSprintChangesTracker",
+    "com.almworks.jira.structure.integration.agile.AgileSprintChangesTracker#isSprintFieldChanged"
+   ]
+  },
+  {
+   "key": "c5-integrations/sprint-tracker/ignored-events",
+   "module": "sprint-tracker",
+   "api": null,
+   "behaviour": "The component reports nothing when: the change type is anything other than `ISSUE_UPDATED`; the event is not an `IssueChangeEvent`; the event carries no Jira `IssueEvent`; the Jira event has no change log; no change item names a sprint field; the Jira event has no issue; or the issue has no sub-tasks. Sub-task links whose destination id is null are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.agile.AgileSprintChangesTracker"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/mode-selection",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "`bulk-link-processor` works in one of two modes, chosen once, on its first use (or at its lifecycle start), from dark feature `structure.bulkLinkProcessor.useLinkManager` (default false): false selects the direct entity-store mode (links written straight to Jira's `IssueLink` entity at commit), true selects the link-manager mode (every change goes through Jira's `IssueLinkManager` immediately). The choice is logged at info level and kept for the component's lifetime; changing the dark feature later has no effect until the plugin restarts. Lifecycle start and stop are forwarded to the chosen implementation.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.SwitchingBulkLinkProcessor#createProcessor",
+    "com.almworks.structure.commons.issuelink.SwitchingBulkLinkProcessor#useLinkManager",
+    "com.almworks.structure.commons.issuelink.SwitchingBulkLinkProcessor#startComponent"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/transaction-per-user",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "Every use starts a transaction for a given Jira user. Within a transaction callers can list a link type's links, an issue's inward links, an issue's outward links, look up one link by (link type id, source issue id, destination issue id), create a link, remove a link, commit, and get a description of the changes made. Links are reported with link id, link type id, source and destination issue ids; any Jira link whose id, type id, source id or destination id is null or not positive is left out of every result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.BulkLinkProcessor",
+    "com.almworks.structure.commons.issuelink.LinkBean#fromLink"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/manager-mode-create",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "In link-manager mode, creating a link calls `IssueLinkManager.createIssueLink(source, destination, linkTypeId, null, user)` with the transaction's user at once. A `CreateException` is logged as a warning and not thrown. Afterwards the component looks the link up again with `IssueLinkManager.getIssueLink(source, destination, linkTypeId)`: if it exists the link is returned and a `createLink` description is recorded; if not, null is returned and a failed `createLink` description is recorded with reason `failed` and the exception (if any).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.ManagerBasedLinkProcessor$Transaction#createLink",
+    "com.almworks.structure.commons.issuelink.BulkLinkProcessor$AbstractLinkTransaction#recordCreateLinkFailed"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/manager-mode-remove",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "In link-manager mode, removing a Jira link that has a null id, link type id, source id or destination id records a failed `removeLink` description with reason `invalid` and does not call Jira. Otherwise it calls `IssueLinkManager.removeIssueLink(link, user)` at once; any exception is logged as a warning and not thrown. It then checks `IssueLinkManager.getIssueLink(linkId)`: null means success (a `removeLink` description is recorded), otherwise a failed `removeLink` description with reason `linkStillExists` (and the exception, if one occurred) is recorded. Removing a link value that does not wrap a real Jira link throws `IllegalStateException`. In this mode commit does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.ManagerBasedLinkProcessor$Transaction#removeLink",
+    "com.almworks.structure.commons.issuelink.ManagerBasedLinkProcessor$Transaction#isValid"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/manager-mode-reads",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "In link-manager mode, every read goes straight to Jira: inward links of an issue from `IssueLinkManager.getInwardLinks`, outward links from `getOutwardLinks`, one link from `getIssueLink(source, destination, type)`, and all links of a type from `getIssueLinks(typeId)`. Changes made in the transaction are visible at once because they are already applied in Jira.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.ManagerBasedLinkProcessor$Transaction#getInwardLinks",
+    "com.almworks.structure.commons.issuelink.ManagerBasedLinkProcessor$Transaction#getOutwardLinks",
+    "com.almworks.structure.commons.issuelink.ManagerBasedLinkProcessor$Transaction#getLinks",
+    "com.almworks.structure.commons.issuelink.ManagerBasedLinkProcessor$Transaction#getLink"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/entity-mode-buffered-create",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "In direct entity-store mode nothing is written before commit. Creating a link first looks for an existing one with the same link type, source and destination (pending creations of this transaction first, then Jira's `IssueLinkManager.getIssueLink`, ignoring links already marked for removal in this transaction); if one exists it is returned unchanged and nothing new is queued. Otherwise a pending link is returned whose id is negative: the first one gets id -10001, the next -10002, and so on.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#createLink",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#getLink"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/entity-mode-remove",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "In direct entity-store mode, removing a pending link (negative id) simply cancels its creation (removing an unknown negative id does nothing); removing an existing link marks it for deletion at commit. A Jira link that is not valid (null or non-positive id, type, source or destination) is ignored by remove.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#removeLink"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/entity-mode-reads-see-pending",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "In direct entity-store mode, reads inside a transaction show the transaction's own pending changes: an issue's inward and outward links and a link type's links are read from `IssueLinkManager`, minus links marked for removal, plus pending creations whose destination (inward), source (outward) or link type (by type) matches; looking up one link returns a pending creation or the Jira link unless it is marked for removal (then null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#getInwardLinks",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#getOutwardLinks",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#getLinks",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#applyRemoval"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/entity-mode-commit",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "In direct entity-store mode, commit runs at most once per transaction (later calls do nothing) and does nothing at all when there are no pending changes. Otherwise it first deletes each link marked for removal from Jira entity `IssueLink` by `id`, then inserts one `IssueLink` row per pending creation with columns `source`, `destination`, `linktype` and `sequence` = null, in creation order. Afterwards, even if a write failed, it always: clears `IssueLinkManager`'s cache, calls `IssueLinkManager.resetSequences` with an empty list, runs the optional reindex, and publishes through Jira's `EventPublisher` an `IssueLinkCreatedEvent` for each created link (the link re-read from `IssueLinkManager`) followed by an `IssueLinkDeletedEvent` for each removed link. A failure in any of these after-steps is logged as an error and does not stop the others. The transaction's user is not used in this mode (no permission checks).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#commit",
+    "com.almworks.structure.commons.issuelink.BulkLinkProcessor$AbstractLinkTransaction#reportChanges",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor#begin"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/entity-mode-reindex-flag",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "In direct entity-store mode, dark feature `structure.sync.links.force.reindex` (default false, read when the transaction starts) controls reindexing: when true, after commit the source and destination issues of every created or removed link are reindexed with Jira's `IssueIndexer.reindexIssues(issues, null context, IssueIndexingParams.INDEX_ALL, true, true)` (each issue once); when false no reindex is requested by the component.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#reindex",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkProcessor$Transaction#scheduleReindex"
+   ]
+  },
+  {
+   "key": "c5-integrations/bulk-link-processor/describe-changes",
+   "module": "bulk-link-processor",
+   "api": null,
+   "behaviour": "A transaction's description is an unmodifiable list, in the order the changes were applied (at once in link-manager mode, at commit in entity-store mode), of maps with keys `type` (`createLink` or `removeLink`), `source` and `destination` (each the issue info of `SyncAuditLogHelper.issueInfo`: `key` when known and `id`) and `linkTypeId`. A failed change adds the `SyncAuditLogHelper.getFailureDescription` entries: `result` = `failure`, `reason` when given and `exception` when there was one.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.BulkLinkProcessor$AbstractLinkTransaction#describe",
+    "com.almworks.structure.commons.issuelink.BulkLinkProcessor$AbstractLinkTransaction#describeLink"
+   ]
+  },
+  {
+   "key": "c5-integrations/issue-links-bulk-source/find-links-by-direction",
+   "module": "issue-links-bulk-source",
+   "api": null,
+   "behaviour": "`issue-links-bulk-source` reads issue links for many issues at once straight from Jira's `IssueLink` entity. Given a set of issue ids and a direction: OUTWARD finds links whose `source` is one of the ids, INWARD links whose `destination` is one of them, ANY links where either end is one of them. Each found link is passed to the caller as (issue from the set, issue at the other end, link type id, link id): for an outward match the first value is the source, for an inward match it is the destination. With ANY, a link whose two ends are both in the set is reported twice, once from each end. Rows with a null source or destination are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource#findLinks",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource#processLink",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource#getIssueCondition"
+   ]
+  },
+  {
+   "key": "c5-integrations/issue-links-bulk-source/link-type-filter-and-columns",
+   "module": "issue-links-bulk-source",
+   "api": null,
+   "behaviour": "When a link type id is given, only links of that type (`linktype` = id) are read and every reported link carries that id as its type. Without one, all link types are read and the reported type is the link's `linktype` value if the caller asked for link types, otherwise null. The link id is reported only if the caller asked for it, otherwise null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource#findLinks",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource#columns",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource#addLinkTypeId"
+   ]
+  },
+  {
+   "key": "c5-integrations/issue-links-bulk-source/ordering",
+   "module": "issue-links-bulk-source",
+   "api": null,
+   "behaviour": "Ordering: ID sorts the rows read by `id`, SEQUENCE by `sequence`, UNORDERED adds no sort. The sort applies within each batch query, not across batches.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource#addOrdering"
+   ]
+  },
+  {
+   "key": "c5-integrations/issue-links-bulk-source/batching",
+   "module": "issue-links-bulk-source",
+   "api": null,
+   "behaviour": "Issue ids are split into batches, one query per batch, in the order of the given ids. The batch size is dark feature `structure.feature.links.ofbizBatchSize` (default: Jira's own OfBiz query batch size, `DefaultOfBizDelegator.getQueryBatchSize()`), read when the component is created; for direction ANY the batch size is halved because each id appears in two conditions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource",
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource#scaleBatchSize"
+   ]
+  },
+  {
+   "key": "c5-integrations/issue-links-bulk-source/bulk-threshold",
+   "module": "issue-links-bulk-source",
+   "api": null,
+   "behaviour": "The component advises callers to switch to bulk reading from a threshold of dark feature `structure.feature.links.ofbizBatchingThreshold` issues (default 1), read once when the component is created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.issuelink.OfBizBasedLinkSource#adviseBulkThreshold"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/agile-version-signature",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "`gh-integration` reports the installed Jira Software (agile) app's version as a number: it looks up plugin `com.pyxis.greenhopper.jira` in Jira's `PluginAccessor` and turns its version string into major*10000 + minor*100 + micro, taken from the leading `<digits>.<digits>[.<digits>]` of the string (e.g. `9.12.3` gives 91203, `9.12` gives 91200, `9.12.3-DC` gives 91203). The result is 0 when the plugin is not installed, has no plugin information, the version does not start that way, or the lookup throws (logged as a warning). The value is computed on first request and then kept for the component's lifetime, including 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#getGreenHopperVersion",
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#calcGreenHopperVersion",
+    "com.almworks.structure.commons.util.VersionUtil#getVersionSignature"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/sprint-field-type-key",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "A custom field type is the agile Sprint field type exactly when its type key is `com.pyxis.greenhopper.jira:gh-sprint`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#isSprintField"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/managed-fields-and-types",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "The Epic Name, Epic Link and Sprint custom fields, the epic issue type and the epic issue link type are asked of Jira Software's own services on every call: `com.atlassian.greenhopper.api.customfield.ManagedCustomFieldsService` (`getEpicNameCustomField`, `getEpicLinkCustomField`, `getSprintCustomField`), `com.atlassian.greenhopper.api.issuetype.ManagedIssueTypesService.getEpicIssueType` and `com.atlassian.greenhopper.api.issuelink.ManagedIssueLinkTypesService.getEpicLinkIssueLinkType`, each obtained as an OSGi component. Each answer is null when the service cannot be obtained (absent app, disabled app, or any exception or linkage error, logged at info level), when the outcome is null, or when the outcome is invalid (its error messages are logged as a warning). The Epic Link field id is that field's id, or null when there is no such field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperAccessor#getEpicIssueType",
+    "com.almworks.structure.commons.agile.GreenHopperAccessor#getEpicLinkType",
+    "com.almworks.structure.commons.agile.GreenHopperAccessor#getEpicNameCustomField",
+    "com.almworks.structure.commons.agile.GreenHopperAccessor#getComponent",
+    "com.almworks.structure.commons.agile.GreenHopperAccessor#withOptionalService",
+    "com.almworks.structure.commons.agile.GreenHopperUtilsKt#getOutcomeValue"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/resolve-epic",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Finding an issue's epic: a null issue id gives null; when the epic link type or epic issue type (or their ids) cannot be resolved the answer is null. Otherwise the component reads the issue's inward links from `IssueLinkManager.getInwardLinks(issueId)` and returns the source issue of the first link whose type is the epic link type and whose source issue has the epic issue type; if none qualifies, null. A variant takes the epic link type id and epic issue type id from the caller instead of resolving them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#getEpic"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/is-epic-and-epic-name",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "An issue is an epic when its issue type id equals the epic issue type's id; a null issue, or an unresolvable epic issue type, gives false. An epic's display name is its Epic Name field value when that field exists and the value is a String; otherwise the issue key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#isEpic",
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#getEpicName"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/boards-for-user",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Boards: board support is reported available exactly when Jira Software's `com.atlassian.greenhopper.service.rapid.view.RapidViewService` can be obtained as an OSGi component. The boards a user sees come from `RapidViewService.getRapidViews(user)`; each is turned into (name, id, whether sprint support is enabled) and the list is sorted by name, ignoring case (lower-cased in `Locale.ROOT`). When the service is unavailable, throws while being obtained, or returns an invalid outcome (logged as a warning naming the user), the list is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#supportsRapidViews",
+    "com.almworks.structure.commons.agile.RapidViewServiceWrapper#getRapidViews",
+    "com.almworks.structure.commons.agile.RapidViewServiceWrapper#isAvailable",
+    "com.almworks.structure.commons.agile.RapidViewConverter#convertAndSort"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/boards-by-project-and-projects-by-board",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Boards of a project come from `com.atlassian.greenhopper.service.rapid.ProjectRapidViewService.findRapidViewsByProject(user, project)`, converted and sorted by name ignoring case as above; empty when unavailable or invalid. Projects of a board: the board is first fetched with `RapidViewService.getRapidView(user, boardId)`; if it is not found or not visible the result is an empty set, otherwise `ProjectRapidViewService.findProjectsByRapidView(user, board)`; unavailable services or invalid outcomes give an empty set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#getRapidViews",
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#findProjectsByRapidView",
+    "com.almworks.structure.commons.agile.ProjectRapidViewServiceWrapper#findRapidViewsByProject",
+    "com.almworks.structure.commons.agile.ProjectRapidViewServiceWrapper#findProjectsByRapidView"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/board-filter-and-name",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "A board is fetched with `RapidViewService.getRapidView(user, boardId)` (null when the service is unavailable or the outcome is invalid, logged as a warning). A board's saved filter is `SearchRequestManager.getSearchRequestById(board's saved filter id)`, and its filter query is that filter's `Query`; both are null when the board or its filter id is missing. A board's name is the board's name, or null when the board id is null or the board is not found.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#getRapidViewSavedFilter",
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#getRapidViewFilterQuery",
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#getRapidViewName",
+    "com.almworks.structure.commons.agile.RapidViewServiceWrapper#getRapidView",
+    "com.almworks.structure.commons.agile.RapidViewServiceWrapper#getRapidViewFilterQueryId"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/filter-invisible-boards",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Given a set of board ids and a user, the component returns a new set holding only the ids for which `RapidViewService.getRapidView(user, id)` returns a valid outcome. When the board service is unavailable the result is the empty set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#filterInvisibleRapidViews",
+    "com.almworks.structure.commons.agile.RapidViewServiceWrapper#filterInvisibleRapidViews"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/format-sprint-name",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Formatting a sprint's name for a user: when the sprint's board id resolves to a board name (as that user), the name first becomes the i18n text `s.ext.it.sprint.summary.name-board` with arguments (sprint name, board name). The result is then wrapped by state: ACTIVE in `s.ext.it.sprint.summary.active`, FUTURE in `s.ext.it.sprint.summary.future`, CLOSED in `s.ext.it.sprint.summary.closed` (the name as the single argument). Texts come from the plugin's i18n helper.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#formatSprintName"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/change-permissions",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Permission checks for the current Structure user (`StructureAuth.getUser()`) on an issue: changing rank and changing sprint each need Jira project permission `SCHEDULE_ISSUES` (Schedule Issues); without it the answer is the text of `s.ext.gen.agile.block.no-schedule-perm` in the current user's locale. Changing the epic needs `EDIT_ISSUES`; without it the answer is the text of `s.ext.gen.agile.block.no-edit-perm`. When the permission is held the answer is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#checkChangeRankPermissions",
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#checkChangeSprintPermissions",
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#checkChangeEpicPermissions"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/rank-field-from-board",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Finding a board's rank field: the board's filter query is read; if there is none, or its ORDER BY has anything other than exactly one sort, the answer is null. The single sort's field name is first parsed as a JQL custom field id (`cf[NNNNN]`); if that works the custom field with that id is returned when the caller's rank check accepts it (else null). Otherwise the custom fields with that exact name (`CustomFieldManager.getCustomFieldObjectsByName`) are checked in order and the first one accepted as a rank field is returned; none gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#getRankFieldFromRapidView",
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#findRankCustomField"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/epic-assignment",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Setting the epic of a set of issues goes through Jira Software's `com.atlassian.greenhopper.service.issuelink.EpicService` as the given user: with a non-null epic it calls `addIssuesToEpic` with an `IssueLinkRequest.linkEpic(user, epic, issues)` request; with a null epic it calls `removeEpicFromIssues` with `IssueUnlinkRequest.unlinkEpic(user, issues)`. The answer is whether the service result is valid; it is false when the service is unavailable. Epic setting is reported available exactly when `EpicService` can be obtained.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.EpicServiceWrapper#setEpic",
+    "com.almworks.structure.commons.agile.EpicServiceWrapper#isAvailable"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/sprint-lookup-and-search",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Sprint reads through Jira Software's `com.atlassian.greenhopper.service.sprint.SprintService`: one sprint for a user with `getSprint(user, id)`; a board's sprints with `getSprints(user, board, all pages, no query)` (only when the given board object is Jira Software's own board model, otherwise empty); sprints by name with `findSprintsByName(user, text, 100, excludeCompleted)`, where the 'all' search passes false and the 'active' search passes true, so at most 100 sprints are returned. Unavailable service or invalid outcome gives null (single sprint) or an empty list, with a warning naming the call.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#getSprint",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#getSprints",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#findAllSprintsByName",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#findActiveSprintsByName",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#findSprintsByName"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/sprint-conversion",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Each Jira Software sprint is turned into a `com.almworks.jira.structure.api.agile.Sprint` value with its board id, id, name, start, end and completion date-times (converted to `ZonedDateTime` in the date's own zone; null stays null), goal, sequence (0 when Jira gives null) and state: CLOSED when the sprint is closed, else FUTURE when it is future, else ACTIVE. An object that is not a Jira Software sprint, or whose conversion throws, is dropped (logged as a warning). Sprints compare by state in the order ACTIVE, FUTURE, CLOSED, then by sequence ascending.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#convertSprint",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#convertSprints",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#getSprintState",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#toZonedDateTime",
+    "com.almworks.structure.commons.agile.Sprint#compareTo"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/sprint-changes",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Moving issues into a sprint and removing them from one go through Jira Software's `com.atlassian.greenhopper.service.sprint.SprintIssueService` (`moveIssuesToSprint` / `removeIssuesFromSprint`) as the given user, after re-fetching the sprint by id with `SprintService.getSprint(user, id)`. The answer is whether the service result is valid; it is false when the sprint cannot be fetched or the service is unavailable. Sprint changes are reported possible exactly when `SprintIssueService` can be obtained; sprint reads are reported available exactly when `SprintService` can be obtained.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#moveIssuesToSprint",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#removeIssuesFromSprint",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#canChangeSprints",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#isAvailable"
+   ]
+  },
+  {
+   "key": "c5-integrations/gh-integration/sprint-internal-reflection",
+   "module": "gh-integration",
+   "api": null,
+   "behaviour": "Two sprint reads do not need a user and reach inside Jira Software reflectively: one sprint by id and all sprints are read through the `SprintService` component's internal `sprintManager` (`getSprint(id)`, `getAllSprints()`). Whether the 'relevant sprints per project' sprint picker is on is read as the boolean property `gh.configuration.sprint.picker.per.project` through the service's internal feature service and property store. Any missing service, field, method or wrong result type gives null, an empty list or false respectively (logged as a warning); results of invalid outcomes are treated the same.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#getSprint",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#getAllSprints",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#isRelevantSprintsEnabled",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#getObjectField",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#callObjectMethod"
+   ]
+  },
+  {
+   "key": "c5-integrations/hidden-links-helper/internal-link-types",
+   "module": "hidden-links-helper",
+   "api": null,
+   "behaviour": "`hidden-links-helper` treats a link type as internal when it is Jira's sub-task link type, or when its id equals the id of Jira Software's epic link type as reported by `gh-integration` (when that is unresolvable, only the sub-task type is internal).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.HiddenLinksHelper#isInternalLinkType"
+   ]
+  },
+  {
+   "key": "c5-integrations/hidden-links-helper/hidden-link-types",
+   "module": "hidden-links-helper",
+   "api": null,
+   "behaviour": "A link type is 'hidden' when it is a Jira system link type and not internal. The list of hidden link types is empty when the hidden-links feature is off; when it is on it is every link type Jira's `IssueLinkTypeManager.getIssueLinkTypes(false)` returns (system types included) that is hidden, in Jira's order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.HiddenLinksHelper#getHiddenLinkTypes",
+    "com.almworks.jira.structure.util.HiddenLinksHelper#isHiddenLinkType"
+   ]
+  },
+  {
+   "key": "c5-integrations/hidden-links-helper/feature-flag",
+   "module": "hidden-links-helper",
+   "api": null,
+   "behaviour": "The hidden-links feature is on when dark feature `structure.feature.hiddenLinks.enabled` is true (default false). The flag is read on first use and then kept for the component's lifetime.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.HiddenLinksHelper#isHiddenLinksDisabled"
+   ]
+  },
+  {
+   "key": "c5-integrations/hidden-links-helper/visible-to-users",
+   "module": "hidden-links-helper",
+   "api": null,
+   "behaviour": "A link type is offered to users when: it is not null and not a system type (always visible); or it is a system type that is not internal and the hidden-links feature is on. A null link type, an internal type (sub-task, epic link) and, with the feature off, every other system type are not visible.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.HiddenLinksHelper#isLinkTypeVisibleToUsers"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/app-detection",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "`portfolio-bridge` asks Jira's `PluginAccessor.isPluginEnabled` on every call: Advanced Roadmaps (Portfolio) is available when plugin `com.atlassian.jpo` is enabled, Roadmaps when `com.radiantminds.roadmaps-jira` is enabled, Team Management when `com.atlassian.teams` is enabled; teams are available only when both Team Management and Roadmaps are enabled. A disabled or absent plugin counts as unavailable; versions are not checked (the `com.atlassian.jpo` version only appears in log messages).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#isPortfolioAvailable",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#isRoadmapsAvailable",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#isPortfolioTeamManagementAvailable",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#isPortfolioTeamsAvailable"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/reaching-app-services",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "The other app's services are reached through OSGi: the bridge looks among all bundles for the one whose `Atlassian-Plugin-Key` manifest header equals the plugin key, takes the Spring `ApplicationContext` that bundle registers as an OSGi service, and fetches beans from it by bean name (trying several names in order and skipping names with no bean definition), calling their methods reflectively. A missing bundle or context is handled as described for each operation, never thrown to the caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.util.OsgiHacks#withApplicationContext",
+    "com.almworks.structure.commons.util.OsgiHacks#getBundleForPlugin",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#getBean",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#withJpoPluginApplicationContext"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/shareable-teams",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "Shareable teams: only when Team Management (`com.atlassian.teams`) is enabled, the bridge takes bean `com.atlassian.rm.teams.core.team.DefaultFullTeamService` from that app and calls `getAllShareableTeams()`, turning each value of the returned map into a team with id (`getId()`) and title (`getDescription().getTitle()`). Entries that cannot be read are dropped. When the app is not enabled, or anything fails (logged as a warning), the result is an empty list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#getShareableTeams",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#getTeamService",
+    "com.almworks.structure.commons.portfolio.Team#fromPortfolioTeam"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/all-teams",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "All teams: only when both Team Management and Roadmaps are enabled, the bridge calls the team service's `getTeams(1, 10000)` (so at most 10000 teams) and converts each one as for shareable teams; otherwise, or on any failure, an empty list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#getAllTeams"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/team-by-id",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "A team by id: only when Team Management is enabled, the bridge calls the team service's `getTeam(long id)`, falling back to `getTeam(long id, false)` when the one-argument method does not exist; the returned optional value is unwrapped (absent gives null) and converted to a team. App not enabled, unreadable team or any failure gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#getTeamById",
+    "com.almworks.structure.commons.portfolio.OptionalDelegate#getOrNull"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/parent-link-field",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "The Parent Link custom field is the optional value returned by `getParentCustomField()` of bean `com.atlassian.rm.jpo.customfields.parent.DefaultParentCustomFieldService` in the `com.atlassian.jpo` app; absent value, missing app bundle or context, or any failure gives null (logged as a warning).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#getParentLinkCustomField",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#getParentCustomField"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/validate-set-parent",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "Validating that an issue may get a given Roadmaps parent (null parent = clearing it) adds error messages to the caller's error collection: if the `com.atlassian.jpo` bundle or its context cannot be found, the text of `s.portfolio.parent.error.jpo-error`. Otherwise the parent-field helper bean (`com.atlassian.rm.jpo.customfields.parent.ParentCustomFieldHelper`, else `com.atlassian.rm.jpo.plugin.customfields.parent.ParentCustomFieldHelper`) is asked `isParentEditable(child)`; missing helper gives `jpo-error`. When not editable, the helper's `getParentNotEditableErrorMessage(child)` is added if it is a non-empty String, else the text of `s.portfolio.parent.error.parent-not-editable`. When editable and the parent is non-null, the app's hierarchy rules are checked with the issue type ids of child and parent; an invalid pair adds `s.portfolio.parent.error.invalid-relationship`. Finally, if the Parent Link field cannot be found, `jpo-error` is added. Any exception or linkage error adds `jpo-error` (logged as a warning).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#jpoValidateSetParent",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#jpoValidateSetParent0",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#getParentCustomFieldHelper"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/hierarchy-rule-check",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "The hierarchy rule check loads class `com.atlassian.rm.jpo.core.hierarchy.HierarchyService` from the `com.atlassian.jpo` bundle, takes its bean from the app context and calls `isValidParentRelationship(childIssueTypeId, false, parentIssueTypeId, false)`; the pair is valid only when the answer is `Boolean.TRUE`. A call that throws counts as invalid (logged as a warning). If the class cannot be loaded or there is no bean, the `jpo-error` text is reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#getParentRelationshipValidator",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#loadHierarchyServiceClass"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/set-parent",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "Setting an issue's Roadmaps parent first runs the same validation; only when it added no errors the bridge updates the child through Jira's `IssueService` as the current Structure user: input parameters carry only the Parent Link field with the parent's issue key (null to clear), keep all other existing values (`setRetainExistingValuesWhenParameterNotProvided(true, true)`) and skip the screen check; `validateUpdate` is called and, if valid, `update`. An invalid validation or update result adds its error collection to the caller's errors. A missing Parent Link field or any exception adds the `jpo-error` text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#jpoSetParent",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#setParentWithIssueInputParams",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#setParentUpdateIssue",
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#createInputParameters"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-bridge/cached-validator-for-batch",
+   "module": "portfolio-bridge",
+   "api": null,
+   "behaviour": "For bulk work the bridge provides a hierarchy validator scoped to one call: within that call each (child issue type, parent issue type) pair is checked with the app at most once and the answer reused. If the app's bundle, context, hierarchy class or bean cannot be obtained, the call fails with a `StructureRuntimeException` whose message is the `s.portfolio.parent.error.jpo-error` text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioBridge#withCachedParentRelationshipValidator"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-integration/availability-and-teams",
+   "module": "portfolio-integration",
+   "api": null,
+   "behaviour": "`portfolio-integration` reports Advanced Roadmaps and teams availability and lists shareable teams, all teams and a team by id exactly as `portfolio-bridge` does (it forwards to it).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#isPortfolioAvailable",
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#isPortfolioTeamsAvailable",
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#getShareableTeams",
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#getAllTeams",
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#getTeamById"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-integration/field-recognition",
+   "module": "portfolio-integration",
+   "api": null,
+   "behaviour": "A custom field type is the Advanced Roadmaps Team field when its implementation class name is exactly `com.atlassian.rm.teams.customfields.team.TeamCustomFieldType`. A custom field is a target date field when its type key is `com.atlassian.jpo:jpo-custom-field-baseline-start` (target start) or `com.atlassian.jpo:jpo-custom-field-baseline-end` (target end); a null field is not.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#isTeamCustomField",
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#isTargetDateField"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-integration/target-field-utc-shift",
+   "module": "portfolio-integration",
+   "api": null,
+   "behaviour": "Whether target date values need a UTC shift depends on the version of plugin `com.atlassian.teams` as a version signature (major*10000 + minor*100 + micro): no such plugin or unparsable version (0) gives false; below 90421 (9.4.21) gives true; 90421 up to 90499 gives false; 90500 up to 91207 gives true; 91208 (9.12.8) and above gives false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#isTargetFieldUTCShiftRequired"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-integration/get-parent",
+   "module": "portfolio-integration",
+   "api": null,
+   "behaviour": "An issue's Roadmaps parent id is read from its issue property `jpo-issue-properties` via Jira's `IssuePropertyService` as the current Structure user: the property value is parsed as a JSON object and its `parent_id` member, read as a string and trimmed, is parsed as a long. A missing property, invalid result, missing or empty `parent_id`, unparsable value or any error gives 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#getParent",
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGatherers#parseParentId"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-integration/get-children",
+   "module": "portfolio-integration",
+   "api": null,
+   "behaviour": "Children of issues are found by the strategy chosen once, when the component is created, by `portfolio-children-gatherer-factory`; the answer maps each child issue id to its parent id. For a single parent the answer is the list of its child ids.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#getChildren",
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-integration/validate-set-parent-rules",
+   "module": "portfolio-integration",
+   "api": null,
+   "behaviour": "Validating a Roadmaps parent change collects every applicable error (localized texts): Advanced Roadmaps not available adds `s.portfolio.parent.error.no-portfolio`; a null child, or a child with a non-positive id, adds `s.portfolio.parent.error.no-child`; otherwise a sub-task child adds `s.portfolio.parent.error.child-is-subtask`, and a child with an id the current user cannot edit (per the plugin helper's issue-editable check) adds `s.portfolio.parent.error.no-edit-perm` (a child with a null id skips the edit check). A non-null parent with a null or non-positive id adds `s.portfolio.parent.error.no-parent`; a sub-task parent adds `s.portfolio.parent.error.parent-is-subtask`. A null parent (clearing) is allowed. Only when none of these apply the app's own validation of `portfolio-bridge` runs and may add errors. The result carries the parent, the child and the errors; it is valid when there are none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#validateSetParent",
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#validateSetParent0"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-integration/set-parent",
+   "module": "portfolio-integration",
+   "api": null,
+   "behaviour": "Setting the parent from a validation result: an invalid result is returned unchanged and nothing is changed. A valid one is checked again with the same local rules; if they pass, the parent is set through `portfolio-bridge` (Jira issue update of the Parent Link field) and a new result with any errors from that step is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioIntegration#setParent"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-children-gatherer-factory/strategy-selection",
+   "module": "portfolio-children-gatherer-factory",
+   "api": null,
+   "behaviour": "`portfolio-children-gatherer-factory` chooses how Roadmaps children are found from dark feature `structure.portfolio.childrenGatherer` (default `auto`): `links` uses issue links, `index` the issue index, `jql` a JQL search plus issue properties, `indexJira11` Jira 11 index doc-values; any other value (including `auto`) uses the issue index on Jira below 11 (version signature below 110000, so on Jira 9.12) and issue links on Jira 11 and later. The choice is logged at info level with the setting and Jira's version signature.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererFactory#build"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-children-gatherer-factory/index-strategy",
+   "module": "portfolio-children-gatherer-factory",
+   "api": null,
+   "behaviour": "Index strategy (the Jira 9 default): the issue types of the given parents are read from the issue index; then the index is searched, in chunks of parent ids, for issues whose issue property `jpo-issue-properties` has `parent_id` among the parent ids, reading each hit's indexed `parent_id` and issue type. A hit whose indexed parent id is missing is skipped (warning that the index is inconsistent). A pair is kept only when both issue types are known and the app's hierarchy rules (see `portfolio-bridge`) accept (child type, parent type); otherwise it is skipped (missing type logged as a warning). The result maps child id to parent id. Any failure, including the app being unavailable, gives an empty map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererInIndex#gatherChildren",
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGatherers#isMissingIssueType"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-children-gatherer-factory/links-strategy",
+   "module": "portfolio-children-gatherer-factory",
+   "api": null,
+   "behaviour": "Links strategy: no parent ids gives an empty map. The parent-child link type is the first link type named `Parent-Child Link` whose style is `jira_jpos_parent_child` (from `IssueLinkTypeManager.getIssueLinkTypesByName`), cached for 60 s (dark feature `structure.portfolio.parentLinkType.cache.timeout`, seconds); none gives an empty map (warning). Parents are processed in chunks of 1024 (dark feature `structure.portfolio.parentLinkChunkSize`): outward links of the chunk come from `IssueLinkManager.getOutwardLinksInBatch`, links of that type map destination (child) to source (parent), issue types of both ends are read from the index, and only pairs accepted by the hierarchy rules are kept. A failure in any chunk makes the whole answer an empty map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererOverLinks#gatherChildren",
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererOverLinks#loadParentLinkTypeId",
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererOverLinks#collectChildrenForChunk",
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererOverLinks"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-children-gatherer-factory/jql-strategy",
+   "module": "portfolio-children-gatherer-factory",
+   "api": null,
+   "behaviour": "JQL strategy: needs the Parent Link custom field (from `portfolio-bridge`), else an empty map. Parent issue keys are read from the index (parents without a key are left out, with a warning). Children are found with JQL `<Parent Link field name> in (<keys>)`, in chunks of 1000 keys (dark feature `structure.portfolio.parentLinkChunkSize`, at least 1); a failing chunk is skipped with a warning. With one parent every child maps to it; with several, each child's `jpo-issue-properties` issue property is read from Jira's `EntityProperty` table in batches (dark feature `structure.portfolio.parentPropertyBatchSize`, default Jira's OfBiz query batch size) and its `parent_id` is kept only if it is one of the parents. Pairs are then filtered by issue types and hierarchy rules as for the other strategies. Any failure gives an empty map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererOverJql#gatherChildren",
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererOverJql#searchChildren",
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererOverJql#readParentLinks",
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererOverJql#resolveParentKeys"
+   ]
+  },
+  {
+   "key": "c5-integrations/portfolio-children-gatherer-factory/index11-strategy",
+   "module": "portfolio-children-gatherer-factory",
+   "api": null,
+   "behaviour": "`indexJira11` strategy: when the search index cannot read doc-values (for example a non-Lucene search backend, or Jira below 11), it returns an empty map and logs a warning advising another setting. Otherwise it finds children like the index strategy but reads each child's `parent_id` from index doc-values, keeps only parents in the given set and filters by issue types and hierarchy rules; any failure gives an empty map.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.portfolio.PortfolioChildrenGathererOverIndex11#gatherChildren"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/app-detection",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "`tempo-integration` checks Jira's `PluginAccessor.getPlugin` on every call: Tempo Accounts is available when plugin `com.tempoplugin.tempo-accounts` exists and is in state ENABLED; Tempo Teams likewise for `com.tempoplugin.tempo-teams`. Tempo Timesheets is available only when `is.origo.jira.tempo-plugin` is ENABLED and the logged-in user has timesheets access; Tempo Planner (planning API) only when `com.tempoplugin.tempo-plan-core` is ENABLED and the user has planner access. Versions are not checked (they only appear in log messages).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#isAccountsPluginAvailable",
+    "com.almworks.structure.commons.tempo.TempoIntegration#isTeamsPluginAvailable",
+    "com.almworks.structure.commons.tempo.TempoIntegration#isTimesheetsPluginAvailable",
+    "com.almworks.structure.commons.tempo.TempoIntegration#isPlanningAPIPluginAvailable"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/user-access-check",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Timesheets and planner access are asked of Tempo itself: in the app's bundle (found by its `Atlassian-Plugin-Key` header) the bean of class `com.tempoplugin.core.permission.api.TempoAccessService` is asked `hasTimesheetsAccess()` (Timesheets) or `hasPlannerAccess()` (planning API). Any failure (no bundle, no context, class or bean missing, exception) counts as no access (logged as a warning).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#loggedUserHasPluginAccess",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getTempoBean"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/service-lookup",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Every Tempo operation reaches Tempo reflectively: it finds the Tempo app's OSGi bundle by plugin key, takes the Spring `ApplicationContext` the bundle registers, loads the Tempo service class by name from that bundle and asks the context for the bean of that class. A missing bundle, context, class or bean makes the operation fall back as described for it (empty, null, the null account, or the error text of `s.tempo.accounts.error.tempo-error` where an error collection is involved), with a warning logged; such failures never reach the caller as exceptions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getTempoBean"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/null-account",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Tempo accounts are reported as (id, key, name, status) with status OPEN, CLOSED or ARCHIVED (from the Tempo account's status enum name). 'No account' is a fixed null account with id -1, empty key and name and status CLOSED; an account is the null account exactly when its id is -1. Accounts compare by key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoAccount",
+    "com.almworks.structure.commons.tempo.TempoAccount#isNull",
+    "com.almworks.structure.commons.tempo.TempoAccount#compareTo",
+    "com.almworks.structure.commons.tempo.TempoIntegration#accountToLocal"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/account-of-issue",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "An issue's current Tempo account comes from bean `com.tempoplugin.accounts.account.api.AccountService` in `com.tempoplugin.tempo-accounts`, method `getCurrentAccountForIssue(long issueId)`. An invalid service outcome is logged only at debug level and its value is still used. No value, no service, or any failure gives the null account.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getAccountByIssueId",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getAccountByIssueId0",
+    "com.almworks.structure.commons.tempo.TempoIntegration#validate"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/account-by-id",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "A Tempo account by id comes from `AccountService.getAccountById(int)`; no account, no service or any failure gives the null account.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getAccount"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/search-accounts",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Searching accounts: the component builds a Tempo query string with Jira's JQL string support: `status in (OPEN, CLOSED)` (also ARCHIVED when dark feature `structure.tempo.showArchivedAccounts` is true, read at creation; default false hides archived accounts), and, when ids are given, `AND id in (<ids>)`. It calls `AccountService.searchAccounts(tqlQuery, text, limit, 0)` with the caller's free text and limit unchanged (offset 0) and returns the accounts with the service's total record count. Any failure returns an empty list with total 0.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#searchAccounts"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/search-limit",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Team and role searches cap their results with a limit: a null or 0 limit, or one larger than Jira application property `jira.search.stable.max.results`, is replaced by that property's value. The reported total is the number of matches before the cap.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getSearchLimit"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/search-teams",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Searching teams: in `com.tempoplugin.tempo-teams` a `com.tempoplugin.team.search.model.TeamSearchParams` is created with `withTeamsSearchString(text)` and passed to bean `com.tempoplugin.team.api.search.TeamSearchService.searchTeams`. Teams are reported as (id, name). When ids are given, only teams whose id is one of them (parsed as integers) are kept. The total is the count after this filter; the list is cut to the search limit. No match or any failure (including a non-numeric id) gives an empty list with total 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#searchTeams"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/search-roles",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Searching team roles: all roles come from bean `com.tempoplugin.team.api.TeamService.getTeamRoles()`; they are filtered by the given ids (as integers) when any, then, when the text is not blank, by role name containing the trimmed text ignoring case. Roles are reported as (id, name); the total is the count after filtering and the list is cut to the search limit. No roles or any failure gives an empty list with total 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#searchRoles"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/team-and-role-by-id",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "A team by id comes from bean `com.tempoplugin.team.api.TeamManager.getTeam(int)` when that class exists, otherwise from `com.tempoplugin.team.api.TeamService.getTeam(int)`; a team role by id from `TeamService.getTeamRole(int)`. Absent value or any failure gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getTeamById",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getTeamById0",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getTeamRoleById"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/team-from-field-value",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Turning a Tempo Team custom field value into a team: a String value is parsed as an integer team id and looked up by id (a non-numeric string gives null); any other non-null value is read directly as a team (its `getId()` and `getName()`); a null value or an unreadable object gives null. A custom field type is the Tempo Team field when its key is `com.tempoplugin.tempo-teams:team.customfield`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getTeamFromCustomFieldValue",
+    "com.almworks.structure.commons.tempo.TempoIntegration#isTeamCustomField"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/teams-user-can-see",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "The teams a user can see come from bean `com.tempoplugin.team.service.visibility.TeamVisibilityService.getTeamsUserCanSee(TempoUser)`, with the Jira user wrapped as Tempo's `com.tempoplugin.platform.jira.user.JiraTempoUser`. A null user, missing bundle, context or bean, or any failure gives an empty list; teams that cannot be converted are dropped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getTeamsUserCanSee",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getTeamsUserCanSee0",
+    "com.almworks.structure.commons.tempo.TempoIntegration#toTempoUser"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/work-logged-seconds",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Work logged: returns null unless Tempo Timesheets is available (enabled and the user has access) and both dates are ISO local dates (`yyyy-MM-dd`). It fills Tempo's `com.tempoplugin.worklog.v4.rest.SearchParamsBean` with from, to, issue ids, account ids, worker keys and (only when non-empty) team ids, converts it with bean `com.tempoplugin.worklog.v4.rest.SearchParamsMapper.toWorklogParams` and runs `com.tempoplugin.worklog.v4.services.search.WorklogSearchService.findWorklogs`. Each worklog contributes its `getTimeSpentSeconds()`, or, when billable seconds are asked for, `com.tempoplugin.worklog.v4.services.billable.BillableSecondsService.getBillableSeconds(worklog)`. The answer maps issue id to the sum of seconds; issues without worklogs are absent. Any failure gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getWorkLoggedSeconds",
+    "com.almworks.structure.commons.tempo.TempoIntegration#isValidDate"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/time-planned-seconds",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Time planned: returns null unless the Tempo planning API is available and both dates are ISO local dates. It fills `com.tempoplugin.jira.plan.core.rest.api.PlanSearchBean` with from, to, worker keys, team ids, role ids and issue ids, converts it with bean `com.tempoplugin.jira.plan.core.rest.mapper.PlanSearchParamsMapper.convert` and runs `com.tempoplugin.jira.plan.core.search.api.PlanSearchService.findPlanLogs`. Planned seconds (doubles) are summed per plan item id and each sum is truncated to a long at the end. Any failure gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getTimePlannedSeconds"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/tempo-events",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Interpreting Tempo events: for a planner allocation event the allocation's plan item type value is read; when it is `issue` the plan item id is returned as the issue id, otherwise null; failures give null. For a work attribute deletion event the deleted attribute's type value name is returned (e.g. `ACCOUNT`), or null on failure. The work attribute method checks the event's class name `com.tempoplugin.workattribute.api.event.WorkAttributeDeletedEvent` only with an assertion: with assertions enabled (as the tests run) any other event throws `AssertionError`; with them disabled it is read reflectively the same way and gives null when the methods are missing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#getIssueIdFromAllocationEvent",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getWorkAttributeId"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/validate-account-change",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Validating a change of an issue's account from one account to another adds at most the first applicable error (localized texts) in this order: Tempo Accounts not available: `s.tempo.accounts.error.no-tempo`; null issue or an issue with a non-positive id: `s.tempo.accounts.error.no-issue`; an issue with an id the current user cannot edit: `s.tempo.accounts.error.no-edit-perm`; source account not null and archived: `s.tempo.accounts.error.from-archived`; target account not null and not OPEN: `s.tempo.accounts.error.to-closed`; target account not linked to the issue's project: `s.tempo.accounts.error.no-account-to-project-link`. Clearing (target is the null account) needs no project link.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#validateAccountAction"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/account-project-link",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "An account counts as linked to a project when bean `com.tempoplugin.accounts.link.api.AccountLinkService.getLinksToScope(projectId, AccountLink.ScopeType.PROJECT)` returns a link with that account id, or else when the account (by id) is global (`isGlobal()`). A null project id is not linked. If Tempo fails, the `s.tempo.accounts.error.tempo-error` text is added and the account counts as not linked, so validation then also adds `no-account-to-project-link`; a missing link service counts as not linked without the extra text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#isProjectLinked",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getProjectLinks"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/set-account",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Setting an issue's account: the Tempo Account custom field comes from bean `com.tempoplugin.accounts.customfield.api.AccountsCustomFieldService.getAccountCustomField()` (an invalid outcome adds its errors). When the field is found and there are no errors, the issue's field value is set to the Tempo account object fetched by id (null for the null account, which clears it) and the issue is saved with Jira's `IssueManager.updateIssue(current user, issue, default UpdateIssueRequest)`. Otherwise, or on any failure, the text of `s.tempo.accounts.error.tempo-error` is added. The result carries the errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration#setAccount",
+    "com.almworks.structure.commons.tempo.TempoIntegration#setAccount0",
+    "com.almworks.structure.commons.tempo.TempoIntegration#toTempo"
+   ]
+  },
+  {
+   "key": "c5-integrations/tempo-integration/field-type-keys",
+   "module": "tempo-integration",
+   "api": null,
+   "behaviour": "Tempo custom field type keys recognised: account field `com.tempoplugin.tempo-accounts:accounts.customfield`, team field `com.tempoplugin.tempo-teams:team.customfield`, team role field `com.tempoplugin.tempo-teams:team.role.customfield`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.tempo.TempoIntegration"
+   ]
+  },
+  {
+   "key": "c5-integrations/treefield-integration/option-name",
+   "module": "treefield-integration",
+   "api": null,
+   "behaviour": "`treefield-integration` returns the display name of a value of the third-party Tree custom field app (plugin `ru.slie.jira.tree-customfield`, field types `ru.slie.jira.tree-customfield:tree-single-customfield` and `ru.slie.jira.tree-customfield:tree-multi-customfield`) by calling the option object's `getName()` reflectively. If that fails (no such method, wrong type, exception), it returns null and logs a warning with the Tree app's version.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.treecustomfield.TreeCustomFieldIntegration#getName"
+   ]
+  },
+  {
+   "key": "c5-integrations/treefield-integration/no-detection",
+   "module": "treefield-integration",
+   "api": null,
+   "behaviour": "The component does not check whether the Tree custom field app is installed or enabled before reading a value; it only reads the app's plugin version from `PluginAccessor` for the warning message. Callers decide by field type key which values to pass.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.treecustomfield.TreeCustomFieldIntegration"
+   ]
+  },
+  {
+   "key": "c5-integrations/spic-sum-up-integration/time-field-to-millis",
+   "module": "spic-sum-up-integration",
+   "api": null,
+   "behaviour": "`spic-sum-up-integration` recognises the 'Epic Sum Up' time field by type key `aptis.plugins.epicSumUp:epic-sum-up-custom-field-time`. Its value, when a `Double` holding seconds, is converted to milliseconds by multiplying by 1000 and truncating to a long (e.g. 90.5 gives 90500); any other value (including null) gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.EpicSumUpIntegration#getTimeFieldValueMillis",
+    "com.almworks.jira.structure.integration.EpicSumUpIntegration"
+   ]
+  },
+  {
+   "key": "c5-integrations/spic-sum-up-integration/format-duration",
+   "module": "spic-sum-up-integration",
+   "api": null,
+   "behaviour": "A time value in milliseconds is formatted as a duration for the current user by `format-helper`; a null value gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.EpicSumUpIntegration#formatTimeFieldMillisValue"
+   ]
+  },
+  {
+   "key": "c5-integrations/spic-sum-up-integration/client-side-field-types",
+   "module": "spic-sum-up-integration",
+   "api": null,
+   "behaviour": "The 'Epic Sum Up' field types that can only be rendered in the browser are exactly these 8 type keys, in this order: `aptis.plugins.epicSumUp:epic-sum-up-custom-field-attachment-indicator`, `...-comments-indicator`, `...-issue-count-progress`, `...-progress`, `...-status-category-progress`, `...-story-points-progress`, `...-type-allocation`, `...-time-progress` (each prefixed `aptis.plugins.epicSumUp:epic-sum-up-custom-field-`). The app's presence is not checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.EpicSumUpIntegration"
+   ]
+  },
+  {
+   "key": "c5-integrations/scriptrunner-integration/detection",
+   "module": "scriptrunner-integration",
+   "api": null,
+   "behaviour": "`scriptrunner-integration` works only when plugin `com.onresolve.jira.groovy.groovyrunner` (ScriptRunner) exists in Jira's `PluginAccessor` and is in state ENABLED; otherwise no field is read-only for any issue. It is checked on every call, nothing is cached.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.scriptrunner.ScriptRunnerIntegration#getValidators",
+    "com.almworks.jira.structure.integration.scriptrunner.ScriptRunnerIntegration#isScriptRunnerAvailable"
+   ]
+  },
+  {
+   "key": "c5-integrations/scriptrunner-integration/behaviour-manager-and-version",
+   "module": "scriptrunner-integration",
+   "api": null,
+   "behaviour": "It reaches ScriptRunner Behaviours through the ScriptRunner bundle's Spring context, bean named `behaviourManagerImpl`, and the mapping type enum loaded from ScriptRunner's class loader: first `com.onresolve.jira.behaviours.BehaviourMappingType` (ScriptRunner 7 and later), else the first nested class of `com.onresolve.jira.behaviours.BehaviourMappingsService` (ScriptRunner 6). If neither the bean nor a mapping type can be found (unsupported version), no field is read-only. Failures are logged as warnings with ScriptRunner's version and never thrown.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.integration.scriptrunner.ScriptRunnerIntegration#getBehaviourManagerObject",
+    "com.almworks.jira.structure.integration.scriptrunner.ScriptRunnerIntegration#getBehaviourMappingTypeClass",
+    "com.almworks.jira.structure.integration.scriptrunner.ScriptRunnerIntegration$Companion#loadBehaviourMappingType7x",
+    "com.almworks.jira.structure.integration.scriptrunner.ScriptRunnerIntegration$Companion#loadBehaviourMappingType6x"
+   ]
+  },
+  {
+   "key": "c5-integrations/scriptrunner-integration/readonly-fields",
+   "module": "scriptrunner-integration",
+   "api": null,
+   "behaviour": "For an issue id it calls the behaviour manager's `runInitialiser(<mapping type PROJECT>, {\"id\": issueId})`; the answer maps field ids to settings maps. The read-only fields are the ids whose settings have `readonly` equal to `Boolean.TRUE`, in the answer's order. A field is read-only for an issue exactly when its id is in that list. Any exception from the call gives no read-only fields.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.integration.scriptrunner.ScriptRunnerIntegration#getReadonlyFieldIds",
+    "com.almworks.jira.structure.integration.scriptrunner.ScriptRunnerIntegration#isFieldReadonly",
+    "com.almworks.jira.structure.integration.scriptrunner.ScriptRunnerIntegration#getProjectMappingType"
+   ]
+  },
+  {
+   "key": "c5-integrations/stagil-integration/detect-relation-field",
+   "module": "stagil-integration",
+   "api": null,
+   "behaviour": "`stagil-integration` decides whether a custom field id (e.g. `customfield_10100`) names a 'STAGIL Assets relation' field: it asks `CustomFieldManager.getCustomFieldObject(id)` and checks that the field's type key is `de.stagil.jira.stagil-assets:stagil-assets-relation`. An unknown field or a field without type gives false. The app's plugin is not checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.stagil.StagilIntegration#isStagilAssetCustomField"
+   ]
+  },
+  {
+   "key": "c5-integrations/stagil-integration/cache",
+   "module": "stagil-integration",
+   "api": null,
+   "behaviour": "The answer per field id is cached without expiry, so Jira is asked at most once per field id until the cache is cleared; clearing the plugin's caches empties it, clearing a user's caches does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.stagil.StagilIntegration#clearCaches",
+    "com.almworks.jira.structure.integration.stagil.StagilIntegration#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c5-integrations/stagil-integration/any-relation-field",
+   "module": "stagil-integration",
+   "api": null,
+   "behaviour": "Given a collection of field keys, the component answers true when at least one key that starts with `customfield_` is a STAGIL Assets relation field; other keys (system fields) are not looked up. An empty collection gives false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.stagil.StagilIntegration#hasStagilAssetRelation"
+   ]
+  },
+  {
+   "key": "c5-integrations/mail-sender/outgoing-mail-available",
+   "module": "mail-sender",
+   "api": null,
+   "behaviour": "Outgoing mail is reported unavailable when Jira's mail settings say sending is disabled (`MailFactory.getSettings().isSendingDisabled()`), or when there is no mail server manager or no default SMTP server is defined; otherwise available. If the check itself throws (exception or linkage error), a warning is logged and mail is reported available.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.MailSender#isOutgoingMailAvailable"
+   ]
+  },
+  {
+   "key": "c5-integrations/mail-sender/render-and-send-now",
+   "module": "mail-sender",
+   "api": null,
+   "behaviour": "Sending a mail now to a Jira user uses Jira's `MailService.sendRenderedMail` with a `NotificationRecipient` for that user: the subject template is `/templates/structure/email/subject/<template>.vm` and the body template `/templates/structure/email/<format>/<template>.vm`, where format is the recipient's preferred mail format (`html` or `text`). The plugin ships templates `sync-error`, `sync-cycle` and `shared-perspective` (plus `header` and `footer` parts for both formats).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.MailSender#sendMailNow",
+    "com.almworks.jira.structure.util.MailSender#getEmailTemplatePath"
+   ]
+  },
+  {
+   "key": "c5-integrations/mail-sender/default-params",
+   "module": "mail-sender",
+   "api": null,
+   "behaviour": "Every mail gets these template parameters, which the caller's parameters may override: `baseUrl` = Jira's canonical base URL from the Velocity request context, `util` = the plugin's template utility helper, and `structureLogoUrl` = the static web-resource URL of `com.almworks.jira.structure:widget-css` resource `img/` (absolute) followed by `structure-logo-label.png`, with the leading base URL removed (so normally a path relative to the base URL).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.MailSender#createDefaultParams",
+    "com.almworks.jira.structure.util.MailSender#getStructureLogoUrl"
+   ]
+  },
+  {
+   "key": "c5-integrations/mail-sender/send-async",
+   "module": "mail-sender",
+   "api": null,
+   "behaviour": "Sending a mail asynchronously copies the parameters (defaults plus the caller's) at call time and schedules a system job on the Structure job manager (`StructureJobManager.execute(job, \"system\")`) that sends it as above; the call returns at once. If the job cannot be scheduled (`StructureJobException`) a warning naming the template, user and parameters is logged and nothing is sent; nothing is thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.MailSender#sendMail"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/shared-bridge",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "`sd-integration-supplier` creates one Jira Service Management bridge when the plugin starts and hands the same instance to every caller; it does not check whether the app is installed when creating it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegrationSupplier#get",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegrationSupplier"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/detection",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "The app is accessible when plugin `com.atlassian.servicedesk` exists in `PluginAccessor` and is ENABLED (checked on each call). Its services (`com.atlassian.servicedesk.api.portal.PortalService`, `com.atlassian.servicedesk.api.request.ServiceDeskCustomerRequestService`, `com.atlassian.servicedesk.api.requesttype.RequestTypeService`, `com.atlassian.servicedesk.api.ServiceDeskService`) are obtained as OSGi components on every use; when one cannot be obtained (absent or disabled app, exception or linkage error) a warning is logged and the operation falls back to its empty answer. Any exception or linkage error while calling a service is logged as a warning and also gives the fallback.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#isPluginAccessible",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#getRequestTypeService",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#withOptionalService"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/request-type-field",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "The customer request type custom field is the first custom field (in `CustomFieldManager.getCustomFieldObjects()` order) whose type key is `com.atlassian.servicedesk:vp-origin`; none gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#getRequestTypeField",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#isRequestTypeField"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/load-request-types",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "Request types are listed with `RequestTypeService.getRequestTypes(current user, query)`, optionally limited to one service desk, in pages of 1000 starting at 0; each next page starts at the previous start plus the number of results returned. The paging never stops early: it always sends exactly 1001 page requests and keeps the results of the first 1000 responses, even after an empty page (as the original does). An unavailable service gives no request types.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#loadRequestTypesStream",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskUtils#pagedResponseToStream"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/load-one-request-type",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "A request type by id is the first result of `RequestTypeService.getRequestTypes(user, query by request type id)` (the current Structure user unless one is given); none or failure gives null. The request type of an issue is the first result of a query by issue id as the current user; a null issue id gives null, and a Service Management `NoSuchEntityException` (matched by simple class name) gives null; other failures are logged and give null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#loadRequestType",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#loadRequestTypeByIssueId"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/request-types-for-project",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "The request types of a project are those of the project's service desk (`ServiceDeskService.getServiceDeskForProject(current user, project)`), listed as above; a project that is not a service desk gives none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#loadRequestTypesForProject"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/request-type-wrappers-and-keys",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "For display, every request type is paired with its portal (`PortalService.getPortalForId(current user, portalId)`); a missing portal is logged as a warning and kept as no portal; when the portal service is unavailable no portals are read. Each request type gets the key `<portal key>/<request type key>`, both read from the objects' internal `key` fields reflectively, with an empty string for a missing portal or unreadable key (e.g. `HELP/getithelp`, or `/getithelp` without portal).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#loadRequestTypeWrappers",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#getRequestTypeWrapper",
+    "com.almworks.jira.structure.integration.servicedesk.RequestTypeWrapper#makeKey",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskUtils#unsafeReadPortalKey",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskUtils#unsafeReadRequestTypeKey"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/validate-request-type-change",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "Validating a change of an issue's request type returns the first error found (localized texts): when no source type is given, the issue's current type is loaded; if it has none and the issue's project has no service desk: `s.servicedesk.error.from-non-servicedesk-project`. A null target type: `s.servicedesk.error.clear-request-type` (clearing is not allowed). Target type's issue type id (as a string) different from the issue's issue type id: `s.servicedesk.error.different-issue-types`. Target type not among the request types of the issue's project's service desk (compared by id): `s.servicedesk.error.different-service-desks`. Otherwise success with no errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#validateUpdate"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/update-request-type",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "Changing an issue's request type as the current Structure user: the issue's project's service desk is looked up; none gives the error `s.servicedesk.error.cannot-find-servicedesk` (and a warning). Otherwise `ServiceDeskCustomerRequestService.updateCustomerRequest` is called with an update for that issue, request type and service desk, and the result is success; an unavailable service or a failing update gives the error `s.servicedesk.error.cannot-update-request-type`. No validation is done here; callers validate first.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#updateRequestType"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/grouping-function",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "For grouping issues by request type the bridge offers a per-issue function. When dark feature `structure.servicedesk.grouper.useFieldIndex` is true (default; read once when the bridge is created) and the request type field exists, the issue's request type is read from the indexed value of that field (the string `<portal key>/<request type key>`) and matched against the keys of all request types; an unknown value puts the issue in the empty group. Otherwise (with a warning when the flag is on but the field is missing) each issue's request type is loaded per issue by issue id. Groups are request type items (`CoreIdentities.sdRequestType(id)`), sorted by request type name with a locale-aware collator for the plugin's i18n locale.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#getIssueFunction",
+    "com.almworks.jira.structure.integration.servicedesk.IndexReadingRequestTypeIssueFunction#getGroups",
+    "com.almworks.jira.structure.integration.servicedesk.SimpleRequestTypeIssueFunction#getValue",
+    "com.almworks.jira.structure.integration.servicedesk.AbstractRequestTypeIssueFunction#sortRegularGroups",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskUtils#shouldUseFieldIndex"
+   ]
+  },
+  {
+   "key": "c5-integrations/sd-integration-supplier/icon-html",
+   "module": "sd-integration-supplier",
+   "api": null,
+   "behaviour": "A request type's icon HTML is `<img src=\"<baseUrl>/secure/viewavatar?avatarType=SD_REQTYPE&avatarId=<icon id>&size=small\" class=\"s-service-desk-icon\" title=\"<name>\" alt=\"<name>\">` with the name HTML-escaped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskUtils#getIconHtml"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-integration-supplier/shared-bridge",
+   "module": "insight-integration-supplier",
+   "api": null,
+   "behaviour": "`insight-integration-supplier` creates one Insight/Assets bridge when the plugin starts and hands the same instance to every caller. Creating it does not touch the Insight app; every Insight component is looked up when an operation needs it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightIntegrationSupplier#get",
+    "com.almworks.jira.structure.integration.insight.InsightIntegrationSupplier"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-integration-supplier/detection",
+   "module": "insight-integration-supplier",
+   "api": null,
+   "behaviour": "Insight is enabled when plugin `com.riadalabs.jira.plugins.insight` exists in `PluginAccessor` and is ENABLED. Its facades (`com.riadalabs.jira.plugins.insight.channel.external.api.facade.ObjectFacade`, `ObjectTypeAttributeFacade`, `ConfigureFacade`, `InsightPermissionFacade`, `CustomFieldFacade`) are obtained as OSGi components on each use; when one cannot be obtained (exception or linkage error, logged as a warning) it counts as missing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#isInsightEnabled",
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#getComponent"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-integration-supplier/load-object",
+   "module": "insight-integration-supplier",
+   "api": null,
+   "behaviour": "An Insight object is loaded by id or by object key through `ObjectFacade.loadObjectBean` and reported as (id, label, object key, object type id). Missing facade or no such object gives null; an exception whose simple class name is `PermissionInsightException` gives null; any other exception from Insight is passed on to the caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#getObjectById",
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#getObjectByKey",
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#loadObjectBean",
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#toInsightObject"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-integration-supplier/object-visibility",
+   "module": "insight-integration-supplier",
+   "api": null,
+   "behaviour": "An object is visible to a user when the user is not null and `InsightPermissionFacade.hasInsightObjectViewPermission(user, objectId)` is true; a null user (anonymous) or a missing facade gives false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#isObjectVisible"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-integration-supplier/status-name",
+   "module": "insight-integration-supplier",
+   "api": null,
+   "behaviour": "The name of an Insight status is `ConfigureFacade.loadStatusTypeBean(id).getName()`; a missing facade or unknown status gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#getStatusName"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-integration-supplier/object-attributes",
+   "module": "insight-integration-supplier",
+   "api": null,
+   "behaviour": "An object's attributes: missing attribute facade or object gives an empty list. Otherwise, for each attribute of the object in order, its definition is loaded with `ObjectTypeAttributeFacade.loadObjectTypeAttribute(id)`; attributes without a definition are left out. Each attribute is reported with its id, the definition's name, its type id and default type id, and its values (value id and raw value) in order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#getObjectAttributes"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-integration-supplier/objects-for-field",
+   "module": "insight-integration-supplier",
+   "api": null,
+   "behaviour": "The objects selectable in an Insight custom field are read reflectively from the custom field facade's internal `customFieldService`, method `findObjectsByCustomField(fieldId, null, 0, Integer.MAX_VALUE)` (all of them), and converted as for single objects. If the method is missing or anything fails, a warning naming the field is logged and the list is empty. Converting a collection of Insight object beans skips entries that are not object beans.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#getAllObjectsForField",
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#getObjectsForFieldUnsafe",
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#convertObjectBeans"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-integration-supplier/field-types-and-events",
+   "module": "insight-integration-supplier",
+   "api": null,
+   "behaviour": "Insight object custom field types are recognised by key: `com.riadalabs.jira.plugins.insight:rlabs-customfield-default-object`, `...-object` and `...-object-multi` (these three support effects, i.e. can be changed by Structure) and also `...-object-readonly`, `...-object-reference` and `...-object-reference-multi` (prefix `com.riadalabs.jira.plugins.insight:rlabs-customfield`). From an event whose class name is `com.riadalabs.jira.plugins.insight.services.events.objects.event.InsightObjectUpdatedEvent` the updated object's id is read; any other event gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightUtils#isInsightObjectFieldType",
+    "com.almworks.jira.structure.integration.insight.InsightUtils#isEffectSupportingObjectFieldType",
+    "com.almworks.jira.structure.integration.insight.InsightUtils#getObjectIdFromUpdatedEvent"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-expr-converter/values-as-array",
+   "module": "insight-expr-converter",
+   "api": null,
+   "behaviour": "`insight-expr-converter` turns an Insight attribute into a formula value: every value of the attribute is converted by the attribute's type and the result is always a formula array of the converted values in order (also for one value or none); numbers become decimal numbers, strings stay text, item references stay items. If any converted element is an error the whole result is the attribute error value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightExprConverter#convertAttributeValues",
+    "com.almworks.jira.structure.integration.insight.InsightExprConverter#toExprValue"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-expr-converter/reference-types",
+   "module": "insight-expr-converter",
+   "api": null,
+   "behaviour": "By Insight attribute type (`ObjectTypeAttributeBean.Type`): REFERENCED_OBJECT values (numbers) become Insight object items (`CoreIdentities.insightObject(id)`); USER values (user keys) become user items; GROUP values (group names) become group items; VERSION values become version items and PROJECT values project items (by numeric id); STATUS values (numeric status ids) become the status name from `insight-integration-supplier`. Any other type (for example Confluence) gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightExprConverter#convertAttributeValues"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-expr-converter/unknown-status-throws",
+   "module": "insight-expr-converter",
+   "api": null,
+   "behaviour": "When a STATUS value's status cannot be resolved to a name (unknown status id or the Insight configure facade missing), the conversion does not produce an empty or undefined element: it throws `NullPointerException` to the caller (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightExprConverter#convertAttributeValues"
+   ]
+  },
+  {
+   "key": "c5-integrations/insight-expr-converter/default-type-values",
+   "module": "insight-expr-converter",
+   "api": null,
+   "behaviour": "For DEFAULT-type attributes, by default type (`ObjectTypeAttributeBean.DefaultType`): a DATE value is taken as a UTC date and turned into the timestamp of the start of that same calendar date in the formula context's time zone; a DATE_TIME value becomes its epoch milliseconds; a TEXTAREA value is HTML parsed with jsoup and only its text kept; any other default type (text, number, boolean, URL, email...) is passed through as is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.insight.InsightExprConverter#convertDefaultTypeValue",
+    "com.almworks.jira.structure.integration.insight.InsightExprConverter#shiftedDate"
+   ]
+  }
+ ]
+}

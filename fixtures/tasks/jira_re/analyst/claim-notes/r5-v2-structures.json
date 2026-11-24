@@ -1,0 +1,1052 @@
+{
+ "claims": [
+  {
+   "key": "r5-v2-structures/rest-v2/non-numeric-ids-404",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/{id}`, `GET /rest/structure/2.0/history/{id}/versions`, `PUT /rest/structure/2.0/saved-column/{columnSource}/{id}` and every other endpoint of this group whose path or query parameter is declared as a number: given a text that does not parse as that number (for example `/structure/abc` or `manage-structures/one?id=x`), the REST framework answers 404 before the resource runs; nothing is called or changed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureResource",
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource",
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/empty-ok-is-empty-true",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/structure/recents`, `DELETE /rest/structure/2.0/structure/{id}`, `PUT /rest/structure/2.0/structure/{id}/quick-transforms`, and on the saved-column side `PUT`, `DELETE`, `.../edit`, `.../updateParameters` and `.../move/{newListKey}`, reply on success with status 200 and the body `{\"empty\": true}` (the `empty-ok` shape), never an empty body and never `{}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.javax.AbstractStructurePluginResource#noContent",
+    "com.almworks.structure.commons.rest.RestEmpty"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-get-permissions-only-for-admin",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/{id}`: with `withPermissions=true`, `permissions` is present only when the caller's effective permission on the structure includes ADMIN; a caller with less gets the reply without `permissions` and no error. Without the parameter it is absent for everyone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestStructure#fromStructure",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-get-owner-format",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/{id}`: with `withOwner=true` and a caller who may browse users or owns the structure, `owner` is `user:<user key>`; a structure without owner has no `owner`. Without the parameter, or for any other caller, `owner` is absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestStructure#fromStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-summary-flags",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/{id}`: flags in `structure-summary` are present only as true: `readOnly` when the structure is archived or the caller's effective permission is below EDIT; `editable` when it includes EDIT (even on an archived structure, which then has both `readOnly` and `editable`); `adminable` when it includes ADMIN; `editRequiresParentIssuePermission` when that option is on; each of the generator-configuration, effector-configuration and effector-execution flags when structure-manager allows it for the caller. `isArchived` is always present, true or false, and `favorite` and `descriptionHtml` are always present in this call.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestStructure#fromStructure",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-get-invalid-id",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/{id}`: given id 0 or a negative id, it answers 400 with a `structure-error` of `StructureErrors.INVALID_PARAMETER`, message `id`, without looking the structure up; an unknown or invisible positive id gives 404 with `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-list-structures-are-basic",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/list`: the entries of `structures` are basic summaries: id, name, description, the access flags, `isArchived`. They never carry `descriptionHtml`, `favorite`, `owner`, `permissions` or the generator and effector flags. Each referenced structure appears once, in no defined order, however many id lists refer to it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getList",
+    "com.almworks.structure.commons.rest.data.RestStructure#fromStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-list-anchor-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/list`: without an accepted anchor issue, `containingAnchor`, `totalContainingAnchor` and `anchorIssue` are absent. With an accepted one, `anchorIssue` echoes it and the other two are present, also when no structure contains the issue (empty list, 0). `recent`, `favorites` and `defaults` are always present, empty when there is nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getList"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-list-forproject-precedence",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/list`: when `forProject` is given, the anchor issue's project is not used even if the key is unknown: an unknown project key simply yields no project, so `defaults` holds only the global default. `forProject` is not checked for browse permission. With a known project whose default is absent, invisible or archived, `defaults` still holds the global default when that is viewable and not archived.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getDefaultStructures",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getDefaultStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-list-anonymous",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/list`: for an anonymous caller that passes the access gate, `recent` is empty (recents-manager stores nothing for anonymous users); `favorites` and `totalFavorites` are what favorite-manager gives for no user; defaults still follow the viewability rules.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getList"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-search-level-parsing",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure`: `permission` is matched ignoring case against all levels of `PermissionLevel`, which also accepts the deprecated `EDIT_GENERATORS`. Absent, `NONE` and `VIEW` all search at VIEW. Any other value gives 400 `Invalid request data` with message `Unknown level. Known values for level: NONE,VIEW,EDIT,EDIT_GENERATORS,AUTOMATE,ADMIN`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.TransferFormat#parsePermissionLevel",
+    "com.almworks.structure.commons.rest.data.TransferFormat#getSearchPermissionLevel",
+    "com.almworks.structure.commons.rest.data.TransferFormat#throwUnknownValue"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-search-order-of-checks",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure`: the rate limit is checked first: a refused call answers 429 even when `permission` is invalid and does not list structures. A call that then fails on `permission` still counts as finished for the rate limiter, so the next call is not refused as concurrent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#searchStructures",
+    "com.almworks.jira.structure.rest.v2.SearchStructuresRateLimiter#withLockOrThrow"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-search-items-have-no-html-or-favorite",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure`: each item of `structure-summary-list` has no `descriptionHtml` and no `favorite`. The generator, effector and access flags, `isArchived`, and with `withPermissions` or `withOwner` the `permissions` and `owner` follow the same rules as `GET /rest/structure/2.0/structure/{id}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestStructureSeq#fromStructures",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#searchStructures"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-search-limit-zero",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure`: `limit=0` with at least one matching structure returns an empty `structures` with `haveMore` true, whatever `page` says; with no match it returns an empty list and no `haveMore`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#searchStructures"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-search-negative-limit",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure`: a negative `limit` is not clamped (as the original does). With no matching structure the reply is an empty page. With matches and no `page`, or `page` 1, the slice is invalid and the reply is 400 `Invalid request data` (an illegal argument). With matches and `page` 2 or more the start index is negative and the reply is 500 text/plain.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#searchStructures"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-search-rate-limit-reply",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure`: a search refused by the rate limiter answers 429, `Content-Type: text/plain`, `Retry-After: <seconds>` and the body from i18n key `s.structure.error.rate-limit` (`Too many search requests. Please retry in about {0} second(s).`) in the caller's locale, with the same number in header and text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.SearchStructuresRateLimiter#withLockOrThrow",
+    "com.almworks.structure.compat.rest.ResponseData#tooManyRequests"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/rate-limiters-separate",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure` and `GET /rest/structure/2.0/manage-structures/all` have separate rate limiters: a running search does not refuse a table call for the same user, nor the other way round. Each limiter reads its interval dark feature once, when its component is created; a later change has no effect until then.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService",
+    "com.almworks.jira.structure.rest.v2.SearchStructuresRateLimiter"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/favorite-get-forbidden-text",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/{id}/favorite`: an unknown or invisible structure answers 403 text/plain `structure <id> does not exist or you don't have enough permissions to view it`, not 404. A viewable one answers `{\"favorite\": <bool>}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#checkForbidden",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#isFavorite"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/favorite-put-body",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/structure/{id}/favorite`: a body `{}` means `favorite` false and removes the favourite. A body that reaches the resource as null fails with a null-argument error before the access check: 500 text/plain, nothing stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#setFavorite",
+    "com.almworks.jira.structure.rest.v2.data.RestFavorite"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/recents-put",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/structure/recents`: `id` is taken from the query string. With an id it is passed to recents-manager for the caller, including ids of missing or invisible structures; without one, or for an anonymous caller, nothing is stored. All these cases answer 200 `empty-ok`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureResource#addToRecents",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#markStructureRecent"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/quick-transforms-put-parse",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/structure/{id}/quick-transforms`: after the ADMIN check, an empty body, the JSON literal `null`, text that is not a JSON array, or an entry with a property that is not part of `quick-transform-entry` (unknown properties are refused) answers 400 `structure-error` `StructureErrors.INVALID_PARAMETER` with message `Cannot parse quick transforms`; nothing is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#setQuickTransforms",
+    "com.almworks.jira.structure.util.JacksonUtil#fromJson"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/quick-transforms-put-missing-parts",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/structure/{id}/quick-transforms`: an array entry without `key`, an entry without `quick`, or a `group` entry without `transforms` fails while ids are checked with a null dereference: 500 text/plain, nothing stored (as the original does). Such entries are not dropped.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#hasDuplicateTransformIds",
+    "com.almworks.jira.structure.rest.v2.data.RestTransformItemDeserializer#deserialize",
+    "com.almworks.jira.structure.rest.v2.data.RestTransformItem#getId"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/quick-transforms-put-stored-form",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/structure/{id}/quick-transforms`: what is stored in structure property `quick-transforms` is the parsed list written again as compact JSON with null properties left out, so whitespace and null members of the request do not survive; `GET /rest/structure/2.0/structure/{id}/quick-transforms` then returns that text as the JSON body. An empty array is valid and stores `[]`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#setQuickTransforms",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getQuickTransforms"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/quick-transforms-get-access",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/{id}/quick-transforms`: an unknown or invisible structure answers 403 text/plain with the same text as the favourite endpoints; a viewer without ADMIN may read.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getQuickTransforms"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/description-shown-get",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structure/{id}/description-shown`: a viewer gets `{\"descriptionShown\": <bool>}`, from structure property `showDescription` as structure-resource-service states; an unknown or invisible structure answers 403 text/plain as for favourites.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#isDescriptionShown"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-post-created-reply",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/structure`: on success it answers 201, `Location` built from the relative URI `/<new id>`, and a `structure-summary` built with permission rules and owner requested (so `permissions` is there when the caller's effective permission includes ADMIN, and `owner` when visible), `favorite` false and `descriptionHtml` set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureResource#createStructure",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#createStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-post-ignored-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/structure`: the body's `id`, `isArchived`, `owner`, `favorite`, `readOnly`, `editable`, `adminable` and the generator and effector flags are ignored: a new structure is never archived and its owner is always the caller. An anonymous caller allowed to create gets a structure without owner.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestStructure#fillStructure",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#createStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-post-bad-rule",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/structure`: a `permissions` entry with a missing `rule`, or a `set` rule without `level` or an `apply` rule without `structureId`, answers 400 `Invalid request data`; an unknown `rule` has message `Unknown rule. Known values for rule: apply,set`, an unknown `level` the message of `GET /rest/structure/2.0/structure`. `rule` is matched ignoring case. Nothing is saved.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestPermissionRule#toRuleObject",
+    "com.almworks.structure.commons.rest.data.RestStructure#fillStructure",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#createStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-post-empty-name-nothing-saved",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/structure`: missing `name` (`Name is required`) and empty `name` (`Name cannot be empty`) answer 400 `Invalid request data` and no structure is created. Only an empty string counts as empty here; a blank name passes this check and is refused by structure-manager on save.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestStructure#fillStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-reply-needs-view",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/structure` and `POST /rest/structure/2.0/structure/{id}/update`: the change is saved first. If the caller's effective permission on the saved structure then does not include VIEW (for example after permission rules taking away the caller's own access), building the reply fails with `StructureErrors.STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`: 404 `structure-error`, although the change stays saved.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestStructure#fromStructureNN",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#createStructure",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#updateStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-update-archived-flag",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/structure/{id}/update`: `isArchived` false restores an archived structure and does not re-enable its synchronizers. `isArchived` true on an already archived structure does not touch synchronizers either. Synchronizers are disabled only after the save succeeded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#updateStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-update-reply",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/structure/{id}/update`: the reply is the saved `structure-summary` with `descriptionHtml`, permission rules and owner under the usual visibility rules, and the caller's `favorite` flag. An empty body object `{}` changes nothing and still answers 200.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#updateStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/structure-delete-reply",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`DELETE /rest/structure/2.0/structure/{id}`: a viewer without ADMIN gets 403 `structure-error` from structure-manager; a non-positive id gives 400 `structure-error` with message `id`; an unknown or invisible id gives 404 `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`. It is never refused on licence grounds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#deleteStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/manage-one-id",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/manage-structures/one`: `id` is a query parameter of primitive type: leaving it out means 0, which answers as an unknown structure (404 `structure-error`), after the access check of code 4010. An archived structure the caller can view is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ManageStructuresResource#getOne",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectStructureData"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/manage-all-order-of-checks",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/manage-structures/all`: the plugin-access check (code 4010) comes before the rate limit, so a caller without access gets 403 and does not use up a slot. A refused call answers 429 as `GET /rest/structure/2.0/structure` does.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectTableData",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#maybeTakeSearchLock"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/manage-recents-not-limited",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/manage-structures/recents`, `GET /rest/structure/2.0/manage-structures/favorites`, `GET /rest/structure/2.0/manage-structures/one` and `GET /rest/structure/2.0/manage-structures/recent-ids` are never rate limited, even while the same user's `GET /rest/structure/2.0/manage-structures/all` is running. `recents` excludes archived structures (recents-manager); `favorites` includes them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectTableData",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#maybeTakeSearchLock"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/manage-empty-tables",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/manage-structures/favorites`: with no rows the reply is `structures` empty and `users` with only the caller (a user with no favourites), or both empty for an anonymous caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#enrich",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#loadAndConvertUsers"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/manage-recent-ids-anonymous",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/manage-structures/recent-ids`: an anonymous caller who has access gets `[]`; the reply holds only ids recents-manager returns, so archived, deleted and invisible structures are left out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectRecentIds"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/manage-page-details-edges",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/manage-structures/page-details`: exactly the limit (20 ids by default) is accepted, one more is refused. An empty array answers `{}`. A repeated id gives one entry. A null body fails with a null-argument error before the access check: 500 text/plain. The object's keys are in no defined order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ManageStructuresResource#getPageDetails",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectPageDetails"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/manage-page-details-limit-read-once",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/manage-structures/page-details`: the limit is read from dark feature `structure.search.page-details-max-limit` once, when the component is created. The access check (code 4010) comes before the size check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectPageDetails"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/welcome-blank-query",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structureWelcome/search`: a missing, empty or whitespace-only `query` returns the recent structures of the caller from recents-manager, in that order: `result` has the first 10 and `total` their full count. Each `name` is HTML-escaped; other fields are not.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureWelcomeResource#getStructures"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/welcome-query",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structureWelcome/search`: with a query, the text is trimmed and matched as a literal, ignoring case (Unicode-aware), against the names of structures the caller can view, not archived, in structure-manager's order. Regular expression characters have no special meaning. `result` has the first 10 and `total` counts all matches.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureWelcomeResource#getStructures",
+    "com.almworks.jira.structure.util.NameSearcher"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/welcome-name-marking",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structureWelcome/search`: with a query, each `name` is HTML: the parts before, in and after the first match are HTML-escaped separately and the match is wrapped in `<b>` and `</b>`. For example the name `a<b` with query `<` gives `a<b>&lt;</b>b`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.NameSearcher#wrapMatch",
+    "com.almworks.jira.structure.rest.v2.javax.StructureWelcomeResource#getStructures"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/welcome-summary-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/structureWelcome/search`: result items are basic summaries: no `descriptionHtml`, `favorite`, `owner`, `permissions` or generator and effector flags. Nothing is stored. With no match the reply is `{\"result\": [], \"total\": 0}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureWelcomeResource#getStructures",
+    "com.almworks.structure.commons.rest.data.RestStructure#fromStructure"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-versions-forbidden",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: when the structure is not accessible with VIEW the reply is 403 text/plain `structure <id> does not exist or you don't have enough permissions to view it`, before any parameter is looked at.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource#getVersions"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-versions-content",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: the listing is history-service's activity query for that one structure with all operations: newest first, row-invisible changes filtered for the caller, and entries left without changes skipped. `versions` is absent when no entry is delivered; the top-level `itemTypes` is `{}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestHistoryBuilder#build",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService#queryActivity"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-versions-maxversion-exclusive",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: `maxVersion` n lists only versions strictly below n; version n itself is not included. `maxVersion=0` therefore gives no versions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestHistoryBuilder#build",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-versions-maxversion-negative",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: a negative `maxVersion`: with assertions enabled (as the tests run) it throws `AssertionError` while the version key is built; with them disabled the key is negative and no version matches, so `versions` is absent.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryUtil#hid"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-versions-withversion",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: with `withVersion` and no `maxCount`, delivery stops right after the first entry whose version is less than or equal to `withVersion`, and that entry is included. If none exists, all entries are listed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestHistoryBuilder#build"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-versions-maxcount-caps",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: a positive `maxCount` caps the listing at that many entries, also together with `withVersion`: the listing does not go on past `maxCount` to reach `withVersion`, and it does not stop early when `withVersion` is reached first, so `withVersion` has no effect there (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestHistoryBuilder#build",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter#consume"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-versions-maxcount-non-positive",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: `maxCount` 0 or negative without `withVersion` returns exactly the newest entry (as the original does); with `withVersion` it acts as if `maxCount` were absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestHistoryBuilder#build",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryService$ActivityFilter#consume"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-versions-minversion-ignored",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: `minVersion` has no effect at all, whatever its value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource#getVersions",
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestHistoryBuilder#build"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-version-header-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: each `structure-history-version` has `structure`, `version`, `timestamp`, `dateTimeFormatted` (Jira's RELATIVE style for the logged-in user) and `user` built by rest-user-builder from the entry's user key, as seen by the caller: an entry without user key gets the anonymous placeholder. `fullForest` and the per-change position fields are absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestVersionBuilder#createShort",
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestVersionBuilder#getUser"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-version-synchronizer",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: `synchronizer` is absent when the entry has no synchronizer or id 0. Otherwise it is `{id, description}`, where `description` is the installed synchronizer's one-line description of its parameters, or the text of `s.sync.unavailable-synchronizer` when the instance is no longer installed or its module is missing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestVersionBuilder#getSynchronizer",
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestVersionBuilder#createSynchronizer",
+    "com.almworks.jira.structure.util.Util#getSyncConfigDescription"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-change-single-row",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: for a change whose forest has exactly one row, `itemId` is that row's item; if the row no longer exists `itemId` is absent and nothing fails. If the item is an issue the caller may see (the helper reports no issue error), `issueKey` and `issueSummary` are set; otherwise they are absent while `itemId` stays. With more than one row only `forestSize` tells the size.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestVersionBuilder#createShort"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-change-operation",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/version/{v}`: `operation` is the lower-case name `add`, `copy`, `move` or `remove`; `moveDirection` is the stored direction, 0 when there is none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestVersionBuilder#createShort",
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry$Operation"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-item-types-per-version",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/versions`: each version's `itemTypes` lists only item types met while building that version. A type seen in an earlier version of the same reply is listed again in a later version that uses it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestVersionBuilder#createShort",
+    "com.almworks.structure.commons.rest.ItemSerializer#flushItemTypes"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-version-forbidden-and-missing",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/version/{v}`: no VIEW access answers 403 text/plain with the same text as the versions call. A failure from history-service is text/plain with the exception message and the status of its category: an unknown version 404, `GENERIC_ERROR` 500; never a `structure-error` object.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource#getVersion",
+    "com.almworks.jira.structure.rest.javax.AbstractStructurePluginResource#error"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-version-zero",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/version/{v}`: `v` = 0 answers 200 with history-service's synthetic entry: `timestamp` 0, the anonymous user placeholder, no `synchronizer`, `changes` empty, and the initial `fullForest` (normally empty text).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource#getVersion",
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestVersionBuilder#createFull"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-version-negative",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/version/{v}`: a negative `v` on a viewable structure: with assertions enabled (as the tests run) `AssertionError` propagates out of the resource, which handles only `StructureException`; with them disabled the outcome is what history-service gives, and is not determinable here.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource#getVersion",
+    "com.almworks.jira.structure.structure.history.HistoryUtil#hid"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/history-version-full-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/history/{id}/version/{v}`: each change also has `forest` and `fullForest` is set on the version, both as comma-joined `<row>:<depth>:<item>` entries (plus `:<semantics>` when positive). `parentPathFrom`, `parentPathTo`, `precedingSiblingsFrom` and `precedingSiblingsTo` are comma-separated row ids, absent when the list is null or empty. `itemTypes` covers the item types of the forests and `fullForest`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.StructureHistoryResource$ForestVersionBuilder#createFull",
+    "com.almworks.structure.commons.rest.ItemSerializer#serializeItemForest",
+    "com.almworks.structure.commons.rest.data.TransferFormat#toFormula"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-get-all",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/saved-column`: lists come in source order then each source's list order: `bundled/bundled`, `stored/global`, `stored/user`. An anonymous caller allowed to use <product> gets all three, `stored/user` empty and without `createSupported`. A caller without plugin access fails with `STRUCTURE_PLUGIN_ACCESS_DENIED` from the stored source: 403 `structure-error`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#getAllColumnLists",
+    "com.almworks.jira.structure.savedcolumn.StoredColumnSource#getColumnLists"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-get-list",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/saved-column/{columnSource}/{listKey}`: source and list key are compared exactly (case-sensitive). An unknown source, or a list key the source does not have (for example `bundled/global`), answers 404 with no body. A caller without plugin access asking for a stored list gets 403 `structure-error`; a bundled list needs no such check beyond the common gate.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#getColumnList",
+    "com.almworks.jira.structure.savedcolumn.BundledColumnSource"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-create-order-of-checks",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{listKey}`: checks run in this order: unknown source (400 `structure-error` `StructureErrors.INVALID_PARAMETER`, message `Column source doesn't exist: <id>`); then the name rules; then, in the source, plugin access, list key and permission. So a blank name on an unknown list answers the name error, and `IllegalArgumentException` `List is not supported: <key>` becomes 400 `Invalid request data`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#createColumn",
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#findColumnSource",
+    "com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput#toColumnInputParameters",
+    "com.almworks.jira.structure.savedcolumn.StoredColumnSource#createColumn"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-name-rules",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{listKey}` and `PUT /rest/structure/2.0/saved-column/{columnSource}/{id}`: `name` is mandatory. Missing, empty or blank answers 400 `Invalid request data` with the message of `s.w.saved-column.error.blank-name` (`Column name cannot be blank`); longer than 190 characters, counted before trimming, with `s.w.saved-column.error.long-name` (`Column name cannot be longer than 190 characters`). Otherwise the name is stored trimmed. Nothing is stored on failure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.savedcolumn.SavedColumnInputParameters#setName",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnInputParameters#checkName",
+    "com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput#toColumnInputParameters"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-type-not-checked",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{listKey}` and `PUT /rest/structure/2.0/saved-column/{columnSource}/{id}`: the plugin does not check `type`, but `C_TYPE` of `AO_8BAD1B_SAVED_COLUMN` is not null, so a missing `type` is not stored: the request fails in Active Objects. The exact reply is not determinable from the plugin; expect a server failure.",
+   "confidence": "low",
+   "evidence": [
+    "com.almworks.jira.structure.db.SavedColumnAO",
+    "com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput#toColumnInputParameters"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-create-result",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{listKey}`: the 200 reply is the new `saved-column` with `composedId` `stored/<new id>` and `listId` `stored/<list key>`; `params` is null for empty parameters and `editable` follows stored-column-source. A missing `parameters` is stored as `{}` and a missing `description` as null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#createColumn",
+    "com.almworks.jira.structure.rest.v2.data.RestSavedColumn#fromSavedColumn"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-create-statistics",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{listKey}`: after a successful create it adds 1 to statistics counters `savedColumns.create` and `savedColumns.create.<listKey>` through statistics-manager, asynchronously. Failures count nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#createColumn"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-put-replaces",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/saved-column/{columnSource}/{id}`: `description` and `parameters` missing from the body are cleared (null and `{}`), and `name` and `type` are overwritten with the body's values; the owner stays. The order is: unknown source, name rules, then stored-column-source's checks. On the bundled source a valid body answers 500 text/plain.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#updateColumn",
+    "com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput#toColumnInputParameters",
+    "com.almworks.jira.structure.savedcolumn.StoredColumnSource#updateColumn"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-delete",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`DELETE /rest/structure/2.0/saved-column/{columnSource}/{id}`: a missing column, or another user's, answers 400 text/plain with `s.w.saved-column.error.column-not-found.delete` (`Cannot delete saved column because it does not exist`). Every other `StructureException`, including an unknown source and a global column without the permission, answers 500 text/plain with its localized message. A bundled source answers 500 by the exception mapper. After success, statistics counter `savedColumns.delete` gains 1.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#deleteColumn",
+    "com.almworks.jira.structure.rest.javax.AbstractStructurePluginResource#serverError"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-edit-partial",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{id}/edit`: the column is read first as the caller; null means 400 text/plain `s.w.saved-column.error.not-found.edit` (`Unable to edit the saved column because it has been deleted`). A body without `name` and `description` writes the same values back and answers 200. An empty `description` clears the text to empty; `type` and `parameters` in the body are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#editColumn",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnInputParameters#fromSavedColumn"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-edit-name-rules",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{id}/edit`: a non-null `name` follows the name rules of `POST /rest/structure/2.0/saved-column/{columnSource}/{listKey}`: blank or over 190 characters answers 400 `Invalid request data`, otherwise it is stored trimmed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#editColumn",
+    "com.almworks.jira.structure.savedcolumn.SavedColumnInputParameters#setName"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-update-parameters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{id}/updateParameters`: the column is read first, with the same 400 as `.../edit` when null; then only the parameters are replaced, and a missing `parameters` stores `{}`. `name`, `description` and `type` in the body are ignored, also a blank `name`. An unknown source gives 400 `structure-error`, permission failures come from stored-column-source (403 `structure-error` for a global column).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#updateColumnParams"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-move-unknown-source",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{id}/move/{newListKey}`: an unknown source answers 400 text/plain with `s.w.saved-column.error.not-found.edit`, not a `structure-error`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#moveColumn"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-move-refused",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{id}/move/{newListKey}`: on the stored source a refused move answers 400 text/plain with the error messages stored-column-source collected, joined by `. `. On the `bundled` source the move is refused with no message: 400 with an empty body.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#moveColumn",
+    "com.almworks.jira.structure.savedcolumn.BundledColumnSource#isMovable"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-move-success",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/saved-column/{columnSource}/{id}/move/{newListKey}`: on success the column becomes global and statistics counter `savedColumns.moveTo.<newListKey>` gains 1. The body is not read, but a JSON content type is what lets the request through the platform's XSRF check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#moveColumn"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/saved-column-null-body",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/saved-column/{columnSource}/{id}`, `POST /rest/structure/2.0/saved-column/{columnSource}/{id}/edit` and `POST /rest/structure/2.0/saved-column/{columnSource}/{id}/updateParameters`: a body that reaches the resource as null fails with a null dereference after the source check (for the last two also after the column read): 500 text/plain, nothing changed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#updateColumn",
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#editColumn",
+    "com.almworks.jira.structure.rest.v2.javax.SavedColumnResource#updateColumnParams"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/undo-job",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/synchronizers/undo`: the work runs as a job on the executor named `user`, under structure-async-request-handler's protocol. With a `jobId` in the body, `actionGroups` and `syncModuleKeys` are ignored. A null body fails with a null dereference: 500 text/plain.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SynchronizersResource#undo",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/undo-pairing",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/synchronizers/undo`: lists are paired from the end: the last group with the last key, and so on backwards. With lists of different length, pairing stops at the shorter list, so leading entries of the longer one are skipped without a result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SynchronizersResource$Undo#call"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/undo-response",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/synchronizers/undo`: `syncModuleKeys` of the reply is the request's list in its original order, while `actionGroups` is in processing order (last input group first), so the two lists run in opposite order; `jobId` is absent. A null `actionGroups` or `syncModuleKeys` fails the job with a null dereference: 500 text/plain.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SynchronizersResource$Undo#call"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/undo-success-text",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/synchronizers/undo`: for a synchronizer that implements `UndoingSynchronizer`, each element of the group's JSON array is passed as a `MapObject`, in array order, to `undo`, and the reply's group is `[` + the returned objects' JSON joined by `,` + `]`. An empty array still calls `undo` with no actions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SynchronizersResource$Undo#call",
+    "com.almworks.jira.structure.rest.v2.javax.SynchronizersResource$Undo#undo"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/undo-not-undoing",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/synchronizers/undo`: a key that resolves to no synchronizer, or to one that does not implement `UndoingSynchronizer`, yields for that group a one-element array with `syncModuleKey` = the key, `result` = `failure` and `reason` = `synchronizer is not an UndoingSynchronizer ` (trailing space included). Other groups go on, and the audit log records nothing for it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SynchronizersResource$Undo#call"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/undo-malformed-group",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/synchronizers/undo`: a group whose text is not a JSON array of objects yields a one-element array with `syncModuleKey`, `result` = `failure` and `exception` (with `message` when there is one, `class`, `stackTrace`, and `cause` when there is one). `undo` is not called and other groups go on.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SynchronizersResource$Undo#call",
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#getFailureDescription"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/undo-exception",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/synchronizers/undo`: when `undo` throws an `Exception`, the group's result is a one-element array with `sync` = the synchronizer descriptor's label, `result` = `failure` and `exception`; it does not fail the request, and that failure action is what the audit log receives.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SynchronizersResource$Undo#undo"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/undo-audit",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/synchronizers/undo`: each group handed to a synchronizer is recorded through sync-audit-log with instance id 0, structure id 0, the synchronizer's complete module key, the description `{\"action\": \"undo\", \"loggedInUserKey\": <caller key, empty text when none>}` and the resulting actions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.SynchronizersResource$Undo#undo"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/create-structure-access",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/create-structure/share-with`, `GET /rest/structure/2.0/create-structure/projects`, `GET /rest/structure/2.0/create-structure/agile-boards` and `GET /rest/structure/2.0/create-structure/versions` have no anonymous marker, so an anonymous call gets the platform's 401. If the resource is reached with no authenticated user (the helper says so), it answers 403 with no body and searches nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#findSharingSubjects",
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#findProjects",
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#findAgileBoards",
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#findProjectUnarchivedVersions"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/create-structure-share-with-order",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/create-structure/share-with`: `groups` holds, in this order and only when they match: the private group, roles (rest-subjects-searcher's project-role search), groups (its group search). `query` is null in the reply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#findSharingSubjects"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/create-structure-share-with-private",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/create-structure/share-with`: the private group has no `label` and no `footer` and one item: `value` and `id` `private.nobody`, `label` the text of `s.tpl.step.general.share.private` (`Nobody`), no `title`. It matches like any other candidate on that text, so query `nob` returns it and query `xyz` does not; `maxResults` does not affect it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#matchWithPrivateOption",
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchItems"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/create-structure-projects",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/create-structure/projects`: the single group, if any, is rest-subjects-searcher's project search with `query` and `maxResults` as given; there is no group when nothing matches, and the reply is then `{\"groups\": []}` with `query` null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#findProjects"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/create-structure-agile-boards",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/create-structure/agile-boards`: the single group, if any, is rest-subjects-searcher's board search. Without Jira Software the reply is 200 with no groups.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#findAgileBoards"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/create-structure-versions-ids",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/create-structure/versions`: `projectIds` is split on `,`; blank entries are skipped; duplicates count once. An entry that is not exactly a decimal long, including one with surrounding spaces such as ` 5`, gives 400 `Invalid request data`. An unknown project id yields no versions. Authentication is checked before parsing. With no ids the reply has no groups.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#findProjectUnarchivedVersions"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/create-structure-versions-multi",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/create-structure/versions`: the count that switches on full-name matching is the number of distinct ids given, so one project named twice counts as one, and two ids of which one is unknown count as two.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CreateStructureResource#findProjectUnarchivedVersions",
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchProjectUnarchivedVersions"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/cloud-order-of-checks",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/cloudmigration/stats/{id}`: the system-administrator gate comes first (403 `permission violation`). Then id 0 or negative answers 400 with no body, without reading the request's `jobId` and without starting a job.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CloudMigrationResource#getStructureStats",
+    "com.almworks.structure.commons.rest.AdminRequired"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/cloud-job",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/cloudmigration/stats/{id}`: a request without `jobId` starts a job on the executor named `attribute`, under structure-async-request-handler's protocol. With a `jobId` the path id is not used for anything but the positive check. A null body fails with a null dereference: 500 text/plain.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CloudMigrationResource#getStructureStats",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/cloud-forest-used",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/cloudmigration/stats/{id}`: the counted forest is the latest forest of `ForestSpec.skeleton(<id>)`: the stored forest with generators not run, so generator rows count and generated rows do not. The project of each row is asked of the attribute service with `CoreAttributeSpecs.PROJECT` for that same spec.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CloudMigrationResource#getStructureStats"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/cloud-counts",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/cloudmigration/stats/{id}`: each row counts in the first category that fits: issue, generator, effector, folder, memo, Confluence page (item type `com.almworks.structure.pages:type-confluence-page` with a long id); any other row counts only in `size`. A generator row also counts in exactly one of `inserters`, `extenders`, `groupers`, `filters`, `sorters` according to its kind, or in none when its kind is none of these or it cannot be resolved. `id` is the path id and `size` the forest's row count.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CloudMigrationResource#getStructureStats",
+    "com.almworks.jira.structure.util.Util#isConfluencePage"
+   ]
+  },
+  {
+   "key": "r5-v2-structures/rest-v2/cloud-projects",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/cloudmigration/stats/{id}`: `projects` has one name per distinct project key among the rows' project values, whatever the row's kind; rows without a project add nothing. Two projects with the same name appear twice. Names are sorted with a `java.text.Collator` for the helper's locale. An empty forest gives `size` 0 and `projects` `[]`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.CloudMigrationResource#getStructureStats"
+   ]
+  }
+ ]
+}

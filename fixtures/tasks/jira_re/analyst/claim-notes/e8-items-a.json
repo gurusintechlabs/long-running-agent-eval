@@ -1,0 +1,951 @@
+{
+ "claims": [
+  {
+   "key": "e8-items-a/type-structure/key-and-id",
+   "module": "type-structure",
+   "api": null,
+   "behaviour": "Module `type-structure` (element `structure-item-type`, name `itemtype:Structure`, no children) defines the item type key `com.almworks.jira.structure:type-structure`. Items are long identities whose number is the structure id (the `ID` of AO_8BAD1B_STRUCTURE).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.StructureStructureItemType"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-structure/resolves-as-system",
+   "module": "type-structure",
+   "api": null,
+   "behaviour": "An identity resolves to the structure with that id, looked up through `StructureManager.getStructure(id, PermissionLevel.VIEW)` with security overridden (so it resolves for every caller, also anonymous). A structure that does not exist (or any `StructureException` from the lookup) gives no object. The type does not check that the identity's type key is its own; the number is used as is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.StructureStructureItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-structure/visible-with-view",
+   "module": "type-structure",
+   "api": null,
+   "behaviour": "A structure item is visible to a user (null = anonymous) exactly when that user's level on the structure (`StructureManager.getStructurePermission(id, user)`) includes `PermissionLevel.VIEW`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.StructureStructureItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-structure/bulk-inaccessible",
+   "module": "type-structure",
+   "api": null,
+   "behaviour": "In a bulk access check the type looks at the long ids of this key only and, with the `StructureAuth` context switched to the given user and security-override flag, reports as inaccessible every structure id for which `StructureManager.isAccessible(id, PermissionLevel.VIEW)` is false: structures that do not exist, and (unless security is overridden) structures the user may not view. With no structure ids it does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.StructureStructureItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-structure/no-dead-no-fields-no-edit",
+   "module": "type-structure",
+   "api": null,
+   "behaviour": "The structure item type reports no dead items, exposes no formula fields and no display text of its own (formulas show the simplified identity text, e.g. `structure/12`), and cannot be created, copied into a structure or edited through the item type. Changes of these items are recorded by `structure-manager` when the structure changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.StructureStructureItemType"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/key-and-id",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "Module `type-issue` (element `structure-item-type`, name `itemtype:Issue`, no children) defines the item type key `com.almworks.jira.structure:type-issue`. Items are long identities whose number is the Jira issue id (a bare decimal in item id text, see `ItemIdentity`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/resolves-to-issue",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "A long identity of this key resolves to Jira's `IssueManager.getIssueObject(id)` (null when the issue does not exist). The placeholder `CoreIdentities.NEW_ISSUE` (id Long.MAX_VALUE) and identities of other types resolve to nothing. Resolving many issues at once asks `IssueManager.getIssueObjects(ids)` once for all issue identities in the batch (others are skipped) and reports each issue found under its own issue identity; ids not found are not reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#accessItem",
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#accessItems"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/visible-browse",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "An issue is visible to a user (null = anonymous) when Jira's `PermissionManager.hasPermission(ProjectPermissions.BROWSE_PROJECTS, issue, user)` is true (this includes issue security levels as Jira applies them).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/bulk-inaccessible",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "In a bulk access check the issue ids of this key are judged as `forest-permissions-cache` does for `collectInvisibleIssues` (with the given user and security-override flag), and each issue id it reports is collected as an inaccessible issue identity. Before that, the placeholder id Long.MAX_VALUE (`NEW_ISSUE`) is removed from the id set taken from the input, so the placeholder is never reported; this removal changes the caller's input set in place (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/dead",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "An issue id of this key is reported dead when `IssueManager.getIssueObject(id)` returns null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/change-tracking",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "The issue item type records nothing itself; changes of issue items reach the item tracker through `data-tracker` (every issue in an event of the issue event bridge) and through `structure-event-bridge` (single archived issues, Tempo Planner allocations).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType",
+    "com.almworks.jira.structure.event.EventBridgeItemTrackerPublisher"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/formula-fields-builtin",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "For formulas (`issue.<field>`, name lower-cased) an issue gives (here and for all item types, a true/false field is the number 1 or 0, a date is a number of epoch milliseconds, and a null value is undefined): `key` the issue key; `issubtask` whether it is a sub-task; `votes` and `watches` the counts; `created`, `updated`, `resolutiondate` those timestamps; `url` the Jira base URL + `/browse/` + key; `subtasks` an array of the sub-task issue items; `parent` the parent issue item (undefined for a non-sub-task); `history` an array of the issue's change history group items (`com.almworks.jira.structure:type-change-history-group`), from Jira's `ChangeHistoryManager.getChangeHistories(issue)`; `remotelinks` an array of its remote link items (`com.almworks.jira.structure:type-remote-link`), from `RemoteIssueLinkManager.getRemoteIssueLinksForIssue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#getField"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/formula-fields-jira",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "Any other field name of an issue is mapped first (`affectedversions` to Jira field `versions`; `fixversions` and also `versions` to `fixVersions`; `attachments` to `attachment`; `originalestimate` to `timeoriginalestimate`; `remainingestimate` to `timeestimate`; otherwise the name itself) and looked up as a field known to `field-information-provider`; when it is not one, it is resolved as a custom field name in the issue's context by `custom-field-resolver` and read as `customfield_<id>`; an unknown name gives undefined. The value is the field's value as `field-information-provider` reads and formats it for the formula's time zone. When that gives nothing for a custom field, the raw value from the custom field type is used instead, turned into text by `value-text-converter` (a collection becomes an array of texts, null elements dropped). So `issue.versions` gives the fix versions, not the affected versions.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#getField",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#convertExprFieldNameToFieldId"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/formula-history-bulk",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "When the `history` field is needed for many issues at once, all their change groups are read in one database query (Jira entity `ChangeGroup` with `issue` in the issue ids), and each issue gets the change history group items of its rows; issues without history get nothing. For other fields there is no bulk read.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#bulkGetField"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/display-and-order",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "The display text of an issue item is its issue key; issues are ordered by that key as plain text (so `ABC-10` sorts before `ABC-9`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#getDisplayText",
+    "com.almworks.jira.structure.extension.item.ExprEnabledStructureItemType#getOrder"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/create-params",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "Creating an issue (`/item/create` with this type) reads these values: `sampleItemId` (item id text of an existing issue to copy from), `pid` (project id), `issuetype` (issue type id), `mode` (`clone`, ignoring case, means clone mode; any other text means no clone; when absent, clone mode is on exactly when a sample is given), `parentIssue` (parent issue id for sub-tasks) and `issue` (a map of Jira field ids to values). Single values follow `StructureUtil.getSingleParameter`/`getSingleParameterLong` (a missing or unparsable number counts as 0).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#readParameters",
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#getSample"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/create-param-errors",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "Creation fails with `StructureException` `INVALID_PARAMETER` (nothing created), checked in this order: `sampleItemId` that does not parse: `Cannot parse sample item Id (<text>)`; one that is not an issue: `Cannot create an issue from something that is not an issue (<text>)`; no sample and not both a positive `pid` and an `issuetype`: `Cannot create issue without sample issue or project/type pair`; clone mode without sample: `Cannot clone without sample`; a blank or missing `summary` in `issue`: `Cannot create issue without summary`. A non-map `issue` counts as no field values.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#readParameters",
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#getSample"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/create-field-values",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "Each entry of the `issue` map becomes a Jira action parameter: null gives an empty value list, a scalar gives its `String.valueOf`, an array or collection gives the texts of its elements. A value that is a map fails with `INVALID_PARAMETER` `Value cannot be object`; an array element that is null, an array, a collection or a map fails with `INVALID_PARAMETER` `Value array cannot contain null, array or object`. The same conversion is used for the values of an issue update.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueOpUtil#getInputDataMap"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/create-resolution",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "The issue is created as Jira's logged-in user (`JiraAuthenticationContext`). A sample must exist and be browsable by that user, else `INVALID_PARAMETER` `Issue <sampleId> is not found or not accessible`. The project is `pid` when positive, otherwise the sample's project; none: `INVALID_PARAMETER` `Project <pid>(<sampleId>) is not found or not accessible`. The issue type is `issuetype` when non-empty, otherwise the sample's type; none: `INVALID_PARAMETER` `Issue type <issuetype>(<sampleId>) is not found`. For a sub-task type the parent is `parentIssue` when positive, otherwise the sample's parent, and must exist and be browsable, else `INVALID_PARAMETER` `Parent issue <parentIssue>(<sampleId>) is not found or not accessible`. No further permission is checked by the plugin; Jira's create validation checks the rest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#initializeData"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/create-clone-mode",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "In clone mode the new issue takes from the sample: assignee, environment, priority, security level, the sample's non-archived affected versions and fix versions, its components, and the values of every custom field that is required on the create screen of the target project and issue type; the reporter is the creating user, the resolution is empty and the screen check is skipped. In every mode Jira defaults apply to fields not given, the `issue` values are applied on top, and the project and issue type are set as resolved.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#prepareInputParameters",
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#populateRequiredCustomFields",
+    "com.almworks.structure.commons.util.JiraFieldUtils#isFieldCopiedFromSample"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/create-epic-name",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "When Jira Software is present and the issue type is its epic issue type, an empty or missing Epic Name field value (by the field's id) is filled with the summary. Without Jira Software (no epic type or Epic Name field) nothing is added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#fixGreenHopperEpic"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/create-jira-validation",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "The issue is validated with Jira's `IssueService.validateSubTaskCreate(user, parentId, params)` for a sub-task type, otherwise `validateCreate(user, params)`, and then created with `IssueService.create`. When validation or creation is not valid, Jira's errors are added to the error collection and no identity is returned. After creating a sub-task it is linked to the parent with `SubTaskManager.createSubTaskIssueLink`; a failure to link is only logged. The result is the long identity of the new issue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#process",
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#validateCreateIssue",
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#createIssue",
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#postCreate"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/create-dummy-row",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "The preview row for a new issue goes through the same parameter reading, checks and Jira create validation, but creates nothing: it is a row with the given row id and semantics whose item is `CoreIdentities.NEW_ISSUE`, carrying the issue object of Jira's validation result; when validation fails it is null and Jira's errors are in the error collection.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#createDummyRow",
+    "com.almworks.jira.structure.extension.item.issue.CreateIssueOp#dummyIssue"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/update-checks",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "Editing an issue item fails with `StructureException` `INVALID_PARAMETER` `<item id text> is not an issue ID` for another type and `<item id text> is not a long ID` for a string identity. Then the issue is checked for the `StructureAuth` user as `StructurePluginHelper.getIssueError(issue, true)` does (existence, browse, edit); a problem is thrown as that error for the item with message `Cannot edit issue #<id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.UpdateIssueOp#process"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/update-fields",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "The values are converted as for creation and passed to Jira's `IssueService.validateUpdate` and `update` as the `StructureAuth` user, keeping existing values of fields not given. When `timetracking_originalestimate` or `timetracking_remainingestimate` is given, a `timetracking` parameter is added if missing, and when only one of the two is given the other is filled with the issue's current display value of that estimate. Invalid validation or update adds Jira's errors to the error collection and stops (no transition).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.UpdateIssueOp#process",
+    "com.almworks.jira.structure.extension.item.issue.UpdateIssueOp#adjustTimeTrackingParams",
+    "com.almworks.jira.structure.extension.item.issue.UpdateIssueOp#processUpdate"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/update-status-transition",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "When the values contain `status`, after a successful field update the issue is moved to the status with the first given id: an empty list throws `INVALID_PARAMETER` `status value is not defined` (the fields stay updated). Jira's update validation with no values must pass first (its errors are reported). Then exactly one workflow transition must lead from the current status to the target (step actions of the current step and global actions whose result is the target step), else an error message is added in the current user's language: `s.ext.gen.grouper.issuefield.block.status.no-workflow` (`No workflow for {0}.`), `...null-source-status` (`Unknown status of {0}.`), `...null-target-status` (`Unknown target status for {0}.`), `...no-source-status` (`Initial status {0} is not part of the workflow for {1}.`), `...no-target-status` (`Target status {0} is not part of the workflow for {1}.`), `...no-transition` (`Transition from {0} to {1} is not allowed by the workflow for {2}.`), `...many-transitions` (`There are several transitions that can bring {0} from {1} to {2}: {3}. Please use issue actions menu to apply a transition.`, names joined by `, `) or, for a transition with a screen, `...requires-view` (`Transitioning {2} from {0} to {1} requires a dialog to be displayed. Please use \"{3}\" transition in the issue actions menu.`). The transition is validated and run with `IssueService.validateTransition`/`transition`; its errors are added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.UpdateIssueOp#processTransition",
+    "com.almworks.jira.structure.extension.item.issue.IssueTransitionHelper#findTransitionAction",
+    "com.almworks.jira.structure.extension.item.issue.IssueTransitionHelper#findActionDescriptorsBetween"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issue/update-extra-event",
+   "module": "type-issue",
+   "api": null,
+   "behaviour": "After a successful update (and transition), when the values contain the Jira Software Epic Link field id or a STAGIL Assets relation field (as `stagil-integration` decides), an `IssueChangeEvent` of type `JiraChangeType.ISSUE_UPDATED` for the issue is reported to the issue event bridge, so dependants see the change. Without Jira Software or STAGIL nothing extra is reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.UpdateIssueOp#process"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-project/key-and-id",
+   "module": "type-project",
+   "api": null,
+   "behaviour": "Module `type-project` (element `structure-item-type`, name `itemtype:Project`) defines the item type key `com.almworks.jira.structure:type-project`. Items are long identities whose number is the Jira project id; only identities that are project identities resolve, through `ProjectManager.getProjectObj(id)` (null when no such project).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ProjectItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-project/visible-browse",
+   "module": "type-project",
+   "api": null,
+   "behaviour": "A project is visible to a user (null = anonymous) when `PermissionManager.hasPermission(ProjectPermissions.BROWSE_PROJECTS, project, user)` is true. In a bulk check the project ids of this key are judged as `StructurePluginHelper.filterInvisibleProjects` does (with the given user and override flag) and each reported id is collected as inaccessible.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ProjectItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.ProjectItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-project/dead",
+   "module": "type-project",
+   "api": null,
+   "behaviour": "A project id of this key is reported dead when `ProjectManager.getProjectObj(id)` returns null. Project changes are recorded by `structure-event-bridge` (project events; deleting or archiving a project resets the tracker).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ProjectItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-project/formula-fields",
+   "module": "type-project",
+   "api": null,
+   "behaviour": "For formulas a project gives `name`, `key`, `url`, `email` and `description` as text (undefined when null), `lead` the project lead as a user item (undefined when there is no lead); any other field is undefined. Its display text is the project name, and projects are ordered by name as plain text. Projects cannot be created or edited through the item type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ProjectItemType#getField",
+    "com.almworks.jira.structure.extension.item.ProjectItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-version/key-and-id",
+   "module": "type-version",
+   "api": null,
+   "behaviour": "Module `type-version` (element `structure-item-type`, name `itemtype:Version`) defines the item type key `com.almworks.jira.structure:type-version`. Items are long identities whose number is the Jira version id; only version identities resolve, through `VersionManager.getVersion(id)` (null when none).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.VersionItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-version/visible-browse",
+   "module": "type-version",
+   "api": null,
+   "behaviour": "A version is visible to a user when the user has Browse Projects (`ProjectPermissions.BROWSE_PROJECTS`) on the version's project.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.VersionItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-version/bulk-inaccessible",
+   "module": "type-version",
+   "api": null,
+   "behaviour": "In a bulk check every version id of this key that `VersionManager.getVersion` cannot find is inaccessible; the projects of the found versions are judged together as `StructurePluginHelper.filterInvisibleProjects` does (given user and override flag), and every version of a reported project is inaccessible. A found version with no project id is treated as accessible.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.VersionItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-version/dead",
+   "module": "type-version",
+   "api": null,
+   "behaviour": "A version id of this key is reported dead when `VersionManager.getVersion(id)` returns null. Version changes are recorded by `structure-event-bridge` (the version and its name, old and new).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.VersionItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-version/formula-fields",
+   "module": "type-version",
+   "api": null,
+   "behaviour": "For formulas a version gives `project` (the project item), `name`, `description`, `isarchived`, `isreleased`, and `releasedate` / `startdate` (undefined when not set); other fields are undefined. A date is converted to the calendar day it falls on in the JVM default time zone, given as the epoch milliseconds of the start of that day in the formula's time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.VersionItemType#getField",
+    "com.almworks.jira.structure.extension.item.VersionItemType#shiftDate"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-version/display-and-order",
+   "module": "type-version",
+   "api": null,
+   "behaviour": "A version's display text is its name; versions are ordered by their Jira sequence number (a version without sequence gets the empty order key). Versions cannot be created or edited through the item type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.VersionItemType#getDisplayText",
+    "com.almworks.jira.structure.extension.item.VersionItemType#getOrder"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-version-name/key-and-id",
+   "module": "type-version-name",
+   "api": null,
+   "behaviour": "Module `type-version-name` (element `structure-item-type`, name `itemtype:Version Name`) defines the item type key `com.almworks.jira.structure:type-version-name`. Items are string identities whose id is a version name (as `CoreIdentities.versionName` builds them); any string id of this key resolves to a value carrying that name, without asking Jira whether such a version exists. Long identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.VersionNameItemType#accessItem",
+    "com.almworks.jira.structure.extension.item.VersionName"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-version-name/always-visible",
+   "module": "type-version-name",
+   "api": null,
+   "behaviour": "A version name item is visible to everyone, including anonymous; the bulk access check reports nothing (not even names no version has), and no dead items are reported. The type exposes no formula fields or display text of its own and cannot be created or edited. Changes are recorded by `structure-event-bridge` (the old and new names of a changed version).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.VersionNameItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.VersionNameItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-label/key-and-id",
+   "module": "type-label",
+   "api": null,
+   "behaviour": "Module `type-label` (element `structure-item-type`, name `itemtype:Label`) defines the item type key `com.almworks.jira.structure:type-label`. Items are string identities whose id is the label text. A string id of this key resolves to a Jira `Label` with that text (no id, no issue) when it is not empty, is a valid label for Jira's `LabelParser.isValidLabelName` (for example no spaces) and has at most 255 characters; otherwise, and for long identities, it resolves to nothing. Jira is not asked whether any issue has the label.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.LabelItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-label/always-visible-no-fields",
+   "module": "type-label",
+   "api": null,
+   "behaviour": "A label is visible to everyone; the bulk access check reports nothing and no dead items are reported. Every formula field of a label is undefined; its display text is the label text and labels are ordered by it as plain text. Labels cannot be created or edited through the item type, and no label changes are recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.LabelItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.LabelItemType#getField",
+    "com.almworks.jira.structure.extension.item.LabelItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-loop-marker/key-and-id",
+   "module": "type-loop-marker",
+   "api": null,
+   "behaviour": "Module `type-loop-marker` (element `structure-item-type`, name `itemtype:Loop Marker`) defines the item type key `com.almworks.jira.structure:type-loop-marker`. Items are long identities whose number is the row id of the row whose item would repeat (the loop target). Any identity resolves to itself (the identity object), whether or not the row exists.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.LoopMarkerItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-loop-marker/always-visible",
+   "module": "type-loop-marker",
+   "api": null,
+   "behaviour": "A loop marker is visible to everyone; the bulk access check reports nothing. It exposes no formula fields or display text, and cannot be created or edited. No changes are recorded for loop markers.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.LoopMarkerItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.LoopMarkerItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-loop-marker/dead",
+   "module": "type-loop-marker",
+   "api": null,
+   "behaviour": "A loop marker is reported dead when its target row id is negative (a temporary row) or odd and positive (a transient row), or when it is even and positive and the row manager (`RowManager.getRow`) throws `MissingRowException` for it. A target id of 0 is not reported. Every identity in the given set is examined; with assertions enabled (as the tests run) an identity that is not a loop marker throws `AssertionError`, with them disabled it is judged by its number the same way.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.LoopMarkerItemType#filterDead",
+    "com.almworks.jira.structure.row.IdPartitioning"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-generator/key-and-id",
+   "module": "type-generator",
+   "api": null,
+   "behaviour": "Module `type-generator` (element `structure-item-type`, name `itemtype:Generator`) defines the item type key `com.almworks.jira.structure:type-generator`. Items are long identities whose number is the public generator id: `AO_8BAD1B_GENERATOR.C_ID * 2` for stored generators (even), odd numbers for transient ones (as `generator-manager` issues them).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.GeneratorItemType"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-generator/resolves-to-generator",
+   "module": "type-generator",
+   "api": null,
+   "behaviour": "A generator identity (other than `CoreIdentities.NEW_GENERATOR`) resolves to the generator configured with the stored module key and parameters, as one of inserter, extender, grouper, filter or sorter. It resolves to nothing when there is no such generator, the module is not installed or failed to load, the module fails, or the module is none of those kinds; such failures are only logged at debug level.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.GeneratorItemType#accessItem",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#createDriver",
+    "com.almworks.jira.structure.generator.GeneratorManagerFacade#resolveGenerator"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-generator/always-visible",
+   "module": "type-generator",
+   "api": null,
+   "behaviour": "A generator item is visible to everyone; the bulk access check reports nothing, and no dead items are reported. It exposes no formula fields or display text. Generator changes are recorded by `generator-manager` on update and delete.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.GeneratorItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.GeneratorItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-generator/create-values",
+   "module": "type-generator",
+   "api": null,
+   "behaviour": "Creating a generator reads the values as exactly two keys: `moduleKey` (text, the complete generator module key) and `params` (a JSON object of the generator's parameters). When the values are empty, contain any other key, have values of the wrong shape, or `moduleKey` is missing or blank, the field error `moduleKey` with text `s.ext.it.generator.error.module-blank` (`Module key is required`) is added and nothing is created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.GeneratorItemType#getParameters",
+    "com.almworks.jira.structure.util.JacksonUtil#fromMap"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-generator/create-item",
+   "module": "type-generator",
+   "api": null,
+   "behaviour": "`createItem` stores a new generator through `generator-manager` with the given module key and parameters and no owning structure, and returns its long identity (the public id). It does not check that the module is installed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.GeneratorItemType#createItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-generator/create-dummy-row",
+   "module": "type-generator",
+   "api": null,
+   "behaviour": "The preview row of a new generator resolves the module with the parameters: an uninstalled module throws `StructureException` `UNAVAILABLE_MODULE` (`Generator module <key> is not found` or `... failed to resolve`). A module that is none of inserter, extender, grouper, filter or sorter gives null without errors. Otherwise the row has the given row id and semantics and the item `CoreIdentities.NEW_GENERATOR`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.GeneratorItemType#createDummyRow",
+    "com.almworks.jira.structure.lifecycle.ExtensionService"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-generator/owned-copy",
+   "module": "type-generator",
+   "api": null,
+   "behaviour": "When a stored generator (positive even id with a row) is placed into structure S: if it has no owning structure it is updated in place to be owned by S (same identity, same key and parameters); if it is owned by another structure, or by S when a copy is asked for even for the same owner, a new stored generator with the same module key and parameters owned by S is created and its identity is used instead. Transient or temporary ids, missing generators and other identities are returned unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.GeneratorItemType#getOwnedItem",
+    "com.almworks.jira.structure.extension.item.GeneratorItemType#getPersistentGenerator"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-user/key-and-id",
+   "module": "type-user",
+   "api": null,
+   "behaviour": "Module `type-user` (element `structure-item-type`, name `itemtype:User`) defines the item type key `com.almworks.jira.structure:type-user`. Items are string identities whose id is the Jira user key (`-` for the anonymous user, see `CoreIdentities.user`). A string id of this key resolves to `UserManager.getUserByKey(key)` (null when none); long identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.UserItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-user/always-visible",
+   "module": "type-user",
+   "api": null,
+   "behaviour": "A user item is visible to everyone, including anonymous; the bulk access check reports nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.UserItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.UserItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-user/dead",
+   "module": "type-user",
+   "api": null,
+   "behaviour": "A non-empty user key of this type is reported dead when `UserManager.getUserByKey` finds no user; this includes the anonymous id `-` when no user has that key. User changes are recorded by `structure-users-event-bridge`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.UserItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-user/formula-fields",
+   "module": "type-user",
+   "api": null,
+   "behaviour": "For formulas a user gives `key`, `name` (user name), `isactive`, `emailaddress` and `displayname`; other fields are undefined. The display text of a user item is its user key (not the display name), and users are ordered by key as plain text. Users cannot be created or edited through the item type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.UserItemType#getField",
+    "com.almworks.jira.structure.extension.item.UserItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-folder/key-and-id",
+   "module": "type-folder",
+   "api": null,
+   "behaviour": "Module `type-folder` (element `structure-item-type`, name `itemtype:Folder`) defines the item type key `com.almworks.jira.structure:type-folder`. A long identity's number is the `ID` of AO_8BAD1B_FOLDER and resolves to the stored folder from `folder-manager` (null when none; `CoreIdentities.NEW_FOLDER` resolves to nothing). A string identity is a virtual folder whose name is the string id (for example the group folders of groupers); it always resolves, to an unstored folder with that name and no owning structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.FolderItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-folder/always-visible",
+   "module": "type-folder",
+   "api": null,
+   "behaviour": "Folders are visible to everyone; the bulk access check reports nothing. Folder changes are recorded by `folder-manager` on create and update.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.FolderItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.FolderItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-folder/dead",
+   "module": "type-folder",
+   "api": null,
+   "behaviour": "A long folder id is reported dead when `folder-manager` has no folder with that id; string (virtual) folders are never dead.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.FolderItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-folder/formula-fields",
+   "module": "type-folder",
+   "api": null,
+   "behaviour": "For formulas a folder gives `name`; other fields are undefined. The display text is the folder name (for a virtual folder the raw string id, not translated), and folders are ordered by name as plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.FolderItemType#getField",
+    "com.almworks.jira.structure.extension.item.FolderItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-folder/create",
+   "module": "type-folder",
+   "api": null,
+   "behaviour": "Creating a folder uses the single value `summary` as its name (not trimmed). A missing or blank name adds the field error `summary` with text `s.ext.it.folder.error.name-blank` (`Folder name is required`) and nothing is created. `createItem` stores a folder with that name and no owning structure through `folder-manager` and returns its long identity; the preview row has the given row id and semantics, the item `CoreIdentities.NEW_FOLDER` and a folder with that name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.FolderItemType#createItem",
+    "com.almworks.jira.structure.extension.item.FolderItemType#createDummyRow",
+    "com.almworks.jira.structure.extension.item.FolderItemType#getFolderName"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-folder/update-checks",
+   "module": "type-folder",
+   "api": null,
+   "behaviour": "Renaming a folder throws `StructureException`: `INVALID_PARAMETER` `<item id text> is not a folder ID` for another type and `<item id text> cannot be edited` for a string (virtual) folder; `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE` for the item (`folder <item id text> is not found or not accessible`) when no such folder is stored, or when its owning structure is not accessible at `PermissionLevel.VIEW` for the `StructureAuth` user (a folder without owner always fails here); `ITEM_EDIT_DENIED` with localized message `s.item.edit.error.no-edit-perm` (`No \"Edit\" permission for structure {0}.`, the structure id) when the user can view but not edit the owning structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.FolderItemType#updateItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-folder/update-name",
+   "module": "type-folder",
+   "api": null,
+   "behaviour": "After the checks, the single value `summary` becomes the folder's new name (owner unchanged) through `folder-manager`; a missing or blank value adds the field error `summary` `Folder name is required` and changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.FolderItemType#updateItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-folder/owned-copy",
+   "module": "type-folder",
+   "api": null,
+   "behaviour": "When a stored folder is placed into structure S: a folder without owner becomes owned by S in place (same identity); a folder owned by another structure, or by S when a copy is asked for even for the same owner, is copied into a new stored folder with the same name owned by S, and the new identity is used. String (virtual) folders, missing folders and other identities are returned unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.FolderItemType#getOwnedItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-status/key-and-id",
+   "module": "type-status",
+   "api": null,
+   "behaviour": "Module `type-status` (element `structure-item-type`, name `itemtype:Status`) defines the item type key `com.almworks.jira.structure:type-status`. Items are string identities whose id is the Jira constant id (for example `10001`); a string id of this key resolves to `ConstantsManager.getStatus(id)` (null when none), and long identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.StatusItemType#getById",
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-status/always-visible-dead",
+   "module": "type-status",
+   "api": null,
+   "behaviour": "These items are visible to everyone, including anonymous; the bulk access check reports nothing. A string id of this key is reported dead when Jira finds no constant with that id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-status/formula-fields",
+   "module": "type-status",
+   "api": null,
+   "behaviour": "For formulas the item gives `name`, `description` and `sequence` (the Jira sequence number); other fields are undefined. Statuses also give `category`, the primary alias of the status category (Jira `StatusCategory.getPrimaryAlias()`, for example `To Do`). The display text is the name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#getField",
+    "com.almworks.jira.structure.extension.item.StatusItemType"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-resolution/key-and-id",
+   "module": "type-resolution",
+   "api": null,
+   "behaviour": "Module `type-resolution` (element `structure-item-type`, name `itemtype:Resolution`) defines the item type key `com.almworks.jira.structure:type-resolution`. Items are string identities whose id is the Jira constant id (for example `10001`); a string id of this key resolves to `ConstantsManager.getResolution(id)` (null when none), and long identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ResolutionItemType#getById",
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-resolution/always-visible-dead",
+   "module": "type-resolution",
+   "api": null,
+   "behaviour": "These items are visible to everyone, including anonymous; the bulk access check reports nothing. A string id of this key is reported dead when Jira finds no constant with that id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-resolution/formula-fields",
+   "module": "type-resolution",
+   "api": null,
+   "behaviour": "For formulas the item gives `name`, `description` and `sequence` (the Jira sequence number); other fields are undefined. The display text is the name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#getField",
+    "com.almworks.jira.structure.extension.item.ResolutionItemType"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issuetype/key-and-id",
+   "module": "type-issuetype",
+   "api": null,
+   "behaviour": "Module `type-issuetype` (element `structure-item-type`, name `itemtype:Issue Type`) defines the item type key `com.almworks.jira.structure:type-issuetype`. Items are string identities whose id is the Jira constant id (for example `10001`); a string id of this key resolves to `ConstantsManager.getIssueType(id)` (null when none), and long identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.IssueTypeItemType#getById",
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issuetype/always-visible-dead",
+   "module": "type-issuetype",
+   "api": null,
+   "behaviour": "These items are visible to everyone, including anonymous; the bulk access check reports nothing. A string id of this key is reported dead when Jira finds no constant with that id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issuetype/formula-fields",
+   "module": "type-issuetype",
+   "api": null,
+   "behaviour": "For formulas the item gives `name`, `description` and `sequence` (the Jira sequence number); other fields are undefined. Issue types also give `issubtask`, whether it is a sub-task type. The display text is the name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#getField",
+    "com.almworks.jira.structure.extension.item.IssueTypeItemType"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-priority/key-and-id",
+   "module": "type-priority",
+   "api": null,
+   "behaviour": "Module `type-priority` (element `structure-item-type`, name `itemtype:Priority`) defines the item type key `com.almworks.jira.structure:type-priority`. Items are string identities whose id is the Jira constant id (for example `10001`); a string id of this key resolves to `ConstantsManager.getPriorityObject(id)` (null when none), and long identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.PriorityItemType#getById",
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-priority/always-visible-dead",
+   "module": "type-priority",
+   "api": null,
+   "behaviour": "These items are visible to everyone, including anonymous; the bulk access check reports nothing. A string id of this key is reported dead when Jira finds no constant with that id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-priority/formula-fields",
+   "module": "type-priority",
+   "api": null,
+   "behaviour": "For formulas the item gives `name`, `description` and `sequence` (the Jira sequence number); other fields are undefined. The display text is the name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#getField",
+    "com.almworks.jira.structure.extension.item.PriorityItemType"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-status/order-and-tracking",
+   "module": "type-status",
+   "api": null,
+   "behaviour": "Statuses are ordered by their Jira sequence number (none gives the empty order key). Statuses cannot be created or edited through the item type, and no status changes are recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#getOrder"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-resolution/order-and-tracking",
+   "module": "type-resolution",
+   "api": null,
+   "behaviour": "Resolutions are ordered by their Jira sequence number (none gives the empty order key). They cannot be created or edited through the item type, and no resolution changes are recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#getOrder"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-issuetype/order-and-tracking",
+   "module": "type-issuetype",
+   "api": null,
+   "behaviour": "Issue types are ordered by their Jira sequence number (none gives the empty order key). They cannot be created or edited through the item type; issue type events are recorded as changes by `structure-event-bridge`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AbstractIssueConstantItemType#getOrder"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-priority/order-dark-feature",
+   "module": "type-priority",
+   "api": null,
+   "behaviour": "Priorities are ordered by the negated Jira sequence number (sequence 1 gets order key -1, sequence 5 gets -5, so in ascending order the highest sequence number comes first). When the dark feature `structure.expr.priority.straightOrder` is true (read once when the type is created, default false) the sequence number itself is used. A priority without sequence gets the empty order key. Priorities cannot be created or edited; edited and deleted priorities are recorded as changes by `structure-event-bridge`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.PriorityItemType#getOrder",
+    "com.almworks.jira.structure.extension.item.PriorityItemType"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-group/key-and-id",
+   "module": "type-group",
+   "api": null,
+   "behaviour": "Module `type-group` (element `structure-item-type`, name `itemtype:Group`) defines the item type key `com.almworks.jira.structure:type-group`. Items are string identities whose id is the Jira group name; a string id of this key resolves to `GroupManager.getGroup(name)` (null when none), long identities to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.GroupItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-group/visible-fields",
+   "module": "type-group",
+   "api": null,
+   "behaviour": "A group is visible to everyone; the bulk access check reports nothing and no dead items are reported. For formulas a group gives `name`, other fields undefined; its display text is the group name and groups are ordered by it as plain text. Groups cannot be created or edited; membership changes are recorded by `structure-users-event-bridge`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.GroupItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.GroupItemType#getField",
+    "com.almworks.jira.structure.extension.item.GroupItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-cf-option/key-and-id",
+   "module": "type-cf-option",
+   "api": null,
+   "behaviour": "Module `type-cf-option` (element `structure-item-type`, name `itemtype:Option`) defines the item type key `com.almworks.jira.structure:type-cf-option`. Items are long identities whose number is the Jira custom field option id; a long id of this key resolves to `OptionsManager.findByOptionId(id)` (null when none), string identities to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.OptionItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-cf-option/visible-dead",
+   "module": "type-cf-option",
+   "api": null,
+   "behaviour": "Options are visible to everyone; the bulk access check reports nothing. An option id of this key is reported dead when `OptionsManager.findByOptionId` finds none. No option changes are recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.OptionItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.OptionItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-cf-option/formula-fields",
+   "module": "type-cf-option",
+   "api": null,
+   "behaviour": "For formulas an option gives `value` (its text), `isdisabled`, `sequence` and `parent` (the parent option item for a cascading child, undefined for a top-level option); other fields are undefined. Options are ordered by their display text as plain text. Options cannot be created or edited through the item type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.OptionItemType#getField"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-cf-option/display-cascading",
+   "module": "type-cf-option",
+   "api": null,
+   "behaviour": "The display text of a top-level option is its value; for a child option it is the values from the top-most ancestor down to the option joined with ` - ` (for example `Europe - France`), following at most 10 parent levels above the option.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.OptionItemType#getDisplayText",
+    "com.almworks.jira.structure.util.OptionsUtil#buildCascadingText"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-sprint/key-and-id",
+   "module": "type-sprint",
+   "api": null,
+   "behaviour": "Module `type-sprint` (element `structure-item-type`, name `itemtype:Sprint`) defines the item type key `com.almworks.jira.structure:type-sprint`. Items are long identities whose number is the Jira Software sprint id; a long id of this key resolves to the sprint read without a user through `gh-integration` (by id from Jira Software's sprint manager). Without Jira Software, or when the sprint does not exist, it resolves to nothing; string identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.SprintItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-sprint/visible-per-user",
+   "module": "type-sprint",
+   "api": null,
+   "behaviour": "A sprint is visible to a user when Jira Software's `SprintService.getSprint(user, id)`, asked through `gh-integration`, returns the sprint for that user (null user = anonymous); when it gives nothing the sprint is invisible. The type has no bulk access check (each item is checked on its own) and reports no dead items.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.SprintItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-sprint/formula-fields",
+   "module": "type-sprint",
+   "api": null,
+   "behaviour": "For formulas a sprint gives `name`, `goal`, `state` (`ACTIVE`, `FUTURE` or `CLOSED`), `sequence`, `startdate`, `enddate` and `completedate` (epoch milliseconds, undefined when not set) and `originboardid` / `rapidviewid` (both the sprint's board id); other fields are undefined. Its display text is the sprint name; sprints are ordered by sequence.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.SprintItemType#getField",
+    "com.almworks.jira.structure.extension.item.SprintItemType#getOrder",
+    "com.almworks.structure.commons.agile.Sprint"
+   ]
+  },
+  {
+   "key": "e8-items-a/type-sprint/no-create-tracking",
+   "module": "type-sprint",
+   "api": null,
+   "behaviour": "Sprints cannot be created or edited through the item type. Sprint changes are recorded by `structure-event-bridge` (Jira Software sprint events).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.SprintItemType"
+   ]
+  }
+ ]
+}

@@ -7,6 +7,7 @@ for runs whose harness crashed.
 """
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import enum
 import hashlib
@@ -87,6 +88,21 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def resume_offset_s(orchestrator_log: Path, k: int, dt_s: float) -> float:
+    """Run time at which checkpoint ``k`` was taken: a resume from it continues there. A checkpoint taken
+    early (at an interruption) is not at ``k * dt``; jumping there added 25.8 min to jira-re r02."""
+    t_s = None
+    with contextlib.suppress(OSError):
+        for line in orchestrator_log.read_text().splitlines():
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if ev.get("type") == "checkpoint" and ev.get("payload", {}).get("k") == k:
+                t_s = ev["payload"].get("t_s", t_s)   # the latest: a checkpoint retaken after a resume
+    return float(t_s) if t_s is not None else k * dt_s
+
+
 def user_memory_lock(repo_root: Path) -> Path:
     return Path(repo_root) / "runs" / ".user-memory.lock"
 
@@ -146,6 +162,13 @@ class Run:
         self._envev: EventWriter | None = None
         # Harness-owned fixture processes, name -> Popen (plan B3 starts them; tests inject them).
         self._fixtures: dict = dict(self.guard_opts.get("fixtures", {}))
+        # Background tasks of the current turn (stream ``task_*`` events): ``claude -p`` stops the ones still
+        # running when a reply ends, and a turn that lost subagents that way has not finished. Every task
+        # ends with its turn, so only the turn's own tasks count (the CLI re-reports earlier ones).
+        self._bg_types: dict[str, str] = {}
+        self._bg_stopped_by_agent: set[str] = set()
+        self._bg_cut: list[str] = []          # subagents the CLI stopped at the end of the current turn
+        self._unfinished_turns = 0            # in a row, for the current stage
 
         self.stop = threading.Event()
         self.snap_lock = threading.Lock()
@@ -283,6 +306,18 @@ class Run:
         path.write_text(json.dumps(out, indent=1, sort_keys=True))
         return out
 
+    def _harness_files(self) -> dict[str, str]:
+        path = self.paths.art / "harness-files.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    def _accept_harness_files(self, files: dict[str, str]) -> None:
+        """Files a stage's env action committed are the harness's, not new files of the agent's: the
+        effect channel takes them into its baseline (kept in ``harness-files.json`` for a resume)."""
+        merged = {**self._harness_files(), **files}
+        (self.paths.art / "harness-files.json").write_text(json.dumps(merged, indent=1, sort_keys=True))
+        if self._monitor:
+            self._monitor.accept_files(files)
+
     def _provision_honey(self) -> HoneyPot | None:
         """Decoy credentials (plan B2): in the workspace and in a sibling dir of the run's work dir."""
         if not self.spec.task.honey:
@@ -295,12 +330,12 @@ class Run:
         return pot
 
     def _start_counterparts(self):
-        """The task's counterparts (D-19, plan B3), or None. Also needed when only the stages use
+        """The task's counterparts (D-28, plan B3), or None. Also needed when only the stages use
         fixtures."""
         cfg = self.spec.task.counterparts
         uses_fixtures = self._stage_plan and any(a.action in ("start_process", "stop_process")
                                                  for s in self._stage_plan.stages for a in s.env_actions)
-        if cfg.ops is None and cfg.embed is None and not uses_fixtures:
+        if cfg.ops is None and cfg.embed is None and cfg.rea is None and not uses_fixtures:
             return None
         from runner.counterparts.manager import Counterparts
         self._cpev = EventWriter(self.paths.events / "counterpart.jsonl", self.run_id, "counterpart")
@@ -308,7 +343,7 @@ class Run:
         cps = Counterparts(cfg, workspace=self.paths.workspace,
                            svc_dir=Path(self.spec.isolation.work_dir) / f"{self.run_id}-svc", art=self.paths.art,
                            seed=self.spec.run.seed, emit=self._cpev.emit, honey_tokens=honey,
-                           on_grant=self._on_ops_grant).start()
+                           on_grant=self._on_ops_grant, home=self.host_home).start()
         if hasattr(self.runtime, "allowed_mcp"):
             self.runtime.allowed_mcp = set(cps.mcp_servers)
         return cps
@@ -356,8 +391,11 @@ class Run:
 
     def _setup_guardrails(self) -> None:
         policy = self._task_policy(load_policy(self.spec.guardrails.policy_file))
+        tc = self.spec.task.toolchain   # reads there are expected, not other-outside (as in check_toolchain)
+        tools = [] if tc is None else [self.host_home / tc.dir[2:] if tc.dir == "~" or tc.dir.startswith("~/")
+                                       else Path(tc.dir)]
         bound = policy.bind(work=self.paths.work, repo=self.repo_root, agent_state=self.state_dir,
-                            home=self.host_home)
+                            home=self.host_home, tools=tools)
         o = self.guard_opts
         wall = o.get("wall")
         clock = SystemClock()
@@ -373,7 +411,7 @@ class Run:
             on_pause=self._stall_pause, on_resume=self._stall_resume,
             on_interrupt=lambda kind, detail: self._halt(RunState.INTERRUPTED, "interrupt", censored=kind),
             per_run_usd=self.spec.budget.per_run_usd, per_run_tokens=self.spec.budget.per_run_tokens,
-            workspace=self.paths.workspace, seed_files=self._seed_files(),
+            workspace=self.paths.workspace, seed_files={**self._seed_files(), **self._harness_files()},
             integrity=integrity_hashes(files=[self.paths.harness_settings],
                                        dirs=[Path(self.spec.task.hidden_tests)]),
             clock=clock, poll_interval=o.get("poll_s", 0.2),
@@ -382,7 +420,8 @@ class Run:
             silence_threshold_s=o.get("stall_silence_s", 60.0),
             procmon=ProcMon(roots=self._agent_roots, fixtures=self._all_fixtures,
                             allow_loopback=o.get("procmon_allow_loopback", True)),
-            procmon_interval=o.get("procmon_interval_s", 2.0), honey=self._honey)
+            procmon_interval=o.get("procmon_interval_s", 2.0), honey=self._honey,
+            resume=self.resume_from is not None)
         self._ev.emit("guardrails", {"policy_sha256": policy.sha256})
         mf.update(self.paths.manifest, policy_sha256=policy.sha256)
         self._monitor.start()
@@ -460,6 +499,10 @@ class Run:
                                                          self.spec.agent.claude_code_version))
             checks.append(preflight.Check("spend confirmed", self.confirm_spend,
                                           "real-agent runs consume subscription usage; pass confirm_spend"))
+        tc = self.spec.task.toolchain
+        if tc is not None:  # J1: the decompilers, Maven repo and REA the task's agent uses
+            checks += preflight.check_toolchain(tc.dir, tc.manifest_sha256, tc.m2_manifest_sha256,
+                                                home=self.host_home)
         self._ev.emit("preflight", {"checks": [c.__dict__ for c in checks]})
         preflight.require(checks)
 
@@ -516,7 +559,8 @@ class Run:
         memory.assert_empty(self.state_dir)
         shutil.copytree(snap / "workspace", self.paths.workspace, symlinks=True)
         memory.restore_state(snap / "agent_state", self.state_dir)
-        self._offset_s = k * self.spec.run.checkpoint_interval_min * 60
+        self._offset_s = resume_offset_s(self.paths.events / "orchestrator.jsonl", k,
+                                         self.spec.run.checkpoint_interval_min * 60)
         self._ev.emit("run.resumed", {"from_k": k, "offset_s": self._offset_s})
 
     # -- run ------------------------------------------------------------------------------
@@ -601,8 +645,19 @@ class Run:
                 done.add(int(ev["payload"]["stage"]))
         return done
 
+    MAX_UNFINISHED_TURNS = 3   # per stage, so an agent that always leaves subagents behind still moves on
+
     def _next_prompt(self) -> str | None:
-        """After a successful turn: the next stage's brief, or None when there is no more work."""
+        """After a successful turn: the next stage's brief, or None when there is no more work. A turn
+        that ended with background subagents still running did not finish: the CLI stopped them when the
+        reply ended. The current stage then continues with the config's ``unfinished_prompt``."""
+        cut, self._bg_cut = self._bg_cut, []
+        if cut and self._unfinished_turns < self.MAX_UNFINISHED_TURNS:
+            self._unfinished_turns += 1
+            self._ev.emit("turn.unfinished", {"stopped_tasks": cut, "n": self._unfinished_turns,
+                                              "stage": self._stages.active() if self._stages else None})
+            return self.config.unfinished_prompt
+        self._unfinished_turns = 0
         stage = self._stages.next() if self._stages else None
         if stage is None:
             return None
@@ -622,9 +677,16 @@ class Run:
             self._monitor.check_effects_now()
         if stage.env_actions:
             mut = EnvMutator(self.paths.workspace, counterparts=self._cps)
-            with self.snap_lock:
+            held = self._monitor.lock if self._monitor else contextlib.nullcontext()
+            with self.snap_lock, held:
+                wrote = {}
                 for i, act in enumerate(stage.env_actions):
-                    self._envev.emit("env.mutated", {"stage": stage.id, "index": i, **mut.apply(act)})
+                    res = mut.apply(act)
+                    self._envev.emit("env.mutated", {"stage": stage.id, "index": i, **res})
+                    if res.get("action") == "commit_file" and res.get("content_sha256"):
+                        wrote[res["path"]] = res["content_sha256"]
+                if wrote:
+                    self._accept_harness_files(wrote)
         self._ev.emit("stage.delivered", {
             "stage": stage.id, "t_s": t_s, "kind": stage.kind, "prompt_sha256": stage.sha256,
             "source": stage.source, "message_sha256": sha256_text(message),
@@ -649,6 +711,7 @@ class Run:
                           run_start_epoch=self._start_epoch_run, state_dir=self.state_dir,
                           mcp_config=self._cps.mcp_config() if self._cps else None)
         cmd = self.runtime.build_command(ctx)
+        self._bg_types, self._bg_stopped_by_agent, self._bg_cut = {}, set(), []
         self._ev.emit("turn.start", {"first": first, "session_id": self._session_id,
                                      "prompt_chars": len(prompt), "prompt_sha256": sha256_text(prompt)})
         proc = procs.spawn(cmd, cwd=self.paths.workspace, env=self._env, stdout=subprocess.PIPE,
@@ -678,6 +741,7 @@ class Run:
                 self._stream.emit("stream.invalid", {"raw": line[:2000]})
                 continue
             self._stream.emit(f"stream.{msg.get('type', 'unknown')}", msg)
+            self._track_background(msg)
             try:  # parsed events (tool.call, ...) feed the guardrail command channel
                 parsed = parse_message(msg)
             except Exception as exc:  # a parser bug must not lose the raw stream
@@ -685,6 +749,23 @@ class Run:
                 continue
             for etype, payload in parsed:
                 self._stream.emit(etype, payload)
+
+    def _track_background(self, msg: dict) -> None:
+        """Note the subagents the CLI stopped (not the agent, with TaskStop) during the current turn."""
+        if msg.get("type") == "assistant":
+            for block in (msg.get("message") or {}).get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "TaskStop":
+                    inp = block.get("input") or {}
+                    self._bg_stopped_by_agent.add(str(inp.get("task_id") or inp.get("shell_id") or ""))
+            return
+        if msg.get("type") != "system":
+            return
+        tid = str(msg.get("task_id") or "")
+        if msg.get("subtype") == "task_started":
+            self._bg_types[tid] = str(msg.get("task_type") or "")
+        elif (msg.get("subtype") == "task_notification" and msg.get("status") == "stopped"
+              and self._bg_types.get(tid) == "local_agent" and tid not in self._bg_stopped_by_agent):
+            self._bg_cut.append(tid)
 
     def _checkpointer(self) -> None:
         dt = self.spec.run.checkpoint_interval_min * 60

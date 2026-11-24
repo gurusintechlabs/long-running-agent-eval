@@ -1,0 +1,1028 @@
+{
+ "claims": [
+  {
+   "key": "g5-generators/Forest/contract",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.Forest",
+   "behaviour": "Forest is a read-only interface (extending com.almworks.integers.LongIntIterable over (row id, depth) pairs) describing an ordered set of trees as a pre-order list of row ids with a parallel list of depths: roots have depth 0, each depth is at most one more than the previous one, row ids are unique and never 0 or -1. Indexes are 0-based and row id 0 means 'none' or 'the top level' in arguments and results. It declares exactly these members: the constant EMPTY; size, isEmpty, getRows, getDepths, getRow(int), getDepth(int), isImmutable, indexOf, containsRow, getSubtreeEnd, getParentIndex, getParent, getPrecedingSibling, getPrecedingSiblingIndex, getPrecedingSiblingForIndex, getPrecedingSiblings, getPrecedingSiblingsForIndex, getNextSiblingIndex, getNextSiblingForIndex, getNextSibling, getPathIndexAtDepth, getLastChild, getLastChildByIndex, getChildrenIndicesIterator, getChildren, getChildrenAtIndex, getRoots, getPath, getPathForIndex, getParentPathForIndex, filter, filterSoft, filterHardest (each taking a nullable La<Long, ?>), subtree, subtreeAtIndex, copySubforest and copySubforestAtIndex (both returning ArrayForest), copy (returning ArrayForest), visitParentChildrenUpwards, foldUpwards, scanDownwards and toFullString. All methods are abstract; there are no default methods.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.Forest",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest"
+   ]
+  },
+  {
+   "key": "g5-generators/Forest/empty-constant",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.Forest",
+   "behaviour": "Forest.EMPTY is a shared ArrayForest with no rows that has been made immutable: isEmpty() is true, size() is 0, isImmutable() is true and its toString() is \"forest(ro)\".",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.Forest",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#makeImmutable"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/constructors",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "ArrayForest constructors: the no-argument one gives an empty mutable forest; ArrayForest(long row) gives a forest with that single row at depth 0; ArrayForest(LongList, IntList) and ArrayForest(Forest) copy the given rows and depths, so later changes to the source do not show in the new forest (and the copy is mutable even when the source forest is immutable); ArrayForest(WritableLongList, WritableIntList, boolean reuseLists) adopts the given lists as live storage when reuseLists is true (changes to the lists show in the forest and vice versa) and copies them when false. A freshly constructed forest is never immutable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#<init>",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#set"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/rejects-row-zero-and-minus-one",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "Every constructor that takes row lists, the single-row constructor, and both set(...) methods throw IllegalArgumentException if any row id is 0 or -1 (for example new ArrayForest(rows [1, 0], depths [0, 1]) or new ArrayForest(rows [-1], depths [0])). For a list the message starts with the offending position in square brackets, e.g. \"[1] row ID must be non-zero\" or \"[0] row ID -1 is reserved for super-root and cannot be used\". Other invariants (equal list sizes, first depth 0, depth jumps, duplicate ids) are checked only by Java assert statements: with assertions disabled invalid input is accepted silently, with assertions enabled it fails with AssertionError.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#<init>",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#set"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/set-replaces-content",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "set(LongList rows, IntList depths) replaces the whole content of the forest with copies of the lists and returns the same forest instance; set(WritableLongList, WritableIntList, reuseLists) does the same but adopts the lists when reuseLists is true. Neither checks the immutability flag, so they also replace the content of a forest that was made immutable (as the original does); the flag itself stays set.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#set"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/diagnostics",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "getDiagnostics() (and the static getDiagnostics(Forest)) returns null for a valid forest (including an empty one) and otherwise a short text naming the first problem: \"array size mismatch\" when rows and depths differ in length; \"root not at 0 depth\" when the first depth is not 0; a text starting \"duplicate row @<index> <row>\" for a repeated row id; \"bad depth @<index> <depth> <row>\" for a negative depth; \"bad depth change @<index> <previous depth> <depth> <row>\" when a depth is more than one greater than the previous row's. The texts for the last three continue with a space and the forest's toString(). Row ids 0 and -1 are not reported here. Example: a forest built with reuseLists true from rows [1,2] and depths [0,1], after the caller sets the shared depth list's second entry to 2, reports \"bad depth change @1 0 2 2 forest(1:0,2:2)\".",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getDiagnostics"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/size-rows-depths",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). size() is the number of rows (5) and isEmpty() is true only with no rows. getRows() and getDepths() return the row ids [1,2,3,4,5] and depths [0,1,2,1,0] in forest order; they are the forest's live backing lists (they reflect later edits of the forest), not copies. getRow(i) and getDepth(i) return the entry at position i and throw an index-out-of-bounds exception for a position outside 0..size-1.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#size",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#isEmpty",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getRows",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getDepths",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getRow",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getDepth"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/indexof-containsrow",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). indexOf(row) returns the 0-based position of the row (indexOf(3) is 2), or -1 if the row is absent (indexOf(99) is -1); indexOf(0) is always -1. containsRow(row) is true for a row present in the forest (containsRow(4)) and false otherwise (containsRow(99)).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#indexOf",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#containsRow"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/subtree-end",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). getSubtreeEnd(index) returns the position just past the subtree of the row at index, that is the first later position whose depth is not greater than that row's depth, or size() if none: getSubtreeEnd(0) is 4 (row 1 covers positions 0..3), getSubtreeEnd(1) is 3, getSubtreeEnd(4) is 5. A negative index returns 0 and an index greater than size() returns size(); an index exactly equal to size() throws an index-out-of-bounds exception (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getSubtreeEnd"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/parent",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). getParent(row) returns the parent row id: getParent(3) is 2; it returns 0 for a root (getParent(1)), for a row not in the forest (getParent(99)) and for row 0. getParentIndex(index) returns the parent's position (getParentIndex(1) is 0), or -1 for a root (getParentIndex(0)) or a negative index; an index at or past size() throws an index-out-of-bounds exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getParent",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getParentIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/path-index-at-depth",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). getPathIndexAtDepth(index, depth) returns the position of the ancestor of the row at index that has the given depth, or index itself if the row has that depth: getPathIndexAtDepth(2, 0) is 0, getPathIndexAtDepth(2, 1) is 1, getPathIndexAtDepth(2, 2) is 2. It returns -1 when index is negative, depth is negative, or depth is greater than the row's depth (getPathIndexAtDepth(1, 2) is -1).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getPathIndexAtDepth"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/preceding-siblings",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). getPrecedingSibling(row) returns the nearest earlier row with the same parent: getPrecedingSibling(4) is 2, getPrecedingSibling(5) is 1; it is 0 for a first child (getPrecedingSibling(2)), a first root, a row not in the forest, or row 0. getPrecedingSiblingIndex(index) gives that sibling's position (getPrecedingSiblingIndex(3) is 1) or -1 if none or if index is 0 or negative; getPrecedingSiblingForIndex(index) gives its row id or 0. getPrecedingSiblings(row) / getPrecedingSiblingsForIndex(index) return a new list of all earlier siblings in forest order, nearest last (in rows 10,11,12 all roots, getPrecedingSiblings(12) is [10, 11]); empty for a first child, a row not found, or index 0 or negative.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getPrecedingSibling",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getPrecedingSiblingIndex",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getPrecedingSiblingForIndex",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getPrecedingSiblings",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getPrecedingSiblingsForIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/next-siblings",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). getNextSibling(row) returns the next row with the same parent: getNextSibling(2) is 4 and getNextSibling(1) is 5 (roots are siblings); it is 0 for a last child (getNextSibling(4)), the last root, a row not in the forest, or row 0. getNextSiblingIndex(index) gives the sibling's position (getNextSiblingIndex(1) is 3) or -1 if none, if index is negative, or if index is the last position or beyond (no exception); getNextSiblingForIndex(index) gives its row id or 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getNextSibling",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getNextSiblingIndex",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getNextSiblingForIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/children-and-roots",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). getChildren(row) returns a new list of the direct children in order: getChildren(1) is [2, 4]; it is empty for a leaf (getChildren(3)) or a row not in the forest, and getChildren(0) returns the roots. getChildrenAtIndex(index) does the same by position (getChildrenAtIndex(0) is [2, 4]) and is empty for a negative index. getRoots() returns a new list of all depth-0 rows in order: [1, 5]. Changing a returned list does not change the forest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getChildren",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getChildrenAtIndex",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getRoots"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/children-indices-iterator",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). getChildrenIndicesIterator(index) returns an iterator over the positions of the direct children of the row at index, in order: for index 0 it yields 1 then 3; for a leaf it yields nothing; for index -1 it yields the positions of the roots (0 then 4). The iterator reads the forest lazily as it advances. A negative index other than -1 fails with an index-out-of-bounds exception on the first advance (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getChildrenIndicesIterator"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/last-child",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). getLastChild(parent) returns the last direct child: getLastChild(1) is 4; getLastChild(0) is the last root (5); it is 0 for a leaf (getLastChild(3)) and for a row not in the forest. getLastChildByIndex(parentIndex) does the same by position, a negative index meaning the top level (getLastChildByIndex(-1) is 5), and returns 0 when parentIndex is not less than size().",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getLastChild",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getLastChildByIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/paths",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). getPath(row) returns a new list with the path from the root down to the row inclusive: getPath(3) is [1, 2, 3], getPath(5) is [5]; empty if the row is not found. getPathForIndex(index) does the same by position and is empty for a negative index. getParentPathForIndex(index) returns the path to the row's parent, the row itself excluded: getParentPathForIndex(2) is [1, 2]; empty for a root or a negative index.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getPath",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getPathForIndex",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#getParentPathForIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/subtree-copy",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). subtree(row) returns a new mutable forest holding the row and all its descendants, with depths rebased so the row is at depth 0: subtree(2) has rows [2, 3] and depths [0, 1]; subtree(1) has rows [1,2,3,4] depths [0,1,2,1]. If the row is not found the result is an empty forest. subtreeAtIndex(index) does the same by position and returns an empty forest for a negative index. The original forest is not changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#subtree",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#subtreeAtIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/copy-subforest",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). copySubforest(row) returns a new mutable forest with the descendants of the row but not the row itself, rebased so its children become roots: copySubforest(1) has rows [2, 3, 4] and depths [0, 1, 0]. It returns an empty forest for a leaf (copySubforest(3)), null for a row not in the forest, and a copy of the whole forest for row 0. copySubforestAtIndex(k) does the same by position and returns null for a negative k.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#copySubforest",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#copySubforestAtIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/addrow-position",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). addRow(row, under, after) inserts a new row as a leaf child of under (0 = top level) directly after the sibling after, that is after after's whole subtree, and returns true: on the sample, addRow(6, 1, 2) gives rows [1,2,3,6,4,5] depths [0,1,2,1,1,0]. With after 0 the row becomes the first child of under, or the first root when under is also 0 (addRow(7, 0, 0) puts 7 at position 0, depth 0). addRow(20, 0, 10) on the one-row forest 10 gives the text form \"forest(10:0,20:0)\".",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#addRow"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/after-resolution",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). When inserting (addRow, moveSubtree, mergeForest, addForestMutuallyExclusive), an after row that is a deeper descendant of one of under's children stands for that child: addRow(6, 1, 3) inserts 6 after the subtree of 2 (rows [1,2,3,6,4,5]). An after row that is not in the forest, or does not resolve to a child of under, is silently ignored (only logged) and the new rows go in as under's first children: addRow(6, 1, 5) gives rows [1,6,2,3,4,5] depths [0,1,1,2,1,0]. No exception is thrown for a bad after.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#addRow",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#addForestMutuallyExclusive"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/addrow-errors",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). addRow(0, under, after) returns false and changes nothing. addRow with row -1 throws IllegalArgumentException. addRow with an under row that is not in the forest (addRow(6, 99, 0)) throws StructureException whose error is StructureErrors.INVALID_FOREST_OPERATION and whose getRow() is the missing under row; the forest is unchanged. On an immutable forest addRow throws UnsupportedOperationException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#addRow"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/addrow-existing-moves",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). addRow with a row that is already in the forest moves that row together with its subtree to the requested place and returns true: addRow(2, 5, 0) gives rows [1,4,5,2,3] depths [0,1,0,1,2]. If the row is already at that place nothing changes and true is returned. Asking to place it under itself or under one of its own descendants throws StructureException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#addRow",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#moveSubtreeAtIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/move-subtree",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). moveSubtree(row, under, after) moves the row with its whole subtree to be a child of under (0 = top level) right after the sibling after (0 = first) and returns true: moveSubtree(4, 0, 5) gives rows [1,2,3,5,4] depths [0,1,2,0,0], and depths of the moved subtree are shifted to the new level. It returns false and changes nothing if the row is not in the forest (moveSubtree(99, 0, 0)). If the row already has that parent and that preceding sibling, or after equals the row itself and the parent is unchanged, it returns true without changing anything. The four-argument form with a ForestChangeEventHandler reports the removal and the insertion to the handler (when not null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#moveSubtree",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#moveSubtreeAtIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/move-subtree-errors",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). moveSubtree throws StructureException with error StructureErrors.INVALID_FOREST_OPERATION when under is the moved row itself or one of its descendants (moveSubtree(1, 3, 0)), or when under is not in the forest; the forest is left unchanged in these cases. On an immutable forest moveSubtree of a present row throws UnsupportedOperationException (even if no move would be needed).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#moveSubtree",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#moveSubtreeAtIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/move-subtree-at-index",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "moveSubtreeAtIndex(index, under, after, handler) moves the subtree of the row at the given position exactly like moveSubtree and returns the row's new position; it returns -1 when index is negative or when no move was needed (the row already sits under that parent after that sibling). Example: on rows 1,2,3 all roots, moveSubtreeAtIndex(0, 0, 3, null) returns 2 and leaves rows [2,3,1].",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#moveSubtreeAtIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/remove-subtree",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). removeSubtree(row) removes the row with all its descendants and returns them as a new forest rebased to depth 0: removeSubtree(2) returns rows [2,3] depths [0,1] and leaves rows [1,4,5] depths [0,1,0]. For a row not in the forest it returns an empty forest and changes nothing, even on an immutable forest. On an immutable forest removing a present row throws UnsupportedOperationException. removeSubtree(row, handler) and removeSubtreeAtIndex(index, handler) do the same and tell a non-null handler beforeSubtreeRemoved(forest, from, to, removed) before removing; removeSubtreeAtIndex with an index outside 0..size-1 fails with a runtime exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#removeSubtree",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#removeSubtreeAtIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/merge-disjoint",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). mergeForest(forest, under, after) with a forest that shares no rows with this one inserts it whole under under after after, shifting its depths to fit: merging rows [6,7] depths [0,1] under 2 after 3 gives rows [1,2,3,6,7,4,5] depths [0,1,2,2,3,1,0]. A null or empty forest does nothing. addForestMutuallyExclusive(forest, under, after) inserts the same way without checking for shared rows (the caller promises there are none; shared rows would leave duplicates). Both throw StructureException (INVALID_FOREST_OPERATION) when under is not 0 and not in the forest, and UnsupportedOperationException on an immutable forest with a non-empty argument.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#mergeForest",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#addForestMutuallyExclusive"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/merge-overlapping",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). mergeForest with a forest that shares rows with this one places every row of the merged forest so that it has, under under, the parent/child structure and sibling order it has in the merged forest: rows already present are moved there with their current subtrees, new rows are inserted. The merged forest's roots go after after in their order; within each parent the merged children come first, in merged order, followed by any children the parent had that are not in the merged forest. Example: on the sample, merging rows [4, 3] depths [0, 1] at the top level (under 0, after 0) gives rows [4,3,1,2,5] depths [0,1,0,1,0]. When a ForestChangeEventHandler is given it is told about every removal and insertion done.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#mergeForest"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/merge-cycle-error",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). mergeForest throws ForestMergeStructureException (a StructureException with error INVALID_FOREST_OPERATION) when the merged forest overlaps this one and contains under or one of under's ancestors, since the merge would make a row its own ancestor: merging rows [1, 9] depths [0, 1] under 3 throws, with getMergePoint() 3 and getMergePointFatherFromForest() 1. Nothing is changed in that case.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#mergeForest",
+    "com.almworks.jira.structure.api.forest.raw.ForestMergeStructureException#<init>"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/addforest-swallows",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "addForest(under, after, forest) (note the argument order) behaves like mergeForest(forest, under, after) but silently swallows any StructureException: for example adding a forest under a row that does not exist leaves the forest unchanged and throws nothing. UnsupportedOperationException on an immutable forest is not swallowed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#addForest"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/clear",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "clear() removes all rows so the forest becomes empty; on an immutable forest it throws UnsupportedOperationException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#clear"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/filter-lifts-children",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). filter(la) keeps the rows the La accepts (La.accepts) and drops the others, but still tests the descendants of a dropped row: accepted descendants move up into the dropped row's place, attached to the nearest kept ancestor or becoming roots, and order is kept. With a filter rejecting only 2 the result is rows [1,3,4,5] depths [0,1,1,0]; rejecting only 1 gives rows [2,3,4,5] depths [0,1,0,0]. The La is called at most once per row. The result is a new mutable forest; the original is unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#filter"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/filter-hardest-drops-subtrees",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). filterHardest(la) drops every row the La rejects together with its whole subtree, without testing the dropped descendants; depths of kept rows do not change. With a filter rejecting only 2 the result is rows [1,4,5] depths [0,1,0]; rejecting only 1 gives rows [5] depth [0]. The result is a new mutable forest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#filterHardest"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/filter-soft-keeps-ancestors",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). filterSoft(la) keeps every row the La accepts plus all ancestors of such rows (ancestors are kept whether or not the La accepts them), so matching rows keep their hierarchy; other rows are dropped. With a filter accepting only 3 the result is rows [1,2,3] depths [0,1,2]; accepting only 4 gives rows [1,4] depths [0,1]; accepting only 5 gives rows [5] depth [0]. A rejected row whose descendants are all rejected is dropped. The result is a new mutable forest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#filterSoft"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/filter-null-or-all-returns-this",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "filter, filterSoft and filterHardest return this same forest instance (not a copy, so == holds and it is still equal to itself) when the La argument is null or when the La accepts every row. When the La rejects nothing on an empty forest the same instance is returned too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#filter",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#filterSoft",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#filterHardest"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/make-immutable",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "makeImmutable() marks the forest read-only for good and returns the same instance; isImmutable() is then true (false for any newly constructed forest). After that addRow, moveSubtree, mergeForest, addForestMutuallyExclusive, removeSubtree of a present row, reorder, append and clear throw UnsupportedOperationException. The set(...) methods and replaceSubtrees.../replaceSubtreesMutuallyExclusive... do not check the flag and still change an immutable forest (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#makeImmutable",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#isImmutable"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/ensure-immutability",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "ArrayForest.ensureImmutability(forest) returns the argument itself when its isImmutable() is true, and otherwise a new immutable ArrayForest with the same rows and depths (the argument stays mutable and unchanged).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#ensureImmutability"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/copy-and-clone",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "copy() returns a new, mutable ArrayForest with its own copies of the rows and depths: it is equal to the original, changes to either do not affect the other, and copy() of an immutable forest is not immutable. clone() also returns an independent copy, but keeps the immutability flag of the original.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#copy",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#clone"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/equals-hashcode",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "Two ArrayForest objects are equal when both have exactly the class ArrayForest and equal row lists and equal depth lists; the immutability flag does not matter. Rows [1,2,3,4,5] with depths [0,1,2,1,0] equal another forest built from the same lists, and differ from the same rows with depths [0,1,1,1,0]. An instance of a subclass, or another Forest implementation, is never equal. hashCode() depends only on the rows and depths, so equal forests have equal hash codes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#equals",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#hashCode"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/text-form",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "toString() and toFullString() give \"forest(\", then \"ro\" if the forest is immutable, then the rows as row:depth pairs separated by commas (a comma also follows \"ro\" when there are rows), then \")\". Examples: \"forest(1:0,2:1,3:2,4:1,5:0)\"; immutable: \"forest(ro,1:0,2:1,3:2,4:1,5:0)\"; empty: \"forest()\"; empty immutable: \"forest(ro)\". toString() lists at most the first 20 rows; when there are more it ends with \" ... [N]\" before the closing parenthesis, N being the total number of rows (25 roots 1..25 give a text ending \",20:0 ... [25])\"). toFullString() never truncates (that forest's full text ends \",25:0)\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#toString",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#toFullString"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/reorder",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). reorder(parent, children) rearranges the direct children of parent (0 = the roots) into the given order, each child moving with its subtree: reorder(1, [4, 2]) gives rows [1,4,2,3,5] depths [0,1,1,2,0]; reorder(0, [5, 1]) gives rows [5,1,2,3,4]. If parent is not in the forest or has no children nothing happens. A listed row that is not a child of parent throws RuntimeException (message starts \"bad parameter\"). On an immutable forest it throws UnsupportedOperationException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#reorder"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/append",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). append(forest) adds the other forest's rows and depths unchanged at the end, so its roots become the last roots: appending rows [6,7] depths [0,1] gives rows [1,2,3,4,5,6,7] depths [0,1,2,1,0,0,1]. It throws IllegalArgumentException if the two forests share any row and UnsupportedOperationException if this forest is immutable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#append"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/iterator",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). iterator() returns a com.almworks.integers.LongIntIterator over (row id, depth) pairs in forest order: (1,0), (2,1), (3,2), (4,1), (5,0); it reads the live lists.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#iterator"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/replace-subtrees",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). replaceSubtrees(rowId, forest) replaces all descendants of rowId with the given forest, whose roots become rowId's children (depths shifted): replaceSubtrees(1, rows [6,7] depths [0,1]) gives rows [1,6,7,5] depths [0,1,2,0]. With rowId 0 the whole content is replaced. If rows of the given forest occur in the part of this forest that stays, those rows are moved into place by merging under rowId and any merge error is swallowed. A rowId not in the forest throws IllegalArgumentException (\"row <id> is not found\").",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#replaceSubtrees"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/replace-subtrees-mutually-exclusive",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). replaceSubtreesMutuallyExclusive(rowId, forest) replaces rowId's descendants (or everything for rowId 0) with the given forest like replaceSubtrees, without checking for shared rows (shared rows would leave duplicates). replaceSubtreesMutuallyExclusiveAtIndex(index, forest) does the same for the row at a position, -1 meaning the whole content; an index below -1 or not less than size() throws IllegalArgumentException (\"Index is out of bounds: <index>\"). replaceSubtreesMutuallyExclusive with a non-zero rowId not in the forest throws IllegalArgumentException. These methods do not check the immutability flag.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#replaceSubtreesMutuallyExclusive",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#replaceSubtreesMutuallyExclusiveAtIndex"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/fold-upwards",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). foldUpwards(closure) walks the forest bottom-up, from the last row to the first. For each row, after all its children have been processed, it calls closure.visitRow(control, row, childrenRows, carry), where childrenRows lists the direct children in forest order (empty for a leaf) and carry is the accumulation of the children's results (null for a leaf). Each result is then added to the accumulation of its siblings with closure.combine(control, result, carry), carry being null for the first combine of a sibling group; siblings are combined from last to first. The return value is the accumulation of the roots' results. Example: with visitRow returning the row id plus the carry (0 when null) and combine adding value and carry, foldUpwards on the sample returns 15 (row 2 gets carry 3, row 1 gets carry 9 = 4 + 5). It returns null for an empty forest or when control.cancel() was called during a visit. During visitRow and combine, control.getIndex() and control.getDepth() give the position and depth of the row just visited, and control.getForest() is this forest.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#foldUpwards",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest$FoldControl"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/visit-parent-children-upwards",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). visitParentChildrenUpwards(visitor) calls visitor.visit(forest, row, children) once for every row, after all of that row's descendants, going from the end of the forest to the start: for the sample the order is 5, 4, 3, 2 (children [3]), 1 (children [2, 4]); leaves get an empty list. There is no call for the top level. If the visitor returns false the walk stops at once and no further rows are visited. The children list may be reused by later calls, so it should not be kept.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#visitParentChildrenUpwards",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#foldUpwards"
+   ]
+  },
+  {
+   "key": "g5-generators/ArrayForest/scan-downwards",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ArrayForest",
+   "behaviour": "In the examples below the sample forest is rows 1,2,3,4,5 with depths 0,1,2,1,0 (1 has children 2 and 4, 2 has child 3, 5 is a second root). scanDownwards(scanner) calls scanner.acceptRow(control, row) for each row in forest order (1,2,3,4,5); nothing happens for an empty forest. The control (a ForestScanControl) gives, for the current row: getIndex(), getDepth(), getForest(); getParent() / getParentIndex() (0 / -1 for a root); getParentPathIndexes(), the positions of the ancestors from the root down (for row 3: [0, 1]); getSubtreeRows(), the rows of the current row's subtree including itself (for row 2: [2, 3]); cancel(), which stops the scan after the current call; skipSubtree(), which makes the scan continue after the current row's subtree and returns that position (for row 2 it returns 3, so row 3 is not visited); and skipParentSubtree(depth), which makes the scan skip all following rows deeper than depth and returns the position where it resumes (depth -1 ends the scan; at row 3, skipParentSubtree(0) resumes at row 5, position 4). skipParentSubtree throws IllegalArgumentException for a depth below -1 or greater than the current row's depth. The control's toString() is \"[<index>:<depth>]\".",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest#scanDownwards",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest$ScanControl",
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest$AbstractIterationControl"
+   ]
+  },
+  {
+   "key": "g5-generators/ForestMergeStructureException/getters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ForestMergeStructureException",
+   "behaviour": "new ForestMergeStructureException(mergePoint, conflictingRow, sourceForest, targetForest) is a StructureException with error StructureErrors.INVALID_FOREST_OPERATION and getRow() equal to mergePoint. getMergePoint() returns mergePoint, getMergePointFatherFromForest() returns conflictingRow, and getMergePointFatherRoot() returns the root of sourceForest whose subtree contains conflictingRow (for source rows [1,9] depths [0,1] and conflictingRow 9 it is 1). The conflicting row must be in the source forest; otherwise the constructor fails with an index-out-of-bounds exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ForestMergeStructureException#<init>",
+    "com.almworks.jira.structure.api.forest.raw.ForestMergeStructureException#getMergePointFatherRoot"
+   ]
+  },
+  {
+   "key": "g5-generators/ForestMergeStructureException/message-and-forest-strings",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ForestMergeStructureException",
+   "behaviour": "The exception's problem text is \"cannot merge <source> in <target> under <mergePoint>: issue <conflictingRow> on parent path is in the merged forest\", where source and target are the forests' toString() forms. getSourceForestString() and getTargetForestString() return the forests' full text forms only when trace logging is enabled for the class; otherwise each returns the placeholder \"(n/a)\".",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ForestMergeStructureException#<init>",
+    "com.almworks.jira.structure.api.forest.raw.ForestMergeStructureException#getSourceForestString",
+    "com.almworks.jira.structure.api.forest.raw.ForestMergeStructureException#getTargetForestString"
+   ]
+  },
+  {
+   "key": "g5-generators/ForestParentChildrenListClosure/combine-into-list",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.raw.ForestParentChildrenListClosure",
+   "behaviour": "ForestParentChildrenListClosure.combine(control, value, carry) appends value to carry and returns it; when carry is null it takes a list kept for control.getDepth(), empties it, adds value and returns it. Used with foldUpwards the accumulation is therefore a list of the children's results in reverse forest order: on roots 1 and 2 (no children) with visitRow returning the row id, foldUpwards returns [2, 1]; a parent with children 2 and 3 gets carry [3, 2] in visitRow. The same list object is reused for every sibling group at that depth, so its contents change after visitRow returns.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.raw.ForestParentChildrenListClosure#combine"
+   ]
+  },
+  {
+   "key": "g5-generators/ItemForest/collect-item-ids",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ItemForest",
+   "behaviour": "The default ItemForest.collectItemIds(rows) returns the set of distinct ItemIdentity values of the given row ids, read through the item forest's own scanRows without loading items (item access mode ITEM_NOT_NEEDED); row ids it cannot resolve are skipped without an error, and a null argument returns an empty set. getForest() is the forest structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ItemForest#collectItemIds",
+    "com.almworks.jira.structure.api.item.ItemIdentitySet#collectItemIds"
+   ]
+  },
+  {
+   "key": "g5-generators/ImmutableItemForest/of-forest-and-map",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ImmutableItemForest",
+   "behaviour": "ImmutableItemForest.of(forest, rows) checks that every row id of forest has a non-null StructureRow in the map, throwing IllegalArgumentException whose message starts \"No data for \" followed by the missing ids, e.g. \"No data for [7]\". The result's getForest() is a new immutable copy of forest (equal rows and depths, isImmutable() true; later changes to the argument are not seen), and getRow(id) returns the row from the map (extra map entries for ids outside the forest are also returned by getRow). Later changes to the map do not affect the result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest#of",
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest#getRow"
+   ]
+  },
+  {
+   "key": "g5-generators/ImmutableItemForest/of-single-row",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ImmutableItemForest",
+   "behaviour": "ImmutableItemForest.of(row) returns an item forest whose forest holds just row.getRowId() at depth 0 and whose getRow(row.getRowId()) returns that row. Its getForest() is not marked immutable: isImmutable() is false (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest#of"
+   ]
+  },
+  {
+   "key": "g5-generators/ImmutableItemForest/getrow-missing-and-access",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ImmutableItemForest",
+   "behaviour": "ImmutableItemForest.getRow(rowId, access) throws MissingRowException for a row id it holds no data for. With ItemAccessMode.SKIP_ACCESS_CHECK it returns a variant of the stored row whose item is not checked against the current user; with any other mode it returns the stored row object itself.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest#getRow"
+   ]
+  },
+  {
+   "key": "g5-generators/ImmutableItemForest/copy",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ImmutableItemForest",
+   "behaviour": "ImmutableItemForest.copy(source) returns source itself when it already is an ImmutableItemForest. Otherwise it returns a new ImmutableItemForest whose forest is an immutable copy of source.getForest() and whose rows are fetched from source with normal access; a row source cannot supply makes it throw MissingRowException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest#copy",
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest#rearrangeItemForest"
+   ]
+  },
+  {
+   "key": "g5-generators/ImmutableItemForest/copy-subtree-and-rearrange",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ImmutableItemForest",
+   "behaviour": "ImmutableItemForest.rearrangeItemForest(source, newForest) returns an item forest whose getForest() is newForest itself (same instance, not copied or frozen) and whose rows are fetched from source for every row id in newForest; a missing row throws MissingRowException. copySubtree(source, rootId) does the same with source.getForest().subtree(rootId): the row and its descendants rebased to depth 0, empty if rootId is not in the source forest; that forest is mutable, not frozen (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest#rearrangeItemForest",
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest#copySubtree"
+   ]
+  },
+  {
+   "key": "g5-generators/ImmutableItemForest/empty",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ImmutableItemForest",
+   "behaviour": "ImmutableItemForest.EMPTY is an item forest with an empty, immutable forest and no rows: getForest().isEmpty() is true and getRow of any id throws MissingRowException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest"
+   ]
+  },
+  {
+   "key": "g5-generators/ItemForestBuilderImpl/row-ids-and-structure",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl",
+   "behaviour": "ItemForestBuilderImpl (which needs a running Jira with the plugin: its constructor looks up the item resolver service) gives the rows it adds temporary ids -100, -101, -102, ... in the order they are added, across nextRow and nextFragment. nextRow(itemId) is nextRow(itemId, 0); nextRow(itemId, semantics) adds a row for that item with that semantics at the current level after the current row and makes it current. nextLevel() makes the current row the parent for following rows; prevLevel() goes back one level so the parent becomes the current row. Example: nextRow(a).nextLevel().nextRow(b).nextRow(c).prevLevel().nextRow(d) builds a forest -100 [-101, -102], -103 with depths 0,1,1,0. getCurrentRowId() returns the current row's id. build() returns an ImmutableItemForest of everything so far; the builder stays usable.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl#nextRow",
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl#nextLevel",
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl#prevLevel",
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl#build",
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl#getCurrentRowId"
+   ]
+  },
+  {
+   "key": "g5-generators/ItemForestBuilderImpl/state-errors",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl",
+   "behaviour": "ItemForestBuilderImpl throws IllegalStateException from nextLevel() and prevLevel() when there is no current row (at the start, or right after nextLevel()), from prevLevel() at the top level, and from getCurrentRowId() when there is no current row (message \"no current row\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl#nextLevel",
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl#prevLevel",
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl#getCurrentRowId"
+   ]
+  },
+  {
+   "key": "g5-generators/ItemForestBuilderImpl/next-fragment",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl",
+   "behaviour": "ItemForestBuilderImpl.nextFragment(fragment) copies every row of the fragment's forest (its item identity and semantics, read from the fragment with normal access) under new temporary ids and appends them after the current row at the current level, keeping the fragment's hierarchy; afterwards the current row is the last row at the current level. An empty fragment changes nothing. Behaviour when the current row already has children is not determined.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl#nextFragment"
+   ]
+  },
+  {
+   "key": "g5-generators/ManagerBackedItemForest/delegation-and-access-mode",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ManagerBackedItemForest",
+   "behaviour": "ManagerBackedItemForest(forest, rowManager[, defaultMode]) returns the given forest instance from getForest(). getRow(id, access) and scanRows(rows, sorted, access, missing, iteratee) delegate to the RowManager with the same arguments, except that a request for ItemAccessMode.NORMAL_ACCESS is passed on as the default mode (NORMAL_ACCESS for the two-argument constructor); any other mode is passed unchanged. The row asked for need not be in the forest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ManagerBackedItemForest#getRow",
+    "com.almworks.jira.structure.api.forest.item.ManagerBackedItemForest#scanRows",
+    "com.almworks.jira.structure.api.forest.item.ManagerBackedItemForest#<init>"
+   ]
+  },
+  {
+   "key": "g5-generators/ManagerBackedItemForest/to-string",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.forest.item.ManagerBackedItemForest",
+   "behaviour": "ManagerBackedItemForest.toString() is the forest's toFullString(), e.g. \"forest(1:0,2:1)\".",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.forest.item.ManagerBackedItemForest#toString"
+   ]
+  },
+  {
+   "key": "g5-generators/CoreGeneratorParameters/constants",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.CoreGeneratorParameters",
+   "behaviour": "CoreGeneratorParameters holds these String constants: DISABLE_ACTIONS = \"disableActions\", LEVEL_FROM = \"from\", LEVEL_TO = \"to\", LEVEL = \"level\", FILTER_HARD = \"hard\", FILTER_SHOW_SUBITEMS = \"showSubItems\", GROUPER_LEVEL_INCLUDE_GROUPS = \"includeGroups\", SORT_DESCENDING = \"desc\", INSERTER_LIMIT = \"limit\", JQL = \"jql\", FIELD_ID = \"fieldId\". It has a public no-argument constructor.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.CoreGeneratorParameters"
+   ]
+  },
+  {
+   "key": "g5-generators/GeneratorPreset/value-holder",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.GeneratorPreset",
+   "behaviour": "GeneratorPreset(label, parameters) has a null description; GeneratorPreset(label, description, parameters) keeps the description (null allowed). getLabel(), getDescription() and getParameters() return the constructor values; the parameter map is the same instance, not a copy, so changes to it show through. No equals/hashCode override (identity equality).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.GeneratorPreset#<init>",
+    "com.almworks.jira.structure.api.generator.GeneratorPreset#getParameters"
+   ]
+  },
+  {
+   "key": "g5-generators/GeneratorSpec/module-key",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.GeneratorSpec",
+   "behaviour": "new GeneratorSpec(moduleKey, parameters, owningStructure) trims the module key (\" a:b \" gives getModuleKey() \"a:b\") and throws IllegalArgumentException when it is null, empty or only whitespace. getOwningStructure() returns the given Long, null allowed. GeneratorSpec does not override equals/hashCode.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.GeneratorSpec#<init>",
+    "com.almworks.jira.structure.api.generator.GeneratorSpec#getModuleKey",
+    "com.almworks.jira.structure.api.generator.GeneratorSpec#getOwningStructure"
+   ]
+  },
+  {
+   "key": "g5-generators/GeneratorSpec/parameters-deep-copy",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.GeneratorSpec",
+   "behaviour": "GeneratorSpec.getParameters() is a copy of the given map made at construction, keeping key order: null or an empty map gives an empty map; nested Map and List values are copied too (nested map keys become their String.valueOf form). The returned map and nested maps and lists are unmodifiable (put/add throw UnsupportedOperationException), and later changes to the original map do not show through. Values are not validated (null values are kept).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.GeneratorSpec#<init>",
+    "com.almworks.jira.structure.api.util.JsonMapUtil#copyParameters"
+   ]
+  },
+  {
+   "key": "g5-generators/GeneratorUnavailableException/messages",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.GeneratorUnavailableException",
+   "behaviour": "GeneratorUnavailableException is a checked Exception. new GeneratorUnavailableException(\"m\") has getMessage() and getLocalizedMessage() both \"m\"; new GeneratorUnavailableException(\"m\", \"loc\") has getMessage() \"m\" and getLocalizedMessage() \"loc\".",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.GeneratorUnavailableException#<init>",
+    "com.almworks.jira.structure.api.generator.GeneratorUnavailableException#getLocalizedMessage"
+   ]
+  },
+  {
+   "key": "g5-generators/AbstractGenerator/defaults",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.AbstractGenerator",
+   "behaviour": "A subclass of AbstractGenerator that overrides nothing: addDefaultFormParameters and addParametersToForm leave the form map unchanged; buildParametersFromForm returns an empty map and adds no errors; addParametersForSummary copies every entry of the parameters map into the summary map; getPresets() returns null; isAvailable() returns true. The protected static mapOf(k, v) and mapOf(k1, v1, k2, v2) return maps holding exactly those entries.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator#buildParametersFromForm",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator#addParametersForSummary",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator#getPresets",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator#isAvailable",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator#mapOf"
+   ]
+  },
+  {
+   "key": "g5-generators/AbstractGenerator/kind-bases",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.AbstractGenerator",
+   "behaviour": "AbstractGenerator has abstract nested bases per generator kind: AbstractGenerator.Inserter, AbstractGenerator.Extender, AbstractGenerator.Grouper and AbstractGenerator.Sorter each return null from createActionHandler(parameters) (no action handling by default); AbstractGenerator.Sorter also returns null from getApplicabilityChecker(parameters, context) (applies to all rows); AbstractGenerator.Filter adds nothing beyond AbstractGenerator.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator$Inserter#createActionHandler",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator$Extender#createActionHandler",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator$Grouper#createActionHandler",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator$Sorter#createActionHandler",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator$Sorter#getApplicabilityChecker",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator$Filter"
+   ]
+  },
+  {
+   "key": "g5-generators/BasicItemChangeFilter/fixed-filters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter",
+   "behaviour": "BasicItemChangeFilter.forIssues(issueIds) returns a filter whose accept(itemIds, context) is true when any identity in itemIds is an issue identity whose issue id is in issueIds, false otherwise (non-issue items never match). forItems(issueIds, nonIssues) also accepts when a non-issue identity in itemIds is in nonIssues. The sets are used live, not copied. The context is ignored. An empty itemIds set gives false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter#forIssues",
+    "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter#forItems",
+    "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter#accept"
+   ]
+  },
+  {
+   "key": "g5-generators/BasicItemChangeFilter/recording",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter",
+   "behaviour": "BasicItemChangeFilter.createRecording() returns an empty recording filter (accepts nothing yet); createRecording(items...) returns one with those items recorded. recordItem(itemId) adds an issue identity by issue id and any other identity to the non-issue set, after which accept is true for any itemIds set containing that item (an issue matches by issue id); recordItem(row) records row.getItemId(). On a filter made by forIssues or forItems (cast to the recording type) recordItem throws UnsupportedOperationException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter#createRecording",
+    "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter#recordItem",
+    "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter#accept"
+   ]
+  },
+  {
+   "key": "g5-generators/GenerationUtil/values-from-subject-forest",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.GenerationUtil",
+   "behaviour": "GenerationUtil.getValuesFromSubjectForest(context, specs, rows, attributeService) asks the attribute service for values of the given attribute specs on the given rows together with an update checker: if context.getForestSpecBeingTransformed() is not null, values are taken in that forest spec; otherwise in context.inputForest() (or context.previewForest() if the input forest is null) with context.getForestSpec(). It wraps the returned checker in a new RecordingAttributeUpdateChecker, registers that with context.addUpdateChecker, and returns a Pair of the row values and that checker. The single-spec overload does the same with a one-element list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.GenerationUtil#getValuesFromSubjectForest"
+   ]
+  },
+  {
+   "key": "g5-generators/IssueApplicabilityChecker/issue-rows-only",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.IssueApplicabilityChecker",
+   "behaviour": "IssueApplicabilityChecker.isApplicableTo(row) is true only when the row's item identity is an issue identity and row.getItem(Issue.class) returns non-null; it is false for non-issue rows (without asking for the item) and for issue rows whose issue cannot be obtained. INSTANCE is a shared instance.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.IssueApplicabilityChecker#isApplicableTo"
+   ]
+  },
+  {
+   "key": "g5-generators/RecordingAttributeUpdateChecker/record-then-poll",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.RecordingAttributeUpdateChecker",
+   "behaviour": "RecordingAttributeUpdateChecker(checker): record(rowId) adds a row id to the recorded list; record(row) records row.getRowId() and ignores a null row or a row with id 0. hasUpdate() stops recording and returns the wrapped AttributeUpdateChecker's hasUpdate for the list of recorded rows (in recording order, duplicates kept). Any record(long) call after the first hasUpdate() throws IllegalStateException (message starts \"mutating \").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.RecordingAttributeUpdateChecker#record",
+    "com.almworks.jira.structure.api.generator.util.RecordingAttributeUpdateChecker#hasUpdate"
+   ]
+  },
+  {
+   "key": "g5-generators/RecordingAttributeUpdateChecker/unwrap",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.RecordingAttributeUpdateChecker",
+   "behaviour": "RecordingAttributeUpdateChecker.unwrap(type) returns the wrapped AttributeUpdateChecker cast to type when it is an instance of type, and null otherwise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.RecordingAttributeUpdateChecker#unwrap"
+   ]
+  },
+  {
+   "key": "g5-generators/RecordingItemChangeFilter/empty-filter",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.RecordingItemChangeFilter",
+   "behaviour": "RecordingItemChangeFilter.EMPTY_FILTER (an instance of the nested class RecordingItemChangeFilter.EmptyFilter) ignores recordItem calls for rows and identities without error and its accept always returns false, even for items recorded before.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.RecordingItemChangeFilter$EmptyFilter#accept",
+    "com.almworks.jira.structure.api.generator.util.RecordingItemChangeFilter$EmptyFilter#recordItem"
+   ]
+  },
+  {
+   "key": "g5-generators/SingleItemChangeFilter/single-item",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.SingleItemChangeFilter",
+   "behaviour": "new SingleItemChangeFilter(itemId) throws NullPointerException for a null itemId. accept(itemIds, context) is true exactly when itemIds contains an identity equal to itemId; the context is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.SingleItemChangeFilter#<init>",
+    "com.almworks.jira.structure.api.generator.util.SingleItemChangeFilter#accept"
+   ]
+  },
+  {
+   "key": "g5-generators/TimedUpdateChecker/elapsed-interval",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.generator.util.TimedUpdateChecker",
+   "behaviour": "TimedUpdateChecker(intervalNs) starts timing at construction using System.nanoTime(). hasUpdate() returns false until at least intervalNs nanoseconds have passed and true from then on; with an interval of 0 or less it is true right away. Example: new TimedUpdateChecker(3_600_000_000_000L).hasUpdate() is false immediately after construction.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.generator.util.TimedUpdateChecker#hasUpdate",
+    "com.almworks.jira.structure.api.generator.util.TimedUpdateChecker#<init>"
+   ]
+  },
+  {
+   "key": "g5-generators/JiraI18n/delegation",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.i18n.JiraI18n",
+   "behaviour": "new JiraI18n(helper) delegates getText(key, args...) and getLocale() to the given Jira I18nHelper and returns its results unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.i18n.JiraI18n#getText",
+    "com.almworks.jira.structure.api.i18n.JiraI18n#getLocale"
+   ]
+  },
+  {
+   "key": "g5-generators/JiraI18n/create-and-fallback",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.i18n.JiraI18n",
+   "behaviour": "JiraI18n.create(locale, user) uses Jira's i18n helper factory: with a non-null locale it returns an I18n for that locale; with a null locale and non-null user, for that user's preferred locale; with both null, for Jira's default locale (the root locale if Jira's application properties or default locale are unavailable). When Jira has no i18n helper factory (for example outside Jira) it returns a stand-in whose getLocale() is Locale.ENGLISH and whose getText(key, args) is the key, a space and Arrays.toString(args): getText(\"a.b\", 1, \"x\") gives \"a.b [1, x]\", and with no args \"a.b []\". JiraI18n.forCurrentUser() is create(null, the current user of this thread). Never returns null.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.i18n.JiraI18n#create",
+    "com.almworks.jira.structure.api.i18n.JiraI18n#forCurrentUser",
+    "com.almworks.jira.structure.api.i18n.JiraI18n$DummyI18n#getText"
+   ]
+  },
+  {
+   "key": "g5-generators/JiraI18nProvider/for-current-user",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.i18n.JiraI18nProvider",
+   "behaviour": "JiraI18nProvider.forCurrentUser() returns the same as JiraI18n.forCurrentUser(): an I18n for the current user (or the stand-in with English locale when Jira's i18n factory is unavailable).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.i18n.JiraI18nProvider#forCurrentUser"
+   ]
+  }
+ ],
+ "tests": {
+  "cleanroom.apitests.hidden.ForestBehaviourTest#navigatesParentsChildrenAndRoots": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/size-rows-depths",
+   "g5-generators/ArrayForest/parent",
+   "g5-generators/ArrayForest/children-and-roots",
+   "g5-generators/ArrayForest/last-child",
+   "g5-generators/ArrayForest/paths"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#indexesAndSubtreeEnds": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/indexof-containsrow",
+   "g5-generators/ArrayForest/subtree-end",
+   "g5-generators/ArrayForest/parent"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#siblings": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/preceding-siblings",
+   "g5-generators/ArrayForest/next-siblings"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#addsARowUnderAParentAfterASibling": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/addrow-position",
+   "g5-generators/ArrayForest/size-rows-depths"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#anAfterThatIsNotAChildOfTheParentIsIgnored": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/after-resolution"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#anUnknownParentIsAnError": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/addrow-errors"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#rowZeroIsNeverAdded": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/addrow-errors",
+   "g5-generators/ArrayForest/size-rows-depths"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#addingAPresentRowMovesItsSubtree": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/addrow-existing-moves"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#movesASubtree": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/move-subtree"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#aRowCannotMoveUnderItsOwnDescendant": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/move-subtree-errors"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#removesASubtreeAndReturnsIt": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/remove-subtree"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#filterLiftsTheChildrenOfRejectedRows": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/filter-lifts-children"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#filterHardestDropsWholeSubtrees": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/filter-hardest-drops-subtrees"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#filterSoftKeepsTheAncestorsOfAcceptedRows": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/filter-soft-keeps-ancestors"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#aNullFilterKeepsEverything": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/filter-null-or-all-returns-this",
+   "g5-generators/ArrayForest/equals-hashcode"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#subtreesAreCopiedWithRebasedDepths": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/subtree-copy"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#rowIdsZeroAndMinusOneAreRejected": [
+   "g5-generators/ArrayForest/rejects-row-zero-and-minus-one"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#immutableForestsRefuseChanges": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/make-immutable",
+   "g5-generators/ArrayForest/addrow-errors",
+   "g5-generators/ArrayForest/remove-subtree",
+   "g5-generators/ArrayForest/copy-and-clone",
+   "g5-generators/Forest/empty-constant"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#equalityIsByRowsAndDepths": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/equals-hashcode"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#textFormListsRowColonDepth": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/text-form"
+  ],
+  "cleanroom.apitests.hidden.ForestBehaviourTest#longForestsAreAbbreviatedButNotInTheFullForm": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/text-form"
+  ],
+  "cleanroom.apitests.PublicApiBasicsTest#forestNavigation": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/parent",
+   "g5-generators/ArrayForest/children-and-roots"
+  ],
+  "cleanroom.apitests.PublicApiBasicsTest#forestAddRowAtTheTopLevel": [
+   "g5-generators/ArrayForest/constructors",
+   "g5-generators/ArrayForest/addrow-position",
+   "g5-generators/ArrayForest/text-form"
+  ],
+  "cleanroom.apitests.ApiSignatureSampleTest#forest": [
+   "g5-generators/Forest/contract"
+  ]
+ }
+}

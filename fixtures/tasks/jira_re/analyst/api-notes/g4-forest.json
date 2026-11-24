@@ -1,0 +1,739 @@
+{
+  "packages": {
+    "com.almworks.jira.structure.api.export": "Extension points and data types for exporting a structure view to a file: a provider picks a renderer for each column of the view, and the renderer fills header and data cells through format-neutral cell and column interfaces. The plugin drives the export; other plugins contribute renderers.",
+    "com.almworks.jira.structure.api.export.excel": "Excel-specific refinements of the export cell and column interfaces, used when the export format is `ExportFormat.MS_EXCEL`. Renderers that know they write to a spreadsheet can cast to these to set styles, indentation and rich text.",
+    "com.almworks.jira.structure.api.export.printable": "Printable (HTML page) refinements of the export cell and column interfaces, used when the export format is `ExportFormat.PRINTABLE`. They let a renderer emit raw HTML, add CSS classes and choose how percentages and durations look.",
+    "com.almworks.jira.structure.api.extension": "Internal extension points through which companion apps plug into the core plugin: contributing widget configuration and REST data, describing their licence for support reports, and declaring which structures they are integrated with. Not meant for general third-party use.",
+    "com.almworks.jira.structure.api.extension.license": "The licence data model shared by the plugin and its companion apps: licence details, licence types, hosting kinds, sources and error codes. Under the replacement's no-Marketplace ruling (SPEC 1.1) every licence the plugin reports is treated as licensed, valid and not expiring.",
+    "com.almworks.jira.structure.api.folder": "Folders: named, storable items that can be placed in a structure to group rows. The package holds the immutable folder value and the manager component that stores folders.",
+    "com.almworks.jira.structure.api.forest": "Access to forests (ordered trees of row IDs) and their changes. A `ForestSpec` names which forest is wanted (a structure, a historical version, a query result, the clipboard, optionally transformed and secured for a user); `ForestService` turns a spec into a `ForestSource`, which gives versioned snapshots, incremental updates and accepts actions.",
+    "com.almworks.jira.structure.api.forest.action": "Actions that a client asks a forest source to perform (add, copy, move, remove rows), their results (applied effects, problems, row ID replacements) and the interaction mechanism by which the plugin asks the caller for a decision before it can complete an action."
+  },
+  "types": {
+    "com.almworks.jira.structure.api.export.ExportCell": {
+      "summary": "One cell of an export (a header cell or a data cell) as seen by an export renderer. The plugin implements it for each format; renderers call exactly one of the setters to give the cell its value, and the format decides how the value is shown. The same cell object is reused for every row of a column, so a renderer must not keep it after the call returns. Not thread-safe; used only on the exporting thread.",
+      "members": {
+        "setText(String)": "Sets plain text as the cell value. Null clears the cell (blank in Excel, empty in printable). Printable escapes the text for HTML. Excel truncates text longer than 32767 characters to that length.",
+        "setNumber(Number)": "Sets a numeric value. Null clears the cell. Excel stores it as a number (as a double) and applies the column's rounding format if `ExportColumn.setRounding` was called; printable formats it with the user's locale, without grouping separators, and with the column's fixed number of decimals when rounding was set.",
+        "setPercentage(Double)": "Sets a percentage given as a fraction (1.0 means 100 %). Null clears the cell. Excel stores the fraction; without a column rounding it is rounded to 4 decimal places of the fraction, with rounding it gets a percent format with that many decimals. Printable shows either a progress bar (value clamped to 0..1) with the percent text, or only the percent text, depending on `PrintableColumn.setPercentageStyle`.",
+        "setDate(java.util.Date)": "Sets a calendar date (no time of day). Null clears the cell. The instant is converted to a date in the exporting user's time zone. Excel stores a date value (the renderer should also set `ExcelStyle.DATE` to get date formatting); printable shows the date in the user's date format.",
+        "setDatetime(java.util.Date)": "Sets a date with time of day. Null clears the cell. Converted in the exporting user's time zone. Excel stores a date-time value (pair with `ExcelStyle.DATETIME`); printable shows it in the user's complete date-time format.",
+        "setDuration(Long)": "Sets a duration in seconds. Null clears the cell. Excel stores it as a fraction of days (seconds / 86400), suitable for the `ExcelStyle.DURATION` hours:minutes format; printable shows it as Jira-style duration text (see `PrintableColumn.setDurationAsCalendarTime`). Durations under one minute in absolute value are shown as zero in printable.",
+        "setHyperlink(String, String)": "Sets a link. Arguments: the link text, then the URL. A null URL clears the cell; a null text uses the URL as text. If the URL is not a well-formed absolute URL the cell gets only the text, without a link. Excel creates a URL hyperlink (pair with `ExcelStyle.HYPERLINK` for link look); printable writes an HTML anchor with both parts escaped."
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportColumn": {
+      "summary": "One column of an export as seen by a renderer while it configures the column. The plugin implements it per format (see `ExcelColumn` and `PrintableColumn`); the renderer receives it in `ExportRenderer.configureColumn`. Settings apply to all data cells of the column. Not thread-safe.",
+      "members": {
+        "getHeaderCell()": "Returns the header cell of this column, never null. The renderer normally sets the column title into it with `setText`. In Excel the header cell starts with the left-aligned header style.",
+        "setRounding(int)": "Fixes the number of decimal places used for numbers and percentages in this column. The argument is the count of decimals, 0 or more; a negative value throws `IllegalArgumentException`. Printable rounds half-up; Excel applies a number format with that many decimals. Without a call, numbers are shown as given."
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportContextKeys": {
+      "summary": "Holder of the well-known keys that the plugin puts into the export context (an `AttributeContext`), so renderers can read export state with `getObject(key)`. The class itself has no behaviour; its nested enums are the keys. These keys are read-only: `putObject` with any of them throws `IllegalArgumentException`.",
+      "members": {
+        "<init>()": "Public no-argument constructor with no effect; the class is only a namespace for the nested key enums and is never meant to be instantiated."
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportContextKeys.Excel": {
+      "summary": "Context keys available only during an Excel export. Each constant is a key for `AttributeContext.getObject`; the value is the current Apache POI object of the workbook being written. They let a renderer do Excel work the API does not cover directly. Values change as the exporter moves through the sheet.",
+      "members": {
+        "POI_WORKBOOK": "Key for the Apache POI `Workbook` being written (XSSF for .xlsx or HSSF for .xls). Set once when the workbook is created.",
+        "POI_HELPER": "Key for the workbook's Apache POI `CreationHelper` (for creating rich text, hyperlinks, data formats).",
+        "POI_SHEET": "Key for the Apache POI `Sheet` into which the structure is exported (there is one sheet).",
+        "POI_ROWNUM": "Key for an `Integer`: the zero-based sheet row index of the row currently being written (the header row while columns are configured, then each data row).",
+        "POI_ROW": "Key for the Apache POI `Row` currently being written (header row during column configuration, then each data row).",
+        "POI_COLUMN": "Key for an `Integer`: the zero-based sheet column index of the column currently being configured or rendered.",
+        "POI_CELL": "Key for the Apache POI `Cell` currently being configured (header cell) or rendered (data cell).",
+        "values()": "",
+        "valueOf(String)": ""
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportContextKeys.Export": {
+      "summary": "Context keys available in every export format. Each constant is a key for `AttributeContext.getObject`.",
+      "members": {
+        "VIEW_SPECIFICATION": "Key for the `ViewSpecification` of the view being exported (the columns and their settings). When the requested view cannot be read, it is a default view with the issue key column and the main (summary) column.",
+        "values()": "",
+        "valueOf(String)": ""
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportFormat": {
+      "summary": "The export formats the plugin supports. Each has a stable external name used in module descriptors (the format a renderer provider declares) and in export requests.",
+      "members": {
+        "PRINTABLE": "The printable HTML page format; external name `printable`.",
+        "MS_EXCEL": "The Microsoft Excel workbook format; external name `ms-excel`.",
+        "values()": "",
+        "valueOf(String)": "",
+        "getExternalName()": "Returns the stable external name of the format (`printable` or `ms-excel`), never null.",
+        "forExternalName(String)": "Returns the format whose external name equals the argument exactly (case-sensitive), or null when none matches, including for a null argument."
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportRenderContext": {
+      "summary": "The context given to a renderer while it configures its column and renders cells. It is an `AttributeContext` (user, locale, time zone, base URL, context objects) that also gives access to the attribute values the exporter loaded. Implemented by the plugin; valid only during the export.",
+      "members": {
+        "getValues()": "Returns the attribute values loaded for the exported rows, never null (empty when nothing was loaded). Only attributes requested with `ExportRequestContext.requireAttribute` during `prepare` are present. If a column is configured to use the unfiltered forest, the values come from the forest without trailing filter and sort transformations."
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportRenderer": {
+      "summary": "Extension point: renders one column of a view into export cells. Instances come from an `ExportRendererProvider` and are used for a single export. The plugin calls `prepare` once when the export is set up, then `configureColumn` when the header is built, then `renderCell` for each exported row in forest order. If any call throws (including a linkage error), the plugin logs it and ignores this renderer for the rest of the export; other columns are unaffected.",
+      "members": {
+        "prepare(com.almworks.jira.structure.api.export.ExportRequestContext)": "Called once, before the forest and values are loaded. The renderer declares here which attributes it needs (with `requireAttribute`) and may read the forest spec and context objects. If it throws, the renderer is dropped from the export.",
+        "configureColumn(com.almworks.jira.structure.api.export.ExportColumn, com.almworks.jira.structure.api.export.ExportRenderContext)": "Called to set up the column: arguments are the column (header cell and column settings) and the render context. The renderer typically sets the header text and format options. Excel calls it once; printable calls it each time the header row is produced, and resets the multiline flag and header cell before each call.",
+        "renderCell(com.almworks.jira.structure.api.export.ExportCell, com.almworks.jira.structure.api.export.ExportRow, com.almworks.jira.structure.api.export.ExportRenderContext)": "Called for each exported row: arguments are the cell to fill (reused across rows and cleared before each call), the row being exported, and the render context. The renderer sets the cell value, usually from `row.get(attribute)`. For rows the user may not see, `row.get` returns null."
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportRendererProvider": {
+      "summary": "Extension point declared by other plugins (and by the plugin itself) as a `structure-export-renderer-provider` module, optionally restricted to an export format and to a column key. For each exported column the plugin asks the providers in this order: those registered for the column's key and the format, then for the key and any format, then for any key and the format, then for any key and any format; the first non-null renderer wins.",
+      "members": {
+        "getColumnRenderer(com.almworks.jira.structure.api.export.ExportFormat, com.almworks.jira.structure.api.view.ViewSpecification.Column, com.almworks.jira.structure.api.export.ExportRequestContext)": "Returns a renderer for the given column in the given format, or null if this provider does not handle it (the next provider is then asked). Arguments: the export format, the view column (key and parameters), and the request context. Throwing `StructureProviderException` makes the plugin skip the whole column; any other exception makes the plugin ignore this provider for the rest of the export."
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportRequestContext": {
+      "summary": "The context given to renderer providers and to `ExportRenderer.prepare`. It is an `AttributeContext` that also lets a renderer request attribute values to be loaded and tells which forest is exported. Implemented by the plugin.",
+      "members": {
+        "requireAttribute(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Asks the exporter to load the given attribute for all exported rows, so it is available later through `ExportRenderContext.getValues` and `ExportRow.get`. Null is ignored. Must be called during `prepare` (or `getColumnRenderer`); later requests have no effect on loaded values.",
+        "getForestSpec()": "Returns the spec of the forest being exported, never null."
+      }
+    },
+    "com.almworks.jira.structure.api.export.ExportRow": {
+      "summary": "One row being exported, passed to `ExportRenderer.renderCell`. Implemented by the plugin. Rows come in forest order; the printable format skips the subtrees of collapsed rows, Excel exports all rows. Rows the user may not see are still listed but give no attribute values.",
+      "members": {
+        "getRow()": "Returns the full row (item identity, semantics) for this row ID, never null. May throw the row manager's missing-row error if the row no longer exists.",
+        "getRowId()": "Returns the row ID.",
+        "getDepth()": "Returns the depth of the row in the exported forest: 0 for a top-level row, 1 for its children, and so on.",
+        "isExpanded()": "True if the row was expanded in the client's view at export time; true for every row when the request carried no expand state.",
+        "isLeaf()": "True if the row has no children in the exported forest (it is the last row or the next row is not deeper).",
+        "get(com.almworks.jira.structure.api.attribute.AttributeSpec)": "Returns the loaded value of the given attribute for this row, or null if it was not loaded, has no value, or the user is not allowed to see the row. The attribute must have been requested with `requireAttribute`."
+      }
+    },
+    "com.almworks.jira.structure.api.export.excel.ExcelCell": {
+      "summary": "A cell in an Excel export. Extends `ExportCell` with Excel-only settings. Implemented by the plugin; renderers get it by casting the cell when the format is `MS_EXCEL`.",
+      "members": {
+        "setRichTextFromHtml(String)": "Sets the value from an HTML fragment, converting basic markup to Excel rich text: bold, italic, underline (ins), strike-through (del), subscript, superscript, font colour and monospace runs; a background colour on a panel block becomes the cell background. If the HTML has no visible text but contains an image, the first image that can be loaded is placed in the cell. If the HTML cannot be converted, the raw string is stored as text. Text is truncated to 32767 characters.",
+        "setStyle(com.almworks.jira.structure.api.export.excel.ExcelStyle)": "Applies one of the predefined cell styles to this cell, replacing its current style. Null means `DEFAULT`.",
+        "setIndention(int)": "Sets the indentation level of the cell text, clamped to 0..15. It is reset to 0 before each data cell is rendered and applied after the renderer returns."
+      }
+    },
+    "com.almworks.jira.structure.api.export.excel.ExcelColumn": {
+      "summary": "A column in an Excel export. Extends `ExportColumn` with the default cell style of the column. Implemented by the plugin.",
+      "members": {
+        "setDefaultStyle(com.almworks.jira.structure.api.export.excel.ExcelStyle)": "Sets the default style of the whole sheet column. Null means `DEFAULT`. The plugin sets `DEFAULT` before calling `configureColumn`."
+      }
+    },
+    "com.almworks.jira.structure.api.export.excel.ExcelStyle": {
+      "summary": "Predefined Excel cell styles that renderers can apply with `ExcelCell.setStyle` or `ExcelColumn.setDefaultStyle`. Every style aligns content to the top of the cell, except that the header styles align to the bottom.",
+      "members": {
+        "DEFAULT": "The plain default style.",
+        "HEADER_LEFT_ALIGNED": "Header style: bold, left-aligned, bottom-aligned, thin bottom border. Header cells start with it.",
+        "HEADER_RIGHT_ALIGNED": "Same as `HEADER_LEFT_ALIGNED` but right-aligned, for numeric columns.",
+        "DATE": "Date format, month/day/two-digit-year (`m/d/yy`).",
+        "DATETIME": "Date and time format (`m/d/yy h:mm`).",
+        "DURATION": "Elapsed time format in hours and minutes, hours not wrapping at 24 (`[h]:mm`); matches durations stored by `setDuration`.",
+        "PERCENTAGE": "Whole-percent format (`0%`).",
+        "HYPERLINK": "Link look: dark blue, underlined text.",
+        "HYPERLINK_UNDECORATED": "Dark blue text without underline.",
+        "values()": "",
+        "valueOf(String)": ""
+      }
+    },
+    "com.almworks.jira.structure.api.export.printable.PercentageStyle": {
+      "summary": "How a printable column shows percentage values set with `ExportCell.setPercentage`.",
+      "members": {
+        "PROGRESS_BAR": "A small progress bar (value clamped to 0..100 %) followed by the percent text. This is also what happens when no style is set.",
+        "PERCENT_TEXT": "Only the percent text, formatted for the user's locale (not clamped).",
+        "values()": "",
+        "valueOf(String)": ""
+      }
+    },
+    "com.almworks.jira.structure.api.export.printable.PrintableCell": {
+      "summary": "A cell in a printable (HTML) export. Extends `ExportCell` with raw HTML and CSS classes. Implemented by the plugin; renderers get it by casting the cell when the format is `PRINTABLE`.",
+      "members": {
+        "setHtml(String)": "Sets the inner HTML of the cell as given, without any escaping or sanitising; null means empty. The caller is responsible for making the HTML safe.",
+        "addClasses(String[])": "Adds CSS class names to the cell's element (`th` or `td`). Each name is HTML-escaped; null or empty names are ignored; duplicates are kept once, in first-added order. Classes are cleared before each new row."
+      }
+    },
+    "com.almworks.jira.structure.api.export.printable.PrintableColumn": {
+      "summary": "A column in a printable (HTML) export. Extends `ExportColumn` with layout and formatting choices. Implemented by the plugin.",
+      "members": {
+        "setMultiline(boolean)": "When true, data cells may wrap onto several lines; when false (the default, reset before each `configureColumn`), cell content is kept on one line.",
+        "setPercentageStyle(com.almworks.jira.structure.api.export.printable.PercentageStyle)": "Chooses how percentages are shown in this column. Null (the default) behaves as `PROGRESS_BAR`.",
+        "setDurationAsCalendarTime(boolean)": "When true, durations are shown as calendar time (24-hour days, 7-day weeks); when false (default) they use Jira's time-tracking format for the current user, which follows the configured working hours per day and days per week."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.StructureCoreExtension": {
+      "summary": "Internal extension point for companion apps, declared as a `structure-core-extension` module. The plugin keys each extension by its complete module key. It is asked for extra widget configuration, for extra data to attach to some REST responses, and for its licence information. Every method may return null to contribute nothing.",
+      "members": {
+        "getConfigurationForWidget()": "Returns extra configuration for the structure widget in the browser, or null. A non-empty map is included in the widget configuration under the extension's complete module key; null or empty adds nothing.",
+        "getRestResponseData(Object)": "Returns extra data to attach to forest, item, poll and effect REST responses, or null for none. The argument is the request data the client sent for this extension (looked up by the extension's complete module key), or null if none was sent. Exceptions are logged and treated as null. A non-null result is added to the response under the module key.",
+        "getAppSupportInfo()": "Returns licence and version information of the companion app for licence listings and the about popup, or null if the app does not report one. The original also used it for its periodic licence reports to the vendor; the replacement sends nothing (SPEC 1.8)."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.StructureIntegrationDetails": {
+      "summary": "Internal extension point, declared as a `structure-integration-details-provider` module, through which a companion app says which structures it is integrated with, so the structure management pages can show its icon next to them. The plugin labels each provider with its plugin's name.",
+      "members": {
+        "getProductIconUrl()": "Returns the URL of the app's icon to show in the structure management pages. If it returns null the provider is skipped when marking structures.",
+        "selectIntegratedStructures(com.almworks.integers.LongSet)": "Given a set of structure IDs, returns the subset that this app is integrated with (for example, has its own data on), or null or an empty set for none. Called when listing structures for management; the argument is never null."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.license.AppSupportInfo": {
+      "summary": "Internal: describes a companion app for licence displays (and, in the original, for licence reports). Returned by `StructureCoreExtension.getAppSupportInfo`; implemented by companion apps.",
+      "members": {
+        "getLicense()": "Returns the app's current licence, never null (`LicenseData.DISABLED` when it has none). Under the replacement's ruling the plugin treats every reported licence as licensed, valid and not expiring.",
+        "getUserCount()": "Returns the number of users the app counts for licensing, or null if unknown.",
+        "getProductVersion()": "Returns the app's version string, or null if unknown.",
+        "getProductKey()": "Returns the app's plugin key, never null; used as the key of the app's entry in licence listings."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.license.AppSupportStoreReader": {
+      "summary": "Internal component (`app-support-store`, published as an OSGi service) that tells whether a licence serial has been blocked. In the original, serials were blocked as a result of reports to the vendor's server, and a blocked serial made the licence report `REVOKED_LICENSE`.",
+      "members": {
+        "isLicenseBlocked(String)": "Returns true if the given licence serial is in the blocked list; false for null or an unknown serial. In the replacement nothing is ever reported, so no serial is ever blocked and this always returns false (SPEC 1.8)."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.license.LicenseData": {
+      "summary": "The data model of a licence of the plugin or a companion app: who holds it, its type, limits, dates and validity. Implemented by the licence management code; the constant `DISABLED` stands for no licence. Instances are read-only. Under the replacement's no-Marketplace ruling (SPEC 1.1), the licence the plugin reports for itself and for recognised extensions behaves as licensed, valid and not expiring.",
+      "members": {
+        "DISABLED": "Shared instance of `LicenseData.Disabled` with error `NO_ERROR`, meaning 'no licence'.",
+        "getLicensee()": "Returns the name of the licence holder (organisation). `--` when there is no licence.",
+        "getLicenseType()": "Returns the licence type; `DISABLED` when there is no licence. Under the replacement ruling, the effective licence is never `DISABLED`; It is `COMMERCIAL`, and the source is `NONE` (SPEC.md 1.1).",
+        "getSerial()": "Returns the licence serial as text (for Marketplace licences, the support entitlement number), or null when there is none.",
+        "getSerialNumber()": "Returns the numeric serial of a vendor-issued licence, or 0 when there is none (always 0 for Marketplace licences).",
+        "getExpirationTimestamp()": "Returns when the licence expires, as milliseconds since the epoch, or 0 if it does not expire. Under the replacement ruling: 0 (no expiry).",
+        "getMaintenanceExpirationDate()": "Returns when maintenance (updates and support) ends, as milliseconds since the epoch, or 0 if not set. Under the replacement ruling: 0.",
+        "getLicensedServers()": "Returns the server IDs the licence is locked to, or null if it is not server-locked.",
+        "isServerLocked()": "True if the licence is valid only on specific servers (`getLicensedServers` is non-null).",
+        "getMaximumNumberOfUsers()": "Returns the user tier of the licence; 0 or less when the licence has no user limit or is absent.",
+        "isUnlimitedNumberOfUsers()": "True if the licence has no user limit. Under the replacement ruling: true.",
+        "extraChecks()": "Performs licence-kind-specific validity checks and throws `LicenseException` with the reason if one fails (for example a revoked or wrong-product licence). Does nothing when all checks pass. Under the replacement ruling it never throws.",
+        "hasExpiration()": "True if the licence has an expiry date. Under the replacement ruling: false.",
+        "hasMaintenanceExpiration()": "True if the licence has a maintenance end date. Under the replacement ruling: false.",
+        "isMarketplaceLicense()": "True if the licence comes from the Atlassian Marketplace rather than from the vendor directly. Under the replacement ruling: false (there is no Marketplace licensing).",
+        "isValid()": "True if the licence is present and passes all checks. Under the replacement ruling: true.",
+        "getLicenseError()": "Returns why the licence is not valid, or `NO_ERROR`; never null. Under the replacement ruling: `NO_ERROR`.",
+        "isDataCenterCompatible()": "True unless the licence hosting is `SERVER`; i.e. legacy and Data Center licences may be used on a Data Center installation. Default implementation derives it from `getLicenseHosting`.",
+        "getLicenseHosting()": "Returns which deployment kind the licence was issued for, never null. The default implementation returns `LEGACY`.",
+        "getLicenseSource()": "Returns where the licence came from, never null. The default implementation returns `MARKETPLACE` when `isMarketplaceLicense` is true and `VENDOR` otherwise."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.license.LicenseData.Disabled": {
+      "summary": "The 'no licence' implementation of `LicenseData`: invalid, type `DISABLED`, source `NONE`, with all limits and dates empty, optionally carrying the error that explains why there is no licence. Immutable and thread-safe. `LicenseData.DISABLED` is a shared instance. Under the replacement ruling the plugin never reports itself as unlicensed, but the class remains part of the API.",
+      "members": {
+        "<init>()": "Creates a 'no licence' value whose error is `NO_ERROR`.",
+        "<init>(com.almworks.jira.structure.api.extension.license.StructureLicenseError)": "Creates a 'no licence' value that reports the given error from `getLicenseError` (for example why a licence could not be read). Null is accepted and then returned as the error, despite the non-null contract of `getLicenseError`.",
+        "getLicensee()": "Always `--`.",
+        "getLicenseType()": "Always `StructureLicenseType.DISABLED`.",
+        "getSerial()": "Always null.",
+        "getSerialNumber()": "Always 0.",
+        "getExpirationTimestamp()": "Always 0.",
+        "getMaintenanceExpirationDate()": "Always 0.",
+        "getLicensedServers()": "Always null.",
+        "isServerLocked()": "Always false.",
+        "getMaximumNumberOfUsers()": "Always 0.",
+        "isUnlimitedNumberOfUsers()": "Always false.",
+        "extraChecks()": "Does nothing; never throws.",
+        "hasExpiration()": "Always false.",
+        "hasMaintenanceExpiration()": "Always false.",
+        "isMarketplaceLicense()": "Always false.",
+        "isValid()": "Always false.",
+        "getLicenseError()": "Returns the error given to the constructor (`NO_ERROR` for the no-argument constructor).",
+        "getLicenseSource()": "Always `LicenseSource.NONE`.",
+        "equals(Object)": "Equal to another object of exactly the same class carrying the same error.",
+        "hashCode()": "Hash derived from the error only, consistent with `equals`."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.license.LicenseException": {
+      "summary": "Checked exception thrown by licence checks (`LicenseData.extraChecks` and the licence manager) to report why a licence is not valid. It carries a `StructureLicenseError`. Under the replacement ruling licence checks never fail, so the plugin does not throw it, but other code may.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.extension.license.StructureLicenseError)": "Creates the exception with the given error, no message and no cause. The error should not be null (not checked).",
+        "<init>(com.almworks.jira.structure.api.extension.license.StructureLicenseError, Throwable)": "Creates the exception with the given error and underlying cause.",
+        "getError()": "Returns the licence error given at construction.",
+        "toString()": "Returns `license error ` followed by the numeric code of the error, for example `license error 1009`."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.license.LicenseSource": {
+      "summary": "Where a licence came from. Each constant has a stable lower-case key used in REST output.",
+      "members": {
+        "NONE": "No licence; key `none`.",
+        "MARKETPLACE": "Issued through the Atlassian Marketplace; key `marketplace`.",
+        "VENDOR": "Issued directly by the app's vendor as a signed licence; key `vendor`.",
+        "BUNDLE": "Provided as part of a bundle of another product's licence; key `bundle`.",
+        "values()": "",
+        "valueOf(String)": "",
+        "getKey()": "Returns the stable lower-case key of the source."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.license.StructureLicenseError": {
+      "summary": "Reasons why a licence is not valid, each with a stable numeric code. Under the replacement ruling the plugin always reports `NO_ERROR` for its own and recognised licences.",
+      "members": {
+        "NO_ERROR": "The licence is fine. Numeric code 0.",
+        "NO_LICENSE": "No licence is installed. Numeric code 1000.",
+        "LICENSE_CERTIFICATE_ERROR": "The licence certificate cannot be read or verified. Numeric code 1001.",
+        "VENDOR_CERTIFICATE_ERROR": "The certificate of the issuer that signed the licence is not trusted or cannot be read. Numeric code 1003.",
+        "NOT_SIGNED": "The licence is not signed. Numeric code 1004.",
+        "NO_METADATA": "The licence lacks the required details. Numeric code 1005.",
+        "INVALID_DATE": "A date in the licence is malformed. Numeric code 1006.",
+        "INVALID_NUMBER": "A number in the licence is malformed. Numeric code 1007.",
+        "BAD_PRODUCT_ID": "The licence names a different product ID. Numeric code 1008.",
+        "EXPIRED": "The licence has expired. Numeric code 1009.",
+        "NO_RELEASE_DATE": "The installed app version has no known release date, so maintenance coverage cannot be checked. Numeric code 1010.",
+        "UNSUPPORTED_VERSION": "The installed app version was released after the licence's maintenance ended. Numeric code 1011.",
+        "UNSUPPORTED_SERVER": "The licence is locked to other servers than this one. Numeric code 1012.",
+        "JIRA_LICENSE_MISMATCH_USERS": "The licence's user tier is smaller than the Jira licence's user tier (or Jira is unlimited and the app licence is not). Numeric code 1013.",
+        "INVALID_PRODUCT": "The licence is for a different product. Numeric code 1014.",
+        "FREE_LICENSE_EXPECTED": "A free licence was expected for this installation but another type was found. Numeric code 1015.",
+        "BAD_CUSTOMER_ID": "The customer ID in the licence does not match. Numeric code 1016.",
+        "REVOKED_LICENSE": "The licence serial has been blocked (revoked). Numeric code 1017.",
+        "TYPE_MISMATCH": "The licence type does not fit the installation. Numeric code 1018.",
+        "UNKNOWN_ERROR": "An unexpected error occurred while checking the licence. Numeric code 1019.",
+        "JIRA_EVAL_LICENSE_MISMATCH": "Jira runs on an unlimited evaluation licence while the app licence has a user limit. Numeric code 1020.",
+        "NO_DATACENTER_SUPPORT": "The installation is Data Center but the licence is for Server hosting only. Numeric code 1021.",
+        "values()": "",
+        "valueOf(String)": "",
+        "getCode()": "Returns the numeric code of the error: 0 for `NO_ERROR`, otherwise a value from 1000 to 1021 (1002 is unused). Codes are stable and appear in messages and REST output."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.license.StructureLicenseHosting": {
+      "summary": "The deployment kind a licence was issued for. Each constant has a stable key used in REST output and messages.",
+      "members": {
+        "LEGACY": "Older licence with no hosting restriction; usable on Server and Data Center. Key `legacy`. This is what `LicenseData.getLicenseHosting` returns by default.",
+        "SERVER": "Licence for a single-server installation only; not valid on Data Center. Key `server`.",
+        "DATA_CENTER": "Licence for Data Center. Key `dc`.",
+        "values()": "",
+        "valueOf(String)": "",
+        "getKey()": "Returns the stable key: `legacy`, `server` or `dc`."
+      }
+    },
+    "com.almworks.jira.structure.api.extension.license.StructureLicenseType": {
+      "summary": "Kinds of licence. Each constant has a stable lower-case key used in REST output and messages.",
+      "members": {
+        "DISABLED": "No licence (or a licence that cannot be used); key `disabled`.",
+        "COMMERCIAL": "Paid commercial licence; key `commercial`.",
+        "DEVELOPER": "Licence for developers of add-ons or for development use; key `developer`.",
+        "FREE": "Free licence (for example community or open source); key `free`.",
+        "EVALUATION": "Time-limited trial licence; key `evaluation`.",
+        "DEVENV": "Licence for a development or test environment that mirrors a production one; key `devenv`.",
+        "values()": "",
+        "valueOf(String)": "",
+        "getKey()": "Returns the stable lower-case key of the type."
+      }
+    },
+    "com.almworks.jira.structure.api.folder.Folder": {
+      "summary": "An immutable description of a folder: its name and, optionally, the structure that owns it. Created through `Folder.named` or `Folder.copy` and a builder; stored and loaded through `FolderManager`. Thread-safe. It does not override `equals` or `hashCode` (identity semantics).",
+      "members": {
+        "getName()": "Returns the folder name, never null or blank, with leading and trailing whitespace removed and at most 190 characters long.",
+        "getOwningStructure()": "Returns the ID of the structure the folder belongs to, or null when the folder is not tied to a structure.",
+        "named(String)": "Starts a builder for a folder with the given name. Throws `IllegalArgumentException` if the name is null, empty or only whitespace. A name longer than 190 characters is shortened to 190 characters ending with `...`.",
+        "copy(com.almworks.jira.structure.api.folder.Folder)": "Starts a builder initialised with the name and owning structure of the given folder. A null argument throws `NullPointerException`."
+      }
+    },
+    "com.almworks.jira.structure.api.folder.Folder.Builder": {
+      "summary": "Mutable builder for `Folder`, obtained from `Folder.named` or `Folder.copy`. Each setter returns the same builder. Not thread-safe.",
+      "members": {
+        "setName(String)": "Replaces the name. Throws `IllegalArgumentException` if it is null or blank; names longer than 190 characters are shortened to 190 ending with `...`. Surrounding whitespace is removed when the folder is built.",
+        "setOwningStructure(Long)": "Sets the owning structure ID; null means no owner.",
+        "build()": "Creates the immutable `Folder` from the current name and owner. Can be called repeatedly."
+      }
+    },
+    "com.almworks.jira.structure.api.folder.FolderManager": {
+      "summary": "Component (OSGi service; also via `StructureComponents.getFolderManager`) that stores folders in the database. Folder IDs are positive integers within the 32-bit range. The manager performs no permission checks; it is the caller's job to check access. Changes are recorded with the item tracker so rows showing the folder refresh. Results are cached. All methods throw `StructureStoppedException` (unchecked) while the plugin is stopped.",
+      "members": {
+        "createFolder(com.almworks.jira.structure.api.folder.Folder)": "Stores a new folder with the given name and owner and returns its new ID. The argument must not be null.",
+        "getFolder(long)": "Returns the folder with the given ID, or null if there is none. Never checks permissions. Throws an unchecked storage error if the database cannot be read.",
+        "updateFolder(long, com.almworks.jira.structure.api.folder.Folder)": "Replaces the name and owner of the folder with the given ID by those of the given folder. Throws `StructureException` with `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE` if no such folder exists.",
+        "deleteFolder(long)": "Deletes the folder with the given ID. Does nothing (and does not throw) if it does not exist. Rows that show the folder are not removed from structures."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestChange": {
+      "summary": "An immutable description of one change to a forest: add a sub-forest, move rows, remove rows, or reorder children. Incremental forest updates (`VersionedForestUpdate.Incremental`) are lists of these. Instances are created with the static factories or the subclass constructors; `ForestChange` itself cannot be subclassed outside the API, but its nested change classes are not final and have public constructors. Positions use row IDs: `under` 0 means the top level and `after` 0 means first position under the parent.",
+      "members": {
+        "add(long, long, com.almworks.jira.structure.api.forest.raw.Forest)": "Creates an `Add` change. Arguments: the parent row (0 for top level), the preceding sibling row (0 for first position), and the forest to insert. Throws `IllegalArgumentException` if the forest is null.",
+        "move(long, long, com.almworks.integers.LongList)": "Creates a `Move` change. Arguments: the new parent row (0 for top level), the row after which to place the moved rows (0 for first position), and the rows to move, in their new order. Throws `IllegalArgumentException` if the list is null.",
+        "remove(com.almworks.integers.LongList)": "Creates a `Remove` change for the given rows (each removed with its subtree). Throws `IllegalArgumentException` if the list is null.",
+        "reorder(long, com.almworks.integers.LongList)": "Creates a `Reorder` change. Arguments: the parent row (0 for top level) and its children in the new order. Throws `IllegalArgumentException` if the list is null.",
+        "apply(com.almworks.jira.structure.api.forest.raw.ArrayForest)": "Applies the change to the given mutable forest in place. Invalid positions are tolerated as described for each subclass; the forest must not be null. An immutable forest is not tolerated: changing it throws `UnsupportedOperationException`.",
+        "accept(com.almworks.jira.structure.api.forest.ForestChange.Visitor)": "Calls the visitor method that matches this change's concrete type."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestChange.Add": {
+      "summary": "A change that inserts a forest (one or more rows with their sub-trees) at a position. Immutable and thread-safe.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.forest.raw.Forest, long, long)": "Creates the change. Arguments: the forest to insert, the parent row (0 for top level), the preceding sibling (0 for first position). Throws `IllegalArgumentException` if the forest is null. The forest is copied unless it is already immutable.",
+        "<init>(long, long, long)": "Creates a change that adds a single row. Arguments: the row ID to add, the parent row, the preceding sibling.",
+        "getAddedForest()": "Returns the inserted forest (immutable), never null.",
+        "getUnder()": "Returns the parent row under which the forest is inserted; 0 means top level.",
+        "getAfter()": "Returns the sibling after which the forest is inserted; 0 means first position under the parent.",
+        "apply(com.almworks.jira.structure.api.forest.raw.ArrayForest)": "Inserts the added forest at the position. If the insertion is impossible (for example it would place a row under itself) the change is silently not applied; an `after` row that is missing or not under the parent is ignored and the forest goes first under the parent.",
+        "accept(com.almworks.jira.structure.api.forest.ForestChange.Visitor)": "Calls `visitor.visit(Add)` with this change.",
+        "equals(Object)": "Equal to another object of exactly the same class with the same parent, preceding sibling and added forest.",
+        "hashCode()": "Hash code consistent with `equals`.",
+        "toString()": "Debug text of the form `under.after+forest`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestChange.Move": {
+      "summary": "A change that moves rows, with their sub-trees, to a new position as consecutive siblings. Immutable and thread-safe.",
+      "members": {
+        "<init>(com.almworks.integers.LongList, long, long)": "Creates the change. Arguments: the rows to move (copied), the new parent row (0 for top level), the preceding sibling for the first moved row (0 for first position). Throws `IllegalArgumentException` if the list is null.",
+        "getMovedRows()": "Returns the moved rows in their new order, never null.",
+        "getUnder()": "Returns the new parent row; 0 means top level.",
+        "getAfter()": "Returns the row after which the first moved row is placed; 0 means first position under the parent.",
+        "apply(com.almworks.jira.structure.api.forest.raw.ArrayForest)": "Moves each listed row, with its subtree, under the parent: the first after `after`, each next one after the previous moved row. A move that fails (for example a missing row or a move under its own descendant) is silently skipped and the next row is placed after it anyway.",
+        "accept(com.almworks.jira.structure.api.forest.ForestChange.Visitor)": "Calls `visitor.visit(Move)` with this change.",
+        "equals(Object)": "Equal to another object of exactly the same class with the same parent, preceding sibling and list of moved rows.",
+        "hashCode()": "Hash code consistent with `equals`.",
+        "toString()": "Debug text of the form `under.after<-rows`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestChange.Remove": {
+      "summary": "A change that removes rows together with their sub-trees. Immutable and thread-safe.",
+      "members": {
+        "<init>(com.almworks.integers.LongList)": "Creates the change for the given rows (copied). Throws `IllegalArgumentException` if the list is null. The list is expected to be non-empty (only asserted).",
+        "getRemovedRows()": "Returns the removed rows, never null.",
+        "apply(com.almworks.jira.structure.api.forest.raw.ArrayForest)": "Removes each listed row together with its subtree. Rows not in the forest are ignored.",
+        "accept(com.almworks.jira.structure.api.forest.ForestChange.Visitor)": "Calls `visitor.visit(Remove)` with this change.",
+        "equals(Object)": "Equal to another object of exactly the same class with the same list of removed rows.",
+        "hashCode()": "Hash code consistent with `equals`.",
+        "toString()": "Debug text `-` followed by the rows."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestChange.Reorder": {
+      "summary": "A change that rearranges the direct children of one parent without changing the set of children. Immutable and thread-safe.",
+      "members": {
+        "<init>(long, com.almworks.integers.LongList)": "Creates the change. Arguments: the parent row (0 for top level) and its children in the new order (copied). Throws `IllegalArgumentException` if the list is null.",
+        "getUnder()": "Returns the parent whose children are reordered; 0 means the top level.",
+        "getChildren()": "Returns the children of the parent in their new order, never null.",
+        "apply(com.almworks.jira.structure.api.forest.raw.ArrayForest)": "Rearranges the parent's children, each with its subtree, into the given order. If the parent (non-zero) is not in the forest, or has no children, nothing happens. If the list names a row that is not a direct child of the parent, an unchecked `RuntimeException` is thrown and the forest is left unchanged.",
+        "accept(com.almworks.jira.structure.api.forest.ForestChange.Visitor)": "Calls `visitor.visit(Reorder)` with this change.",
+        "equals(Object)": "Equal to another object of exactly the same class with the same parent and children list.",
+        "hashCode()": "Hash code consistent with `equals`.",
+        "toString()": "Debug text of the form `under#children`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestChange.Visitor": {
+      "summary": "Visitor over the four kinds of `ForestChange`, implemented by callers that process changes (for example to replay an incremental update). `ForestChange.accept` calls the matching method.",
+      "members": {
+        "visit(com.almworks.jira.structure.api.forest.ForestChange.Add)": "Called for an `Add` change.",
+        "visit(com.almworks.jira.structure.api.forest.ForestChange.Move)": "Called for a `Move` change.",
+        "visit(com.almworks.jira.structure.api.forest.ForestChange.Remove)": "Called for a `Remove` change.",
+        "visit(com.almworks.jira.structure.api.forest.ForestChange.Reorder)": "Called for a `Reorder` change."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestService": {
+      "summary": "Component (OSGi service; also via `StructureComponents.getForestService`) that resolves a `ForestSpec` into a `ForestSource`. Sources are cached, so the same spec usually returns the same source. Thread-safe.",
+      "members": {
+        "getForestSource(com.almworks.jira.structure.api.forest.ForestSpec)": "Returns the forest source for the spec, never null. A secured spec is checked first: the user named by the spec must exist and, if the spec names a structure, must have at least view permission on it. Throws `StructureException`: `INVALID_PARAMETER` for a null spec or an unsupported query type; `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` if the structure is missing or not viewable; the plugin's own error 6008 `ACTING_USER_NOT_FOUND` (category `NO_PERMISSION`) if the spec's user key is unknown. A text query with an empty query is treated as a JQL query with an empty query (recent items). Unsecured specs are not permission-checked.",
+        "getDisplayName(com.almworks.jira.structure.api.forest.ForestSpec)": "Returns a human-readable name for the spec in the current user's language, never null: the structure name for a structure spec (requires view permission), a generic 'query' or 'clipboard' label for those kinds, and for a transformed spec the name of the untransformed one with ` (+)` appended. For null or when the name cannot be obtained, returns the generic 'structure' label; errors are logged, not thrown."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestSource": {
+      "summary": "A live, versioned source of one forest, obtained from `ForestService.getForestSource`. It extends `VersionedDataSource`, so callers can also get its current version and an update since an older version (full or incremental). Some sources accept actions that change the forest. Implementations are thread-safe. Secured sources check the user's permissions on actions; unsecured sources do not.",
+      "members": {
+        "getLatest()": "Returns the current forest with its version, never null. The forest is immutable. May compute the forest first (running generators), which can take time.",
+        "hasUpdate(com.almworks.jira.structure.api.pull.DataVersion)": "Returns true if the source's current version differs from the given version, i.e. there is something new since then. The argument must not be null.",
+        "apply(com.almworks.jira.structure.api.forest.action.ForestAction, java.util.Map)": "Performs the action on the forest and returns its result, never null. The map holds action parameters (see `ActionParameters`; besides those, `dryRun` set to true validates without changing anything). Before acting, the source checks that rows named by the action exist and positions are consistent and throws `StructureException` with `INVALID_FOREST_OPERATION` otherwise. Throws `StructureInteractionException` when a decision from the caller is needed (repeat with the answers added to the parameters), and `StructureException` with `UNSUPPORTED_FOREST_SOURCE_OPERATION` from read-only sources. Secured sources also throw when the user lacks permission.",
+        "apply(com.almworks.jira.structure.api.forest.action.ForestAction)": "Same as `apply(action, parameters)` with an empty parameter map.",
+        "isActionable()": "True if the source accepts actions. Read-only sources (for example a historical version or a skeleton built from a query) return false. Default: true.",
+        "getHealth()": "Returns the health of the last forest computation, never null. Default: `ForestSourceHealthStatus.HEALTHY`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestSourceHealthStatus": {
+      "summary": "Diagnostics of the last forest computation of a source: whether generation was stopped early, how long each generator took, which generators hit a result limit, and which seem to update without end. Used for warnings in the UI and REST output. All maps are keyed by generator ID.",
+      "members": {
+        "HEALTHY": "A status with nothing to report: not stopped and empty maps and set.",
+        "isStopped()": "True if the last forest computation was stopped before it finished (for example because it exceeded the time limit), so the forest may be incomplete.",
+        "getGenerationTimes()": "Returns, for each generator ID, the time spent running it in the last computation, in milliseconds. Never null.",
+        "getHitLimits()": "Returns, for each generator ID whose output was cut at a limit (for example a query inserter limited to a maximum number of results), the limit that was reached. Never null.",
+        "getInfiniteUpdateGenerators()": "Returns the IDs of generators detected as causing endless re-generation (their own effects keep triggering updates). Never null. Default: empty set."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestSpec": {
+      "summary": "A value meant to be immutable and thread-safe (but see `Builder.build()`) that names a forest: either a structure (optionally a historical version), a structure query (`SQuery`), or a clipboard session; optionally with a list of transformations (generators applied on top, last one outermost), a 'title' flag (the structure itself shown as a root row), a 'skeleton' flag (only the stored rows, generators not run), and security (the forest as seen by a given user). Exactly one of structure, query or clipboard is meant to be set; this is checked only by Java assertions, so an inconsistent spec can be built with assertions off and fails later. Specs are used as cache keys and compare by all their fields. A non-secured, non-transformed structure spec never carries a user key.",
+      "members": {
+        "builder()": "Returns a new empty builder.",
+        "builder(com.almworks.jira.structure.api.forest.ForestSpec)": "Returns a builder initialised from the given spec, or an empty builder if the argument is null.",
+        "structure(long)": "Spec of the structure with this ID, secured for the current user (anonymous when no user is logged in).",
+        "structure(long, com.atlassian.jira.user.ApplicationUser)": "Spec of the structure with this ID, secured for the given user; null means anonymous.",
+        "unsecuredStructure(long)": "Spec of the structure with this ID with no security: the full forest, no permission checks on reading or acting. Intended for trusted code.",
+        "skeleton(long)": "Spec of the stored rows of the structure (generators not run), unsecured.",
+        "version(long, int)": "Spec of a historical version of the structure: arguments are the structure ID and the version number. Unsecured. Its source is read-only.",
+        "sQuery(String, String)": "Spec of a structure-query result: arguments are the query type (see `SQuery` constants) and the query text. Secured for the current user. Null arguments throw `IllegalArgumentException`.",
+        "clipboard(String)": "Spec of the clipboard of the given HTTP session ID. Unsecured.",
+        "secure(String)": "Returns a copy of this spec secured for the user with the given key (null for anonymous).",
+        "transform(String, java.util.Map)": "Returns a copy with one more transformation appended: arguments are the generator module key and its parameters (may be null). The copy carries the current user's key and is not a skeleton. Not meant for skeleton specs (only asserted).",
+        "isTransformed()": "True if the spec has at least one transformation.",
+        "getLastTransformedSpec()": "Returns the spec with the last transformation removed (and not a skeleton), or null if the spec is not transformed.",
+        "getLastTransformation()": "Returns the last (outermost) transformation, or null if not transformed.",
+        "getUntransformedSpec()": "Returns the spec with all transformations removed, or this spec if it has none.",
+        "getStructureId()": "Returns the structure ID, or null if the spec is not about a structure.",
+        "getVersion()": "Returns the historical version number, or null for the current forest.",
+        "getSQuery()": "Returns the structure query, or null if the spec is not a query.",
+        "getClipboardSessionId()": "Returns the HTTP session ID of the clipboard, or null if the spec is not a clipboard.",
+        "getUserKey()": "Returns the key of the user the spec is for (used for security and for running transformations), or null for anonymous or not user-specific.",
+        "getTransformations()": "Returns the transformations in order of application, never null; an empty, unmodifiable list when there are none.",
+        "isSecured()": "True if the forest is filtered by and acted on with the permissions of the spec's user.",
+        "isSkeleton()": "True if the spec asks for the stored rows only, without running generators.",
+        "hasTitle()": "True if the structure itself is shown as a root row above its forest.",
+        "getUnsecured()": "Returns the same spec without security, or this spec if it is not secured.",
+        "withoutTitle()": "Returns the same spec with the title flag cleared, or this spec if not set.",
+        "withTitle()": "Returns the same spec with the title flag set, or this spec if already set.",
+        "accept(com.almworks.jira.structure.api.forest.ForestSpec.Visitor)": "Calls one visitor method and returns its result. The first match wins in this order: secured, then transformed, then structure, then query, then clipboard. Throws `UnsupportedOperationException` if none applies (an empty spec); propagates the visitor's `StructureException`.",
+        "equals(Object)": "True if the other object is a `ForestSpec` with equal structure ID, version, query, clipboard session, user key, transformations and flags.",
+        "hashCode()": "Hash over all fields, consistent with `equals`; computed once and never 0.",
+        "toString()": "Debug text: the JSON of `toRest()`, followed by `(skeleton)` if a skeleton, `@` and the user key if any, and `(secure)` if secured.",
+        "fromRest(com.almworks.jira.structure.api.rest.RestForestSpec)": "Builds a spec from its REST form for the current user. The result is secured with the current user's key, except a clipboard spec (type `clipboard`), which is unsecured and takes its session ID from the current HTTP request. Never a skeleton. Throws `IllegalArgumentException` if the argument is null, if not exactly one of structure ID, query and clipboard is given, if a version is given without a structure ID, or if the title flag is set without a structure ID. Throws `IllegalStateException` for a clipboard spec when no HTTP request or session is available.",
+        "toRest()": "Returns the REST form of the spec: structure ID, version, query (type and text), type `clipboard` for a clipboard spec, the transformations (module and parameters), and `title` true when set. Security, user key, skeleton flag and the clipboard session ID are not included."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestSpec.Builder": {
+      "summary": "Mutable builder for `ForestSpec`. All setters return the same builder. No validation is done when building beyond Java assertions; the caller must set exactly one of structure, query or clipboard. Not thread-safe.",
+      "members": {
+        "<init>()": "Creates an empty builder: nothing set, not secured, not skeleton, no title.",
+        "<init>(com.almworks.jira.structure.api.forest.ForestSpec)": "Creates a builder with all fields of the given spec. The argument must not be null.",
+        "setStructureId(Long)": "Sets the structure ID; null clears it.",
+        "setVersion(Integer)": "Sets the historical version; null means current. Only meaningful with a structure ID.",
+        "setSQuery(com.almworks.jira.structure.api.forest.ForestSpec.SQuery)": "Sets the structure query; null clears it.",
+        "setSQuery(String, String)": "Sets the structure query from type and query text. Null arguments throw `IllegalArgumentException`.",
+        "setClipboardSessionId(String)": "Sets the clipboard session ID; null clears it.",
+        "setUserKey(String)": "Sets the user key; null means anonymous. Dropped on build for a plain (non-secured, non-transformed) structure spec.",
+        "setCurrentUserKey()": "Sets the user key to that of the user currently logged in to Jira (null if anonymous).",
+        "setTransformations(java.util.List)": "Replaces the transformations with a copy of the list; null or empty clears them.",
+        "addTransformation(com.almworks.jira.structure.api.forest.ForestSpec.Transformation)": "Appends a transformation (applied after the existing ones).",
+        "addTransformation(String, java.util.Map)": "Appends a transformation built from a generator module key and parameters (null allowed).",
+        "setSecured(boolean)": "Sets whether the spec is secured for its user.",
+        "setSkeleton(boolean)": "Sets whether only stored rows are wanted. A skeleton spec should have no version, query, clipboard or transformations (only asserted).",
+        "setTitle(boolean)": "Sets whether the structure is shown as a root row.",
+        "build()": "Creates the immutable spec. The builder can be reused, but the built spec shares the builder's list of transformations: adding a transformation to the builder afterwards also changes specs already built (as the original does), whose cached hash code then no longer matches. A plain structure spec (not secured, no transformations) is built without the user key."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestSpec.SQuery": {
+      "summary": "An immutable structure query: a query type and a query text. Its forest is the result of running the query. Equality uses type and text.",
+      "members": {
+        "TYPE_JQL": "Query type `jql`: a Jira JQL query; the result lists matching issues.",
+        "TYPE_TEXT": "Query type `text`: a free-text search for issues.",
+        "TYPE_CQL": "Query type `cql`: a Confluence CQL query, handled when the companion pages app is installed.",
+        "<init>(String, String)": "Creates the query. Arguments: the type, then the query text. Throws `IllegalArgumentException` if either is null. Other types than the three constants are looked up among query skeleton factories registered by other plugins, by the factory's complete module key.",
+        "getQuery()": "Returns the query text, never null; may be empty.",
+        "getType()": "Returns the query type, never null.",
+        "isShowRecent()": "Internal: true when the query text is empty, which means 'show recently viewed items' instead of running a query.",
+        "equals(Object)": "True for another `SQuery` with the same type and query text.",
+        "hashCode()": "Hash consistent with `equals`.",
+        "fromRest(com.almworks.jira.structure.api.rest.RestForestSpec)": "Returns the query from a REST forest spec, or null if the argument is null or has no query. A missing type or text becomes an empty string."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestSpec.Transformation": {
+      "summary": "An immutable transformation step in a `ForestSpec`: a generator module key and its parameters. Applying it runs that generator (filter, sorter, grouper, extender, inserter) over the forest of the previous step.",
+      "members": {
+        "<init>(String, java.util.Map)": "Creates the transformation. Arguments: the complete module key of the generator, and its parameters. The parameters are deep-copied into unmodifiable maps and lists; null stays null and an empty map becomes an empty map (the two are not equal). The module key is not checked for null.",
+        "getModule()": "Returns the complete module key of the generator.",
+        "getParams()": "Returns the unmodifiable parameter map, or null if none was given.",
+        "equals(Object)": "True for another transformation with the same module key and equal parameters (null equals only null).",
+        "hashCode()": "Hash consistent with `equals`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.ForestSpec.Visitor": {
+      "summary": "Visitor over the kinds of `ForestSpec`, used with `ForestSpec.accept`. Only one method is called per spec, chosen in the order secured, transformed, structure, query, clipboard; to look deeper the visitor typically calls `accept` again on the unsecured or untransformed spec. Each method may throw `StructureException`, which `accept` passes on.",
+      "members": {
+        "visitStructure(com.almworks.jira.structure.api.forest.ForestSpec)": "Called for an unsecured, untransformed spec of a structure (current or historical version, possibly skeleton or titled).",
+        "visitSQuery(com.almworks.jira.structure.api.forest.ForestSpec)": "Called for an unsecured, untransformed query spec.",
+        "visitTransformation(com.almworks.jira.structure.api.forest.ForestSpec)": "Called for an unsecured spec that has transformations.",
+        "visitSecured(com.almworks.jira.structure.api.forest.ForestSpec)": "Called for any secured spec.",
+        "visitClipboard(com.almworks.jira.structure.api.forest.ForestSpec)": "Called for an unsecured, untransformed clipboard spec."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.SQuerySkeletonFactory": {
+      "summary": "Experimental extension point, declared by other plugins as a `structure-query-skeleton-factory` module, that supports additional structure query types. The plugin handles `jql`, `text` and `cql` itself; for any other type it looks for a factory whose complete module key equals the query type, and fails with `INVALID_PARAMETER` if there is none. The factory builds the fixed rows (usually generators) whose generated result is the query result.",
+      "members": {
+        "createSkeleton(String, com.almworks.jira.structure.api.forest.item.ItemForestBuilder)": "Called when a forest source is created for a query of this factory's type. Arguments: the query text, and a builder into which the factory adds the rows (items and depths) of the skeleton forest. The rows are then added to an empty forest and generators among them are run. May throw `StructureException`, which is passed on to the caller of `ForestService.getForestSource`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.VersionedForest": {
+      "summary": "An immutable pair of a forest and its data version, as returned by `ForestSource.getLatest`. Thread-safe.",
+      "members": {
+        "EMPTY": "The empty forest at version zero.",
+        "<init>(com.almworks.jira.structure.api.forest.raw.Forest, com.almworks.jira.structure.api.pull.DataVersion)": "Creates the pair. Arguments: an immutable forest and its version. Throws `IllegalArgumentException` if either is null. A mutable forest is rejected only when Java assertions are on.",
+        "getForest()": "Returns the forest, never null.",
+        "getVersion()": "Returns the version of the forest, never null.",
+        "equals(Object)": "True for another `VersionedForest` with an equal forest and an equal version.",
+        "hashCode()": "Hash consistent with `equals`.",
+        "toString()": "Debug text `VersionedForest{forest, version}`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.VersionedForestUpdate": {
+      "summary": "An update from a `ForestSource` since some earlier version: either `Full` (the new forest replaces whatever the client had) or `Incremental` (a list of changes to apply in order). Both carry the latest forest, its version and the source's health. Immutable.",
+      "members": {
+        "getLatest()": "Returns the latest forest and its version, never null. The update's version (`getVersion`) is that same version.",
+        "asIncremental()": "Returns this update as `Incremental`. Throws `ClassCastException` if it is a full update; check `isIncremental()` first.",
+        "getHealth()": "Returns the health status of the source at the time of the update."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.VersionedForestUpdate.Full": {
+      "summary": "An update that delivers the whole latest forest; the receiver must drop its previous copy.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.forest.VersionedForest, com.almworks.jira.structure.api.forest.ForestSourceHealthStatus)": "Creates the update. Arguments: the latest forest and the health status. A null forest causes `NullPointerException`; a null health is not checked.",
+        "<init>(com.almworks.jira.structure.api.forest.VersionedForest)": "Creates the update with health `HEALTHY`.",
+        "isFull()": "Always true."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.VersionedForestUpdate.Incremental": {
+      "summary": "An update that lists the changes leading from the requested version to the latest one; applying them in order to the old forest gives the latest forest. An empty list means nothing changed.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.forest.VersionedForest, java.util.List, com.almworks.jira.structure.api.forest.ForestSourceHealthStatus)": "Creates the update. Arguments: the latest forest, the changes in order, and the health. Throws `IllegalArgumentException` if the change list is null. The list is kept as given, not copied.",
+        "<init>(com.almworks.jira.structure.api.forest.VersionedForest, java.util.List)": "Creates the update with health `HEALTHY`.",
+        "getUpdates()": "Returns the changes in the order to apply them, never null.",
+        "isEmpty()": "True if there are no changes."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.ActionParameters": {
+      "summary": "Internal: names of the well-known action parameters that callers pass in the map of `ForestSource.apply`, plus ready-made single-entry maps. Values are generally booleans or numbers; the plugin accepts a single value or a one-element list. Not instantiable.",
+      "members": {
+        "PRIMARY_GENERATOR": "Parameter `0:PrimaryGenerator`: the row ID of the generator that should handle the action when several could. The plugin asks for it through a `StructureInteractionException` whose parameter has this ID and whose values are the candidate generator row IDs.",
+        "CONFIRM": "Parameter `0:Confirm`: true confirms an action that would change two or more items. Without it the plugin asks for confirmation through a `StructureInteractionException` with this parameter ID.",
+        "STATIC_CAN_COMPETE": "Parameter `0:StaticCanCompete`: when true, manually placed (stored) rows may handle an action alongside a generator that inserts items; by default the generator wins and the stored rows are not changed.",
+        "ACT": "Suffix `:Act`: the parameter `<generator row ID>:Act` set to true makes that generator apply an optional effect it would otherwise not apply.",
+        "PASS": "Suffix `:Pass`: the parameter `<generator row ID>:Pass` set to true makes that generator skip the effect it would otherwise apply.",
+        "IGNORE_REMOVED_ROW_MISSING": "Parameter `updateSanityCheck.ignoreRemoveRowMissing`: when true, a remove action does not fail if some of its rows are no longer in the forest.",
+        "IGNORE_MOVED_ROW_MISSING": "Parameter `updateSanityCheck.ignoreMovedRowMissing`: when true, a move action does not fail if some of the moved rows are no longer in the forest (the target position is still checked).",
+        "IGNORE_ADD_AFTER_ROW_PROBLEMS": "Parameter `updateSanityCheck.ignoreAddAfterRowProblems`: when true, an add action does not fail if its `after` row is missing or not under the given parent.",
+        "IGNORE_REMOVED_ROW_MISSING_MAP": "Unmodifiable map with only `IGNORE_REMOVED_ROW_MISSING` set to true.",
+        "IGNORE_MOVED_ROW_MISSING_MAP": "Unmodifiable map with only `IGNORE_MOVED_ROW_MISSING` set to true.",
+        "IGNORE_ADD_AFTER_ROW_PROBLEMS_MAP": "Unmodifiable map with only `IGNORE_ADD_AFTER_ROW_PROBLEMS` set to true."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.ActionResult": {
+      "summary": "The outcome of `ForestSource.apply`: what effects were applied (in batches that can be undone), what problems occurred, and how row IDs given in the action map to new row IDs. Implemented by the plugin; immutable.",
+      "members": {
+        "getAppliedEffects()": "Returns the batches of effects that were applied, in order, never null (empty when the action changed only the forest of a simple source).",
+        "getEffectProblems()": "Returns the effects that could not be applied, never null. Problems do not make `apply` fail.",
+        "getRowIdReplacements()": "Returns a map from row IDs used in the action (for example the temporary rows of an added fragment) to the row IDs that now stand for them in the forest, or null when no replacement happened. The forest source of a stored structure returns an empty map in that case, never null."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.AppliedEffect": {
+      "summary": "One effect that an action caused, for example a structure change or a change to an issue made by a generator. Implemented by the plugin.",
+      "members": {
+        "getGeneratorRowId()": "Returns the row ID of the generator row whose handling of the action produced the effect.",
+        "isExternal()": "True if the effect changes data outside the structure (items such as issues) rather than only the stored structure.",
+        "getDescription()": "Returns a human-readable explanation of the effect in the current user's language; may be null.",
+        "isReversible()": "True if the effect can be undone."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.AppliedEffectBatch": {
+      "summary": "A group of effects applied together by one action, identified by a batch ID used for undo and redo. Implemented by the plugin (see `AppliedEffectBatchImpl`).",
+      "members": {
+        "getBatchId()": "Returns the ID of the batch, used to undo or redo it later.",
+        "getEffects()": "Returns the effects of the batch in the order they were applied, never null. Empty when the batch was already in the requested undone or redone state."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.AppliedEffectBatchImpl": {
+      "summary": "Internal simple implementation of `AppliedEffectBatch` that holds a batch ID and a list as given. Not defensive: the list is not copied.",
+      "members": {
+        "<init>(long, java.util.List)": "Creates the batch. Arguments: the batch ID and the list of effects (should not be null; not checked).",
+        "getBatchId()": "Returns the batch ID given at construction.",
+        "getEffects()": "Returns the list given at construction."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.EffectProblem": {
+      "summary": "An effect that could not be applied while performing an action. Implemented by the plugin.",
+      "members": {
+        "getGeneratorRowId()": "Returns the row ID of the generator row whose effect failed.",
+        "getDescription()": "Returns a human-readable explanation of the problem, in the current user's language."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.ForestAction": {
+      "summary": "An immutable request to change a forest, passed to `ForestSource.apply`: `Add`, `Copy`, `Move` or `Remove`. Positions are row IDs: `under` 0 means the top level; `after` 0 and `before` 0 mean no anchor. When `after` is 0 and `before` is not, the new rows go just before `before`; when both are 0 they go first under the parent. In a generated forest, generators decide how to carry out the action (for example by changing issue fields). Cannot be subclassed outside the API.",
+      "members": {
+        "accept(com.almworks.jira.structure.api.forest.action.ForestAction.Visitor)": "Calls the visitor method matching the concrete action type and passes on its `StructureException`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.ForestAction.Add": {
+      "summary": "Action that adds new rows for items (a fragment, which may have nested rows) at a position. Immutable and thread-safe.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.forest.item.ItemForest, long, long, long)": "Creates the action. Arguments: the fragment to add (copied to an immutable form), then the parent, after and before rows. The fragment must not be null.",
+        "<init>(com.almworks.jira.structure.api.item.ItemIdentity, long, long, long, long)": "Creates an action that adds a single item. Arguments: the item, the row semantics value (0 for none), then the parent, after and before rows.",
+        "<init>(com.almworks.jira.structure.api.item.ItemIdentity, long, long, long)": "Creates an action that adds a single item with semantics 0. Arguments: the item, then the parent, after and before rows.",
+        "getFragment()": "Returns the forest of items to add, never null. Its row IDs are temporary; the result's row ID replacements tell which rows they became.",
+        "getUnder()": "Returns the parent row for the new rows; 0 means top level.",
+        "getAfter()": "Returns the sibling after which the new rows go; 0 means no 'after' anchor.",
+        "getBefore()": "Returns the sibling before which the new rows go; 0 means no 'before' anchor. Used when `after` is 0.",
+        "accept(com.almworks.jira.structure.api.forest.action.ForestAction.Visitor)": "Calls `visitor.visit(Add)` with this action.",
+        "toString()": "Debug text `add:forest:under:after:before`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.ForestAction.Copy": {
+      "summary": "Action that inserts copies of existing rows at a position, remembering which original row each copy comes from (so generated rows can be copied with their context). Immutable and thread-safe.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.forest.item.ItemForest, long, long, long, com.almworks.integers.LongLongMap)": "Creates the action. Arguments: the fragment to insert (copied), the parent, after and before rows, and a map from each fragment row ID to the original row it copies (copied). A null fragment or map causes `NullPointerException`. Every fragment row must have an entry in the map, otherwise `apply` fails with `INVALID_FOREST_OPERATION`.",
+        "getFragment()": "Returns the forest of copied items, never null.",
+        "getUnder()": "Returns the parent row for the new rows; 0 means top level.",
+        "getAfter()": "Returns the sibling after which the new rows go; 0 means no 'after' anchor.",
+        "getBefore()": "Returns the sibling before which the new rows go; 0 means no 'before' anchor. Used when `after` is 0.",
+        "getOriginalRows()": "Returns the map from fragment row IDs to the original rows they were copied from.",
+        "accept(com.almworks.jira.structure.api.forest.action.ForestAction.Visitor)": "Calls `visitor.visit(Copy)` with this action.",
+        "toString()": "Debug text `copy:forest:under:after:before:mapping`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.ForestAction.Move": {
+      "summary": "Action that moves existing rows, with their sub-trees, to a new position as consecutive siblings. The rows must exist and the parent must not be one of the moved rows or their descendants, otherwise `apply` fails with `INVALID_FOREST_OPERATION`.",
+      "members": {
+        "<init>(com.almworks.integers.LongList, long, long, long)": "Creates the action. Arguments: the rows to move (kept as given, not copied), then the parent, after and before rows.",
+        "getRowIds()": "Returns the rows to move, in their new order.",
+        "getUnder()": "Returns the new parent; 0 means top level.",
+        "getAfter()": "Returns the sibling after which the moved rows go; 0 means no 'after' anchor.",
+        "getBefore()": "Returns the sibling before which the moved rows go; 0 means no 'before' anchor.",
+        "accept(com.almworks.jira.structure.api.forest.action.ForestAction.Visitor)": "Calls `visitor.visit(Move)` with this action.",
+        "toString()": "Debug text `move:rows:under:after:before`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.ForestAction.Remove": {
+      "summary": "Action that removes rows together with their sub-trees. All rows must exist unless `IGNORE_REMOVED_ROW_MISSING` is set.",
+      "members": {
+        "<init>(com.almworks.integers.LongList)": "Creates the action for the given rows (kept as given, not copied).",
+        "getRowIds()": "Returns the rows to remove.",
+        "accept(com.almworks.jira.structure.api.forest.action.ForestAction.Visitor)": "Calls `visitor.visit(Remove)` with this action.",
+        "toString()": "Debug text `remove:rows`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.ForestAction.Visitor": {
+      "summary": "Visitor over the four action types, implemented by forest sources and other code that processes actions. Each method may throw `StructureException`, which `ForestAction.accept` passes on.",
+      "members": {
+        "visit(com.almworks.jira.structure.api.forest.action.ForestAction.Remove)": "Called for a `Remove` action.",
+        "visit(com.almworks.jira.structure.api.forest.action.ForestAction.Move)": "Called for a `Move` action.",
+        "visit(com.almworks.jira.structure.api.forest.action.ForestAction.Add)": "Called for an `Add` action.",
+        "visit(com.almworks.jira.structure.api.forest.action.ForestAction.Copy)": "Called for a `Copy` action."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.Interaction": {
+      "summary": "A request from the plugin for decisions it needs before it can complete an action, carried by `StructureInteractionException`. Each parameter is one question. The caller answers by repeating the same action with each parameter ID set to a chosen value in the parameter map. Immutable.",
+      "members": {
+        "getParameters()": "Returns the questions, in order, as an unmodifiable list."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.InteractionParameter": {
+      "summary": "One question in an `Interaction`: which parameter to set, for which row, with a message and the possible answers. Value class; fields are kept as given.",
+      "members": {
+        "<init>(long, String, String, java.util.List)": "Creates the question. Arguments: the row it concerns, the parameter ID to set in the answer, the message to show, and the possible values.",
+        "getRowId()": "Returns the row the question concerns (the row being acted on).",
+        "getParameterId()": "Returns the key under which the answer is put in the action parameters, for example `0:PrimaryGenerator` or `0:Confirm`.",
+        "getMessage()": "Returns the question text to show, in the current user's language.",
+        "getValues()": "Returns the possible answers, as given at construction.",
+        "toString()": "Debug text `row:parameterId?values` (values omitted when empty)."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.InteractionParameterValue": {
+      "summary": "One possible answer to an `InteractionParameter`. Value class; fields are kept as given.",
+      "members": {
+        "<init>(Object, String, String, boolean)": "Creates the answer. Arguments: the value to send back, HTML of an icon to show next to it (may be null), the explanation text, and whether the answer can actually be chosen.",
+        "getValue()": "Returns the value to put in the action parameters if this answer is chosen (for example a generator row ID or `true`).",
+        "getIconHtml()": "Returns HTML for an icon representing the answer, or null.",
+        "getExplanation()": "Returns text explaining what choosing this answer will do.",
+        "isPossible()": "True if this answer can be chosen; false if it is shown only for information.",
+        "toString()": "Debug text `(value, explanation, possible)`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.action.StructureInteractionException": {
+      "summary": "Thrown by `ForestSource.apply` when the action needs a decision from the caller (which generator should handle it, or confirmation of a change to many items). Its error is `DECISION_REQUIRED`. Nothing has been changed when it is thrown.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.forest.action.Interaction)": "Creates the exception with error `DECISION_REQUIRED` and the given interaction.",
+        "getInteraction()": "Returns the interaction describing the decisions needed."
+      }
+    }
+  }
+}

@@ -157,7 +157,7 @@ class GuardrailMonitor:
                  integrity: dict[str, str] | None = None, clock=None, poll_interval: float = 0.2,
                  effect_interval: float = 30.0, lag_threshold_s: float = 10.0,
                  silence_threshold_s: float = 60.0, cwd: Path | None = None,
-                 procmon=None, procmon_interval: float = 2.0, honey=None):
+                 procmon=None, procmon_interval: float = 2.0, honey=None, resume: bool = False):
         self.events_dir = Path(events_dir)
         self.policy = policy
         self.writer = writer
@@ -204,6 +204,29 @@ class GuardrailMonitor:
         self._prev_wall = self.clock.wall()
         self._last_effects_mono = self._prev_mono
         self._last_procmon_mono = self._prev_mono
+        if resume:
+            self._skip_checked()
+
+    def _skip_checked(self) -> None:
+        """A resumed run's monitor: the commands already in the stream and the effects already logged were
+        checked before the interruption, so they are not logged again. The telemetry is still read from the
+        start, so the spend so far counts towards the budget."""
+        try:
+            self._stream.offset = self._stream.path.stat().st_size
+        except OSError:
+            pass
+        try:
+            lines = (self.events_dir / "guardrail.jsonl").read_text().splitlines()
+        except OSError:
+            return
+        for line in lines:
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            p = ev.get("payload") or {}
+            if ev.get("type") == "guardrail.violation" and p.get("channel") == "effect":
+                self._seen_effects.add((p.get("rule_id"), p.get("evidence")))
 
     # -- public control ---------------------------------------------------------------------
     def set_agent_active(self, active: bool) -> None:
@@ -211,6 +234,17 @@ class GuardrailMonitor:
             if active and not self._active:
                 self._last_otel_mono = self.clock.mono()  # silence is measured from activation
             self._active = bool(active)
+
+    @property
+    def lock(self) -> threading.RLock:
+        """Held while the harness changes the workspace, so no effect check sees half of the change."""
+        return self._lock
+
+    def accept_files(self, files: dict[str, str]) -> None:
+        """Files the harness itself wrote (``rel -> sha256``) become part of the baseline: they are not
+        new files, but a later change to them is."""
+        with self._lock:
+            self.seed_files = {**(self.seed_files or {}), **files}
 
     def start(self) -> None:
         if self._thread is not None:
@@ -349,6 +383,8 @@ class GuardrailMonitor:
             self._check_budget()
         elif etype == "claude_code.api_error":
             t = sent if sent is not None else wall
+            if t < wall - API_ERROR_WINDOW_S:
+                return  # history: a resumed run replays otel.jsonl from the start
             self._api_errors.append(t)
             while self._api_errors and t - self._api_errors[0] > API_ERROR_WINDOW_S:
                 self._api_errors.popleft()

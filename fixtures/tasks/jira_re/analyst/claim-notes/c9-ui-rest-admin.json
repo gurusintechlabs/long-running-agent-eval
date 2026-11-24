@@ -1,0 +1,1569 @@
+{
+ "claims": [
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/schedule-properties-and-defaults",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "The maintenance schedule is kept in `AO_8BAD1B_PROPERTY` (through property-service): `maintenance.scheduled.enabled` (absent means true: scheduled maintenance is on by default), `maintenance.scheduled.time` (`H:M` without zero padding, e.g. `3:0`; absent, malformed, an hour outside 0..23 or a minute outside 0..59 each fall back separately to hour 3 and minute 0), `maintenance.scheduled.crontab.enabled` (absent means false) and `maintenance.scheduled.crontab.schedule` (absent means `0 3 * * *`). With nothing stored the schedule reports: scheduled, daily at 03:00, cron off, cron text `0 3 * * *`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#isScheduled",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#getScheduledHour",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#getScheduledMinute",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#isCrontabEnabled",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#getCrontabSchedule",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/next-run-daily-time",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "In daily-time mode the next run time is computed in the JVM default time zone as today at the stored hour and minute with seconds and milliseconds zero; if that instant is not strictly after now, it is the same hour and minute on the next calendar day. Example: at 02:59:30 with time `3:0` the next run is 03:00:00 today; at exactly 03:00:00 or later it is 03:00:00 tomorrow. (On a day where the hour does not exist because of a daylight-saving jump, Calendar lenient rules apply and the minute is set to 0 when the resulting hour moved past the requested one.)",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#advanceToNextRunTime",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/next-run-cron",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "In cron mode the next run time is the first instant strictly after now matched by the stored 5-field schedule (minute hour day-of-month month day-of-week), evaluated in the JVM default time zone with seconds fixed to 0, using Spring's `CronExpression` semantics after prefixing the text with `0 ` (so the stored value is a standard 5-field crontab, e.g. `0 3 * * *` = daily 03:00, `*/15 * * * *` = every quarter hour).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#advanceToNextRunTime",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/next-run-persisted-with-zone",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Each time the next run is computed it is stored as `maintenance.scheduled.nextRunTime` (epoch ms, decimal) and `maintenance.scheduled.nextRunTime.tz` (the Java time-zone id it was computed in, e.g. `Europe/Berlin`), and logged at WARN level. Asking for the next scheduled run time returns the stored value when it is positive; when it is absent or 0 it is computed and stored first.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#getNextScheduledRunTime",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#advanceToNextRunTime"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/next-run-timezone-change",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "When the stored `maintenance.scheduled.nextRunTime.tz` differs from the JVM's current default time zone, the stored next-run instant is reinterpreted so that it keeps the same wall-clock time: the instant is converted to local fields in the saved zone (seconds and milliseconds zeroed) and those fields are then taken as local time in the current zone. The adjusted value is used for the due check and returned, but not written back. Example: 03:00 Europe/Berlin becomes 03:00 in the new zone.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#getNextScheduledRunTime",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/scheduled-job-registration",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "When the plugin starts (unless the component is already stopped) the module registers one recurring job with scheduled-job-manager under the key `maintenance.scheduled.job` (whose last run time scheduled-job-manager keeps under `sjm.maintenance.scheduled.job`); when the plugin stops it marks itself stopped and removes that job. The job is due when the component is not stopped, scheduled maintenance is enabled, and the next scheduled run time (see the next-run claims) is at or before now. Licence state never blocks it (the replacement has no licence checks).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#startComponent",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#stopComponent",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#shouldRunScheduled",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/scheduled-run-advances-first",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "When the scheduled job runs, the module first computes and stores the following next run time (so the same slot is not run twice), then runs maintenance with the scheduled parameters, reporting progress through a new process handle (process-handle-manager) created for the job's current user (normally none).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#shouldRunScheduled",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#advanceToNextRunTime",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/run-once",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "A manual 'run now' request: throws `StructureStoppedException` when the component is stopped; otherwise creates a new process handle for the calling user, submits the maintenance run as a system background job through job-manager, stores `maintenance.manual.lastRunTime` = now (epoch ms) and returns the process handle id when the job manager accepted the job (job id > 0), or 0 when it did not. The run uses the stored manual parameters. It does not wait for the run.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#runOnce"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/run-under-cluster-lock",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "A maintenance run executes as superuser (no permission checks) and first tries, without waiting, to take the Jira cluster lock `com.almworks.jira.structure.maintenance`. If the lock is held (another run on any node), it logs a warning and returns false without running any task and without touching the process handle or the success flag. Otherwise it sets the process to RUNNING, stores `maintenance.scheduled.currentProcessId` = the process handle id, runs the tasks, and finally (whatever happened) removes `maintenance.scheduled.currentProcessId`, sets the process to FINISHED, releases the lock and stores `maintenance.successful` = whether all tasks succeeded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager$3#call"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-order-and-defaults",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "A run reads its parameters (the JSON object in `maintenance.manual.parameters` for a manual run, `maintenance.scheduled.parameters` for a scheduled run; absent or unparsable JSON means all defaults) and runs these tasks in this order, each only when its key is enabled (a value of exactly `true` or `false`; anything else means the default): `backup` (default on), `removeOldBackups` (on), `cleanupFavorites` (on), `cleanupForests` (on), `cleanupViews` (on), `cleanupSynchronizers` (on), `cleanupStructureProperties` (on), `removeOldSyncAuditLogRecords` (on), `reindexHistory` (on), `cleanupPerspectives` (on), `reindexStructures` (on), `removeOldChangeHistory` (on), `removeOldEffectorProcesses` (on), `removeOldProcessStates` (on), `cleanupItemTracker` (off).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.TaskManager#createTasks"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-numeric-options",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Numeric task options are read from the same parameter map; a value that is not an integer or is out of range falls back to the default: `removeOldBackups-minFilesToKeep` (default 5, minimum 1), `removeOldBackups-minDaysToKeep` (15, min 1), `cleanupPerspectives-daysToKeep` (30, min 1), `removeOldSyncAuditLogRecords-daysToKeep` (30, min 0), `removeOldChangeHistory-daysToKeep` (30, min 0), `removeOldChangeHistory-changesPerStructureToKeep` (1000, min 0), `removeOldEffectorProcesses-daysToKeep` (30, min 0), `removeOldEffectorProcesses-waitingPreviewHoursToKeep` (24, min 0). `backup-saveHistory` is a boolean option, default true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.TaskManager#createTasks",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-failure-continues",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Tasks run one after another; a task that returns failure or throws (any exception or linkage error) marks the run unsuccessful (logged with the parameters) but the remaining tasks still run. Before each task the run stops early (returning failure) if the component has been stopped or the thread was interrupted; an `InterruptedException` from a task also ends the run. When the run ends early because the component was stopped, `maintenance.successful` keeps whatever outcome the tasks so far had (true if none failed) (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager$3#call"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/apply-scheduled-params-disable",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Saving the scheduled-maintenance form: `scheduled` must be exactly `true` or `false` (absent counts as `false`); any other value makes the save fail (returns false, nothing stored). `false` stores `maintenance.scheduled.enabled` = false and succeeds immediately without touching any other key. Throws `StructureStoppedException` when the component is stopped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#applyScheduledParams"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/apply-scheduled-params-cron",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "When the form enables scheduling, `crontabEnabled` (exactly `true` means on, anything else off) is stored as `maintenance.scheduled.crontab.enabled` first. In cron mode `crontabSchedule` is required and must parse as a 5-field cron expression (see next-run-cron) and must not contain `?` or `*` directly preceded by a non-space character or directly followed by a character other than `,`, `/` or whitespace (so `*/5 * * * *` is accepted, `5* * * * *` or `*5 * * * *` is not); a missing or illegal schedule throws an invalid-parameter error naming the field `crontab` (the cron-enabled flag stays stored). A valid schedule is stored in `maintenance.scheduled.crontab.schedule`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#applyScheduledParams",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/apply-scheduled-params-daily",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "When the form enables scheduling without cron, `scheduledHour` must be an integer 0..23 and `scheduledMinute` 0..59; otherwise the save fails (returns false) with only the cron flag stored. Valid values are stored as `maintenance.scheduled.time` = `<hour>:<minute>` without zero padding (e.g. `7:5`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#applyScheduledParams"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/apply-params-validation",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Task options in a submitted form (scheduled or run-once) are validated and normalised: each task boolean key must be `true`, `false` or absent (absent is stored as `false`, i.e. an unchecked checkbox); a numeric option is checked only when its task key is present in the form and must then parse as an integer above 0 (`removeOldBackups-*`, `cleanupPerspectives-daysToKeep`) or at least 0 (the other day/count options); `backup-saveHistory` is checked only when `backup` is present. Any violation makes the whole save fail (returns false, nothing stored). On success the normalised values are merged into the stored JSON object (keys not in the submission keep their stored values). For the scheduled form the next run time is then recomputed and stored, the parameters saved, and `maintenance.scheduled.enabled` set to true; the save returns true. Run-once parameters go to `maintenance.manual.parameters`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#applyScheduledParams",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#applyRunOnceParams",
+    "com.almworks.jira.structure.maintenance.TaskManager#convertParams"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/form-params-read",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Reading the form parameters for the manual or scheduled form returns the stored JSON object as a string map completed with defaults: every task key and option listed for the tasks is present, a stored value is kept only if it is `true`/`false` (booleans) or a valid number in range (options), otherwise the default is filled in (`cleanupItemTracker` false, other tasks true, numbers as listed with the task options). Throws `StructureStoppedException` when stopped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#getFormParams",
+    "com.almworks.jira.structure.maintenance.TaskManager#convertParams"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/status-reporting",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Status read-outs (each throws `StructureStoppedException` when stopped): the currently running maintenance process id is `maintenance.scheduled.currentProcessId` (0 when absent, i.e. no run in progress on any node); the last manual run time is `maintenance.manual.lastRunTime` (0 when never); the last scheduled run time is scheduled-job-manager's last run time for job `maintenance.scheduled.job`; whether the last run was successful is `maintenance.successful` (absent means true).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#getCurrentlyRunningProcess",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#getLastManualRunTime",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#getLastScheduledRunTime",
+    "com.almworks.jira.structure.maintenance.StructureMaintenanceManager#isLastRunSuccessful"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-backup",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Task `backup`: writes a zipped backup into Jira's export directory (`<jira-home>/export`) named and suffixed exactly as SPEC.md §1.6 describes for the scheduled maintenance backup (`structure-yyyyMMdd-HHmm.zip` in server local time, US locale, then `-1` … `-9`), including structure history unless `backup-saveHistory` is `false`, through backup-manager with every other backup option at its default. If the export directory is unavailable, or all ten names exist, it fails without writing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.BackupTask#run"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-remove-old-backups",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Task `removeOldBackups`: in Jira's export directory considers only regular files whose whole name matches `^structure-\\d{8}-\\d{4}(-\\d)?\\.zip$`. If there are no more than `minFilesToKeep` of them nothing is deleted. Otherwise the candidates are those whose date-time parsed from the name (local time) is earlier than now minus `minDaysToKeep` days; if there are more candidates than (count − minFilesToKeep), only that many are deleted, choosing the smallest names without extension first (case-insensitive). Each deletion is retried up to 5 times with 1 s pauses; any file that cannot be deleted makes the task fail. A missing export directory fails the task. (Non-positive stored options never reach the task: they fall back to the defaults 5 and 15.)",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.RemoveOldBackupsTask#run",
+    "com.almworks.jira.structure.maintenance.RemoveOldBackupsTask"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-cleanups-delegated",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Tasks delegated to other modules, with the behaviour claimed there: `cleanupFavorites` uses favorite-manager's removal of rows for missing users or structures; `cleanupStructureProperties` uses structure-property-service's removal of rows of deleted structures; `removeOldSyncAuditLogRecords` uses sync-audit-log's purge with the cut-off now minus `daysToKeep` days (negative values treated as 0); `cleanupPerspectives` deletes perspectives (perspective-manager / perspective-io) whose last-used time is before now minus `daysToKeep` days (a stored value below 1 falls back to 30); `cleanupItemTracker` clears item-tracker's Data Center event journal and does nothing on a single-node server; `reindexStructures` rebuilds structure-manager's issue-to-structure index (`AO_8BAD1B_ISSUE_INDEX`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.CleanupFavoritesTask#run",
+    "com.almworks.jira.structure.maintenance.CleanupStructurePropertiesTask#run",
+    "com.almworks.jira.structure.maintenance.RemoveOldSyncAuditLogEntriesTask#run",
+    "com.almworks.jira.structure.maintenance.CleanupPerspectivesTask#run",
+    "com.almworks.jira.structure.maintenance.ItemTrackerCleanupMaintenanceTask#run",
+    "com.almworks.jira.structure.maintenance.ReindexStructuresTask#run"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-reindex-history-noop",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Task `reindexHistory` does nothing and always succeeds (it is kept only so the option key remains valid).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.ReindexHistoryTask#run"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-cleanup-synchronizers",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Task `cleanupSynchronizers`: as superuser, for every installed synchronizer definition whose structure is not accessible (i.e. no longer exists), uninstalls that synchronizer through sync-manager; always succeeds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.sync.CleanupSynchronizersTask#run"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-cleanup-views",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Task `cleanupViews`: as superuser, collects the ids of all existing views (view-manager), then removes from the global default view settings and from each structure's own (defined) view settings, archived structures included, every associated view that refers to a view id that no longer exists, keeping the other entries in their order; settings with no dangling reference are not rewritten. Always succeeds unless an exception escapes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.CleanupViewsTask#run"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-cleanup-forests",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Task `cleanupForests`: as superuser, scans the stored forest of every structure (archived included) and finds rows whose row id is unknown to the row manager ('missing') or whose item an item type reports as no longer existing ('dead'; only item types that can tell, e.g. deleted issues). A dead or missing row with no children, or whose children are all dead/missing, is removed with its subtree. A dead row that has at least one live child subtree is kept, only its fully dead child subtrees being removed; a missing row (or loop marker) with a live descendant is replaced by a new folder titled with the i18n text `s.ext.it.folder.missing` at the same position, the children moved under it, and the original row removed. A failure on one structure marks the task failed and continues with the next; when nothing is found it succeeds without changes.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.CleanupForestsTask#run",
+    "com.almworks.jira.structure.maintenance.CleanupForestsTask$DeadItemSeeker#findDead"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-remove-old-change-history",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Task `removeOldChangeHistory`, per structure (archived included), with D = daysToKeep, K = changesPerStructureToKeep and cut-off = now − D days: if D = 0 and K = 0, the whole history is cleared. Otherwise it counts entries at or after the cut-off (0 when D = 0): if that count is 0 and K = 0 the history is cleared; if the count is ≥ K, entries older than the earliest entry at or after the cut-off are deleted; otherwise, if the structure has more than K entries, all but the latest K entries are deleted. So an entry is kept when it is newer than D days or among the latest K. Afterwards history-service and forest-service caches are cleared. Always succeeds.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.RemoveOldChangeHistoryTask#run"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/maintenance-manager/task-remove-old-effector-processes-and-states",
+   "module": "maintenance-manager",
+   "api": null,
+   "behaviour": "Task `removeOldEffectorProcesses` asks effector-process storage to delete finished effector processes older than now − daysToKeep days and processes still calculating or waiting for preview confirmation older than now − waitingPreviewHoursToKeep hours. Task `removeOldProcessStates` deletes `AO_8BAD1B_PROCESS_STATE` rows older than a fixed 30 days through process-handle-manager, except those referenced by effector processes. Both always succeed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.maintenance.RemoveOldEffectorProcessesTask#run",
+    "com.almworks.jira.structure.maintenance.RemoveOldProcessStatesTask#run"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-manager/save-requires-logged-in-user-with-access",
+   "module": "perspective-manager",
+   "api": null,
+   "behaviour": "Saving a new perspective requires a logged-in current user (`StructureAuth`) who may use <product> (the helper's 'use' permission); otherwise it throws `StructureException` with `StructureErrors.PERSPECTIVE_CREATION_DENIED` (REST: 403 on `POST /rest/structure/1.0/perspective/share`). Licence state never blocks it. Checked before the spec.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#savePerspective",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#canCreatePerspective"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-manager/save-validates-and-stores",
+   "module": "perspective-manager",
+   "api": null,
+   "behaviour": "A perspective spec that is null or empty is refused with `StructureException` `StructureErrors.INVALID_PARAMETER`; any non-empty text is accepted unparsed (it need not be valid JSON at save time). A valid spec is stored through perspective-io as a new `AO_8BAD1B_PERSPECTIVE` row with `C_LAST_USED` = now (epoch ms) and a new random id (see perspective-io), and the stored perspective (id and spec text verbatim) is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#savePerspective",
+    "com.almworks.jira.structure.perspective.PerspectiveBean#isValid"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-manager/can-create",
+   "module": "perspective-manager",
+   "api": null,
+   "behaviour": "'May this user create perspectives?' answers true exactly when the user is not null (anonymous never) and may use <product>; it is what the REST bootstrap reports as `canCreatePerspective`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#canCreatePerspective"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-manager/get-touches-and-adjusts",
+   "module": "perspective-manager",
+   "api": null,
+   "behaviour": "Loading a perspective by id goes through perspective-io, which refreshes its `C_LAST_USED` to now; an unknown id gives an empty result. The returned spec has saved-column references refreshed: the spec is read as a JSON object, and for each of the top-level objects `primary` and `secondary` that has a `viewSpec`, that view specification is passed through saved-column-manager's adjustment (unmodified references re-expanded from `AO_8BAD1B_SAVED_COLUMN`, references to deleted saved columns removed) and the object is re-serialised keeping every other key and value. The stored row is not rewritten.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#getPerspective",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#adjustPerspective",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager$RestForestPanel#adjustViewSpec"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-manager/adjust-failure-returns-original",
+   "module": "perspective-manager",
+   "api": null,
+   "behaviour": "If the stored spec cannot be parsed as such an object (not JSON, or a `viewSpec` that is not a valid view specification), the perspective is returned exactly as stored and a warning is logged (rate-limited); loading does not fail.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#adjustPerspective"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-manager/iterate-all-adjusted",
+   "module": "perspective-manager",
+   "api": null,
+   "behaviour": "Iterating over all perspectives (used by backup) visits every stored perspective with the same saved-column adjustment as a single load, without changing `C_LAST_USED`, and stops when the visitor returns false; restoring a list of perspectives hands them to perspective-io with now as their last-used time. Neither of these two checks whether the component is stopped.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#forAllPerspectives",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#restore"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-manager/delete-unused",
+   "module": "perspective-manager",
+   "api": null,
+   "behaviour": "Deleting unused perspectives removes, through perspective-io, every perspective whose `C_LAST_USED` is before the given epoch-ms cut-off (used by maintenance task `cleanupPerspectives`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#deleteUnusedPerspectives"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-manager/stopped",
+   "module": "perspective-manager",
+   "api": null,
+   "behaviour": "After the plugin stops, saving, loading, deleting unused perspectives and the 'may create' check throw `StructureStoppedException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#savePerspective",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#getPerspective",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#deleteUnusedPerspectives",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#canCreatePerspective"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-manager/statistics",
+   "module": "perspective-manager",
+   "api": null,
+   "behaviour": "When the plugin starts the module registers a usage-statistics source with statistics-manager that reports `perspectiveCount` = the current number of rows in `AO_8BAD1B_PERSPECTIVE` (as a double).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager#startComponent",
+    "com.almworks.jira.structure.perspective.AOBasedPerspectiveManager$MyStatSource#getStatistics"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-mail-sender/unknown-perspective",
+   "module": "perspective-mail-sender",
+   "api": null,
+   "behaviour": "E-mailing a perspective whose id is unknown throws `StructureException` with the plugin's 'entity does not exist or is inaccessible' error (code 6017, category NOT_FOUND; REST 404 with a `structure-error`) and sends nothing. Loading the perspective refreshes its last-used time.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.PerspectiveMailSender#sendEmail"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-mail-sender/structure-from-spec",
+   "module": "perspective-mail-sender",
+   "api": null,
+   "behaviour": "The structure of a perspective is read from the stored spec at JSON path `primary.forestSpec.structureId` (as a number). A spec that is not parsable JSON throws `StructureException` `StructureErrors.GENERIC_ERROR` ('Failed to get structure from perspective: …'). When that path is absent the mail is sent without any structure check, with page title `Structure`. When present, the structure is loaded with VIEW permission for the current user; if it does not exist or is not viewable the `StructureException` from structure-manager propagates and nothing is sent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.PerspectiveMailSender#sendEmail",
+    "com.almworks.jira.structure.perspective.PerspectiveMailSender#readStructureId"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-mail-sender/grants-view-to-recipients",
+   "module": "perspective-mail-sender",
+   "api": null,
+   "behaviour": "When the perspective shows a structure and the current user both administers that structure and has Jira's global 'browse users' (USER_PICKER) permission, then before mailing each recipient whose structure permission level does not include VIEW gets a new rule 'set level VIEW for user <recipient>' (`PermissionRule.SetLevel` on `PermissionSubject.JiraUser`) unless an identical rule already exists; the new rules are inserted at the start of the structure's permission list in recipient order and the structure is saved (the save happens even when no rule was added). Without both conditions permissions are untouched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.PerspectiveMailSender#sendEmail",
+    "com.almworks.jira.structure.perspective.PerspectiveMailSender#grantViewPermissions"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/perspective-mail-sender/mail-content",
+   "module": "perspective-mail-sender",
+   "api": null,
+   "behaviour": "One mail per recipient is sent through mail-sender with template `shared-perspective` and parameters: `actor` (the current user's display info), `perspectiveId`, `message` (the given text, or `Take a look at this page.` when null or empty), `pageTitle` (the structure's name, or `Structure` when the perspective has no structure) and, only with a structure, `highlightTitle` = true. Recipients are mailed in the given order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perspective.PerspectiveMailSender#sendEmail"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/ui-configurator/settings-and-strategy",
+   "module": "ui-configurator",
+   "api": null,
+   "behaviour": "The panel configuration (REST `GET`/`POST /rest/structure/1.0/config/ui`, shape `panel-configuration`) carries the current user's UI settings for the page's project as resolved by structure-configuration (user overrides over system values), and the auto-switch strategy for the requested `StructurePage` from those settings; when none is set it is `AutoSwitchStrategy.PLUGIN_DEFAULT_AUTOSWITCH_STRATEGY` (`STRUCTURE_WITH_ISSUE`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureUIConfigurator#getStructurePanelUIConfiguration"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/ui-configurator/default-structure-skips-archived",
+   "module": "ui-configurator",
+   "api": null,
+   "behaviour": "The default structure reported is the project's default (structure-configuration; the global default when there is no project). If that structure is archived: with a project, the global default is used instead when it differs and is not archived, otherwise there is no default; without a project there is no default. The default is then loaded with VIEW permission for the current user; if that fails (missing, not viewable, none configured) the configuration has no default structure and no default is used for the choice below.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureUIConfigurator#getStructurePanelUIConfiguration"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/ui-configurator/initial-structure-order",
+   "module": "ui-configurator",
+   "api": null,
+   "behaviour": "The initial structure is the first of these that the current user can view (each candidate is loaded with VIEW permission; a failure moves on to the next): (1) the only structure viewable by the user, when exactly one exists (the configuration is then also flagged single-structure); (2) the explicitly preferred structure id; (3) when 'keep structure while navigating' is on or unset, the structure from the navigation hint; (4) the strategy's choice. If none succeeds there is no initial structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureUIConfigurator#setInitialStructure"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/ui-configurator/navigation-hint",
+   "module": "ui-configurator",
+   "api": null,
+   "behaviour": "A navigation hint (cookie `structure3.navigation.hint`) yields a structure only when there is a current issue, the hint is non-empty and split on `|` has at least 3 parts, the third part equals the issue key exactly, and the first part parses as a positive structure id; otherwise it is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureUIConfigurator#getForcedStructureId"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/ui-configurator/strategy-choice",
+   "module": "ui-configurator",
+   "api": null,
+   "behaviour": "The strategy's choice uses the user's most recent accessible structure (recents-manager) as 'current': `DEFAULT_STRUCTURE` picks the default structure, else the current one; `AUTOSWITCH_OFF` picks the current one, else the default; `STRUCTURE_WITH_ISSUE` without an issue behaves as `AUTOSWITCH_OFF`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureUIConfigurator#selectInitialStructureId"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/ui-configurator/structure-with-issue",
+   "module": "ui-configurator",
+   "api": null,
+   "behaviour": "`STRUCTURE_WITH_ISSUE` with an issue picks, in order: the current structure if its stored forest contains the issue; the default structure if it contains the issue; among the viewable structures containing the issue, the only one if there is exactly one (even archived), otherwise the first of the user's recent structures, skipping the most recent one, that is an unarchived member of that set, otherwise the first unarchived one of the set, otherwise the default structure. When no viewable structure contains the issue, the current structure is picked if it is not archived and the user can view it, else the default.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureUIConfigurator#getInitialStructureWithIssue"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-subjects-searcher/matching-rule",
+   "module": "rest-subjects-searcher",
+   "api": null,
+   "behaviour": "Matching for every search of this module: the query is trimmed; an empty (or null) query matches every candidate; otherwise a candidate matches when its search text contains the query as a literal substring, ignoring case (Unicode-aware). This is the behaviour behind `GET /rest/structure/2.0/group-picker` and `GET /rest/structure/2.0/create-structure/{share-with,projects,agile-boards,versions}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchItems",
+    "com.almworks.jira.structure.util.NameSearcher#weightMatch"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-subjects-searcher/ordering",
+   "module": "rest-subjects-searcher",
+   "api": null,
+   "behaviour": "Matches are ordered by the length of their search text, shortest first; candidates of equal length (and all candidates for an empty query) keep the source order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchItems",
+    "com.almworks.jira.structure.util.RestSubjectsSearcher$SearchItem#compareTo"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-subjects-searcher/limit-and-footer",
+   "module": "rest-subjects-searcher",
+   "api": null,
+   "behaviour": "The result limit is the instance limit (dark feature `structure.create.namesSearch.resultLimit`, default 20; a non-positive setting means 20), lowered to the requested `maxResults` only when that is positive and below the limit. When more items match than the limit, only the first `limit` are returned and the group's `footer` is the localized text with the shown and total counts (keys `s.manage.edit.select.groups.footer`, `...roles.footer`, `...projects.footer`, `...boards.footer`, `...versions.footer`, e.g. 'Showing 20 of 35 matching groups'); otherwise there is no footer. When nothing matches there is no group at all.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchItems",
+    "com.almworks.jira.structure.util.Util#subjectSearchResultLimit"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-subjects-searcher/item-shape",
+   "module": "rest-subjects-searcher",
+   "api": null,
+   "behaviour": "Each returned item (`picker-search-result` groups) has `value` and `id` = the candidate's value, `label`, `title`, `html` = the search text HTML-escaped with the matched part wrapped in `<b>` and `</b>` (no wrapping for an empty query), and `params` only when the candidate has extra parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#createRestSearchItem",
+    "com.almworks.jira.structure.util.NameSearcher#wrapMatchHtml"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-subjects-searcher/groups-source",
+   "module": "rest-subjects-searcher",
+   "api": null,
+   "behaviour": "Group search: candidates are the groups the current user may see (helper's available groups: all groups for Jira admins or when the instance exposes all groups, otherwise the user's own groups); value, label and search text = group name, no title; the group is labelled with the localized `s.manage.edit.select.groups.label` ('Groups').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchGroups"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-subjects-searcher/roles-source",
+   "module": "rest-subjects-searcher",
+   "api": null,
+   "behaviour": "Project-role search: candidates are the helper's available project roles; value = role id (decimal), label and search text = role name, title = role description; group label localized `s.tpl.step.general.share.roles.title` ('Project Roles').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchProjectRoles"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-subjects-searcher/projects-source",
+   "module": "rest-subjects-searcher",
+   "api": null,
+   "behaviour": "Project search: candidates are the projects enabled for <product> that the current user can browse (helper); value = project id, label and search text = project name, title = project description; no group label.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#findProjects"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-subjects-searcher/boards-source",
+   "module": "rest-subjects-searcher",
+   "api": null,
+   "behaviour": "Agile board search: candidates are the agile boards (rapid views) visible to the current user from gh-integration (none when Jira Software is absent); value = board id, label, title and search text = board name; no group label.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchAgileBoards"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-subjects-searcher/versions-source",
+   "module": "rest-subjects-searcher",
+   "api": null,
+   "behaviour": "Version search for given project ids: candidates are the unarchived versions of each project (Jira `VersionManager`, no browse-permission check), value = version id, label and title = version name, params `versionFullName` = `<version name> (<project name>)` and `projectId`; with more than one project the search text (used for matching, ordering and the html) is the full name, otherwise the version name. Candidates are first sorted by search text (plain string order) before the length ordering is applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#searchProjectUnarchivedVersions",
+    "com.almworks.jira.structure.util.RestSubjectsSearcher#createSearchItem"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/help-content-manager/storage-format",
+   "module": "help-content-manager",
+   "api": null,
+   "behaviour": "The administrator-defined help content is stored in `AO_8BAD1B_PROPERTY` key `welcomeScreen.help` as compact JSON with keys `title`, `content` (wiki markup) and `contactKeys` (array of user keys); null values are omitted. Saving writes the JSON (overwriting); clearing removes the row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.welcome.HelpContentManager#saveHelpContent",
+    "com.almworks.jira.structure.welcome.HelpContentManager#clearHelpContent",
+    "com.almworks.jira.structure.welcome.HelpContentManager$HelpContent"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/help-content-manager/read",
+   "module": "help-content-manager",
+   "api": null,
+   "behaviour": "Reading the help content returns nothing when the property is absent; otherwise the JSON is parsed (unknown keys ignored); unparsable JSON also yields nothing (a warning is logged). Missing keys read as null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.welcome.HelpContentManager#getHelpContent"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/help-content-manager/contacts",
+   "module": "help-content-manager",
+   "api": null,
+   "behaviour": "The contacts of the help content are built from `contactKeys` in order, one per key, each with the display data of rest-user-builder (key, name, display name, avatar URL, profile URL); the user's own view is used as the 'looker' for the avatar and the inactive suffix, and the default locale when the key no longer resolves (then name and display name are the localized 'Anonymous User', the avatar is the anonymous avatar and there is no profile URL). No `contactKeys` gives no contacts.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.welcome.HelpContentManager$HelpContent#getContacts"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/help-content-manager/content-html",
+   "module": "help-content-manager",
+   "api": null,
+   "behaviour": "The help content's HTML is the wiki `content` rendered by the given Jira renderer, or, when no renderer is available, the content HTML-escaped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.welcome.HelpContentManager$HelpContent#getContentHtml"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/help-content-manager/statistics-and-admin-tips",
+   "module": "help-content-manager",
+   "api": null,
+   "behaviour": "When the plugin starts the module registers a usage-statistics source reporting `helpTipsDefined` = 1.0 while `welcomeScreen.help` is set and nothing otherwise. The grid bootstrap (`GET /rest/structure/1.0/config/widget`) reports `hideHelpAdminTips` = true when help is enabled (dark feature `structure.welcome.enabled`, default true) and no help content is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.welcome.HelpContentManager#startComponent",
+    "com.almworks.jira.structure.rest.v1.javax.WidgetConfigResource"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-user-builder/known-user",
+   "module": "rest-user-builder",
+   "api": null,
+   "behaviour": "Building the display data (`user-display-info`) for a user key that resolves to a Jira user: `userKey` = the key, `name` = username, `displayName` = the display name, or for an inactive user the localized `s.ext.it.user.summary.inactive` text with the display name (English '<name> (Inactive)') in the looker's locale, `profileUrl` = `<base url>/secure/ViewProfile.jspa?name=<URL-encoded username, UTF-8>`, `avatarUrl` = Jira `AvatarService.getAvatarURL(looker, user)` as text. The looker defaults to the current user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestUserBuilder#fromUserKey"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-user-builder/unknown-user",
+   "module": "rest-user-builder",
+   "api": null,
+   "behaviour": "For a non-null user key that resolves to no user: `userKey` = the key, `name` and `displayName` = the localized 'Anonymous User' (`s.generic.anonymous.fullname`), `avatarUrl` = `<base url>/secure/useravatar?avatarId=<Jira's anonymous avatar id>` (null when Jira's avatar manager is unavailable), no `profileUrl`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestUserBuilder#fromUserKey",
+    "com.almworks.structure.commons.util.CommonUtil#getAnonymousAvatarUrl"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-user-builder/null-key-anonymous",
+   "module": "rest-user-builder",
+   "api": null,
+   "behaviour": "For a null user key the result is the anonymous user: `userKey` = empty string, `name` = `displayName` = localized 'Anonymous User', `avatarUrl` = the anonymous avatar URL, no `profileUrl`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestUserBuilder#fromUserKey",
+    "com.almworks.structure.commons.rest.data.RestUserBuilder#anonymousRestUser"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-user-builder/permission-subject",
+   "module": "rest-user-builder",
+   "api": null,
+   "behaviour": "Building from a permission subject returns the display data of the user for a `PermissionSubject.JiraUser` (by its user key, as seen by the given user) and null for any other subject (groups, roles, anyone).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestUserBuilder#fromPermissionSubject"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/rest-user-builder/gadget-variant",
+   "module": "rest-user-builder",
+   "api": null,
+   "behaviour": "The gadget variant takes a user (possibly null) and never consults Jira's user or avatar services: for a user it fills `userKey`, `name` and `displayName` from the user (null values become empty strings); for null all three are empty strings; `avatarUrl` and `profileUrl` are always empty strings.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.data.RestUserBuilder#buildRestUserForGadget"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/migration-configuration-manager/create-columns",
+   "module": "migration-configuration-manager",
+   "api": null,
+   "behaviour": "Creating a migration configuration inserts one `AO_8BAD1B_MIGRATION_CONFIG` row and returns its new auto-increment `ID`: `C_NAME` = name, `C_STATUS` = the status name (`DRAFT`, `READY`, `RUNNING`, `DONE` or `FAILED`), `C_STRUCTURE_IDS` = the structure ids as a JSON array of numbers in the given order (`[]` for none), `C_EXTENSION_KEYS` = the extension keys as a JSON array of strings, or NULL when the set is empty, `C_RUN_AT` = run time (epoch ms or NULL), `C_EDITED_AT` = edit time (epoch ms), `C_EDITED_BY` = editor's user key. The id given in the input is ignored. Name uniqueness is enforced only by the column's unique constraint (a duplicate name fails with the database error).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#createConfiguration",
+    "com.almworks.jira.structure.structure.Encoder#encodeLongList",
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#encodeExtensionKeys"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/migration-configuration-manager/update",
+   "module": "migration-configuration-manager",
+   "api": null,
+   "behaviour": "Updating configuration `id` overwrites all seven columns of that row with the given values (same encodings as create) and saves it; an id with no row is silently ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#updateConfiguration"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/migration-configuration-manager/delete",
+   "module": "migration-configuration-manager",
+   "api": null,
+   "behaviour": "Deleting configuration `id` removes that row; a missing id is not an error.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#deleteConfiguration"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/migration-configuration-manager/get-and-find",
+   "module": "migration-configuration-manager",
+   "api": null,
+   "behaviour": "Getting by id returns the configuration of that row or nothing when absent. Finding by name returns the first row whose `C_NAME` equals the name exactly (database comparison), or nothing. A read configuration has: id, name, status parsed from `C_STATUS` by exact constant name (an unknown text fails with `IllegalArgumentException`), structure ids decoded from `C_STRUCTURE_IDS` (a JSON array of numbers, null elements read as 0, or a single bare number), extension keys decoded from `C_EXTENSION_KEYS` (NULL, empty or unparsable reads as an empty set), run time (possibly null), edit time and editor.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#getConfiguration",
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#findConfigurationByName",
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#configurationFromAO",
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#decodeExtensionKeys",
+    "com.almworks.jira.structure.structure.Encoder#decodeLongList"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/migration-configuration-manager/empty-structure-ids-text",
+   "module": "migration-configuration-manager",
+   "api": null,
+   "behaviour": "A row whose `C_STRUCTURE_IDS` is the empty string (which the module never writes) cannot be read: Jackson finds no content and the read fails with its `IOException` subtype instead of returning an empty selection (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#configurationFromAO",
+    "com.almworks.jira.structure.structure.Encoder#decodeLongList"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/migration-configuration-manager/list-sorted-by-name",
+   "module": "migration-configuration-manager",
+   "api": null,
+   "behaviour": "Listing returns every configuration, sorted by name with a `java.text.Collator` for the current user's Jira locale (default strength, so case and accent differences order but do not merge).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#getAllConfigurations"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/migration-configuration-manager/status-runnable",
+   "module": "migration-configuration-manager",
+   "api": null,
+   "behaviour": "Statuses `READY`, `DONE` and `FAILED` are runnable (a migration may use the configuration); `DRAFT` and `RUNNING` are not. cloud-data-migrator applies this rule.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.MigrationStatus"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/migration-configuration-manager/stopped",
+   "module": "migration-configuration-manager",
+   "api": null,
+   "behaviour": "Every operation (create, update, delete, get, find, list) throws `StructureStoppedException` while the plugin is stopped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#createConfiguration",
+    "com.almworks.jira.structure.jcma.AOBasedMigrationConfigurationManager#getAllConfigurations"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/dashboard-gadget-data-exporter/scan-dashboards",
+   "module": "dashboard-gadget-data-exporter",
+   "api": null,
+   "behaviour": "The exporter reads every dashboard from Jira's `PortalPageManager.getAll()` and, for each one with an id and an owner (dashboards without an owner, such as the system dashboard, are skipped), every gadget configuration from `PortletConfigurationManager.getByPortalPage(id)`. A dashboard whose reading throws is skipped (logged with its id) and the export continues; the totals are logged at INFO.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.DashboardGadgetDataExporterImpl#export",
+    "com.almworks.jira.structure.jcma.DashboardGadgetDataExporterImpl#exportPage"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/dashboard-gadget-data-exporter/structure-gadgets-only",
+   "module": "dashboard-gadget-data-exporter",
+   "api": null,
+   "behaviour": "A gadget is exported only when its module key is `com.almworks.jira.structure:structure-gadget`. The key is the gadget's complete module key when Jira knows it; otherwise it is taken from the raw path of its OpenSocial spec URI: the URL-decoded text between `rest/gadgets/1.0/g/` and the next `/` (no such marker or empty text: not a <product> gadget).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.DashboardGadgetDataExporterImpl#moduleKey",
+    "com.almworks.jira.structure.jcma.DashboardGadgetDataExporterImpl#moduleKeyFromGadgetUri"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/dashboard-gadget-data-exporter/configured-and-in-scope",
+   "module": "dashboard-gadget-data-exporter",
+   "api": null,
+   "behaviour": "A <product> gadget is exported only when its user preference `isConfigured` is exactly `true` and its `structureId` preference is in scope: the export of all gadgets accepts any value (even a missing one), while the export restricted to a set of structure ids requires `structureId` to parse as a long contained in the set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.DashboardGadgetDataExporterImpl#exportPage",
+    "com.almworks.jira.structure.jcma.DashboardGadgetDataExporterImpl#export"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/dashboard-gadget-data-exporter/exported-data",
+   "module": "dashboard-gadget-data-exporter",
+   "api": null,
+   "behaviour": "Each exported gadget carries: dashboard id (decimal text), dashboard owner's user key, gadget id (text), position (column and row; 0 when Jira has none), module key, all user preferences as a string map (copied), the OpenSocial spec URI text (or none) and the colour constant name (e.g. `color1`, or none). These become the `<gadget>` elements of the backup's `gadgets` section, which cloud-data-migrator writes only on the Forge path.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.jcma.DashboardGadgetDataExporterImpl#exportPage",
+    "com.almworks.jira.structure.jcma.DashboardGadgetData"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/recents-search-service/history-ids",
+   "module": "recents-search-service",
+   "api": null,
+   "behaviour": "For a Jira user-history type (e.g. `UserHistoryItem.PROJECT`, `ASSIGNEE`, `USED_USER`) and a user, the module returns the entity ids of that user's Jira history items (`UserHistoryManager.getHistory(type, user)`) as an insertion-ordered set in Jira's order (most recent first), duplicates removed. A null type or user gives an empty set; a user key that no longer resolves gives an empty set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.RecentsSearchService#getRecents",
+    "com.almworks.jira.structure.optionsource.RecentsSearchService#load"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/recents-search-service/mapping-variant",
+   "module": "recents-search-service",
+   "api": null,
+   "behaviour": "The mapping variant converts each id with the given function and drops ids mapped to null, keeping the order (used by option sources to turn ids into valid projects or users).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.RecentsSearchService#getRecents"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/recents-search-service/cache",
+   "module": "recents-search-service",
+   "api": null,
+   "behaviour": "Results are cached per (history type name, user key) in a local (per node) cache that expires an entry 60 s after its last access (adjustable through a tuning dark feature named after the implementing class plus `.timeout`, in seconds, which is not contract; the JVM property `structure.cache.expiration-override` overrides all such timeouts). Clearing all plugin caches empties it; clearing one user's caches removes only that user's entries. A failure while loading yields an empty set (logged), not an exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.RecentsSearchService#clearCaches",
+    "com.almworks.jira.structure.optionsource.RecentsSearchService#clearUserCaches",
+    "com.almworks.jira.structure.optionsource.OptionSourceTools$CachedFunction#getOrDefault",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#fastExpiring"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/suggested-sprint-boards-service/boards-for-project",
+   "module": "suggested-sprint-boards-service",
+   "api": null,
+   "behaviour": "For a project id and a user the module returns the set of ids of the agile boards that gh-integration reports for that user and project (boards whose filter covers the project). A null project id or user, an unknown project or a user key that no longer resolves gives an empty set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.SuggestedSprintBoardsService#getSuggestions",
+    "com.almworks.jira.structure.optionsource.SuggestedSprintBoardsService#load"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/suggested-sprint-boards-service/cache",
+   "module": "suggested-sprint-boards-service",
+   "api": null,
+   "behaviour": "Results are cached per (project id, user key) in a local cache with a 60 s expire-after-access (tunable like recents-search-service's cache; JVM property `structure.cache.expiration-override` wins); clearing all caches empties it, clearing a user's caches removes that user's entries; a loading failure yields an empty set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.SuggestedSprintBoardsService#clearCaches",
+    "com.almworks.jira.structure.optionsource.SuggestedSprintBoardsService#clearUserCaches",
+    "com.almworks.jira.structure.optionsource.OptionSourceTools$CachedFunction#getOrDefault"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-tools/edit-html",
+   "module": "option-source-tools",
+   "api": null,
+   "behaviour": "The module renders the edit control of an option-picker field (single or multi select) from the plugin's Velocity template `/templates/structure/field/options-edit.vm` and returns the trimmed HTML. The template receives: `spec` (the option source spec as JSON), `endpoint` = `search` when the source is searchable (more options than its search threshold, always for users) else `list`, `values` (the selected values; empty for null), `pickerClass` = `s-option-single-select` or `s-option-multi-select`, `multiple` (false/true), `field`, `optionSource`, `valuesString` (the selected values' option ids joined with `, `), plus the Jira edit-issue rendering helpers.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.OptionSourceTools#buildSingleSelectEditHTML",
+    "com.almworks.jira.structure.optionsource.OptionSourceTools#buildMultiSelectEditHTML"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-tools/cached-functions",
+   "module": "option-source-tools",
+   "api": null,
+   "behaviour": "The module creates the short-lived per-key caches used by recents-search-service and suggested-sprint-boards-service: each is a local cache named `<owner class>.cache` whose entries expire 60 s after last access (timeout dark feature `<owner class>.timeout`; JVM property `structure.cache.expiration-override` wins), loaded on demand; a load failure returns the caller's default value (logged) instead of throwing; clearing can drop all entries or only the entries whose key matches a condition.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.OptionSourceTools#createCachedFunction",
+    "com.almworks.jira.structure.optionsource.OptionSourceTools$CachedFunction#getOrDefault",
+    "com.almworks.jira.structure.optionsource.OptionSourceTools$CachedFunction#clearCaches"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-async-request-handler/new-job",
+   "module": "structure-async-request-handler",
+   "api": null,
+   "behaviour": "For an asynchronous REST request without `jobId`, the handler submits the request's computation to job-manager on the named executor and waits for its result; with a `jobId` it does not start anything and waits for that job instead.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-async-request-handler/timeout",
+   "module": "structure-async-request-handler",
+   "api": null,
+   "behaviour": "The wait is bounded by the REST async timeout, read once at start-up from dark feature `structure.rest.async.timeout` in milliseconds (default 3000). When the job finishes within the wait its result is returned and the job is cancelled/forgotten in job-manager (so its id becomes unknown). When it does not, the handler answers with only the job id: REST 200 with `async-job-ticket` `{\"jobId\": n}`; the job keeps running and a later call with that id waits again.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async",
+    "com.almworks.jira.structure.rest.StructureAsyncRequestHandler#getRestAsyncTimeout",
+    "com.almworks.jira.structure.StructurePluginHelperInternal"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-async-request-handler/unknown-job",
+   "module": "structure-async-request-handler",
+   "api": null,
+   "behaviour": "A `jobId` unknown to job-manager (never existed, already collected, or lost by restart) throws `StructureErrors.JOB_NOT_EXISTS` with message `Job <id> is not found.` (REST 404, code 4603). A `jobId` of a job whose result is of a different type than the endpoint expects throws `StructureErrors.INVALID_PARAMETER` 'Incorrect job ID for this resource' (REST 400).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-async-request-handler/error-propagation",
+   "module": "structure-async-request-handler",
+   "api": null,
+   "behaviour": "If the job failed, its cause is rethrown as is when it is a `StructureException`, an invalid-data error, an error-response error, any `RuntimeException` or an `Error`; any other checked cause is wrapped in `StructureErrors.GENERIC_ERROR` with the cause's message. An interrupt while waiting re-sets the thread's interrupt flag and throws `StructureErrors.GENERIC_ERROR` without message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-async-request-handler/forced-delay",
+   "module": "structure-async-request-handler",
+   "api": null,
+   "behaviour": "For testing, JVM system property `structure.testing.rest.async.forceDelay` (milliseconds, read when the handler is created; default 0 = off) makes every newly started job sleep that long before computing (logged), so clients exercise the job-id protocol.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#delayedCallable"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-available-to-user-checker/answer",
+   "module": "structure-available-to-user-checker",
+   "api": null,
+   "behaviour": "The checker answers whether the current user may see <product> UI: true exactly when the helper's '<product> is available to the current user' check is true (the plugin is enabled and the user has the app's 'use' permission). Its licence part is always satisfied (the replacement has no licence checks). It drives the issue-page decorator condition (`adjustIssuePageCond`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.webelements.condition.StructureAvailableToUserCheckerImpl#isStructureAvailableToCurrentUser"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-available-on-issue-page-checker/answer",
+   "module": "structure-available-on-issue-page-checker",
+   "api": null,
+   "behaviour": "The checker answers whether Structure should appear on the issue page: the value of dark feature `structure.feature.showOnIssuePage` (an application property, else a JVM system property; true only when it equals `true` ignoring case; default true when neither is set), read on every call. It does not look at the user. It drives the issue-page web resources (`adjustIssuePage`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.webelements.condition.StructureAvailableOnIssuePageCheckerImpl#isStructureAvailableOnIssuePage"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/login-page-renderer/full-page",
+   "module": "login-page-renderer",
+   "api": null,
+   "behaviour": "Rendering the login page for the external <product> gadget (shown when an anonymous viewer must sign in) renders the gadget login Velocity template (bundled resource `/templates/structure/macro/gadgetlogin.vm`, read as UTF-8) with two parameters: `action` (the calling web action) and `page` (the login page model below), and returns the HTML. A missing template resource fails with `NullPointerException`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.web.LoginPageRenderer#renderFullLoginPage",
+    "com.almworks.structure.commons.web.LoginPageRenderer#loadTemplateFile"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/login-page-renderer/login-model",
+   "module": "login-page-renderer",
+   "api": null,
+   "behaviour": "The login page model is built from Jira: the login properties that Jira's `LoginService` computes for the (possibly null) logged-in user and the original HTTP request (obtained by reflection; if that is impossible, `IllegalStateException` 'Failed to get LoginProperties instance from LoginService'), an `I18nHelper` for that user, the application option `jira.show.contact.administrators.form`, and the login strategy from dark feature `structure.jira.login.strategy` (`embedded` or `explicit`, any case; any other value, default `auto`, means embedded on Jira below 10.2, so embedded on the pinned Jira 9.12).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.web.LoginPageRenderer#getLoginPage",
+    "com.almworks.structure.commons.web.LoginPageRenderer#getLoginProperties",
+    "com.almworks.structure.commons.web.LoginStrategy#getStrategy"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/login-page-renderer/model-values",
+   "module": "login-page-renderer",
+   "api": null,
+   "behaviour": "The model exposes: the context path; public mode; 'forgot password' shown unless user or password management is external; 'remember me' shown when cookies are allowed; captcha shown when Jira's elevated security check is shown and the strategy is not explicit; captcha timestamp = now; the admin contact form flag; 'auth resource used' = explicit strategy; an error message only for POST requests that did not log in: communication error `gadget.login.error.communication`, other login error `gadget.login.error.misc`, failed by permissions `gadget.login.invalidloginpermissions` (with Jira's contact-admin link), else `gadget.login.invalidcaptcha` when the captcha is shown or `gadget.login.invalidlogin`; and the minimum TOTP code length from dark feature `structure.jira.login.totp.minSymbols` (default 6).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.web.LoginPage#getLoginErrorMessage",
+    "com.almworks.structure.commons.web.LoginPage#showCaptcha",
+    "com.almworks.structure.commons.web.LoginPage#getMinSymbolsForTOTP"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/source-keys",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "An option source is chosen by the spec's `sourceKey`: `PROJECTS`, `ISSUE_TYPES`, `PRIORITIES`, `VERSIONS`, `COMPONENTS`, `SPRINTS`, `USERS`, `GROUPS`, `FIELD_OPTIONS`, or `EMPTY` (a source with no options that is not selectable, so REST answers `empty-ok`). A null spec or an unknown key gives no source. Spec JSON: `{\"sourceKey\":…,\"projectId\":<long or null>,\"filters\":{…}}`; a filter flag is on when its value is boolean true or the string `true`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.OptionSourceService#getOptionSource",
+    "com.almworks.jira.structure.optionsource.OptionSourceSpec#isFiltered",
+    "com.almworks.jira.structure.optionsource.impl.NoOptionSource"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/project-visibility",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "'Project visible to the user' means: the project exists, the user has the view-issues project action and Jira's BROWSE_PROJECTS permission in it (anonymous users as Jira grants them). Unless the caller overrides the security check (REST never does), projects, versions and components outside visible projects are dropped, and project-dependent lists for an invisible project are empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.OptionSourceService#isProjectVisible",
+    "com.almworks.jira.structure.optionsource.OptionSourceService#combineFilters"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/project-dependent-collections",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "Issue types, priorities, versions and components: with a `projectId` the options are those of that project (issue types of its scheme, priorities of its priority scheme, its versions, its components), empty when the project does not exist or is not visible; without `projectId` they are empty, unless the security check is overridden, in which case all of them in Jira are used.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.OptionSourceService#chooseSupplier"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/projects",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "`PROJECTS`: all projects including archived ones (only active ones when `excludeInactive` is on), filtered by `checkCreateIssues` (user has CREATE_ISSUES), `checkStructureConfig` (project enabled for <product>) and visibility. Option id = project id; name = project key (lookup by name uses the key); label = `<name> (<KEY>)`; icon = Jira's small project avatar URL. Group: `s.w.options.group.projects.archived` for archived projects, else `s.w.options.group.projects.recent` when the project is in the user's Jira project history (recents-search-service), else `s.w.options.group.projects.all`; ordered recent, all, archived, then by project name. Suggestions = the user's recent projects that are valid options, in history order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.OptionSourceService",
+    "com.almworks.jira.structure.optionsource.impl.ProjectOptionSource#getGroupI18nKey",
+    "com.almworks.jira.structure.optionsource.impl.ProjectOptionSource#getComparator",
+    "com.almworks.jira.structure.optionsource.impl.ProjectOptionSource#getSuggestions",
+    "com.almworks.jira.structure.optionsource.impl.ProjectOptionSource#getLabel"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/issue-types-and-priorities",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "`ISSUE_TYPES` (with `excludeSubtasks` dropping sub-task types) and `PRIORITIES`: option id = the constant's id, name = its name, label = its translated name, icon = its complete icon URL, no group, ordered by name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.impl.IssueConstantOptionSource",
+    "com.almworks.jira.structure.optionsource.OptionSourceService"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/versions",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "`VERSIONS`: option id = version id, name and label = version name; `excludeInactive` drops archived versions. Group key: `s.w.options.group.versions.archived` for archived, `s.w.options.group.versions.released` for released, else `s.w.options.group.versions.unreleased`. The ordering is meant to be unreleased, released, archived, but it looks up group keys spelled `s.ext.options.group.versions.*`, so no key matches and versions are ordered by name only (as the original does). Lookup by name uses Jira's versions-by-name and returns the first exact-name match that passes the filters; with a `projectId`, a version is a valid option only if it belongs to that project.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.impl.ProjectConstantOptionSource#getComparator",
+    "com.almworks.jira.structure.optionsource.impl.ProjectConstantOptionSource#getByName",
+    "com.almworks.jira.structure.optionsource.OptionSourceService"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/components",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "`COMPONENTS`: option id = component id, name and label = component name; `excludeInactive` drops archived components; group `s.w.options.group.components.archived` for archived components, none otherwise; ordered by name (the archived group's intended position is likewise lost). Lookup by name uses Jira's case-insensitive component-name search, then requires an exact-name match; with a `projectId` a component must belong to that project.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.impl.ProjectConstantOptionSource",
+    "com.almworks.jira.structure.optionsource.OptionSourceService"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/sprints",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "`SPRINTS`: all sprints known to gh-integration (`excludeInactive` drops closed sprints); option id = sprint id, name = sprint name, label = gh-integration's formatted sprint name for the user. When the spec's project is visible, sprints of the boards suggested for that project and user (suggested-sprint-boards-service) get group `s.w.planning-task.relevant-sprints.group.suggestions` and sort first, then by name. Suggestions are always empty (the suggested sprints are never offered first in the picker) (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.impl.SprintOptionSource#getGroupI18nKey",
+    "com.almworks.jira.structure.optionsource.impl.SprintOptionSource#getComparator",
+    "com.almworks.jira.structure.optionsource.impl.SprintOptionSource#getSuggestions"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/users",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "`USERS`: all Jira users (`excludeInactive` drops inactive users; `checkAssignable` with a `projectId` keeps only users with ASSIGNABLE_USER in that project). Option id = user key, name = username, label = `<display name> (<username>)` or, when the caller may see e-mail addresses, `<display name> - <email> (<username>)`; icon = `<base url>/secure/useravatar?ownerId=<user key>`; ordered by display name; always searchable. The source is selectable only when the caller has Jira's global USER_PICKER (browse users) permission. Search uses Jira's `UserSearchService.findUsers` with the given limit, empty query allowed, inactive users included unless `excludeInactive`, e-mail matching when e-mails are visible, restricted to the spec's project when given, unsorted, permission check ignored, then the filters applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.impl.UserOptionSource#search",
+    "com.almworks.jira.structure.optionsource.impl.UserOptionSource#isSelectable",
+    "com.almworks.jira.structure.optionsource.impl.UserOptionSource#getLabel",
+    "com.almworks.jira.structure.util.Util#userLabel"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/user-suggestions",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "User suggestions: with `checkAssignable`, the caller first, then the caller's Jira history of assignees, then of used users, without duplicates; otherwise the history of used users only; keys that do not resolve to a user that passes the filters are dropped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.impl.UserOptionSource#getSuggestions"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/groups",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "`GROUPS`: all Jira groups; option id, name and label = group name; lookup by id or name asks Jira's `GroupManager` directly (no filter); ordered by name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.impl.GroupOptionSource",
+    "com.almworks.jira.structure.optionsource.OptionSourceService"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/field-options",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "`FIELD_OPTIONS`: with filter `customField` (a custom field id) the options of that field's configuration relevant to the spec's project (only when visible, else the global context) and filter `issueTypeId`; an unknown field gives none; without `customField` all options of all fields. `excludeInactive` drops disabled options. Option id = option id (-1 when null), name and label = option value; ordered by the option's configured sequence. With `customField` an option is valid only if it is in that list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.OptionSourceService",
+    "com.almworks.jira.structure.optionsource.impl.CustomFieldOptionOptionSource"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/common-option-rules",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "For every source except users and groups: an option is valid when it passes the source's filters and, when the spec has a `projectId`, the project rule (versions/components must belong to the project; other sources must be in the source's collection); lookup by id returns the option only if valid (projects, versions, components, sprints, users resolve the id through Jira; the others search the filtered collection by id text). A source is searchable (the picker uses search instead of a full list) when it has more options than its threshold, dark feature `structure.options.search.threshold` (default 50). Placeholders are localized in the current user's locale from `s.w.planning-task.<project|issueType|priority|versions|components|sprint>.placeholder`, `s.w.memoDetails.fields.user.hint` for users, none for groups and field options.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.impl.AbstractOptionSource#isValidOption",
+    "com.almworks.jira.structure.optionsource.impl.AbstractOptionSource#isSearchable",
+    "com.almworks.jira.structure.optionsource.impl.AbstractOptionSource#getPlaceholder",
+    "com.almworks.jira.structure.optionsource.impl.AbstractOptionSource#runAdditionalValidation"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/collection-caching",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "When the caller asks for collection caching, each source instance reads its underlying Jira collection once and reuses it for all later calls on that instance; otherwise every call reads Jira again. REST (`/rest/structure/2.0/options-picker/*`) uses fresh, uncached sources per request.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.OptionSourceService#maybeCache"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/option-source-service/planning-task-specs",
+   "module": "option-source-service",
+   "api": null,
+   "behaviour": "The spec used for a planning-task / generic item field: no spec when the field's type has no option source key; for `FIELD_OPTIONS`, filters `customField` = the field id, `excludeInactive` = true and `issueTypeId` when given; for field `project`: `checkStructureConfig`, `checkCreateIssues`, `excludeInactive`; for field `assignee`: `excludeInactive`, `checkAssignable`; otherwise by source: PROJECTS `checkStructureConfig`+`excludeInactive`, VERSIONS/COMPONENTS/USERS/SPRINTS `excludeInactive`, ISSUE_TYPES `excludeSubtasks`. The `projectId` is kept only for ISSUE_TYPES, PRIORITIES, VERSIONS, COMPONENTS, FIELD_OPTIONS, SPRINTS and the `assignee` field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.optionsource.PlanningTaskOptionSourceSpecs#getSpec"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/enabled-browsable-projects",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "All option lists of this module draw on 'the projects in scope': the projects structure-configuration currently has enabled for <product> that the current user can browse (BROWSE_PROJECTS), recomputed on every call.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/supported-fields",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "The supported fields are the Jira navigable fields available to the current user that have an option source: system fields `project`, `status`, `issuetype`, `versions`, `fixVersions`, `priority`, `reporter`, `creator`, `assignee`, `labels`, `components`, `resolution`, and custom fields whose type is (first match wins) multi-user, user, multi-group, version, labels, multi-select, select, cascading select, project, an Advanced Roadmaps team field (when that app's teams are available), the Jira Software sprint field, a Tempo team field (when Tempo Teams is available) or an Assets object field (when enabled). When Structure is not enabled for all projects, a custom field is listed only if one of its associated projects is in scope (so a global-context custom field, which has no associated projects, is left out (as the original does)). A field-list failure gives an empty list (logged).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#getSupportedFields"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/supported-field-single",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "Looking up one supported field by id returns the field when it exists, has an option source, and is either a system field, a global-context custom field, or a custom field associated with a project in scope; otherwise null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#getSupportedField",
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#isFieldAccessible"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/search-word-start",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "For list-based fields, searching filters each group's options to those whose label has a word starting with the trimmed query (regex word boundary followed by the literal text, case-insensitive); an empty query keeps all. With a page size the group keeps at most that many options; the group's `total` stays the number of options before the text filter. Unknown or unsupported fields give no groups.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsSource#buildGroups",
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#getFieldValues"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/empty-option",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "Fields with a 'no value' option add it (id `special:EMPTY`) at the start of every returned group, beyond the page size, when its label lower-cased contains the query lower-cased (the query is not trimmed here): `versions`, `fixVersions` and version custom fields 'No version' (`common.filters.noversion`), `components` (`common.filters.nocomponent`), `resolution` (`common.resolution.unresolved`), `reporter` (`reporter.types.noreporter`), `assignee` (`assignee.types.unassigned`), `creator`, user, multi-user and multi-group custom fields (`userpicker.empty`), Assets fields (`sw.ext.gen.filter.by-field.options-no-value`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#getFieldValues",
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/projects-statuses-types",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "Options: `project` (and project custom fields): one per project in scope, id = project key, label = project name, icon `/secure/projectavatar?pid=<id>&size=small`. `status`: the distinct statuses linked to the workflows of the in-scope projects and their issue types, in Jira's status order, id = status id, label = name, metadata JSON `{\"color\":<status category colour name>}`. `issuetype`: the issue types of the in-scope projects' schemes, as two groups, standard types first then sub-task types, labelled with the localized `sw.ext.gen.filter.by-field.group.standard-issue-types` / `...subtask-issue-types` (a group is absent when it has no types); id, label and icon from the type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/versions-components-priorities",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "`versions`/`fixVersions`/version custom fields: unarchived versions of the in-scope projects, one option per distinct version name (the first one seen keeps its id), sorted by label with plain string order. `components`: components of the in-scope projects, one per distinct name, sorted by label with the user's collator. `priority`: the distinct priorities of the in-scope projects' priority schemes, in Jira's priority order. `resolution`: all resolutions in Jira's order. Ids are the Jira ids; labels the names; priorities and resolutions carry their icon URL.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager",
+    "com.almworks.jira.structure.extension.field.NamedFieldOption#equals"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/select-options",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "Select, multi-select and cascading-select custom fields: the options of every field configuration relevant to any issue context of the in-scope projects, child options listed after their parent; options with the same (parent value, value) are merged keeping the smallest option id. Groups of options sharing a top-level value are ordered by that value (user's collator), and within a group the parent comes before its children, children by value. A top-level option's id is its option id and label its value; a child's id is `<parent id>:<child id>` and label `<parent value> - <child value>`. An unknown custom field gives no options.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#createGenericOptionsSourceBuilder"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/labels-sprints-teams",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "`labels` and labels custom fields: searching returns Jira's label suggestions for the current user and query (for a custom field, for that field), sorted by label, cut to the page size, with `total` = the number of suggestions; ids and labels are the label text. Sprint field: searching asks Jira Software for sprints whose name matches the query, sorted by label (collator), cut to the page size; id = sprint id, label = name, metadata JSON `{\"board\":<board name or empty>,\"state\":<state lower case>}`. Advanced Roadmaps teams, Tempo teams (those the user can see) and Assets objects (with icon `rest/insight/1.0/objecttype/<type id>/icon.png?size=16`) list their objects with numeric ids.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager",
+    "com.almworks.jira.structure.extension.field.SprintOptionsSource#search",
+    "com.almworks.jira.structure.extension.field.FieldOption"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/user-group-fields",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "User-type fields (`reporter`, `assignee`, `creator`, user/multi-user/multi-group custom fields) have no searchable list: searching returns no groups at all. Their ids are `author:<user key>` and `group:<group name>`. Resolving ids: `author:` ids resolve only when the caller may perform Jira's user AJAX search and the user exists (label = display name, html = `<span>` + HTML-escaped `Display Name (username)` or with e-mail when visible + `</span>`); `group:` ids resolve only for groups the caller may see (label = group name); other ids are dropped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#getUsers",
+    "com.almworks.jira.structure.extension.field.FieldOptionsSource#build"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/resolve-ids",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "Resolving option ids of a field returns one option per requested id in request order, except `special:EMPTY`: a known id gives its option, an unknown or invisible one a placeholder with that id and label `option_<id>`; when `special:EMPTY` was requested and the field has a 'no value' option, that option is appended at the end. Fields without a resolver (labels) resolve every id to an option with id = label = the id. Sprint ids resolve through Jira Software for the current user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#getFieldValues",
+    "com.almworks.jira.structure.extension.field.SprintOptionsSource#get"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/jql-building",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "Building the JQL for chosen option ids of a field gives one OR-combined where clause: the field's IN condition for the non-empty ids (converted as below; ids that do not convert are skipped, and the condition is omitted when none remain) plus the field's IS EMPTY condition when `special:EMPTY` is among them; an unknown field gives no query. Conversions: `project` keys used as is; `status` and `resolution` ids become names; version ids become version names (`affectedVersion`/`fixVersion`/`cf[n]`); component ids become names (`component`); select options become their values (`cf[n] in (...)`); cascading ids become `cf[n] in cascadeOption(\"parent\",\"child\")` or `cascadeOption(\"value\")` per id; labels, priorities and issue types use the ids as given; sprint, team and Assets ids become numbers (`cf[n] in (…)`), Assets ids converted to object keys. Custom fields are referred to as `cf[<number>]`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#buildQuery",
+    "com.almworks.jira.structure.extension.field.QueryBuilderUtil#queryBuilder",
+    "com.almworks.jira.structure.extension.field.QueryBuilderUtil#cf"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/field-value-options/jql-users-groups",
+   "module": "field-value-options",
+   "api": null,
+   "behaviour": "For user-type fields: `author:<key>` ids become usernames in one IN condition (`reporter in (...)`, `assignee in (...)`, `creator in (...)`, `cf[n] in (...)`), unknown keys skipped; each `group:<name>` adds `reporter in membersOf(...)`-style conditions (`reporterInGroup`, `assigneeInGroup`, `<field> in membersOf(\"<name>\")`), except multi-group custom fields where it adds `cf[n] = <name>`; `special:EMPTY` adds the IS EMPTY condition; all OR-combined.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#userOrGroupQueryBuilder",
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#createGenericUserGroupSourceBuilder"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/access-check",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "Every request of the manage-structures page (`/rest/structure/2.0/manage-structures/*`) first requires that <product> is available to the current user (helper); otherwise it throws `StructureErrors.STRUCTURE_PLUGIN_ACCESS_DENIED` (REST 403, code 4010).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#throwIfNoAccess"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/sources",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "The table rows come from: `all` = every structure the user can view (VIEW), archived included, in structure-manager's order; `recents` = the user's recent structures (recents-manager); `favorites` = the user's favourites including archived ones (favorite-manager); `one` = the single structure loaded with VIEW permission (an unknown or invisible id gives the structure-manager `StructureException`, REST 404). `recent-ids` returns just the recent structure ids, most recent first.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectTableData",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectStructureData",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectRecentIds"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/rate-limit-all",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "Only the `all` source is rate-limited, per user (anonymous callers share the bucket `anonymous`), with interval dark feature `structure.rest.manageStructures.rateLimit.intervalMs` (default 500 ms; a negative value disables the limit). A call is refused when the same bucket has a call still running, or when its previous call ended less than the interval ago; it fails with REST 429, text/plain, header `Retry-After` = whole seconds (remaining time truncated to seconds, plus 1; for a still-running call the full interval truncated plus 1) and the localized message `s.structure.error.rate-limit` ('Too many search requests. Please retry in about N second(s).'). A call's end time is recorded when it finishes, whether it succeeded or failed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.SearchStructuresRateLimiter#withLockOrThrow",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectTableData"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/rate-limit-cleanup",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "The rate limiter's memory is cleared entirely when all plugin caches are cleared and for one user when that user's caches are cleared; a background job every 37 minutes forgets buckets whose last call ended more than 37 minutes ago (running calls are kept). With a negative interval no job is scheduled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.SearchStructuresRateLimiter",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#clearCaches",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/row-fields",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "Each row (`managed-structure-row`) has id, name, archived, ownerKey, `myAccess` = the structure's effective permission for the user, `favorite` (favorite-manager, for the current user), `stars` = favourite popularity, `adjustable` = structure property `manualAdjustments.enable` equals `true` (ignoring case), and `adjusted` = manual adjustments exist, computed only when adjustable (false otherwise). `lastOpened` and `lastOpenedForSort` come from structure property `lastPolledMillis` (epoch ms; only positive values count): the date formatted with Jira's DATE style for the logged-in user and the ISO-8601 date `yyyy-MM-dd`; without it `lastOpened` is null and `lastOpenedForSort` is `0`. Rows keep the source order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#enrich",
+    "com.almworks.jira.structure.rest.RestManagedStructure"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/row-synchronizers",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "When synchronization is enabled or any synchronizer is installed (helper), each row lists the structure's installed synchronizers with id, `desc` = the localized one-line description of the synchronizer and its configuration, and `extra` = its detail lines joined with `, `; otherwise `synchronizers` is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#fillSynchronizers"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/row-problems",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "`problems` holds `USER_DELETED` when the owner key does not resolve to a user (including a structure without owner), else `USER_INACTIVE` when the owner is inactive, and `STOPPED` when generation of the structure's forest (unsecured structure spec) is blocked in the generation manager; empty otherwise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#fillStructureProblems"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/row-copy-and-addons",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "For a logged-in user each row lists the structure-copy processes that are accessible to the user and copy from that structure (id and progress state, `structure-copy-progress`); anonymous users get none. `addons` lists, for each installed integration-details provider that has a product icon, in order of provider key, the provider's plugin name for every structure it reports as integrated.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#fillCopyProcesses",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#fillAddons"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/users-list",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "The table's `users` are built with rest-user-builder (as seen by the current user): for Jira administrators and users with the global USER_PICKER permission, one entry per distinct owner key of the rows plus the current user; for others only the current user's entry, or none when anonymous.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#loadAndConvertUsers"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/manage-structure-service/page-details",
+   "module": "manage-structure-service",
+   "api": null,
+   "behaviour": "Page details for a list of structure ids: more ids than dark feature `structure.search.page-details-max-limit` (default 20) throws `IllegalArgumentException` 'Too many structures on page' (REST 400 'Invalid request data'). Each id the user can view (VIEW) gets `descriptionHtml` = the description rendered by Jira's `atlassian-wiki-renderer` (HTML-escaped when that renderer is missing) and `effectors` = the number of rows of item type `com.almworks.jira.structure:type-effector` in the structure's stored forest (0 when it cannot be determined); ids the user cannot view are left out silently.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#collectPageDetails",
+    "com.almworks.jira.structure.rest.v2.ManageStructuresService#calcEffectorsCount"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/get-structure",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "Getting one structure: a null or non-positive id throws `StructureErrors.INVALID_PARAMETER` (message `id`); otherwise the structure is loaded with VIEW permission (structure-manager errors propagate) and returned as `structure-summary` with permissions/owner as requested (owner only when the caller can browse users: Jira ADMINISTER or USER_PICKER, or is the owner), the caller's generator-configuration, effector-configuration and effector-execution permissions on it, `descriptionHtml` (wiki-rendered, or escaped without renderer) and the caller's favourite flag.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getStructure",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#canBrowseUsers",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getDescriptionHtml"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/list-for-selector",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "The structure selector list (`GET /rest/structure/2.0/structure/list`): an anchor issue the caller cannot see (helper reports an issue error) is dropped. `recent` = the caller's recent structures; `favorites` = the caller's favourites (`totalFavorites` = their full count); `containingAnchor` (only with an accepted anchor) = viewable structures containing the anchor issue, those in the recent list first in recent order, then the rest in structure-manager's order (`totalContainingAnchor` = full count); `defaults` = the default structure of the project (`forProject` key, else the anchor issue's project) followed by the global default when different, each only if the caller can view it and it is not archived (without project only the global default). `maxItems` = max(4, Jira's `jira.max.issue.filter.dropdown.items` (default 10) / 2 − 1); recent, favourites and containing lists are cut to `maxItems` + 2. `structures` holds one summary per structure referenced by the lists.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getList",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getDefaultStructures",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#putRecentFirst",
+    "com.almworks.jira.structure.util.Util#getMaxDropdownItems"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/search",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "Structure search: lists structures with at least the requested permission (unknown names fail as invalid data), archived ones only when asked; a non-blank trimmed name keeps structures whose name contains it ignoring case, or, with `filterById`, whose decimal id contains it; ids in `skip` (separated by `.`, zero and non-numbers ignored) are removed; with `filterById` and a numeric name the structure with exactly that id is moved first, the rest keeping their order. Page size = the requested limit (default 10) capped by dark feature `structure.search.max-limit` (default 100); page n (1-based, values below 1 mean 1, absent means first) returns that slice; a page beyond the end is empty; `haveMore` is true only when items remain after the slice, otherwise absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#searchStructures",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#parseSkipIds"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/search-rate-limit",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "Structure search is rate-limited per user like manage-structure-service's `all` table, with its own interval dark feature `structure.rest.searchStructures.rateLimit.intervalMs`, default 0: so by default only a concurrent search by the same user (or another anonymous caller) is refused, with 429 and `Retry-After: 1`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#searchStructures",
+    "com.almworks.jira.structure.rest.v2.SearchStructuresRateLimiter#withLockOrThrow"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/favorite",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "Favourite read and write first require that the structure is accessible with VIEW (else REST 403 text/plain `structure <id> does not exist or you don't have enough permissions to view it`; also for a null id). Reading answers false for anonymous callers. Setting stores the requested state through favorite-manager and echoes the request; for anonymous callers nothing is stored and false is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#isFavorite",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#setFavorite",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#checkForbidden"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/mark-recent",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "Marking a structure recent passes the id and current user to recents-manager without any permission check; a null id does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#markStructureRecent"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/quick-transforms",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "Quick transformations are kept in structure property `quick-transforms` (structure-property-service). Reading requires VIEW access (403 as for favourites) and returns the stored JSON text verbatim, `[]` when unset. Writing requires ADMIN access (403 otherwise); a null body throws `StructureErrors.INVALID_PARAMETER` 'Request body was null', an unparsable body 'Cannot parse quick transforms', and a body in which any id repeats, counting top-level items and the transformations inside groups together, 'Quick transformations with duplicated IDs were found for structure <id>'; otherwise the parsed list is re-serialised to compact JSON and stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#setQuickTransforms",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#getQuickTransforms",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#hasDuplicateTransformIds"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/description-shown",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "'Is the description shown' requires VIEW access (403 otherwise) and answers whether structure property `showDescription` equals `true` (ignoring case); false when unset.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#isDescriptionShown"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/create",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "Creating a structure requires the helper's 'create structure' permission for the caller (else `StructureErrors.NOT_ALLOWED_TO_CREATE_STRUCTURE`, REST 403 code 4006), checked before the body; a null body throws `StructureErrors.INVALID_PARAMETER` 'Request body was null'. The new structure gets the body's properties: `name` is required (missing: invalid-data error 'Name is required', REST 400 `Invalid request data`) and must not be empty ('Name cannot be empty'); description, edit-requires-parent-issue-permission and permission rules are applied when present (null rules skipped); owner = the caller when logged in, is saved, and is returned with permissions and owner included and favourite false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#createStructure"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/update",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "Updating a structure: a null body throws `StructureErrors.INVALID_PARAMETER` 'Request body was null'; the structure is loaded with ADMIN permission (errors propagate); the body's present properties are applied (an empty `name` fails with invalid data 'Name cannot be empty', REST 400; a missing name keeps the old one); `isArchived`, when present, sets the archived flag, and changing it from false to true disables all the structure's synchronizers (sync-manager) after saving. `owner`, when present, is applied only if the caller is a Jira administrator, or has USER_PICKER and either administers the structure or is its owner; a `user:` prefix is removed and the key must resolve to an existing user, otherwise the owner is left unchanged (warning logged). Returns the saved structure with permissions and owner, and the caller's favourite flag.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#updateStructure",
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#canManageOwner"
+   ]
+  },
+  {
+   "key": "c9-ui-rest-admin/structure-resource-service/delete",
+   "module": "structure-resource-service",
+   "api": null,
+   "behaviour": "Deleting: a null or non-positive id throws `StructureErrors.INVALID_PARAMETER` (message `id`); a structure not accessible with VIEW throws `StructureErrors.STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`; otherwise structure-manager deletes it (which itself requires ADMIN).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.StructureResourceService#deleteStructure"
+   ]
+  }
+ ]
+}

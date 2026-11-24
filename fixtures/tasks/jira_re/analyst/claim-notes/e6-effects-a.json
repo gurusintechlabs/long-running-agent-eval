@@ -1,0 +1,1070 @@
+{
+ "claims": [
+  {
+   "key": "e6-effects-a/summary-effect-provider/module-and-parameters",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:summary-effect-provider` (element `structure-effect-provider`, no children) accepts effect parameters `issue` (issue id, a `Long` or numeric text; required), `summary` (the new text, read as a single string; absent or null means clear), `sendNotifications` (boolean, default false) and `conflicts` (a list, added by optimization). These match `CoreEffects.setIssueSummary`; no other parameters are read.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SummaryEffectProvider",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/shared-issue-parameter",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value effect provider in this group: the `issue` parameter is read as a long (C-0964 rules); when it is absent or unparsable the effect is an error `s.ext.effect.error.no-param` with argument `issue` (\"No value for required parameter \\\"issue\\\".\"). Otherwise it is resolved through the item resolver as the issue item with that id; if the resolver gives nothing (no such issue, or the current user may not see it) the error is `s.ext.gen.block.no-issue` (\"Issue does not exist or you have no permission to see it.\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.IssueParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/shared-first-error-and-description",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value effect provider in this group: all parameters are resolved, in the order `issue`, `conflicts`, `sendNotifications`, then (custom fields) `customField`, then the provider's own parameters; when any fails, `resolve` returns `EffectResponse.error` with the first failure's text, the effect's description and the affected items, and Jira is not asked anything else. The description is computed even then, using the raw parameter text for a parameter that failed (the issue's raw id, or `<?>` when absent, in place of the issue key).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.ResolvedParameters#resolveAllAndGetFirstError",
+    "com.almworks.jira.structure.effectprovider.parameter.IssueParameter#getIssueKey"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/shared-affected-items",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value effect provider in this group: the affected items of every response (error, empty or valid) are a one-element list with the issue item identity for the `issue` parameter's id, taken from the parameter even if the issue cannot be resolved; when the `issue` parameter is absent or unparsable the list is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.IssueParameter#getAffectedItems",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/shared-no-op-when-equal",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value effect provider in this group: when the requested value equals the issue's current value (by the comparison each provider states), `resolve` returns `EffectResponse.empty` with the description and affected items and makes no Jira validation call; otherwise the change is validated and applied as `effect-provider-helper` does (C-2646 to C-2648: Jira issue update keeping all other values, `s.ext.effect.cf.error.no-value` when the field is not on the edit screen, undo built before the update, `IssueService.update` with `ISSUE_UPDATED` and mail sent only when `sendNotifications` is true), and a valid response carries the success message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/shared-system-description-keys",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Shared by the system-field providers (assignee, priority, description, environment, resolution, summary, due date, reporter, status): the description, success and conflict texts use i18n keys `s.ext.effect.+<value parameter key>+.` followed by `description.value`, `description.empty`, `conflict.value`, `conflict.empty`, `success.value` or `success.empty` (the literal `+` signs are part of the key). Arguments: the issue key, then the value's text when there is one, then (conflict keys only) the conflicting values' texts joined by `, `. `.empty` is used when the value's text is null (parameter absent). `getSuccessMessage()` is the success key; `getDescription()` is the conflict key when the effect has a non-empty `conflicts` list, else the description key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#getI18nKey"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/summary-texts",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Texts (key `s.ext.effect.+summary+.`): description `Change summary of {0} to \"{1}\"` / `Clear summary of {0}`, conflict `Change summary of {0} to \"{1}\" (conflicts with summaries: {2})` / `Clear summary of {0} (conflicts with summaries: {1})`, success `Changed summary of {0} to \"{1}\"` / `Cleared summary of {0}`. The value text is the `summary` parameter as given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe",
+    "com.almworks.jira.structure.effectprovider.parameter.AbstractParameter#describe"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/shared-conflict-text",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value effect provider in this group: in a conflict text each conflicting value is described as the provider describes its own value (resolving the raw value through the same parameter rules, falling back to the raw text when it does not resolve), and the empty marker `{\"empty\": true}` or a null entry is shown as `s.ext.effect.empty-value` (`<empty>`) in the user's language.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.ConflictsParameter#describeConflicts",
+    "com.almworks.jira.structure.effectprovider.parameter.ConflictsParameter#describeSingleConflictValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/shared-description-html",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value effect provider in this group: the HTML description of an effect without a non-empty `conflicts` list is the HTML-encoded localized description text. With conflicts it is rendered in the warning layout of `effect-provider-helper` (C-2653) using the provider's `description.value` key: the leading arguments (field name for custom fields, then issue key) HTML-encoded, and the value argument replaced by `<select class=\"s-aui-select2\" data-effect-parameter=\"<value key>\">` holding first the effect's own raw value as a `selected` option and then one option per conflict; each option's `value` is the HTML-encoded raw value (`{empty=true}` for the empty marker, `null` for null), the empty marker and null carry `data-empty=\"true\"`, and its text is the HTML-encoded value description.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#getDescriptionHTML",
+    "com.almworks.jira.structure.effectprovider.parameter.ConflictsParameter#createSelectHTML"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/shared-optimize",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value effect provider in this group: `optimize` groups effects by the `issue` parameter (system fields) or by `issue` and `customField` (custom fields) and merges each group with `effect-provider-helper`'s single-value rule on the value parameter key (C-2651, C-2652): the last effect wins and the other distinct values go into `conflicts`. The other parameters of the kept effect (for example `sendNotifications`) are those of the last effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#optimize",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#optimizeSingleValuedGroup"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/shared-adjust-effect",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value effect provider in this group: adjusting an effect (as when the user picks a value in the conflict select) returns a copy of the effect with each given parameter set to the given value; all other parameters, `conflicts` included, are kept.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConflictSupportingEffectProvider#adjustEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/summary-effect-provider/summary-compare-apply-undo",
+   "module": "summary-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the issue's summary; the new value equals it when both read as the same string with null read as empty. Applying sets the summary in the issue input parameters (null when the parameter is absent; Jira's validation then decides, a required summary normally failing with Jira's message). The undo is `CoreEffects.setIssueSummary(issue, <summary before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SummaryEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#stringsEqual"
+   ]
+  },
+  {
+   "key": "e6-effects-a/description-effect-provider/module-and-parameters",
+   "module": "description-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:description-effect-provider` (element `structure-effect-provider`, no children) accepts `issue` (required), `description` (the new text, read as a single string; absent means clear; empty text is accepted), `sendNotifications` (default false) and `conflicts`, matching `CoreEffects.setIssueDescription`. Parameter checks, affected items, optimization and HTML description are as summary-effect-provider states them for all single-value providers.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DescriptionEffectProvider",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider"
+   ]
+  },
+  {
+   "key": "e6-effects-a/description-effect-provider/compare",
+   "module": "description-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the issue's description; null and empty text count as equal, so setting `\"\"` on an issue with no description (or clearing a description that is empty) gives `EffectResponse.empty` and changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DescriptionEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#stringsEqual"
+   ]
+  },
+  {
+   "key": "e6-effects-a/description-effect-provider/apply-and-undo",
+   "module": "description-effect-provider",
+   "api": null,
+   "behaviour": "Applying puts the new text (or null) as the description into Jira issue input parameters that keep every other value, validated and updated as effect-provider-helper states (field id `description`, also used as the field name in `s.ext.effect.cf.error.no-value`). The undo is `CoreEffects.setIssueDescription(issue, <description before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DescriptionEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/description-effect-provider/texts",
+   "module": "description-effect-provider",
+   "api": null,
+   "behaviour": "Texts (key prefix `s.ext.effect.+description+.`, arguments issue key, value text, conflicts): description `Change description of {0} to \"{1}\"` / `Clear description of {0}`, conflict `Change description of {0} to \"{1}\" (conflicts with descriptions: {2})` / `Clear description of {0} (conflicts with descriptions: {1})`, success `Changed description of {0} to \"{1}\"` / `Cleared description of {0}`. The value text is the `description` parameter as given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe"
+   ]
+  },
+  {
+   "key": "e6-effects-a/environment-effect-provider/module-and-parameters",
+   "module": "environment-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:environment-effect-provider` (element `structure-effect-provider`, no children) accepts `issue` (required), `environment` (the new text, read as a single string; absent means clear; empty text is accepted), `sendNotifications` (default false) and `conflicts`, matching `CoreEffects.setIssueEnvironment`. Parameter checks, affected items, optimization and HTML description are as summary-effect-provider states them for all single-value providers.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.EnvironmentEffectProvider",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider"
+   ]
+  },
+  {
+   "key": "e6-effects-a/environment-effect-provider/compare",
+   "module": "environment-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the issue's environment; null and empty text count as equal, so setting `\"\"` on an issue with no environment (or clearing a environment that is empty) gives `EffectResponse.empty` and changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.EnvironmentEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#stringsEqual"
+   ]
+  },
+  {
+   "key": "e6-effects-a/environment-effect-provider/apply-and-undo",
+   "module": "environment-effect-provider",
+   "api": null,
+   "behaviour": "Applying puts the new text (or null) as the environment into Jira issue input parameters that keep every other value, validated and updated as effect-provider-helper states (field id `environment`, also used as the field name in `s.ext.effect.cf.error.no-value`). The undo is `CoreEffects.setIssueEnvironment(issue, <environment before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.EnvironmentEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/environment-effect-provider/texts",
+   "module": "environment-effect-provider",
+   "api": null,
+   "behaviour": "Texts (key prefix `s.ext.effect.+environment+.`, arguments issue key, value text, conflicts): description `Change environment of {0} to \"{1}\"` / `Clear environment value of {0}`, conflict `Change environment of {0} to \"{1}\" (conflicts with environments: {2})` / `Clear environment value of {0} (conflicts with environments: {1})`, success `Changed environment of {0} to \"{1}\"` / `Cleared environment value of {0}`. The value text is the `environment` parameter as given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe"
+   ]
+  },
+  {
+   "key": "e6-effects-a/assignee-effect-provider/module-and-parameters",
+   "module": "assignee-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:assignee-effect-provider` (element `structure-effect-provider`, no children) accepts `issue` (required), `assignee` (a user key; absent or empty text means unassign), `sendNotifications` (default false) and `conflicts`, matching `CoreEffects.assignIssue`. Parameter checks, affected items, optimization and HTML layout are as summary-effect-provider states them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.AssigneeEffectProvider",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider"
+   ]
+  },
+  {
+   "key": "e6-effects-a/assignee-effect-provider/user-resolution",
+   "module": "assignee-effect-provider",
+   "api": null,
+   "behaviour": "A non-empty `assignee` value is resolved through the item resolver as the user item with that key; when no user is found the effect is error `s.ext.effect.error.no-user` with the key (\"User \\\"{0}\\\" could not be found.\"). A blank-but-not-empty value such as a space is looked up as a key too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.UserParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/assignee-effect-provider/compare-apply-undo",
+   "module": "assignee-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the issue's assignee; old and new are equal when both are null or both have the same user key. Applying sets the assignee by the user's username (`IssueInputParameters.setAssigneeId(username)`, null to clear) in issue input parameters that keep every other value, validated and updated as effect-provider-helper states (field id `assignee`); Jira's own validation (assign permission, assignable user, a required reporter) decides and its messages become the error. The undo is `CoreEffects.assignIssue(issue, <assignee before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.AssigneeEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/assignee-effect-provider/texts",
+   "module": "assignee-effect-provider",
+   "api": null,
+   "behaviour": "Texts (key prefix `s.ext.effect.+assignee+.`, arguments issue key, user, conflicts): description `Assign {0} to \"{1}\"` / `Unassign {0}`, conflict `Assign {0} to \"{1}\" (conflicts with assignees: {2})` / `Unassign {0} (conflicts with assignees: {1})`, success `Assigned {0} to \"{1}\"` / `Unassigned {0}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe"
+   ]
+  },
+  {
+   "key": "e6-effects-a/assignee-effect-provider/user-in-description",
+   "module": "assignee-effect-provider",
+   "api": null,
+   "behaviour": "In the description and success texts the user is carried as `${<user key>}` (the resolved user's key, or the raw parameter text when it did not resolve) in the arguments kept with user keys, and the shown arguments replace each `${key}` with that user's display name, or `s.ext.effect.field.user-unknown` (`unknown user`) when no such user exists; so a stored preview shows the user's current display name. Conflicting users are shown the same way, in the HTML select too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.AssigneeEffectProvider#describeEffect",
+    "com.almworks.jira.structure.effectprovider.singlevalue.AssigneeEffectProvider#describeSuccess",
+    "com.almworks.jira.structure.effectprovider.singlevalue.AssigneeEffectProvider#formatConflictValue",
+    "com.almworks.jira.structure.effectprovider.parameter.UserParameter#describe",
+    "com.almworks.jira.structure.effector.I18nTextUnresolved#resolveUserParameter"
+   ]
+  },
+  {
+   "key": "e6-effects-a/assignee-effect-provider/empty-key-description",
+   "module": "assignee-effect-provider",
+   "api": null,
+   "behaviour": "A `assignee` parameter given as empty text clears the field, but its description uses the `.value` key with the value text `null`, e.g. `Assign PRJ-1 to \"null\"` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.UserParameter#describe",
+    "com.almworks.jira.structure.effector.I18nTextUnresolved#resolveUserParameter"
+   ]
+  },
+  {
+   "key": "e6-effects-a/reporter-effect-provider/module-and-parameters",
+   "module": "reporter-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:reporter-effect-provider` (element `structure-effect-provider`, no children) accepts `issue` (required), `reporter` (a user key; absent or empty text means clear the reporter), `sendNotifications` (default false) and `conflicts`, matching `CoreEffects.setIssueReporter`. Parameter checks, affected items, optimization and HTML layout are as summary-effect-provider states them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ReporterEffectProvider",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider"
+   ]
+  },
+  {
+   "key": "e6-effects-a/reporter-effect-provider/user-resolution",
+   "module": "reporter-effect-provider",
+   "api": null,
+   "behaviour": "A non-empty `reporter` value is resolved through the item resolver as the user item with that key; when no user is found the effect is error `s.ext.effect.error.no-user` with the key (\"User \\\"{0}\\\" could not be found.\"). A blank-but-not-empty value such as a space is looked up as a key too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.UserParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/reporter-effect-provider/compare-apply-undo",
+   "module": "reporter-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the issue's reporter; old and new are equal when both are null or both have the same user key. Applying sets the reporter by the user's username (`IssueInputParameters.setReporterId(username)`, null to clear) in issue input parameters that keep every other value, validated and updated as effect-provider-helper states (field id `reporter`); Jira's own validation (assign permission, assignable user, a required reporter) decides and its messages become the error. The undo is `CoreEffects.setIssueReporter(issue, <reporter before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ReporterEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/reporter-effect-provider/texts",
+   "module": "reporter-effect-provider",
+   "api": null,
+   "behaviour": "Texts (key prefix `s.ext.effect.+reporter+.`, arguments issue key, user, conflicts): description `Change reporter of {0} to \"{1}\"` / `Clear reporter value of {0}`, conflict `Change reporter of {0} to \"{1}\" (conflicts with reporters: {2})` / `Clear reporter value of {0} (conflicts with reporters: {1})`, success `Changed reporter of {0} to \"{1}\"` / `Cleared reporter value of {0}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe"
+   ]
+  },
+  {
+   "key": "e6-effects-a/reporter-effect-provider/user-in-description",
+   "module": "reporter-effect-provider",
+   "api": null,
+   "behaviour": "In the description and success texts the user is carried as `${<user key>}` (the resolved user's key, or the raw parameter text when it did not resolve) in the arguments kept with user keys, and the shown arguments replace each `${key}` with that user's display name, or `s.ext.effect.field.user-unknown` (`unknown user`) when no such user exists; so a stored preview shows the user's current display name. Conflicting users are shown the same way, in the HTML select too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ReporterEffectProvider#describeEffect",
+    "com.almworks.jira.structure.effectprovider.singlevalue.ReporterEffectProvider#describeSuccess",
+    "com.almworks.jira.structure.effectprovider.singlevalue.ReporterEffectProvider#formatConflictValue",
+    "com.almworks.jira.structure.effectprovider.parameter.UserParameter#describe",
+    "com.almworks.jira.structure.effector.I18nTextUnresolved#resolveUserParameter"
+   ]
+  },
+  {
+   "key": "e6-effects-a/reporter-effect-provider/empty-key-description",
+   "module": "reporter-effect-provider",
+   "api": null,
+   "behaviour": "A `reporter` parameter given as empty text clears the field, but its description uses the `.value` key with the value text `null`, e.g. `Change reporter of PRJ-1 to \"null\"` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.UserParameter#describe",
+    "com.almworks.jira.structure.effector.I18nTextUnresolved#resolveUserParameter"
+   ]
+  },
+  {
+   "key": "e6-effects-a/priority-effect-provider/module-and-parameters",
+   "module": "priority-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:priority-effect-provider` (element `structure-effect-provider`, no children) accepts `issue` (required), `priority` (the priority id as text; absent means clear), `sendNotifications` (default false) and `conflicts`, matching `CoreEffects.setIssuePriority`. Parameter checks, affected items, optimization and HTML layout are as summary-effect-provider states them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.PriorityEffectProvider",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider"
+   ]
+  },
+  {
+   "key": "e6-effects-a/priority-effect-provider/value-resolution",
+   "module": "priority-effect-provider",
+   "api": null,
+   "behaviour": "A present `priority` value is looked up with Jira's `ConstantsManager.getPriorityObject(id)`; when Jira returns null the effect is error `s.ext.effect.error.no-priority` with the raw id (\"Priority \\\"{0}\\\" could not be found.\"). The value is described by the priority's name (`getName()`, not translated).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.PriorityParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.parameter.PriorityParameter#describeExistingValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/priority-effect-provider/compare-apply-undo",
+   "module": "priority-effect-provider",
+   "api": null,
+   "behaviour": "Old and new are equal when both are null or have the same id. Applying sets `setPriorityId(<id or null>)` in issue input parameters that keep every other value, validated and updated as effect-provider-helper states (field id `priority`; when the field is not on the edit screen the error is `s.ext.effect.cf.error.no-value` with `priority` and the issue key). The undo is `CoreEffects.setIssuePriority(issue, <priority before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.PriorityEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/priority-effect-provider/texts",
+   "module": "priority-effect-provider",
+   "api": null,
+   "behaviour": "Texts (key prefix `s.ext.effect.+priority+.`, arguments issue key, value, conflicts): description `Change priority of {0} to \"{1}\"` / `Clear priority value of {0}`, conflict `Change priority of {0} to \"{1}\" (conflicts with priorities: {2})` / `Clear priority value of {0} (conflicts with priorities: {1})`, success `Changed priority of {0} to \"{1}\"` / `Cleared priority value of {0}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe"
+   ]
+  },
+  {
+   "key": "e6-effects-a/resolution-effect-provider/module-and-parameters",
+   "module": "resolution-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:resolution-effect-provider` (element `structure-effect-provider`, no children) accepts `issue` (required), `resolution` (the resolution id as text; absent means clear), `sendNotifications` (default false) and `conflicts`, matching `CoreEffects.setIssueResolution`. Parameter checks, affected items, optimization and HTML layout are as summary-effect-provider states them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ResolutionEffectProvider",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider"
+   ]
+  },
+  {
+   "key": "e6-effects-a/resolution-effect-provider/value-resolution",
+   "module": "resolution-effect-provider",
+   "api": null,
+   "behaviour": "A present `resolution` value is looked up with Jira's `ConstantsManager.getResolution(id)`; when Jira returns null the effect is error `s.ext.effect.error.no-resolution` with the raw id (\"Resolution \\\"{0}\\\" could not be found.\"). The value is described by the resolution's name (`getName()`, not translated).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.ResolutionParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.parameter.ResolutionParameter#describeExistingValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/resolution-effect-provider/compare-apply-undo",
+   "module": "resolution-effect-provider",
+   "api": null,
+   "behaviour": "Old and new are equal when both are null or have the same id. Applying sets `setResolutionId(<id or null>)` in issue input parameters that keep every other value, validated and updated as effect-provider-helper states (field id `resolution`; when the field is not on the edit screen the error is `s.ext.effect.cf.error.no-value` with `resolution` and the issue key). The undo is `CoreEffects.setIssueResolution(issue, <resolution before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ResolutionEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/resolution-effect-provider/texts",
+   "module": "resolution-effect-provider",
+   "api": null,
+   "behaviour": "Texts (key prefix `s.ext.effect.+resolution+.`, arguments issue key, value, conflicts): description `Change resolution of {0} to \"{1}\"` / `Clear resolution of {0}`, conflict `Change resolution of {0} to \"{1}\" (conflicts with resolutions: {2})` / `Clear resolution of {0} (conflicts with resolutions: {1})`, success `Changed resolution of {0} to \"{1}\"` / `Cleared resolution of {0}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe"
+   ]
+  },
+  {
+   "key": "e6-effects-a/due-date-effect-provider/module-and-parameters",
+   "module": "due-date-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:due-date-effect-provider` (element `structure-effect-provider`, no children) accepts `issue` (required), `dueDate` (epoch milliseconds, read as a long by the C-0964 rules; absent means clear), `sendNotifications` (default false) and `conflicts`, matching `CoreEffects.setIssueDueDate` (C-0275). Parameter checks, affected items, optimization and HTML layout are as summary-effect-provider states them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DueDateEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.DateParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/due-date-effect-provider/unparsable-date-clears",
+   "module": "due-date-effect-provider",
+   "api": null,
+   "behaviour": "A `dueDate` value that is not a number (for example `\"tomorrow\"`) is not an error: it reads as no value, so the effect clears the due date (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.DateParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/due-date-effect-provider/compare",
+   "module": "due-date-effect-provider",
+   "api": null,
+   "behaviour": "Old and new due dates are equal when both are null, or when Jira's `DateFieldFormat.formatDatePicker` gives the same text for both (so two instants on the same day in the date-picker format count as equal and give `EffectResponse.empty`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DueDateEffectProvider#isEqualToOldValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/due-date-effect-provider/apply-and-undo",
+   "module": "due-date-effect-provider",
+   "api": null,
+   "behaviour": "Applying sets the due date to the date-picker text of the new value (`formatDatePicker`), or null to clear, in issue input parameters that keep every other value, validated and updated as effect-provider-helper states (field id `duedate`, also the field name in `s.ext.effect.cf.error.no-value`). The undo is `CoreEffects.setIssueDueDate(issue, <due date before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DueDateEffectProvider#updateIssue",
+    "com.almworks.jira.structure.effectprovider.singlevalue.DueDateEffectProvider#createEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/due-date-effect-provider/texts",
+   "module": "due-date-effect-provider",
+   "api": null,
+   "behaviour": "Texts (key prefix `s.ext.effect.+dueDate+.`, arguments issue key, date, conflicts): description `Change due date of {0} to \"{1}\"` / `Clear due date of {0}`, conflict `Change due date of {0} to \"{1}\" (conflicts with due dates: {2})` / `Clear due date of {0} (conflicts with due dates: {1})`, success `Changed due date of {0} to \"{1}\"` / `Cleared due date of {0}`. The date is shown with Jira's `DateFieldFormat.format`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe",
+    "com.almworks.jira.structure.effectprovider.parameter.DateParameter#describeExistingValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/status-effect-provider/module-and-parameters",
+   "module": "status-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:status-effect-provider` (element `structure-effect-provider`, no children) accepts `issue` (required), `status` (target status id as text), `resolution` (resolution id as text, optional), `screenCheck` (boolean, default true: only the text `false`, any case, or Boolean false turns it off), `sendNotifications` (default false) and `conflicts`. `CoreEffects.setIssueStatus` gives `issue` and `status` only.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.StatusEffectProvider",
+    "com.almworks.jira.structure.effectprovider.singlevalue.StatusEffectProvider$ScreenCheckParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/status-effect-provider/constant-resolution",
+   "module": "status-effect-provider",
+   "api": null,
+   "behaviour": "A present `status` id is looked up with `ConstantsManager.getStatus`; null gives error `s.ext.effect.error.no-status` with the raw id (\"Status \\\"{0}\\\" could not be found.\"). A present `resolution` id is looked up with `ConstantsManager.getResolution`; null gives `s.ext.effect.error.no-resolution` (\"Resolution \\\"{0}\\\" could not be found.\"). Status and resolution are described by their translated names (`getNameTranslation()`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.StatusEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.IssueConstantParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/status-effect-provider/same-status-no-op",
+   "module": "status-effect-provider",
+   "api": null,
+   "behaviour": "When the issue's current status and the target status are both present and have the same id, the effect is `EffectResponse.empty`, even if a `resolution` is given and differs from the issue's.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.StatusEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/status-effect-provider/transition-search-errors",
+   "module": "status-effect-provider",
+   "api": null,
+   "behaviour": "Otherwise a single workflow transition is looked for, and these errors are returned in this order: no workflow for the issue (`WorkflowManager.getWorkflow` null) -> `s.ext.gen.grouper.issuefield.block.status.no-workflow` (\"No workflow for {0}.\", issue key); issue without a status -> `...status.null-source-status` (\"Unknown status of {0}.\"); no `status` parameter -> `...status.null-target-status` (\"Unknown target status for {0}.\"); current status not linked to a workflow step -> `...status.no-source-status` (\"Initial status {0} is not part of the workflow for {1}.\", status name, issue key); target status not linked -> `...status.no-target-status` (\"Target status {0} is not part of the workflow for {1}.\"). So clearing the status is always an error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueTransitionHelper#findTransitionAction",
+    "com.almworks.jira.structure.extension.item.issue.IssueTransitionHelper#getWorkflow"
+   ]
+  },
+  {
+   "key": "e6-effects-a/status-effect-provider/transition-choice",
+   "module": "status-effect-provider",
+   "api": null,
+   "behaviour": "The candidate transitions are the source step's actions followed by the workflow's global actions whose id is among the actions that result in the target step. None -> `s.ext.gen.grouper.issuefield.block.status.no-transition` (\"Transition from {0} to {1} is not allowed by the workflow for {2}.\", source name, target name, issue key); more than one -> `...status.many-transitions` (\"There are several transitions that can bring {0} from {1} to {2}: {3}. Please use issue actions menu to apply a transition.\", issue key, source, target, the action names joined by `, `). With `screenCheck` true, the one transition having a non-empty view (a screen) gives `...status.requires-view` (\"Transitioning {2} from {0} to {1} requires a dialog to be displayed. Please use \\\"{3}\\\" transition in the issue actions menu.\", source, target, issue key, action name); with `screenCheck` false a transition with a screen is used. Names in these messages are untranslated status names.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.issue.IssueTransitionHelper#findTransitionAction",
+    "com.almworks.jira.structure.extension.item.issue.IssueTransitionHelper#findActionDescriptorsBetween"
+   ]
+  },
+  {
+   "key": "e6-effects-a/status-effect-provider/transition-validation",
+   "module": "status-effect-provider",
+   "api": null,
+   "behaviour": "With the transition found it validates `IssueService.validateTransition(currentUser, issueId, actionId, input)` where the input parameters are built from action parameters `{\"resolution\": [<resolution id>]}` when `resolution` is given (none otherwise), keep existing values for parameters not provided (`setRetainExistingValuesWhenParameterNotProvided(true, false)`) and have the status id set to the target. For a valid result the additional inputs are copied and `sendBulkNotification` is set to the `sendNotifications` value. An invalid result is an error whose text is Jira's error messages and field errors joined by `, `. No edit-screen check is made.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.StatusEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.singlevalue.StatusEffectProvider#considerSendingEmail"
+   ]
+  },
+  {
+   "key": "e6-effects-a/status-effect-provider/apply",
+   "module": "status-effect-provider",
+   "api": null,
+   "behaviour": "Applying first builds the undo, then calls `IssueService.transition(user, validationResult)`; when Jira returns an invalid result it throws a `StructureException` with `StructureErrors.ITEM_EDIT_DENIED` and localized message `s.ext.gen.grouper.issuefield.block.status.no-transition` with the source and target translated names and the issue key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.StatusEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/status-effect-provider/undo",
+   "module": "status-effect-provider",
+   "api": null,
+   "behaviour": "The undo is a `status-effect-provider` effect with `issue`, `status` = the status before the change, `resolution` = the resolution id before the change (absent when unresolved), `screenCheck` absent when the applied effect had it true and `false` when it had it false, and `sendNotifications` = true only when the applied effect had it true (absent otherwise).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.StatusEffectProvider#createUndo"
+   ]
+  },
+  {
+   "key": "e6-effects-a/status-effect-provider/texts",
+   "module": "status-effect-provider",
+   "api": null,
+   "behaviour": "Texts (key prefix `s.ext.effect.+status+.`, arguments issue key, status name, conflicts): description `Change status of {0} to \"{1}\"` / `Clear status value of {0}`, conflict `Change status of {0} to \"{1}\" (conflicts with statuses: {2})` / `Clear status value of {0} (conflicts with statuses: {1})`, success `Changed status of {0} to \"{1}\"` / `Cleared status value of {0}`. The resolution is not mentioned. Optimization keeps the last effect per issue (its own `resolution`, `screenCheck` and `sendNotifications`) with the other statuses as conflicts, as summary-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#optimize"
+   ]
+  },
+  {
+   "key": "e6-effects-a/text-custom-field-effect-provider/module-and-parameters",
+   "module": "text-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:text-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue` (required), `customField` (custom field id such as `customfield_10010`, required), `value` (the new text, read as a single string; absent means clear; empty text accepted), `sendNotifications` (default false) and `conflicts`, matching `CoreEffects.setTextCustomField`. The field must have a type that is a `GenericTextCFType` (single-line and multi-line text fields).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.TextCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.CustomFieldTypeDescriptor#init"
+   ]
+  },
+  {
+   "key": "e6-effects-a/text-custom-field-effect-provider/shared-custom-field-parameter",
+   "module": "text-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value custom-field provider in this group: `customField` is looked up with `CustomFieldManager.getCustomFieldObject(id)`; an absent parameter or an unknown field gives error `s.ext.gen.grouper.issuefield.block.custom.no-field` (\"Custom field does not exist.\"). A field whose type does not pass the provider's type test gives `s.ext.gen.grouper.issuefield.block.custom.wrong-cf-type` with arguments (field name, field id) although the text is \"Custom field \\\"{1}\\\" ({0}) is of incorrect type.\", so it reads e.g. `Custom field \"customfield_10010\" (Story Points) is of incorrect type.` (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.CustomFieldParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/text-custom-field-effect-provider/shared-custom-field-texts",
+   "module": "text-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value custom-field provider in this group: texts use keys `s.ext.effect.cf.` + `description.value` (`Change {0} of {1} to \"{2}\"`), `description.empty` (`Clear {0} value of {1}`), `conflict.value` (`Change {0} of {1} to \"{2}\" (conflicts with values: {3})`), `conflict.empty` (`Clear {0} value of {1} (conflicts with values: {2})`), `success.value` (`Changed {0} of {1} to \"{2}\"`) and `success.empty` (`Cleared {0} value of {1}`), with arguments field name (the custom field's name, or the raw `customField` text, or `<?>`), issue key, value text when present, conflicts; key choice as summary-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#getI18nKey",
+    "com.almworks.jira.structure.effectprovider.CustomFieldTypeDescriptor#getFieldName"
+   ]
+  },
+  {
+   "key": "e6-effects-a/text-custom-field-effect-provider/shared-custom-field-update",
+   "module": "text-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Shared by every single-value custom-field provider in this group: the change is validated and applied as effect-provider-helper states, with the custom field's id as the field id checked in the validated values and its name in `s.ext.effect.cf.error.no-value` (\"Cannot change {0} of {1}. This is likely because the field is not on the edit screen\"); the value is put with `IssueInputParameters.addCustomFieldValue(fieldId, <one string or null>)`. Optimization groups by `issue` and `customField`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#optimize"
+   ]
+  },
+  {
+   "key": "e6-effects-a/text-custom-field-effect-provider/compare-apply-undo",
+   "module": "text-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the field's value on the issue (`getValueFromIssue`); null and empty text count as equal. Applying puts the text (or null) as the field's single value. The undo is `CoreEffects.setTextCustomField(issue, field, <text before the change>)`. The value text in descriptions is the parameter as given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.TextCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#stringsEqual"
+   ]
+  },
+  {
+   "key": "e6-effects-a/number-custom-field-effect-provider/module-and-parameters",
+   "module": "number-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:number-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (a `NumberCFType` field), `value`, `sendNotifications` and `conflicts`, matching `CoreEffects.setNumberCustomField`. Custom field lookup, texts and update are as text-custom-field-effect-provider states for all custom-field providers.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.NumberCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.CustomFieldTypeDescriptor#init"
+   ]
+  },
+  {
+   "key": "e6-effects-a/number-custom-field-effect-provider/value-parsing",
+   "module": "number-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "`value` given as a `Number` is taken as its double value; absent or null means clear; otherwise its single string form is parsed as a double (`\"2.5\"`, `\"1e3\"`). Empty text or unparsable text gives error `s.ext.effect.error.bad-param` with `value` (\"Incorrect value for parameter \\\"value\\\".\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.NumberCustomFieldEffectProvider$NumberParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/number-custom-field-effect-provider/compare-apply-undo",
+   "module": "number-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Old and new are equal when both are null or when the field type's stored string forms (`getStringFromSingularObject`) are the same (so 2 and 2.0 are equal). Applying puts that stored string form (null to clear) as the field value. The undo is `CoreEffects.setNumberCustomField(issue, field, <number before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.NumberCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByStringRepresentation",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#getCustomFieldStoredValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/number-custom-field-effect-provider/value-text",
+   "module": "number-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "The value text in descriptions is the field type's stored string form of the number (its `toString()` if the field did not resolve), or the raw parameter text when the value failed to parse.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.NumberCustomFieldEffectProvider$NumberParameter#describe"
+   ]
+  },
+  {
+   "key": "e6-effects-a/date-custom-field-effect-provider/module-and-parameters",
+   "module": "date-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:date-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (a `DateCFType` field), `value` (epoch milliseconds, read as a long; absent clears; non-numeric text also reads as no value and clears), `sendNotifications` and `conflicts`, matching `CoreEffects.setDateCustomField`. Lookup, texts and update are as text-custom-field-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DateCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.DateParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/date-custom-field-effect-provider/target-date-shift",
+   "module": "date-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "For an Advanced Roadmaps target start or target end field (type key per C-2269) when `portfolio-integration` says the UTC shift is needed (C-2270), the new value is replaced by the start (00:00 UTC) of the calendar day it falls on in the JVM's default time zone, both for the equality check and for the value written; for other fields, or when Advanced Roadmaps is absent or needs no shift, the value is used as given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DateCustomFieldEffectProvider#maybeAdjustDateValue",
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#getTimestampCorrectionFunction"
+   ]
+  },
+  {
+   "key": "e6-effects-a/date-custom-field-effect-provider/compare-apply-undo",
+   "module": "date-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Old and new are equal when both are null or the field type's stored string forms are the same (the (possibly shifted) new value against the unshifted current value). Applying puts the stored string form (null to clear) as the field value. The undo is `CoreEffects.setDateCustomField(issue, field, <date before the change>)`. The value text in descriptions uses Jira's `DateFieldFormat.format` of the unshifted value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DateCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByStringRepresentation",
+    "com.almworks.jira.structure.effectprovider.parameter.DateParameter#describeExistingValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/date-time-custom-field-effect-provider/module-and-parameters",
+   "module": "date-time-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:date-time-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (a `DateTimeCFType` field), `value` (epoch milliseconds, read as a long; absent clears; non-numeric text also reads as no value and clears), `sendNotifications` and `conflicts`, matching `CoreEffects.setDateTimeCustomField`. Lookup, texts and update are as text-custom-field-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DateTimeCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.DateTimeParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/date-time-custom-field-effect-provider/compare-apply-undo",
+   "module": "date-time-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Old and new are equal when both are null or the field type's stored string forms are the same. Applying puts the stored string form of the timestamp (null to clear) as the field value. The undo is `CoreEffects.setDateTimeCustomField(issue, field, <value before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DateTimeCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByStringRepresentation"
+   ]
+  },
+  {
+   "key": "e6-effects-a/date-time-custom-field-effect-provider/value-text",
+   "module": "date-time-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "The value text in descriptions is the timestamp formatted by Jira's `DateTimeFormatter` in style `DateTimeStyle.COMPLETE` for the logged-in user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DateTimeCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.DateTimeParameter#describeExistingValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-select-custom-field-effect-provider/module-and-parameters",
+   "module": "single-select-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:single-select-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (a field whose type is a `SelectCFType`: single select lists and radio buttons), `value` (option id, read as a long; absent clears), `sendNotifications` and `conflicts`, matching `CoreEffects.setSingleSelectCustomField`. Lookup, texts and update are as text-custom-field-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleSelectCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.CustomFieldTypeDescriptor#init"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-select-custom-field-effect-provider/shared-item-id-value",
+   "module": "single-select-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Shared by the option, project and version providers (single select, cascade, project picker, single version): the `value` id is resolved through the item resolver as item `<item type>/<id>` (`com.almworks.jira.structure:type-cf-option` for options, `type-project`, `type-version`); when the resolver gives nothing (unknown or not visible to the current user) the error is `s.ext.effect.error.no-option` (\"Option \\\"{0}\\\" could not be found.\"), `no-project` (\"Project ...\") or `no-version` (\"Version ...\") with the id. A `value` that is not a number reads as no value and so clears the field instead of failing (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.ItemResolvingParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-select-custom-field-effect-provider/compare-apply-undo",
+   "module": "single-select-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Old and new are equal when both are null or have the same option id. Applying puts the option id as text (null to clear) as the field value; Jira's validation decides whether the option belongs to the field's context. The undo is `CoreEffects.setSingleSelectCustomField(issue, field, <option before the change>)`. The value text is the option's value text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleSelectCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey"
+   ]
+  },
+  {
+   "key": "e6-effects-a/cascade-custom-field-effect-provider/module-and-parameters",
+   "module": "cascade-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:cascade-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (a `CascadingSelectCFType` field), `value` (the id of a parent option or of a child option, as item `com.almworks.jira.structure:type-cf-option`; absent clears), `sendNotifications` and `conflicts`, matching `CoreEffects.setCascadeCustomField`. Option resolution is as single-select-custom-field-effect-provider states; lookup, texts and update as text-custom-field-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.CascadeCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.ItemResolvingParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/cascade-custom-field-effect-provider/current-value",
+   "module": "cascade-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the field's child option (key `1` of the cascading value) when there is one, else its parent option (key null), else null. Old and new are equal when both are null or have the same option id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.CascadeCustomFieldEffectProvider#getValueFromIssue",
+    "com.almworks.jira.structure.util.CustomFieldAccessors"
+   ]
+  },
+  {
+   "key": "e6-effects-a/cascade-custom-field-effect-provider/apply",
+   "module": "cascade-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Applying a child option puts the parent option's id under the field id and the child's id under `<field id>:1`; a parent option is put alone under the field id; clearing puts null under the field id. The undo is `CoreEffects.setCascadeCustomField(issue, field, <option before the change>)` (the child when there was one).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.CascadeCustomFieldEffectProvider#updateIssue",
+    "com.almworks.jira.structure.effectprovider.singlevalue.CascadeCustomFieldEffectProvider#createEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/cascade-custom-field-effect-provider/value-text",
+   "module": "cascade-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "A child option is described as `<parent value> - <child value>`, a parent option by its value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.CascadeCustomFieldEffectProvider#describeItemValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/project-picker-custom-field-effect-provider/module-and-parameters",
+   "module": "project-picker-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:project-picker-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (a `ProjectCFType` field), `value` (project id, resolved as item `com.almworks.jira.structure:type-project` as single-select-custom-field-effect-provider states, error `s.ext.effect.error.no-project` \"Project \\\"{0}\\\" could not be found.\"; absent clears), `sendNotifications` and `conflicts`, matching `CoreEffects.setProjectPickerCustomField`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ProjectPickerCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.ItemResolvingParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/project-picker-custom-field-effect-provider/compare-apply-undo",
+   "module": "project-picker-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Old and new are equal when both are null or have the same project id. Applying puts the project id as text (null to clear) as the field value. The undo is `CoreEffects.setProjectPickerCustomField(issue, field, <project before the change>)`. The value text is the project's name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ProjectPickerCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-user-custom-field-effect-provider/module-and-parameters",
+   "module": "single-user-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:single-user-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (a `UserCFType` field), `value` (user key; absent or empty clears; unknown key -> `s.ext.effect.error.no-user` \"User \\\"{0}\\\" could not be found.\"), `sendNotifications` and `conflicts`, matching `CoreEffects.setSingleUserCustomField`. Lookup, texts and update are as text-custom-field-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleUserCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.UserParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-user-custom-field-effect-provider/compare-apply-undo",
+   "module": "single-user-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Old and new are equal when both are null or have the same user key. Applying puts the user's username (not key; null to clear) as the field value. The undo is `CoreEffects.setSingleUserCustomField(issue, field, <user before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleUserCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-user-custom-field-effect-provider/user-in-description",
+   "module": "single-user-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Users in description, success and conflict texts are carried as `${<user key>}` and shown as the user's display name, or `unknown user`, exactly as assignee-effect-provider states; an empty-text `value` is described as `null` there too (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleUserCustomFieldEffectProvider#describeEffect",
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleUserCustomFieldEffectProvider#describeSuccess",
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleUserCustomFieldEffectProvider#formatConflictValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-group-custom-field-effect-provider/module-and-parameters",
+   "module": "single-group-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:single-group-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (a `MultiGroupCFType` field), `value` (group name), `sendNotifications` and `conflicts`, matching `CoreEffects.setSingleGroupCustomField`. Lookup, texts and update are as text-custom-field-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleGroupCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.CustomFieldTypeDescriptor#init"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-group-custom-field-effect-provider/group-resolution",
+   "module": "single-group-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "An absent or blank `value` clears the field. Otherwise the name is resolved through the item resolver as the group item with that name; no group gives error `s.ext.effect.error.no-group` (\"Group \\\"{0}\\\" could not be found.\"). The value text is the group's name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.GroupParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-group-custom-field-effect-provider/single-only",
+   "module": "single-group-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "After all parameters resolve, a field that allows several groups (`MultiGroupCFType.isMultiple()` true) gives `s.ext.gen.grouper.issuefield.block.custom.wrong-cf-type` with (field name, field id), as text-custom-field-effect-provider states for that message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleGroupCustomFieldEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-group-custom-field-effect-provider/compare-apply-undo",
+   "module": "single-group-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the first group in the field's value (null when empty). Old and new are equal when both are null or have the same name. Applying puts the group name (null to clear) as the field value. The undo is `CoreEffects.setSingleGroupCustomField(issue, field, <first group before the change>)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleGroupCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-version-custom-field-effect-provider/module-and-parameters",
+   "module": "single-version-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:single-version-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (a `VersionCFType` field), `isUndo` (boolean, default false), `value` (version id, resolved as item `com.almworks.jira.structure:type-version` as single-select-custom-field-effect-provider states, error `s.ext.effect.error.no-version` \"Version \\\"{0}\\\" could not be found.\"; absent clears), `sendNotifications` and `conflicts`. `CoreEffects.setSingleVersionCustomField` gives `issue`, `customField` and `value`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleVersionCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.ItemResolvingParameter#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-version-custom-field-effect-provider/checks",
+   "module": "single-version-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "After the parameters resolve, checks in this order: a multi-version field (`isMultiple()` true) -> `s.ext.gen.grouper.issuefield.block.custom.wrong-cf-type`; clearing while the field's current (first) version is archived and `isUndo` is false -> `s.ext.gen.grouper.issuefield.block.remove.archived.version` (\"Cannot remove issue {0} from the archived version \\\"{1}\\\".\", issue key, version name); a version whose project id differs from the issue's -> `s.ext.gen.grouper.issuefield.block.version-project` (\"Cannot add version \\\"{0}\\\" to issue {1}, because this version belongs to a different project.\", version name, issue key), checked even when undoing; an archived version and `isUndo` false -> `s.ext.gen.grouper.issuefield.block.add.archived.version` (\"Cannot add issue {0} to the archived version \\\"{1}\\\".\", issue key, version name). Replacing a current archived version by another version is not checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleVersionCustomFieldEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-version-custom-field-effect-provider/compare-apply",
+   "module": "single-version-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the field's first version. Old and new are equal when both are null or have the same version id. Applying puts the version id as text (null to clear) as the field value. The value text is the version's name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleVersionCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey"
+   ]
+  },
+  {
+   "key": "e6-effects-a/single-version-custom-field-effect-provider/undo",
+   "module": "single-version-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "The undo is `CoreEffects.setSingleVersionCustomField(issue, field, <first version before the change>)` with `isUndo` = true added when the applied effect was not itself an undo; the undo of an undo has no `isUndo`. So undoing may re-add or remove an archived version.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.SingleVersionCustomFieldEffectProvider#createEffect"
+   ]
+  },
+  {
+   "key": "e6-effects-a/script-runner-single-issue-picker-effect-provider/module-and-parameters",
+   "module": "script-runner-single-issue-picker-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:script-runner-single-issue-picker-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (any custom field id), `value` (id of the issue to put in the field, read as a long; absent clears), `sendNotifications` and `conflicts`. Its own undo effects have `issue`, `customField` and `value` = the picked issue's id (absent when none). Lookup, texts and update are as text-custom-field-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ScriptRunnerSingleIssuePickerEffectProvider",
+    "com.almworks.jira.structure.extension.ScriptRunnerUtil#setIssuePickerCustomField"
+   ]
+  },
+  {
+   "key": "e6-effects-a/script-runner-single-issue-picker-effect-provider/value-resolution",
+   "module": "script-runner-single-issue-picker-effect-provider",
+   "api": null,
+   "behaviour": "A present `value` is resolved through the item resolver as the issue item with that id; no issue (or one the user cannot see) gives `s.ext.gen.block.no-issue` (\"Issue does not exist or you have no permission to see it.\"). The value text is the picked issue's key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.IssueParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.parameter.IssueParameter#describeExistingValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/script-runner-single-issue-picker-effect-provider/field-checks",
+   "module": "script-runner-single-issue-picker-effect-provider",
+   "api": null,
+   "behaviour": "After the parameters resolve: a field whose type's implementation class is not exactly `com.onresolve.scriptrunner.canned.jira.fields.editable.issue.SingleIssuePickerField` gives `s.ext.gen.grouper.issuefield.block.custom.wrong-cf-type` (field name, field id); then, when `scriptrunner-integration` reports the field read-only for the issue, `s.ext.effect.error.field.readonly` (\"Field {0} is read-only.\", field name). When ScriptRunner is absent no field has that type, so every effect fails with the wrong-type error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ScriptRunnerSingleIssuePickerEffectProvider#resolve",
+    "com.almworks.jira.structure.extension.ScriptRunnerUtil#isSingleIssuePickerCustomField"
+   ]
+  },
+  {
+   "key": "e6-effects-a/script-runner-single-issue-picker-effect-provider/compare-apply-undo",
+   "module": "script-runner-single-issue-picker-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the field type's value for the issue when it is a Jira `Issue` (another kind of value logs a warning and reads as none). Old and new are equal when both are null or have the same issue id. Applying puts the field type's stored string form of the picked issue (null to clear) as the field value. The undo sets the field back to the issue picked before the change.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.ScriptRunnerSingleIssuePickerEffectProvider",
+    "com.almworks.jira.structure.extension.ScriptRunnerUtil#getValueFromIssue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/portfolio-team-custom-field-effect-provider/module-and-parameters",
+   "module": "portfolio-team-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "Module `com.almworks.jira.structure:portfolio-team-custom-field-effect-provider` (element `structure-effect-provider`, no children) accepts `issue`, `customField` (any custom field id: its type is not checked), `value` (team id, read as a long; absent clears), `sendNotifications` and `conflicts`. Its undo effects have `issue`, `customField` and `value` = the previous team's id (absent when none). Lookup, texts and update are as text-custom-field-effect-provider states.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.PortfolioTeamCustomFieldEffectProvider",
+    "com.almworks.jira.structure.effectprovider.singlevalue.PortfolioTeamCustomFieldEffectProvider#setTeamCustomField"
+   ]
+  },
+  {
+   "key": "e6-effects-a/portfolio-team-custom-field-effect-provider/team-resolution",
+   "module": "portfolio-team-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "A present `value` is looked up as a team by id through `portfolio-integration` (C-2262); none (unknown id, or Advanced Roadmaps Team Management absent) gives `s.ext.effect.error.no-team` (\"Team \\\"{0}\\\" could not be found.\", the id). The value text is the team's title.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.TeamParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.parameter.TeamParameter#describeExistingValue"
+   ]
+  },
+  {
+   "key": "e6-effects-a/portfolio-team-custom-field-effect-provider/subtask-refused",
+   "module": "portfolio-team-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "After the parameters resolve, an issue that is a sub-task gives `s.ext.effect.error.subtask.team-disabled` (\"The team for a sub-task is inherited from the parent issue and cannot be assigned.\"), for clearing too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.PortfolioTeamCustomFieldEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e6-effects-a/portfolio-team-custom-field-effect-provider/compare-apply",
+   "module": "portfolio-team-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "The current value is the field's value read as a team (its `getId()` and `getDescription().getTitle()`; a value that cannot be read so logs a warning and reads as none). Old and new are equal when both are null or have the same team id. Applying puts the team id as text (null to clear) as the field value.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.PortfolioTeamCustomFieldEffectProvider#getValueFromIssue",
+    "com.almworks.jira.structure.effectprovider.singlevalue.PortfolioTeamCustomFieldEffectProvider#updateIssue"
+   ]
+  }
+ ]
+}

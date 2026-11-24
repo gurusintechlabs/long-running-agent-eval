@@ -1,0 +1,1111 @@
+{
+ "claims": [
+  {
+   "key": "e7-effects-b/components-effect-provider/family-parameters",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "The multi-value field effect providers (`labels-effect-provider`, `multi-labels-custom-field-effect-provider`, `components-effect-provider`, `affects-versions-effect-provider`, `fix-versions-effect-provider`, `multi-versions-custom-field-effect-provider`, `multi-select-custom-field-effect-provider`, `multi-user-custom-field-effect-provider`, `multi-group-custom-field-effect-provider` and `insight-object-custom-field-effect-provider`) all read these effect parameters: `issue` (the issue id, required), `add`, `remove` and `set` (each a list of value keys, a single value is read as a one-element list), `conflicts` (list), `sendNotifications` (boolean, missing = false) and, for the custom field ones, `customField` (the custom field id, e.g. `customfield_10010`); the version providers also read `isUndo` (boolean, missing = false). Value keys match the `CoreEffects` collection helpers: label texts, component / version / option ids as numbers (numeric text is accepted too), user keys, group names, Insight object keys.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider",
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider$MultiValueParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-issue-param-errors",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "For every multi-value field effect provider: a missing or non-numeric `issue` gives an error response `s.ext.effect.error.no-param` (\"No value for required parameter \"issue\".\"); an issue id that the item resolver cannot resolve for the current user (missing or not visible) gives `s.ext.gen.block.no-issue` (\"Issue does not exist or you have no permission to see it.\"). The response's affected items are `[issue/<id>]` whenever `issue` holds a number (even when the issue cannot be resolved), else empty. All parameters are resolved and the first error in the order issue, add, remove, set, conflicts, sendNotifications, customField, isUndo is reported; the response still carries the effect description.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.IssueParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.parameter.IssueParameter#getAffectedItems",
+    "com.almworks.jira.structure.effectprovider.ResolvedParameters#resolveAllAndGetFirstError",
+    "com.almworks.jira.structure.effectprovider.UpdateIssueEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-custom-field-param-errors",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "For the custom field providers among the multi-value ones, `customField` that is missing or names no custom field gives error `s.ext.gen.grouper.issuefield.block.custom.no-field` (\"Custom field does not exist.\"); a custom field of the wrong type gives `s.ext.gen.grouper.issuefield.block.custom.wrong-cf-type` with arguments (field name, field id), which the English text renders as `Custom field \"<id>\" (<name>) is of incorrect type.` (the arguments are in the opposite order to the wording, as the original does). Accepted types: `LabelsCFType` (labels), `VersionCFType` (versions), `MultiSelectCFType` (options, so also multi-checkboxes), `MultiUserCFType`, `MultiGroupCFType`, and the Insight type keys `com.riadalabs.jira.plugins.insight:rlabs-customfield-default-object`, `...-object` and `...-object-multi`. For the system field ones, a Jira field that `FieldManager.getField` does not find (`labels`, `components`, `versions`, `fixVersions`) gives `s.ext.gen.grouper.issuefield.block.no-field` (\"Field does not exist.\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.parameter.CustomFieldParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.CustomFieldTypeDescriptor",
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-unknown-value",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "In every multi-value field effect provider, each key in `add`, `remove` or `set` is looked up (labels are only trimmed); the first key that finds nothing gives an error with that key as argument: labels `s.ext.effect.error.bad-param`, components `s.ext.effect.error.no-component` (\"Component \"{0}\" could not be found.\"), versions `s.ext.effect.error.no-version`, options `s.ext.effect.error.no-option`, users `s.ext.effect.error.no-user` (\"User \"{0}\" could not be found.\"), groups `s.ext.effect.error.no-group`, Insight objects `s.ext.effect.error.no-insight-object` (\"Object \"{0}\" could not be found\"). For the numeric kinds an element that is not a number is silently skipped rather than reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider$MultiValueParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.multivalue.ComponentsEffectProvider#keyToValue",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionEffectProvider#keyToValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-new-value",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "A multi-value field effect computes the new value from the issue's current values: with `add` and/or `remove` present it starts from the current values, adds the `add` values (keeping order, no duplicates) and then takes out the `remove` values (so a value in both is removed); with only `set` the new value is exactly the `set` values; with none of the three, or `set` empty, the new value is empty (the field is cleared). When `set` is given together with `add` or `remove`: with Java assertions enabled (as the tests run) resolving throws `AssertionError`; with them disabled `set` is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-no-change",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "When the computed new value holds exactly the issue's current values (same count, all current keys present, order ignored), a multi-value field effect resolves to an empty response (no change, nothing to apply) and no validation is done.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-apply-via-issue-service",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "Except for system Labels, a multi-value field effect is validated and applied as an issue update through Jira's `IssueService` as described for `effect-provider-helper` (retain unprovided values, `validateUpdate` as the current Structure user, errors joined by `, `; field not on the edit screen gives `s.ext.effect.cf.error.no-value` \"Cannot change {0} of {1}. This is likely because the field is not on the edit screen\" with the field name and issue key; `update` with ISSUE_UPDATED and mail sent only when `sendNotifications` is true). The whole new value is written: components with `setComponentIds`, Affects Versions with `setAffectedVersionIds`, Fix Versions with `setFixVersionIds`, custom fields with `addCustomFieldValue(fieldId, values)` where the values are label texts, version ids, option ids, user *names* (not keys), group names or Insight object keys as strings.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect",
+    "com.almworks.jira.structure.effectprovider.multivalue.ProjectConstantEffectProvider#keysToEffect",
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#keysToEffect",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiUserCustomFieldEffectProvider#keysToEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-undo",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "Applying a multi-value field effect returns an undo effect computed from the issue just before the change. For a set-style effect (no `add` and no `remove` parameter) the undo is the same effect with `set` = the previous value keys in the issue's order (parameter absent when the field was empty, i.e. undo clears). For an add/remove effect the undo swaps them: undo `add` = the `remove` keys that were actually present, undo `remove` = the `add` keys that were actually absent, `set` dropped; when only one side is non-empty the other parameter is left out, when both are empty both are empty lists. All other parameters (issue, customField, sendNotifications, conflicts...) are kept.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#createUndo"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-optimize",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "When a batch holds several effects of one multi-value provider, they are grouped by `issue` (and `customField`); if no group has more than one effect the list is returned unchanged. A group is merged into one effect based on its last effect: replaying the effects in order, add/remove operations after the last set-style effect are applied to that set (result: `set` = the final set, absent if empty; no `add`/`remove`); without any set-style effect the result has `add` = keys whose last operation was add and `remove` = keys whose last operation was remove (each absent when empty), in first-seen order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#optimize",
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#optimizeMultiValued",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#optimizeGrouped"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-optimize-conflicts",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "While merging multi-value effects, parameter `conflicts` collects (first-seen order) the keys that were both added and removed, plus the keys of earlier set-style effects that were superseded, plus `{\"empty\":true}` when some set-style effect was empty but the final set is not; keys present in the final set are taken out again. `conflicts` is absent when nothing is collected. Operations that came before the first set-style effect only contribute their conflicting keys.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#optimizeMultiValued",
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#resolveConflict"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-description",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "Multi-value effect descriptions are i18n texts: with add and remove `s.ext.effect.multi.replace.+description` (\"Replace value(s) \"{0}\" with \"{1}\" in field {2} of {3}\", arguments removed values, added values, field name, issue key); only add `s.ext.effect.multi.add.+description` (\"Add value(s) \"{0}\" to field {1} of {2}\"); only remove `s.ext.effect.multi.remove.+description`; set `s.ext.effect.multi.set.+description` (\"Set value(s) of field {1} to \"{0}\" in {2}\"); empty set `s.ext.effect.multi.clear.+description` (\"Clear value(s) of field {0} in {1}\"). Success messages use the `+success` keys with the same arguments (\"Added value(s) ...\", \"Cleared value(s) ...\"). With non-empty `conflicts` the description uses the `+conflict` key and an extra last argument: the conflict values joined by `, ` (`<empty>` for {\"empty\":true}). An empty `add` or `remove` list counts as absent. Values are joined with `, ` as labels, component/version/option/group names, Insight object labels; unresolvable keys show as `component <id>`, `version <id>`, `option <id>`, `object <key>`, `unknown user`, or `group {0}` (the group text is used without its argument, as the original does); the issue shows as its key (raw id when unresolved) and the field by name (`(?)` when unknown).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#describe",
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider$MultiValueParameter#describe",
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#describeConflict"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/family-description-html",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "A multi-value effect's HTML description without conflicts is the HTML-encoded localized description. With conflicts it is the conflict layout of `effect-provider-helper` with extra CSS class `s-multivalue-conflict`, using key `...+conflict-short` (\"Add/Remove conflict: ...\" / \"Set conflict: ...\"; a clear becomes the set variant), where each value argument is `<select multiple class=\"s-aui-select2\" data-effect-parameter=\"add|remove|set\">` listing the effect's keys as selected options followed by the conflict keys not among them, each `<option selected|(blank) [data-empty=\"true\"] value=\"<key>\"><label></option>` HTML-encoded; the remaining arguments are HTML-encoded text.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#getDescriptionHTML",
+    "com.almworks.jira.structure.effectprovider.MultiValueEffectProvider#getSelectHTML",
+    "com.almworks.jira.structure.effectprovider.parameter.ConflictsParameter#createSelectHTML"
+   ]
+  },
+  {
+   "key": "e7-effects-b/labels-effect-provider/field-and-values",
+   "module": "labels-effect-provider",
+   "api": null,
+   "behaviour": "`labels-effect-provider` changes the system Labels field (Jira field id `labels`) of the issue in `issue`. Its value keys are label texts (trimmed; parameter `add`, `remove` or `set`); the current value is `Issue.getLabels()`. It never reports a validation problem of its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.LabelsEffectProvider#getIssueValue",
+    "com.almworks.jira.structure.effectprovider.multivalue.LabelsEffectProvider#keyToValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/labels-effect-provider/label-service",
+   "module": "labels-effect-provider",
+   "api": null,
+   "behaviour": "Unlike the other multi-value providers, Labels are changed through Jira's `LabelService`: the new label set is validated with `validateSetLabels(user, issueId, labels)` as the current Structure user (invalid: error with Jira's messages joined by `, `), then, if the issue's edit screen (`FieldScreenRendererFactory` for EDIT_ISSUE_OPERATION) hides the Labels field, error `s.ext.effect.cf.error.no-value` with the field's name and the issue key. Applying calls `setLabels(user, result, sendNotifications, true)` after building the undo.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.LabelsEffectProvider#keysToEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/multi-labels-custom-field-effect-provider/field-and-values",
+   "module": "multi-labels-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "`multi-labels-custom-field-effect-provider` changes a labels custom field (type `LabelsCFType`, chosen by `customField`) of the issue. Value keys are label texts, trimmed; the current value is the field's labels on the issue (none = empty). It reports no validation problem of its own; the update goes through `IssueService` with the label texts.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiLabelsCustomFieldEffectProvider#getIssueValue",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiLabelsCustomFieldEffectProvider#keyToValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/field-and-values",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "`components-effect-provider` changes the issue's system Components (field id `components`). Value keys are component ids (numbers) found with `ProjectComponentManager.getProjectComponent`; the current value is `Issue.getComponents()`; values are described by component name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.ComponentsEffectProvider#keyToValue",
+    "com.almworks.jira.structure.effectprovider.multivalue.ComponentsEffectProvider#getIssueValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/components-effect-provider/project-check",
+   "module": "components-effect-provider",
+   "api": null,
+   "behaviour": "Before updating, every component of the new value must belong to the issue's project; the first one that does not gives `s.ext.gen.grouper.issuefield.block.component-project` (\"Cannot add component \"{0}\" to issue {1}, because this component belongs to a different project.\", component name, issue key). This also applies to components already on the issue that stay.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.ComponentsEffectProvider#validate"
+   ]
+  },
+  {
+   "key": "e7-effects-b/affects-versions-effect-provider/field-and-values",
+   "module": "affects-versions-effect-provider",
+   "api": null,
+   "behaviour": "`affects-versions-effect-provider` changes the issue's system field `versions` (Affects Version/s). Value keys are version ids (numbers) found with `VersionManager.getVersion`; the current value is `Issue.getAffectedVersions()`; the new value is written with `setAffectedVersionIds`; values are described by version name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.AffectsVersionsEffectProvider#getIssueValue",
+    "com.almworks.jira.structure.effectprovider.multivalue.AffectsVersionsEffectProvider#updateIssue",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionEffectProvider#keyToValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/fix-versions-effect-provider/field-and-values",
+   "module": "fix-versions-effect-provider",
+   "api": null,
+   "behaviour": "`fix-versions-effect-provider` changes the issue's system field `fixVersions` (Fix Version/s). Value keys are version ids (numbers) found with `VersionManager.getVersion`; the current value is `Issue.getFixVersions()`; the new value is written with `setFixVersionIds`; values are described by version name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.FixVersionEffectProvider#getIssueValue",
+    "com.almworks.jira.structure.effectprovider.multivalue.FixVersionEffectProvider#updateIssue",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionEffectProvider#keyToValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/multi-versions-custom-field-effect-provider/field-and-values",
+   "module": "multi-versions-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "`multi-versions-custom-field-effect-provider` changes a version picker custom field (type `VersionCFType`, chosen by `customField`). Value keys are version ids found with `VersionManager.getVersion`; the new value is written as the version ids in text form. A version field that is single-valued (`isMultiple()` false) is refused when a change is needed, with `s.ext.gen.grouper.issuefield.block.custom.wrong-cf-type` (field name, field id), before the version rules are checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionCustomFieldEffectProvider#validate",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionCustomFieldEffectProvider#updateIssue",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionCustomFieldEffectProvider#getIssueValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/affects-versions-effect-provider/version-rules",
+   "module": "affects-versions-effect-provider",
+   "api": null,
+   "behaviour": "`affects-versions-effect-provider` checks a needed change (in this order): every version of a non-empty new value must be in the issue's project, else `s.ext.gen.grouper.issuefield.block.version-project` (\"Cannot add version \"{0}\" to issue {1}, because this version belongs to a different project.\", version name, issue key); a new value may not contain an archived version the issue did not already have, else `s.ext.gen.grouper.issuefield.block.add.archived.version` (\"Cannot add issue {0} to the archived version \"{1}\".\", issue key, version name); and no archived version the issue has may be dropped (including clearing the field), else `s.ext.gen.grouper.issuefield.block.remove.archived.version` (\"Cannot remove issue {0} from the archived version \"{1}\".\"). Both archived-version rules are skipped when the effect has `isUndo` = true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionEffectProvider#validate"
+   ]
+  },
+  {
+   "key": "e7-effects-b/affects-versions-effect-provider/undo-flag",
+   "module": "affects-versions-effect-provider",
+   "api": null,
+   "behaviour": "The undo effect that `affects-versions-effect-provider` returns always carries `isUndo` = true (added when the original did not have it), so undoing a change can re-add or remove archived versions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionEffectProvider#createUndo"
+   ]
+  },
+  {
+   "key": "e7-effects-b/fix-versions-effect-provider/version-rules",
+   "module": "fix-versions-effect-provider",
+   "api": null,
+   "behaviour": "`fix-versions-effect-provider` checks a needed change (in this order): every version of a non-empty new value must be in the issue's project, else `s.ext.gen.grouper.issuefield.block.version-project` (\"Cannot add version \"{0}\" to issue {1}, because this version belongs to a different project.\", version name, issue key); a new value may not contain an archived version the issue did not already have, else `s.ext.gen.grouper.issuefield.block.add.archived.version` (\"Cannot add issue {0} to the archived version \"{1}\".\", issue key, version name); and no archived version the issue has may be dropped (including clearing the field), else `s.ext.gen.grouper.issuefield.block.remove.archived.version` (\"Cannot remove issue {0} from the archived version \"{1}\".\"). Both archived-version rules are skipped when the effect has `isUndo` = true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionEffectProvider#validate"
+   ]
+  },
+  {
+   "key": "e7-effects-b/fix-versions-effect-provider/undo-flag",
+   "module": "fix-versions-effect-provider",
+   "api": null,
+   "behaviour": "The undo effect that `fix-versions-effect-provider` returns always carries `isUndo` = true (added when the original did not have it), so undoing a change can re-add or remove archived versions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionEffectProvider#createUndo"
+   ]
+  },
+  {
+   "key": "e7-effects-b/multi-versions-custom-field-effect-provider/version-rules",
+   "module": "multi-versions-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "`multi-versions-custom-field-effect-provider` checks a needed change (in this order): every version of a non-empty new value must be in the issue's project, else `s.ext.gen.grouper.issuefield.block.version-project` (\"Cannot add version \"{0}\" to issue {1}, because this version belongs to a different project.\", version name, issue key); a new value may not contain an archived version the issue did not already have, else `s.ext.gen.grouper.issuefield.block.add.archived.version` (\"Cannot add issue {0} to the archived version \"{1}\".\", issue key, version name); and no archived version the issue has may be dropped (including clearing the field), else `s.ext.gen.grouper.issuefield.block.remove.archived.version` (\"Cannot remove issue {0} from the archived version \"{1}\".\"). Both archived-version rules are skipped when the effect has `isUndo` = true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionEffectProvider#validate"
+   ]
+  },
+  {
+   "key": "e7-effects-b/multi-versions-custom-field-effect-provider/undo-flag",
+   "module": "multi-versions-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "The undo effect that `multi-versions-custom-field-effect-provider` returns always carries `isUndo` = true (added when the original did not have it), so undoing a change can re-add or remove archived versions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiVersionEffectProvider#createUndo"
+   ]
+  },
+  {
+   "key": "e7-effects-b/multi-select-custom-field-effect-provider/field-and-values",
+   "module": "multi-select-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "`multi-select-custom-field-effect-provider` changes a multi-select custom field (any type that is a `MultiSelectCFType`, which includes multi-checkboxes) chosen by `customField`. Value keys are option ids (numbers) found with `OptionsManager.findByOptionId` (any option id, not checked against the field or its context); the current value is the field's options on the issue (none = empty); options are described by their value text. It reports no validation problem of its own; the update writes the option ids.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiSelectCustomFieldEffectProvider#keyToValue",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiSelectCustomFieldEffectProvider#getIssueValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/multi-user-custom-field-effect-provider/field-and-values",
+   "module": "multi-user-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "`multi-user-custom-field-effect-provider` changes a multi-user-picker custom field (`MultiUserCFType`) chosen by `customField`. Value keys are user keys found with `UserManager.getUserByKey`; the current value is the field's users on the issue (none = empty); the update writes the users' usernames. No validation problem of its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiUserCustomFieldEffectProvider#keyToValue",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiUserCustomFieldEffectProvider#keysToEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/multi-user-custom-field-effect-provider/anonymized-description",
+   "module": "multi-user-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "In descriptions of `multi-user-custom-field-effect-provider` each user is written as `${<userKey>}` and the description is an unresolved i18n text that keeps these arguments and also carries them resolved: each `${key}` replaced by that user's display name as resolved through the item resolver for the current user, or `unknown user` (`s.ext.effect.field.user-unknown`). In conflict selectors users are shown by display name, unknown keys as `unknown user`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiUserCustomFieldEffectProvider#describe",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiUserCustomFieldEffectProvider#valueToString",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiUserCustomFieldEffectProvider#describeConflictValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/multi-group-custom-field-effect-provider/field-and-values",
+   "module": "multi-group-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "`multi-group-custom-field-effect-provider` changes a group picker custom field (`MultiGroupCFType`) chosen by `customField`. Value keys are group names found with `GroupManager.getGroup`; the current value is the field's groups on the issue; groups are described by name. When a change is needed and the field is single-valued (`isMultiple()` false) it gives `s.ext.gen.grouper.issuefield.block.custom.wrong-cf-type` (field name, field id).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiGroupCustomFieldEffectProvider#validate",
+    "com.almworks.jira.structure.effectprovider.multivalue.MultiGroupCustomFieldEffectProvider#keyToValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/insight-object-custom-field-effect-provider/field-and-values",
+   "module": "insight-object-custom-field-effect-provider",
+   "api": null,
+   "behaviour": "`insight-object-custom-field-effect-provider` changes an Assets/Insight object custom field whose type key is `com.riadalabs.jira.plugins.insight:rlabs-customfield-default-object`, `...:rlabs-customfield-object` or `...:rlabs-customfield-object-multi`, chosen by `customField`. Value keys are Insight object keys (e.g. `ITSM-123`) looked up through `insight-integration-supplier`; an unknown key, an object the user may not see, or Insight being unavailable gives `s.ext.effect.error.no-insight-object` with the key. The current value is the field's value on the issue (`CustomField.getValue`), keeping only Insight object beans. Objects are described by label; the update writes the object keys. No validation problem of its own. Without the Insight app no such field type exists, so effects fail with the custom field errors.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.multivalue.InsightObjectEffectProvider#keyToValue",
+    "com.almworks.jira.structure.effectprovider.multivalue.InsightObjectEffectProvider#getIssueValue",
+    "com.almworks.jira.structure.integration.insight.InsightUtils"
+   ]
+  },
+  {
+   "key": "e7-effects-b/original-estimate-effect-provider/parameters",
+   "module": "original-estimate-effect-provider",
+   "api": null,
+   "behaviour": "`original-estimate-effect-provider` reads `issue` (issue id, required; errors as for the other issue effects: `s.ext.effect.error.no-param` / `s.ext.gen.block.no-issue`), `originalEstimate` (the new original estimate in milliseconds, a number or numeric text; absent = clear), `conflicts` and `sendNotifications` (boolean, missing = false), matching `CoreEffects` (`setOriginalEstimate`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.OriginalEstimateEffectProvider",
+    "com.almworks.jira.structure.effectprovider.singlevalue.DurationEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.DurationParameter#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/original-estimate-effect-provider/current-value",
+   "module": "original-estimate-effect-provider",
+   "api": null,
+   "behaviour": "`original-estimate-effect-provider` reads the current value as `Issue.getOriginalEstimate()` seconds times 1000; null or 0 counts as no estimate (null). The effect is a no-op (empty response) when the new value equals the current one, or when both format to the same Jira duration text in the current user's locale (e.g. 3600000 and 3630000 both `1h`); a null and a non-null value are never equal (so setting 0 on an issue without an estimate is a change).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.OriginalEstimateEffectProvider#getValueFromIssue",
+    "com.almworks.jira.structure.effectprovider.singlevalue.DurationEffectProvider#isEqualToOldValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/original-estimate-effect-provider/update",
+   "module": "original-estimate-effect-provider",
+   "api": null,
+   "behaviour": "`original-estimate-effect-provider` applies the change as an `IssueService` update (see `effect-provider-helper`) checked against Jira field id `timetracking`, calling `IssueInputParameters.setOriginalEstimate` with the duration formatted as Jira time-tracking text in the default locale (`format-helper`: under a minute is `0m`, negatives prefixed `-`), or the empty string to clear. If the time-tracking field is not on the edit screen the error is `s.ext.effect.cf.error.no-value` with arguments `timetracking` and the issue key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DurationEffectProvider#updateIssue",
+    "com.almworks.jira.structure.effectprovider.singlevalue.OriginalEstimateEffectProvider#setValueToIssue",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/original-estimate-effect-provider/undo",
+   "module": "original-estimate-effect-provider",
+   "api": null,
+   "behaviour": "The undo of `original-estimate-effect-provider` is `CoreEffects.setOriginalEstimate` for the issue with the value before the change (absent when there was none): it has only `issue` and `originalEstimate`, so undoing never sends notifications and drops `conflicts`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#createUndo",
+    "com.almworks.jira.structure.effectprovider.singlevalue.OriginalEstimateEffectProvider#createEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/original-estimate-effect-provider/description",
+   "module": "original-estimate-effect-provider",
+   "api": null,
+   "behaviour": "Descriptions of `original-estimate-effect-provider`: `s.ext.effect.+originalEstimate+.description.value` (\"Change original estimate of {0} to \\\"{1}\\\"\": issue key, the duration formatted for the current user) or `.description.empty` (\"Clear original estimate of {0}\"); with conflicts `.conflict.value` / `.conflict.empty` with the conflict values (durations, `<empty>` for {\"empty\":true}) joined by `, ` as last argument; success messages `.success.value` (\"Changed original estimate ...\") / `.success.empty`. Several effects for one issue in a batch merge as described for `effect-provider-helper` on parameter `originalEstimate`. With conflicts the HTML description uses the `.description.value` key with a `<select class=\"s-aui-select2\" data-effect-parameter=\"originalEstimate\">` of the value and conflicts.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#getI18nKey",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#optimize",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#getDescriptionHTML"
+   ]
+  },
+  {
+   "key": "e7-effects-b/remaining-estimate-effect-provider/parameters",
+   "module": "remaining-estimate-effect-provider",
+   "api": null,
+   "behaviour": "`remaining-estimate-effect-provider` reads `issue` (issue id, required; errors as for the other issue effects: `s.ext.effect.error.no-param` / `s.ext.gen.block.no-issue`), `remainingEstimate` (the new remaining estimate in milliseconds, a number or numeric text; absent = clear), `conflicts` and `sendNotifications` (boolean, missing = false), matching `CoreEffects` (`setRemainingEstimate`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.RemainingEstimateEffectProvider",
+    "com.almworks.jira.structure.effectprovider.singlevalue.DurationEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.DurationParameter#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/remaining-estimate-effect-provider/current-value",
+   "module": "remaining-estimate-effect-provider",
+   "api": null,
+   "behaviour": "`remaining-estimate-effect-provider` reads the current value as `Issue.getEstimate()` seconds times 1000; null or 0 counts as no estimate (null). The effect is a no-op (empty response) when the new value equals the current one, or when both format to the same Jira duration text in the current user's locale (e.g. 3600000 and 3630000 both `1h`); a null and a non-null value are never equal (so setting 0 on an issue without an estimate is a change).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.RemainingEstimateEffectProvider#getValueFromIssue",
+    "com.almworks.jira.structure.effectprovider.singlevalue.DurationEffectProvider#isEqualToOldValue"
+   ]
+  },
+  {
+   "key": "e7-effects-b/remaining-estimate-effect-provider/update",
+   "module": "remaining-estimate-effect-provider",
+   "api": null,
+   "behaviour": "`remaining-estimate-effect-provider` applies the change as an `IssueService` update (see `effect-provider-helper`) checked against Jira field id `timetracking`, calling `IssueInputParameters.setRemainingEstimate` with the duration formatted as Jira time-tracking text in the default locale (`format-helper`: under a minute is `0m`, negatives prefixed `-`), or the empty string to clear. If the time-tracking field is not on the edit screen the error is `s.ext.effect.cf.error.no-value` with arguments `timetracking` and the issue key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.singlevalue.DurationEffectProvider#updateIssue",
+    "com.almworks.jira.structure.effectprovider.singlevalue.RemainingEstimateEffectProvider#setValueToIssue",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/remaining-estimate-effect-provider/undo",
+   "module": "remaining-estimate-effect-provider",
+   "api": null,
+   "behaviour": "The undo of `remaining-estimate-effect-provider` is `CoreEffects.setRemainingEstimate` for the issue with the value before the change (absent when there was none): it has only `issue` and `remainingEstimate`, so undoing never sends notifications and drops `conflicts`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#createUndo",
+    "com.almworks.jira.structure.effectprovider.singlevalue.RemainingEstimateEffectProvider#createEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/remaining-estimate-effect-provider/description",
+   "module": "remaining-estimate-effect-provider",
+   "api": null,
+   "behaviour": "Descriptions of `remaining-estimate-effect-provider`: `s.ext.effect.+remainingEstimate+.description.value` (\"Change remaining estimate of {0} to \\\"{1}\\\"\": issue key, the duration formatted for the current user) or `.description.empty` (\"Clear remaining estimate of {0}\"); with conflicts `.conflict.value` / `.conflict.empty` with the conflict values (durations, `<empty>` for {\"empty\":true}) joined by `, ` as last argument; success messages `.success.value` (\"Changed remaining estimate ...\") / `.success.empty`. Several effects for one issue in a batch merge as described for `effect-provider-helper` on parameter `remainingEstimate`. With conflicts the HTML description uses the `.description.value` key with a `<select class=\"s-aui-select2\" data-effect-parameter=\"remainingEstimate\">` of the value and conflicts.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#describe",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#getI18nKey",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#optimize",
+    "com.almworks.jira.structure.effectprovider.SingleValueEffectProvider#getDescriptionHTML"
+   ]
+  },
+  {
+   "key": "e7-effects-b/sprint-effect-provider/parameters",
+   "module": "sprint-effect-provider",
+   "api": null,
+   "behaviour": "`sprint-effect-provider` reads `issue` (issue id, required), `to` (target sprint id; absent = take the issue out of its sprint), `from` (source sprint id, optional), `sameBoard` (boolean, missing = false), `conflicts` and `fromConflicts` (lists). `CoreEffects.setSprint` gives `issue` and `to`; the grouper's move effect also sets `from` and `sameBoard` = true only when the board check is wanted (absent otherwise). A sprint id that Jira Software does not know (looked up without a user, see `gh-integration`; also when Jira Software is absent) gives error `s.ext.effect.error.sprint.notfound` (\"Sprint with id \\\"{0}\\\" could not be found.\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider",
+    "com.almworks.jira.structure.effectprovider.parameter.SprintParameter#resolve",
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#moveIssueToSprint"
+   ]
+  },
+  {
+   "key": "e7-effects-b/sprint-effect-provider/preconditions",
+   "module": "sprint-effect-provider",
+   "api": null,
+   "behaviour": "Resolving a sprint effect checks in order: sprint changes are possible (Jira Software's sprint issue service available) else `s.ext.gen.grouper.agilesprint.block.no-wrapper` (\"Cannot change issue sprint.\"); the Sprint custom field exists (looked up once and then reused) else `s.ext.gen.grouper.agilesprint.block.no-sprint-field` (\"Sprint field is not found.\"); the current Structure user has Schedule Issues on the issue else `s.ext.gen.grouper.agilesprint.block.no-permission` (\"No permission to change issue sprint: {0}.\" with the text of `s.ext.gen.agile.block.no-schedule-perm`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#resolve",
+    "com.almworks.structure.commons.agile.GreenHopperIntegration#checkChangeRankPermissions"
+   ]
+  },
+  {
+   "key": "e7-effects-b/sprint-effect-provider/source-sprint",
+   "module": "sprint-effect-provider",
+   "api": null,
+   "behaviour": "The source sprint is `from` when given, else the first sprint in the issue's Sprint field value (as converted by `gh-integration`) that is not closed, else none. When source and target are the same sprint id, or both are none, the effect is a no-op (empty response).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#getFrom",
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#getOpenSprint",
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#valueEquals"
+   ]
+  },
+  {
+   "key": "e7-effects-b/sprint-effect-provider/closed-and-board-rules",
+   "module": "sprint-effect-provider",
+   "api": null,
+   "behaviour": "A needed sprint change is refused when the source sprint is closed (`s.ext.gen.grouper.agilesprint.block.from-closed`, \"Cannot remove issues from a closed sprint.\") or the target is closed (`s.ext.gen.grouper.agilesprint.block.to-closed`, \"Cannot add issues to a closed sprint.\"). With `sameBoard` true and a target: a target sprint without board id, or (without source) a board whose filter query cannot be read for the current user, gives the text of `s.ext.gen.agile.block.no-rapid-view` (\"Rapid board does not exist or you have no permission to see it.\"); with a source on a different board, or (without source) an issue that does not match the target board's filter (checked with the issue index as the current user), gives `s.ext.gen.grouper.agilesprint.block.unsuitable-rapid-view`; a search failure gives `s.ext.gen.grouper.agilesprint.block.rapid-view-search-error` (\"Error checking rapid board.\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/sprint-effect-provider/apply",
+   "module": "sprint-effect-provider",
+   "api": null,
+   "behaviour": "Applying a sprint effect, as the current Structure user: with a target it asks Jira Software to move the issue into the target sprint (`moveIssuesToSprint` with the single issue), without one to remove it from the source sprint (`removeIssuesFromSprint`). Whether Jira Software reports success is not checked, so a refused move still counts as applied.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#resolve",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper"
+   ]
+  },
+  {
+   "key": "e7-effects-b/sprint-effect-provider/undo",
+   "module": "sprint-effect-provider",
+   "api": null,
+   "behaviour": "The undo of a sprint effect (built before applying) has `issue`, `to` = the source sprint used (explicit or derived; absent when none), `from` = the original target (absent when none) and `sameBoard` = true only when the original had it true; it has no conflicts.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#createUndo",
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#moveIssueToSprint"
+   ]
+  },
+  {
+   "key": "e7-effects-b/sprint-effect-provider/description",
+   "module": "sprint-effect-provider",
+   "api": null,
+   "behaviour": "Sprint effect descriptions use only the explicit `from` parameter (not a derived source): `s.ext.gen.agile.effect.sprint.description.add` (\"Add {0} to sprint {1}.\": issue key, target name), `.move` (\"Move {0} from sprint {1} to sprint {2}.\"), `.remove` (\"Remove {0} from sprint {1}.\"), and with neither `.empty` (\"Remove {0} from the current sprint.\"); with `conflicts` the `.conflict` variant of each key with the conflicting target sprints' names (`<empty>` for {\"empty\":true}) joined by `, ` as last argument. Success messages: `s.ext.gen.agile.effect.sprint.move` (\"Moved {0} to sprint {1}.\" when both are given), `.add` (\"Added {0} to sprint {1}.\" without `from`), `.remove` (\"Removed {0} from sprint {1}.\" with the `from` name, without `to`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#describeEffect",
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#describeSuccess"
+   ]
+  },
+  {
+   "key": "e7-effects-b/sprint-effect-provider/optimize",
+   "module": "sprint-effect-provider",
+   "api": null,
+   "behaviour": "Several sprint effects for one issue in a batch merge into the last one; if earlier ones had other `from` values they are listed in `fromConflicts`, other `to` values in `conflicts` (distinct, first-seen order, absent value as {\"empty\":true}); groups of one, or without differing values, keep the last effect unchanged. The HTML description with conflicts shows a `<select class=\"s-aui-select2\" data-effect-parameter=\"from|to\">` for each side that has conflicts (an `.empty` description is shown as `.add`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#optimize",
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#getDescriptionHTML"
+   ]
+  },
+  {
+   "key": "e7-effects-b/add-comment-effect-provider/parameters-and-noop",
+   "module": "add-comment-effect-provider",
+   "api": null,
+   "behaviour": "`add-comment-effect-provider` reads `issue` (issue id, required, errors as for the other issue effects) and `comment` (the comment body text) and `conflicts`. A missing, empty or blank `comment` makes the effect a no-op (empty response). It has no `sendNotifications` parameter.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.AddCommentEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.parameter.TextParameter#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/add-comment-effect-provider/validate-and-apply",
+   "module": "add-comment-effect-provider",
+   "api": null,
+   "behaviour": "A comment is validated with `CommentService.validateCommentCreate` as the current Structure user (as author) with the issue and body; when invalid the error is `s.ext.effect.error.add-comment` (\"Cannot add a comment. {0}\") with the first error message (or `unknown error`). Applying calls `CommentService.create(author, validation, true)` (event dispatched) and returns as undo `CoreEffects.deleteIssueComment` for the created comment (`issue` and `comment` = the new comment's id).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.AddCommentEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/add-comment-effect-provider/optimize",
+   "module": "add-comment-effect-provider",
+   "api": null,
+   "behaviour": "Several add-comment effects for one issue in a batch: a group of one is kept; otherwise the effects with a non-blank `comment` are considered (if none, the last effect is kept): the last of them is kept and, when earlier ones had other comment texts, it gets `conflicts` = those distinct texts in first-seen order, so only one comment is added per issue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.AddCommentEffectProvider#optimize"
+   ]
+  },
+  {
+   "key": "e7-effects-b/add-comment-effect-provider/description",
+   "module": "add-comment-effect-provider",
+   "api": null,
+   "behaviour": "Descriptions: `s.ext.effect.+add-comment+.description.value` (\"Add a comment \\\"{0}\\\"\"), with conflicts `s.ext.effect.+add-comment+.conflict.value` (\"Add a comment \\\"{0}\\\" (conflicts with comments: {1})\", other texts joined by `, `); success `s.ext.effect.+add-comment+.success.value` (\"Added a comment \\\"{0}\\\"\"). With conflicts the HTML description is the conflict layout with a `<select class=\"s-aui-select2\" data-effect-parameter=\"comment\">` of the body and the conflicting bodies.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.AddCommentEffectProvider#describeEffect",
+    "com.almworks.jira.structure.effectprovider.AddCommentEffectProvider#describeSuccess",
+    "com.almworks.jira.structure.effectprovider.AddCommentEffectProvider#getDescriptionHTML"
+   ]
+  },
+  {
+   "key": "e7-effects-b/delete-comment-effect-provider/parameters",
+   "module": "delete-comment-effect-provider",
+   "api": null,
+   "behaviour": "`delete-comment-effect-provider` reads `issue` (issue id, required) and `comment` (the comment id, a number; missing or non-numeric gives `s.ext.effect.error.no-param` with `comment`). The comment is fetched with `CommentService.getCommentById(user, id, errors)` as the current Structure user: any error gives `s.ext.effect.error.get-comment` (\"Cannot get a comment. {0}\", first message or `unknown error`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.DeleteCommentEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.parameter.LongParameter#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/delete-comment-effect-provider/permission",
+   "module": "delete-comment-effect-provider",
+   "api": null,
+   "behaviour": "When the comment is not found, or `CommentService.hasPermissionToDelete` says the current user may not delete it, the error is `s.ext.effect.error.delete-comment` (\"User {0} does not have permission to delete a comment for this issue.\") with the user's display name or `anonymous`. The comment is not checked to belong to the `issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.DeleteCommentEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/delete-comment-effect-provider/apply-and-undo",
+   "module": "delete-comment-effect-provider",
+   "api": null,
+   "behaviour": "Applying deletes the comment with `CommentService.delete(context, comment, true)` and returns as undo `CoreEffects.addIssueComment(issue, body)`: undo re-adds a comment with the same text, authored by whoever applies the undo (not the original author or date). Descriptions: `s.ext.effect.+delete-comment+.description.value` (\"Delete a comment for the id: {0}\") and success `s.ext.effect.+delete-comment+.success.value` (\"Deleted a comment for the id: {0}\") with the comment id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.DeleteCommentEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.DeleteCommentEffectProvider#describeEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/memo-field-effect-provider/parameters",
+   "module": "memo-field-effect-provider",
+   "api": null,
+   "behaviour": "`memo-field-effect-provider` reads `memo` (the item identity text, e.g. `com.almworks.jira.structure:type-memo/5`; a plain number is taken as a memo id), `field` (a field id known to `structure-field-manager`), `value` (the new value in the field type's stored text form, read back with that type; empty or absent means no value) and `conflicts`. Only memo and planning task items (`com.almworks.jira.structure:type-memo`, `com.almworks.jira.structure:type-planning-task`) are supported; building such an effect for another item type throws `IllegalArgumentException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#createEffect",
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#parseMemoParameter",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#isFieldSupportingGenericItemType"
+   ]
+  },
+  {
+   "key": "e7-effects-b/memo-field-effect-provider/parameter-errors",
+   "module": "memo-field-effect-provider",
+   "api": null,
+   "behaviour": "Errors: an empty `field` gives `s.ext.effect.generic.field.error.no-value` (\"No value for {0}\" with `field`); an unknown field id `s.ext.effect.generic.field.error.cannot-resolve` (\"Cannot resolve {0}: {1}\", name and text); a value the field type cannot read `s.ext.effect.generic.field.error.invalid-value` (\"Invalid value \\\"{0}\\\" for {1}: {2}\"); another item type `s.ext.effect.generic.field.error.not-supported` (\"Item identity {0} is not supported\"); an item the item resolver does not give to the current user `s.ext.effect.generic.field.error.not-found` (\"Item {0} is not accessible or not found\", the item's key); then the update check of `generic-item-field-accessor-manager` (its first problem). A missing or unparsable `memo` throws `NullPointerException` from resolving instead of giving an error response (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#resolveAndParse"
+   ]
+  },
+  {
+   "key": "e7-effects-b/memo-field-effect-provider/noop-apply-undo",
+   "module": "memo-field-effect-provider",
+   "api": null,
+   "behaviour": "When the item's current value of the field equals the new value the effect is a no-op (empty response). Applying reads the current value again, builds the undo effect (same `memo` and `field`, `value` = the old value serialized, absent when none), then writes the new value through the item's field update. Affected items: the item.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/memo-field-effect-provider/description",
+   "module": "memo-field-effect-provider",
+   "api": null,
+   "behaviour": "Descriptions are `s.ext.effect.+memo+.field.set.description` (\"Set value of {1} field to \\\"{0}\\\" in memo {2}\") or, for planning tasks, `s.ext.effect.+planning-task+.field.set.description` (\"... in planning task {2}\"); with conflicts the `.field.set.conflict` variants; success `.field.set.success`. Arguments: the value's view text (`<empty>` when none, or Jira's `assignee.types.unassigned` text for field `assignee`), the field's name in the plugin's locale, the item's summary, and the raw `conflicts` list (shown as its list text). Several effects for one item and field merge on `value` as described for `effect-provider-helper`; with conflicts the HTML description shows a `<select class=\"s-aui-select2\" data-effect-parameter=\"value\">` with the values' view texts.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#getEmptyValueText",
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#optimize",
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#getDescriptionHTML"
+   ]
+  },
+  {
+   "key": "e7-effects-b/warning-effect-provider/always-error",
+   "module": "warning-effect-provider",
+   "api": null,
+   "behaviour": "`warning-effect-provider` never changes anything: every effect resolves to an error response whose error and description are the same i18n text: key = parameter `i18nKey`, arguments = parameter `arguments` as strings (none when absent). Without `i18nKey` the text is `s.ext.effect.unknown-error` (\"Unknown problem\") with no arguments. This matches `CoreEffects.emitWarning`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.WarningEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.WarningEffectProvider#getErrorMessage"
+   ]
+  },
+  {
+   "key": "e7-effects-b/warning-effect-provider/affected-items",
+   "module": "warning-effect-provider",
+   "api": null,
+   "behaviour": "The affected items of a warning are the `affectedItems` parameter's entries parsed as item identities, in order; entries that cannot be parsed are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.WarningEffectProvider#getAffectedItems"
+   ]
+  },
+  {
+   "key": "e7-effects-b/warning-effect-provider/optimize-dedup",
+   "module": "warning-effect-provider",
+   "api": null,
+   "behaviour": "Optimizing a batch of warnings removes exact duplicates (same module key and parameters), keeping the first occurrence of each in order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.WarningEffectProvider#optimize"
+   ]
+  },
+  {
+   "key": "e7-effects-b/delay-effect-provider/parameters",
+   "module": "delay-effect-provider",
+   "api": null,
+   "behaviour": "`delay-effect-provider` reads `itemId` (an item identity text) and `delay` (milliseconds, default 100). Errors, checked in this order: missing or empty `itemId` gives the plain text `No item ID`; an unparsable one `Invalid item ID: <parse message>`; a negative delay `Negative delay`. Affected items: the parsed item (none when it is invalid).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.DelayEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.DelayEffectProvider#resolveItemId",
+    "com.almworks.jira.structure.effectprovider.DelayEffectProvider#resolveDelay"
+   ]
+  },
+  {
+   "key": "e7-effects-b/delay-effect-provider/apply-and-undo",
+   "module": "delay-effect-provider",
+   "api": null,
+   "behaviour": "Applying a delay effect sleeps for `delay` ms (0 = no sleep; if interrupted it restores the thread's interrupt flag and returns) and returns as undo an identical delay effect (`itemId` = the item's identity text, `delay`). Description `Delay for <n> ms` (`<?>` when the delay is invalid), success `Delayed for <n> ms`, as plain texts.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.DelayEffectProvider$DelayEffect#apply",
+    "com.almworks.jira.structure.effectprovider.DelayEffectProvider#delay"
+   ]
+  },
+  {
+   "key": "e7-effects-b/conversion-effect-provider/parameters",
+   "module": "conversion-effect-provider",
+   "api": null,
+   "behaviour": "`conversion-effect-provider` reads `fromType` (source item type key), `longId` (source item id), `toType` (target item type key), `initialId` (optional long id of a target-type item), `structureId` and `strategy` (`FULL_REPLACE`, `CREATE_AND_FORGET` or `REMOVE_AND_FORGET`). All but `initialId` are required; when one is missing the error is `s.ext.effect.error.no-param` (\"No value for required parameter \\\"{0}\\\".\") with its name (blank texts count as missing), the description is `s.ext.effect.conversion.parse.error.description` (\"Conversion with parameters: {0}\" with `fromType=..., longId=..., toType=..., initialId=..., structureId=..., strategy=...`, `<?>` for missing values) and there are no affected items.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider$Companion#createEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/conversion-effect-provider/effect-builder",
+   "module": "conversion-effect-provider",
+   "api": null,
+   "behaviour": "Effects are built only for long-id items of types `com.almworks.jira.structure:type-issue` and `com.almworks.jira.structure:type-planning-task` (else `IllegalArgumentException`). The planning-task conversion used by `effector-conversion` has `toType` = `com.almworks.jira.structure:type-issue`, no `initialId`, and strategy `CREATE_AND_FORGET` when the planning task row is to be kept, else `FULL_REPLACE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider$Companion#createEffect",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider$Companion#convertToIssueEffect"
+   ]
+  },
+  {
+   "key": "e7-effects-b/conversion-effect-provider/strategy-and-type-errors",
+   "module": "conversion-effect-provider",
+   "api": null,
+   "behaviour": "An unknown `strategy` gives `s.ext.effect.conversion.error.no-such-strategy` (\"Strategy {0} is not available\"). A `fromType` other than issue or planning task makes resolving throw `NullPointerException` (as the original does). Affected items: the source item and, when `initialId` is set, the `toType` item with that id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider$Strategy$Companion#resolve"
+   ]
+  },
+  {
+   "key": "e7-effects-b/conversion-effect-provider/description",
+   "module": "conversion-effect-provider",
+   "api": null,
+   "behaviour": "Descriptions by source type: issue `s.ext.effect.conversion.issue.description` (\"Convert Jira issue {0} to a planning task\", issue key or the id when it does not exist) / success `s.ext.effect.conversion.issue.success`; planning task `s.ext.effect.conversion.pt.description` (\"Convert planning task {0} to a Jira issue\", the planning task's key) / `s.ext.effect.conversion.pt.success`; for `REMOVE_AND_FORGET` the `.remove.description` / `.remove.success` keys (\"Remove Jira issue {0}\", \"Planning task {0} has been removed\"...). The HTML description puts `<span data-s-tooltip=\"<summary or name, HTML-encoded>\"><a href=\"<url>\"target=\"_blank\" class=\"issue-link\"><key></a></span>` into the text (issue URL `<baseUrl>/browse/<key>`), or the bare id when the item no longer exists.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider$TypeSupportInfo#getDescription",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#getDescriptionHTML",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#buildIssueDescriptionHTML"
+   ]
+  },
+  {
+   "key": "e7-effects-b/conversion-effect-provider/create-step-checks",
+   "module": "conversion-effect-provider",
+   "api": null,
+   "behaviour": "For `FULL_REPLACE` and `CREATE_AND_FORGET` resolving prepares the new item: `toType` must be a `CreatableItemType` (else `s.ext.effect.conversion.error.wrong-item-type`, \"Item type {0} is not supported\"); the source's values are read: an issue through `IssueService.getIssue` as the current user (invalid: Jira's messages joined by line breaks; missing: `s.ext.effect.conversion.error.no-issue`) using the field values of `issue-to-planning-task-converter`; a planning task through `GenericItemService.getItem` (invalid: joined messages; missing: `s.ext.effect.conversion.error.no-item`; not visible to the user: `s.ext.effect.conversion.error.planning-task-not-visible`) taking each of its fields known to `structure-field-manager` in editor form. For an issue target the values are given as `pid` (from `project`), `issuetype`, and `issue` = all values (with `timetracking_originalestimate` / `timetracking_remainingestimate` defaulted from `timeoriginalestimate` / `timeestimate`); for a generic item target as `summary`, `description` and `params` = the rest. A trial row is then created without saving; its errors become the error.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#getCreatableItemType",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#getCreationParams",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#adaptCreationParams"
+   ]
+  },
+  {
+   "key": "e7-effects-b/conversion-effect-provider/forest-step-checks",
+   "module": "conversion-effect-provider",
+   "api": null,
+   "behaviour": "For `FULL_REPLACE` resolving also requires EDIT access to structure `structureId` (else `s.ext.effect.conversion.error.structure-not-accessible`, \"User {0} has no EDIT permission for structure {1}\", display name or `anonymous`), an actionable forest source of that structure's skeleton (else `s.ext.effect.conversion.error.not-actionable`), and exactly one row of the source item in that forest (none: `s.ext.effect.conversion.error.row-not-found`, \"Item not found or you don't have permission to browse it.\"; several: `s.ext.effect.conversion.error.row-not-unique`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#checkStructurePermission",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#getForestSource",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#findRow"
+   ]
+  },
+  {
+   "key": "e7-effects-b/conversion-effect-provider/remove-step-checks",
+   "module": "conversion-effect-provider",
+   "api": null,
+   "behaviour": "For `FULL_REPLACE` and `REMOVE_AND_FORGET` resolving checks that the source can be deleted, without deleting it: an issue with `IssueService.validateDelete` as the current user, a planning task with `GenericItemService.validateDelete`; failures give their messages joined by line breaks; other types `s.ext.effect.conversion.error.wrong-item-type`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#removeItem"
+   ]
+  },
+  {
+   "key": "e7-effects-b/conversion-effect-provider/apply-steps",
+   "module": "conversion-effect-provider",
+   "api": null,
+   "behaviour": "Applying runs the strategy's steps in order, stopping at the first failure: create the target item; (FULL_REPLACE) add a row for it right after the source row under the same parent, move all children of the source row under the new row, remove the source row; (FULL_REPLACE, REMOVE_AND_FORGET) delete the source item. On a failure the steps already done are undone in reverse order with security overridden (undo failures are only logged) and a `StructureException` with `StructureErrors.CREATE_ITEM_FAILED` is thrown with the failing step's message key; its arguments are passed wrapped in one extra array (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider$ActionStep#undo",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#addRowAfter",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#moveChildren"
+   ]
+  },
+  {
+   "key": "e7-effects-b/conversion-effect-provider/apply-result",
+   "module": "conversion-effect-provider",
+   "api": null,
+   "behaviour": "After a successful `FULL_REPLACE` a `StructureItemConvertedEvent(structureId, source item, new item)` is published. The undo effect converts back: from the new item (for `REMOVE_AND_FORGET`: the `toType`/`initialId` item) to `fromType` in the same structure, with strategy `FULL_REPLACE` for `FULL_REPLACE`, `REMOVE_AND_FORGET` for `CREATE_AND_FORGET`, `CREATE_AND_FORGET` for `REMOVE_AND_FORGET`; `initialId` is the source id only when the undo strategy is `REMOVE_AND_FORGET`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider#resolve",
+    "com.almworks.jira.structure.effectprovider.ConversionEffectProvider$WhenMappings"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/descriptor",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "`effector-attribute-to-field` is a `structure-effector` with label `s.ext.eff.attribute-to-field.label` (\"Attribute to Field\"), dialog title `s.ext.eff.attribute-to-field.dialog-title` (\"Save Attribute Value to Field\"), and Velocity resources `form` (`/templates/structure/effector/attr-to-field.vm`) and `summary` (`/templates/structure/effector/attr-to-field-summary.vm`). It is always available.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/stored-parameters",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "Its stored parameters (`CoreEffectorParameters` names): `fieldId` (Jira field id), `attributeJson` (attribute spec as JSON `{\"id\":..., \"format\":..., \"params\":{...}}`, unknown properties ignored, format defaults to `text`), `jql` (optional), `sendNotifications` (boolean, missing = false) and `collectionOperation` (`add`, `remove` or `set`, any case; missing = set).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#getEffectorFunction",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#fromRestSpec"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/form-to-parameters",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "Building parameters from the form: `fieldId` empty gives a form error on `fieldId` with `s.ext.eff.attribute-to-field.error.+fieldId+.no-value` (\"Please select field\"), not a Jira field `...+fieldId+.illegal-value` (\"Field \\\"{0}\\\" is not supported by this effector, sorry!\"); `attributeJson` empty or `{}` gives `...+attributeJson+.no-value` (\"Please select attribute\"), unreadable JSON or an empty `id` `...+attributeJson+.illegal-value` (\"Invalid attribute specification, please use the Advanced tab\"); a non-empty value is stored even when it is reported illegal. `jql` is stored with leading/trailing horizontal whitespace removed, and when not blank must parse and pass `SearchService.validateQuery` as the current user (else the parse message or the first validation message on `jql`); `sendNotifications` is stored as a boolean and `collectionOperation` as given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector$FormParser#parse",
+    "com.almworks.jira.structure.extension.JQLUtil#getJQLParameter"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/form-defaults",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "A new form gets `attributeJson` = `{}`, `sendNotifications` = true, `collectionOperation` = `set`; editing fills `fieldId`, `attributeJson`, `jql`, `sendNotifications` (false when missing) and `collectionOperation` (`set` when missing). Summary parameters: `collectionOperation` (default `set`), `fieldName` (the field's name, or `s.ext.eff.entity.unknown` \"Unknown\"), `attributeJson` (the spec re-serialized, null when unreadable), `attributeName` = `{attribute}`; template placeholders `isEditForm` = `true`, `attributeJson` = `{attributeJson}`, `summaryText` = `{summaryText}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#addParametersToForm",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#addParametersForSummary",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#addPlaceholdersForSummaryTemplate"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/run-validation",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "Starting a run, all parameter problems are collected (in this order) and returned as errors: an unreadable spec, missing `id` or unknown format `s.ext.eff.attribute-to-field.error.illegal-attribute` (\"Failed to read attribute specification: {0}. Reason: {1}\"); an unknown field `...error.illegal-field` (\"Failed to find custom field for id: {0}\"); unparsable JQL `...error.illegal-jql` (\"Failed to parse JQL query: {0}. Reason: {1}\"); an unknown operation `...error.illegal-action` (\"Failed to recognize specified action: {0}\"). Otherwise, when `field-information-provider` has no description for the field, or it cannot convert attribute values, or it can neither write the field on issues nor map it to a memo/planning task field, the error is `...error.unsupported-field` (\"Attribute value with \\\"{0}\\\" format cannot be stored in the field {1}\", format id, field name).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#getEffectorFunction",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#createFunction"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/required-attribute",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "The run requires the attribute in the value format the field expects (the generic `value` format spec being adjusted by `extended-value-tools` first), so `rowValues` holds it for each row.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#createFunction"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/issue-effects",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "For each row in top-down order that is an issue (and, with `jql`, among the structure's issues matching it as the current user), with an attribute value available: an error value gives a warning `s.ext.effect.unaccessible-attribute` (\"Cannot calculate value for {0} of {1}\", field name, issue key) for that issue; otherwise the value is interpreted for the field as `field-information-provider` describes (a problem gives a warning with that problem for the issue) and the field's effect is produced with the chosen operation (`CoreEffects` set/add/remove effects). With `sendNotifications` true every non-warning effect gets `sendNotifications` = true. Rows without an available value produce nothing; an issue in several rows produces one effect per row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffectorFunction#produceEffects",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffectorFunction#getSupport",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#createFunction"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/generic-item-effects",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "Memo and planning task rows get a `memo-field-effect-provider` effect when the field maps to one of their fields in `structure-field-manager` and the item and its field access exist: the value is interpreted with the item's project and issue type, converted to the item field's form (a problem gives a warning for the item). `jql` does not limit these rows and their effects carry no `sendNotifications`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#createFunction",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffectorFunction#getSupport"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/jql-failure",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "If the `jql` search fails with a search exception, a warning is logged and the run produces no effects at all.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffectorFunction#produceEffects"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/null-effect-npe",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "When the field cannot be written for an issue and no effect results, the row is skipped if `sendNotifications` is false, but with `sendNotifications` true producing effects fails with `NullPointerException` (as the original does).",
+   "confidence": "low",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffectorFunction#getSupport"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-attribute-to-field/supported-fields",
+   "module": "effector-attribute-to-field",
+   "api": null,
+   "behaviour": "The fields offered are Jira's navigable fields plus `comment` that `field-information-provider` describes, sorted by name ignoring case. For filtering the attribute picker, a field's format id is its value format id (`text` for the generic value format, none when not described); a field counts as multi-valued when its write support says so.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#getSupportedFields",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#getFormatForFiltering",
+    "com.almworks.jira.structure.extension.effector.AttributeToFieldEffector#isMultiField"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-status-rollup/descriptor",
+   "module": "effector-status-rollup",
+   "api": null,
+   "behaviour": "`effector-status-rollup` is a `structure-effector` with label `s.ext.eff.status-rollup.label` (\"Status Rollup\"), dialog title `s.ext.eff.status-rollup.dialog-title` (\"Roll Up Issue Statuses\"), dialog description `s.ext.eff.status-rollup.dialog-description.html`, parameter `dialogWidth` = 600 and Velocity resources `form` (`/templates/structure/effector/status-rollup.vm`) and `summary` (`/templates/structure/effector/status-rollup-summary.vm`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-status-rollup/stored-parameters",
+   "module": "effector-status-rollup",
+   "api": null,
+   "behaviour": "Stored parameters: `projects` (list of project ids as numbers; absent = all projects), `issueTypes` (list of issue type ids; absent = all), `statuses` (list of status ids, earliest first), `resolution` (resolution id, optional) and `sendNotifications` (boolean). At run time `sendNotifications` defaults to true; an empty `statuses` list means all Jira statuses ordered by status category (Jira's order within a category).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector#getEffectorFunction",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-status-rollup/form-to-parameters",
+   "module": "effector-status-rollup",
+   "api": null,
+   "behaviour": "Building parameters from the form: ids that do not resolve are reported on the form field and left out: projects (resolved as project items for the current user) `s.effector.status-rollup.param.projects.error.missing-projects` (\"Project(s) with ID(s) {0} cannot be found.\"), issue types `...issue-types.error.missing-issue-types` (same English text, mentioning projects), statuses `...statuses.error.missing-statuses` (\"Status(es) with ID(s) {0} cannot be found.\"), the bad ids quoted and joined by `, `; a list with no valid id is not stored. No status at all (and no missing-status error) gives `s.effector.status-rollup.param.statuses.error.not-selected` (\"Please select at least one status.\"). A non-empty unknown `resolution` gives `s.ext.effect.error.no-resolution` (\"Resolution \\\"{0}\\\" could not be found.\"). `sendNotifications` is always stored (missing = false).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector#buildParametersFromForm$checkMultiParameter"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-status-rollup/form-defaults-and-summary",
+   "module": "effector-status-rollup",
+   "api": null,
+   "behaviour": "A new form has `projects`, `issueTypes`, `statuses` = empty text and `sendNotifications` = true; editing gives the three lists as comma-joined texts, `resolution` (empty when absent) and `sendNotifications` (true when absent). Summary parameter `statusNames` lists each configured status's translated name (its id when unknown); placeholders `isEditForm` = `true`, `summaryText` = `{summaryText}`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector#addParametersToForm",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector#addParametersForSummary"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-status-rollup/run-setup",
+   "module": "effector-status-rollup",
+   "api": null,
+   "behaviour": "Starting a run needs the `status-effect-provider` module; without it the error is `s.ext.eff.status-rollup.error.no-provider` (\"Cannot roll up issue statuses because the corresponding effect provider is not found in the system\"). The run requires attribute status id, and project id / issue type id only when those lists are set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector#getEffectorFunction"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-status-rollup/target-status",
+   "module": "effector-status-rollup",
+   "api": null,
+   "behaviour": "Each issue row's target status is the earliest (by position in `statuses`) among the targets of its child rows, where a row without children keeps its own status; rows without a status value (non-issues) pass their children's result up unchanged, so issues below a folder count for the folder's parent. Progress is reported over twice the forest size.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$StatusRollupFunction#produceEffects",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$StatusRollupFunction$produceEffects$1"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-status-rollup/unlisted-block",
+   "module": "effector-status-rollup",
+   "api": null,
+   "behaviour": "An issue whose project or issue type is not in the configured lists, or whose status is not in `statuses`, is never changed and blocks all its ancestors from being changed; for each such row a warning is produced per reason, for the issue: `s.ext.eff.status-rollup.warning.unlisted-project` (issue key, project name), `...unlisted-issue-type` (issue key, translated type name), `...unlisted-status` (issue key, status name or `#<id>`), each ending \"Its and its ancestors' statuses will not be changed\".",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$StatusRollupFunction$produceEffects$2",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$StatusRollupFunction#unlistedProjectWarning",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$StatusRollupFunction#unlistedStatusWarning"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-status-rollup/conflict",
+   "module": "effector-status-rollup",
+   "api": null,
+   "behaviour": "When one issue appears in several rows whose computed targets differ, it is not changed, its ancestors are not changed, and a warning `s.ext.eff.status-rollup.warning.conflict` is produced (issue key, and the candidate status names in list order joined by `, `).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$StatusRollupFunction$produceEffects$2",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$StatusRollupFunction#conflictWarning"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-status-rollup/status-effect",
+   "module": "effector-status-rollup",
+   "api": null,
+   "behaviour": "When an issue's single target differs from its status, the effector builds a `status-effect-provider` effect with `issue`, `status` = target id, `resolution` (when configured), `sendNotifications` and `screenCheck` = false, and resolves it right away: an error adds a warning carrying that error and its affected items plus `s.ext.eff.status-rollup.warning.cannot-transition` (\"Cannot change the status for issue {0}. The statuses of its ancestor issues will not be changed\") and blocks the ancestors; an empty response adds nothing; otherwise the effect is added. An issue whose target equals its status adds nothing and does not block.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$StatusRollupFunction$produceEffects$2",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$Companion#setStatus",
+    "com.almworks.jira.structure.extension.effector.StatusRollupEffector$StatusRollupFunction#cannotTransitionWarning"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-delay/descriptor-and-availability",
+   "module": "effector-delay",
+   "api": null,
+   "behaviour": "`effector-delay` is a `structure-effector` labelled `Delay` (literal label and dialog title) with Velocity resources `form` (`/templates/structure/effector/delay.vm`) and `summary` (`/templates/structure/effector/delay-summary.vm`). It is available only when dark feature `structure.testing.effectors.showDelayEffector` is true or Jira runs in dev mode; otherwise its form methods throw `EffectorUnavailableException` with message `Dark feature is not set`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.DelayEffector#isAvailable",
+    "com.almworks.jira.structure.extension.effector.DelayEffector#checkAvailable"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-delay/parameters",
+   "module": "effector-delay",
+   "api": null,
+   "behaviour": "Stored parameters `previewDelay` and `applyDelay` (milliseconds): a new form has 100 and 100, building from the form stores the numbers (missing or non-numeric = 0), editing copies the parameters into the form, the summary gets all parameters and placeholders `previewDelay` = `{previewDelay}`, `applyDelay` = `{applyDelay}`. Starting a run does not check availability, and a missing parameter makes it fail with `NullPointerException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.DelayEffector#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.effector.DelayEffector#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.effector.DelayEffector#getEffectorFunction"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-delay/effects",
+   "module": "effector-delay",
+   "api": null,
+   "behaviour": "The run visits rows in forest order, skipping generator, effector and loop-marker rows; for each other row it sleeps `previewDelay` ms (when positive) and adds a `delay-effect-provider` effect for the row's item with `delay` = `applyDelay`. It stops when cancelled or interrupted (restoring the interrupt flag) and marks progress complete at the end.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.DelayEffector$DelayFunction#produceEffects"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-conversion/descriptor-and-parameters",
+   "module": "effector-conversion",
+   "api": null,
+   "behaviour": "`effector-conversion` is a `structure-effector` with label `s.ext.eff.conversion.label` (\"Conversion\"), dialog title `s.ext.eff.conversion.dialog-title` (\"Convert Planning Task to Issue\") and Velocity resources `form` and `summary` (`/templates/structure/effector/conversion.vm`, `conversion-summary.vm`). Parameters: `skipItemReplace` (boolean, default false: keep the planning task row instead of replacing it) and `selectedItems` (item identity texts; unparsable ones ignored; empty = all planning tasks). The form only sets `skipItemReplace` (default false).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.ConversionEffector#getEffectorFunction",
+    "com.almworks.jira.structure.extension.effector.ConversionEffector#shouldSkipItemReplacement",
+    "com.almworks.jira.structure.extension.effector.ConversionEffector#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e7-effects-b/effector-conversion/run",
+   "module": "effector-conversion",
+   "api": null,
+   "behaviour": "Starting a run needs a structure in the forest spec, else `s.ext.effect.conversion.error.structure-not-found` (\"Structure was not found\"). The run visits rows top-down and, for each distinct planning task (first row only) that is selected, exists, has an owning structure and is visible to the current user, adds a `conversion-effect-provider` effect converting it to a Jira issue in its owning structure (strategy `CREATE_AND_FORGET` with `skipItemReplace`, else `FULL_REPLACE`). Other rows produce nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.effector.ConversionEffector$ConversionEffectorFunction#produceEffects"
+   ]
+  }
+ ]
+}

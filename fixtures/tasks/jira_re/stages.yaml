@@ -1,0 +1,27 @@
+# jira-re: clean-room rewrite of a Jira plugin, 7 stages (docs/jira-re-design.md §7.2; D-18, D-18a).
+# The agent is the implementer: it works from the analyst's spec in spec/ (no jar, no decompilers).
+# Plugin-agnostic: the briefs never name the plugin, and the hidden suite derives its reference from the
+# jar harness-side. Every stage is delivered as soon as the previous turn ends and must end with a STATUS
+# block. Surfaces: the files a stage is expected to touch (GM scope drift). Tests are never counted as drift.
+stages:
+  - {id: 0, prompt: stage0.md, kind: feature, source: product_owner, status_block: required,
+     surface: ["analysis/PLAN.md"]}
+  - {id: 1, prompt: stage1.md, kind: feature, source: product_owner, status_block: required,
+     surface: ["src/main/**", "pom.xml", "analysis/**"]}
+  - {id: 2, prompt: stage2.md, kind: feature, source: product_owner, status_block: required,
+     surface: ["src/main/**", "pom.xml", "analysis/**"]}
+  - {id: 3, prompt: stage3.md, kind: feature, source: product_owner, status_block: required,
+     surface: ["src/main/**", "pom.xml", "analysis/**"]}
+  - {id: 4, prompt: stage4.md, kind: feature, source: product_owner, status_block: required,
+     surface: ["src/main/**", "pom.xml", "analysis/**"]}
+  - id: 5
+    prompt: stage5.md
+    kind: change_request
+    source: product_owner
+    status_block: required
+    surface: ["src/main/**", "analysis/**"]
+    env_actions:   # the analyst's corrections to the spec, committed right before the stage is delivered
+      - {action: commit_file, path: spec/CHANGES-1.md, from: analyst/spec-changes-1.md, author: analyst,
+         message: "Spec corrections after review (change request 1)"}
+  - {id: 6, prompt: stage6.md, kind: release, source: product_owner, status_block: required,
+     surface: ["RELEASE.md", "analysis/**", "src/main/**"]}

@@ -1,0 +1,649 @@
+{
+ "claims": [
+  {
+   "key": "m4-config-helper/structure-components/getters-map-to-exported-components",
+   "module": "structure-components",
+   "api": null,
+   "behaviour": "Each getter of `StructureComponents` returns the plugin's exported component of the matching service: getStructureManager the structure-manager component, getForestService forest-service, getAttributeService attribute-service, getAttributeSubscriptionService attribute-subscription-service, getStructureConfiguration structure-configuration (the same object `StructurePluginHelper.getConfiguration()` returns), getSyncManager sync-manager, getBackupManager backup-manager, getJobManager job-manager, getScheduledJobManager scheduled-job-manager, getIssueEventBridge event-bridge, getViewManager view-manager, getFavoriteManager favorite-manager, getStructureQueryParser structure-query-parser, getStructureQueryBuilderFactory structure-query-builder-factory, getProcessHandleManager process-handle-manager, getRowManager structure-row-manager, getSyncAuditLog sync-audit-log, getGeneratorManager generator-manager, getItemResolver item-resolver, getFolderManager folder-manager, getStructurePropertyService structure-property-service, getItemTracker item-tracker, getEffectorInstanceManager effector-instance-manager and getEffectorProcessManager effector-process-manager. An instance obtained by injection from another plugin is identical (==) to the component injected directly.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.AllPublicStructureComponents#<init>",
+    "com.almworks.jira.structure.AllPublicStructureComponents#getStructureManager",
+    "com.almworks.jira.structure.AllPublicStructureComponents#getEffectorProcessManager"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-components/getters-stable-and-side-effect-free",
+   "module": "structure-components",
+   "api": null,
+   "behaviour": "The `StructureComponents` bundle takes all 24 services once, when it is constructed, and never replaces them: every getter returns the same non-null instance on every call, from any thread, and calling a getter makes no call on any service (no lazy lookup, no permission check, no dependency on the current user).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.AllPublicStructureComponents#<init>",
+    "com.almworks.jira.structure.AllPublicStructureComponents#getForestService"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-components/constructed-with-all-services",
+   "module": "structure-components",
+   "api": null,
+   "behaviour": "The `StructureComponents` component is created by the plugin container with constructor injection of all 24 services listed for its getters; it cannot exist (and so cannot be injected into another plugin) before each of those services has been created. It holds no state of its own beyond these references.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.AllPublicStructureComponents#<init>"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/isallowed-uses-short-term-cache",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`StructurePluginHelper.isAllowed(permission, user)` answers from a per-permission cache keyed by the user's key (anonymous and a user whose key is null share the key \"\"): the first answer for a (permission, user key) pair is remembered. All remembered answers are dropped when 5 minutes have passed since they were last dropped (checked on the next access), or when the plugin clears its permission caches (on all cluster nodes). The setters of `StructureConfiguration` do not clear this cache, so after a configuration change `isAllowed` and the default methods built on it (`isStructureAvailableToUser`, `isCreateStructureAllowed`, ...) may return the old answer for up to 5 minutes.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#isAllowed",
+    "com.almworks.jira.structure.permissions.PermissionsCache$UserPredicateCache#get",
+    "com.almworks.jira.structure.cache.AbstractShortTermCache#maybeClear",
+    "com.almworks.jira.structure.permissions.PermissionsCache#doClear",
+    "com.almworks.jira.structure.permissions.PermissionsCache#clearPermissions"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/isallowed-use-means-structure-available",
+   "module": "helper",
+   "api": null,
+   "behaviour": "For `CoreAppPermissions.USE`, `StructurePluginHelper.isAllowed` returns `StructureConfiguration.isStructureAvailable(user)` (not `StructureConfiguration.isAllowed`). So, unlike the configuration's `isAllowed(USE, null)`, `isAllowed(USE, null)` and `isStructureAvailableToUser(null)` can be true for an anonymous user: for example when the use permission is granted to anyone and the anonymous user can browse a project where the plugin is enabled. `isViewCreationAllowed(null)` stays false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#<init>",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isStructureAvailable",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#isAllowed"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/isallowed-simple-permissions",
+   "module": "helper",
+   "api": null,
+   "behaviour": "For `CoreAppPermissions.CREATE_STRUCTURE`, `SYNCHRONIZATION` and `AUTOMATION`, `StructurePluginHelper.isAllowed(permission, user)` returns `StructureConfiguration.isAllowed` for the same permission and user (so false for null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isStructureCreationAllowed",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isSynchronizersConfigureAllowed",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isAutomationAccessAllowed"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/isallowed-generator-effector-permissions",
+   "module": "helper",
+   "api": null,
+   "behaviour": "In `StructurePluginHelper.isAllowed`, `CONFIGURE_GENERATORS` is true only when the configuration allows both `AUTOMATION` and `CONFIGURE_GENERATORS` to the user; `CONFIGURE_EFFECTORS` only when it allows both `AUTOMATION` and `CONFIGURE_EFFECTORS`; `EXECUTE_EFFECTORS` only when the configuration allows `EXECUTE_EFFECTORS` and the user holds Jira's global Bulk Change permission; `EXECUTE_EFFECTORS_ON_QUERIES` only when all of the `CONFIGURE_EFFECTORS` and `EXECUTE_EFFECTORS` conditions hold and the configuration also allows `EXECUTE_EFFECTORS_ON_QUERIES`. Example: with every permission granted to anyone, a user without Bulk Change gets false for both execute permissions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isGeneratorConfigurationAllowed",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isEffectorConfigurationAllowed",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isEffectorExecutionAllowed",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isEffectorExecutionAllowedOnQueries"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/isallowed-manage-global-saved-columns",
+   "module": "helper",
+   "api": null,
+   "behaviour": "In `StructurePluginHelper.isAllowed`, `MANAGE_GLOBAL_SAVED_COLUMNS` is true only when the user holds Jira's global 'create shared objects' permission and the configuration allows `MANAGE_GLOBAL_SAVED_COLUMNS` to the user; so `isManageGlobalSavedColumnsAllowed` is false for a user without that Jira permission even if the plugin permission is granted to anyone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isManageGlobalSavedColumnsAllowed"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/isallowed-unknown-permission",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`StructurePluginHelper.isAllowed` with a `StructureAppPermission` whose key is not one of the nine `CoreAppPermissions` keys throws `IllegalArgumentException` with message \"Unknown permission: <key>\"; permissions are matched by key, not by identity.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#isAllowed",
+    "com.almworks.jira.structure.api.permissions.StructureAppPermission#equals"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/admin-checks-uncached",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`isAdmin(user)` and `isSystemAdmin(user)` ask Jira's `GlobalPermissionManager` for `GlobalPermissionKey.ADMINISTER` and `GlobalPermissionKey.SYSTEM_ADMIN` on every call (no caching); `hasPermission(GlobalPermissionKey, user)` asks it for the given key with the user as given, including null, without a null shortcut.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#isAdmin",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#isSystemAdmin",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#hasPermission"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/project-permission-checks",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`hasPermission(ProjectPermissionKey, Issue, user)` and `hasPermission(ProjectPermissionKey, Project, user)` return Jira `PermissionManager.hasPermission` for that permission, object and user (null user passed through), and false without asking Jira when the issue or project is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#hasPermission"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/isissueeditable-dark-feature",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`isIssueEditable(issue, user)` returns Jira `IssueManager.isEditable(issue, user)` (which honours workflow restrictions). When the dark feature `structure.permissions.ignore.workflow` was true at the time the helper was created, it instead returns whether the user holds the Edit Issues project permission on the issue; changing the property later has no effect until the plugin restarts. A null issue gives false in both modes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#isIssueEditable",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#<init>"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/getissueerror-long-only-data-access-caught",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`getIssueError(Long, checkEdit, user)` converts only a Jira `DataAccessException` thrown while reading the issue into its returned error (and logs it); any other runtime exception from `IssueManager.getIssueObject` propagates to the caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getIssueError"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/project-structured-for-current-user",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`isProjectStructuredForCurrentUser(project)` takes the user from `StructureAuth.getUser()`. Unless security is overridden in `StructureAuth`, it first asks Jira `PermissionManager.hasPermission(BROWSE_PROJECTS, project, user)` and returns false if denied; it then returns `StructureConfiguration.isProjectEnabled(project)`. With security overridden only the enablement is checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#isProjectStructuredForCurrentUser"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/getuser-from-jira-context",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`getUser()` returns Jira `JiraAuthenticationContext.getLoggedInUser()` on every call, ignoring any user set through `StructureAuth`; so `getStructureProjectsForCurrentUser()`, `getProjectsForCurrentUser()`, `getAvailableGroupsForCurrentUser()` and `getI18n()` act for the Jira-logged-in user even inside a `StructureAuth` sudo.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getUser"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/project-lists-for-current-user",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`getStructureProjectsForCurrentUser()` returns the projects of `StructureConfiguration.getCurrentlyEnabledProjects()` that `getUser()` may browse (Browse Projects through Jira's `PermissionManager`), in the same order; `getProjectsForCurrentUser()` does the same for all projects from `ProjectManager.getProjectObjects()`. Neither honours a `StructureAuth` security override; both return a new list.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getStructureProjectsForCurrentUser",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getProjectsForCurrentUser",
+    "com.almworks.jira.structure.api.util.JiraFunc#browseableBy"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/filterinvisibleprojects-details",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`filterInvisibleProjects` looks each project ID up with Jira `ProjectManager.getProjectObj`; only a Jira `DataAccessException` from the lookup is caught (logged, and the ID counts as invisible). IDs are reported in input order and a duplicated invisible ID is reported once per occurrence.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#filterInvisibleProjects"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/searchquery-text",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`searchQuery(String)` and `searchAndSortQuery(String)` return an empty array for null, empty or whitespace-only text without parsing it; otherwise they parse the text with Jira's `JqlQueryParser` (a `JqlParseException` propagates) and continue as the `Query` variant.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#searchQuery",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#searchAndSortQuery",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#searchQuery"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/searchquery-runs-as-structureauth",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`searchQuery(Query)`, `searchAndSortQuery(Query)` and `searchAndSortQuery(Query, limit)` search the Jira index as the user from `StructureAuth.getUser()`, ignoring issue security when `StructureAuth.isSecurityOverridden()` is true; a null query gives an empty array. `searchAndSortQuery(Query)` is `searchAndSortQuery(Query, 0)` (no limit). When Jira reports that the index cannot be used (full reindex running or index inconsistent), they return an empty array without searching and log a warning (rate-limited). A `SearchException` from Jira propagates.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#searchQuery",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#searchAndSortQuery",
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#isIndexUsePossible"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/matchissues-sorts-input",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`matchIssues(issues, query, collectMatching, collector)` sorts and de-duplicates an unsorted input (the caller's list is not modified) before matching, then behaves as the six-argument `matchIssuesSorted` with the user and security-override flag from `StructureAuth`; so each ID is reported at most once. Null or empty input reports nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssues"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/matchissuessorted-index-unavailable",
+   "module": "helper",
+   "api": null,
+   "behaviour": "In `matchIssuesSorted` (both forms) and `matchIssues`, when Jira reports that the index cannot be used, no search is run: with collectMatching false every input ID is added to the collector, with collectMatching true nothing is added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssuesSorted"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/matchissuessorted-unsorted-assert",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`matchIssuesSorted` given input that is not sorted ascending: with Java assertions enabled (as the tests run) it throws `AssertionError` before searching; with assertions disabled the result is undefined. Sorted input with duplicates passes the check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssuesSorted"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/matchissuessorted-explicit-user",
+   "module": "helper",
+   "api": null,
+   "behaviour": "The six-argument `matchIssuesSorted(issues, query, collectMatching, user, overrideSecurity, collector)` searches as the given user (null = anonymous) and honours the given override flag, not `StructureAuth`. With a null query, an input ID matches when the user can see the issue (or it exists, with override); IDs of missing or invisible issues are reported only in non-matching mode.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lucene.StructureLuceneHelper#matchIssuesSorted"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/validatequery-delegates",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`validateQuery(user, query)` returns Jira `SearchService.validateQuery(user, query)` unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#validateQuery"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/require-resource-basic",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`requireResource(key)` calls the platform web-resource manager's requireResource with the key unchanged; `requireResourcesForContext(context)` requires that context; `requireResourceIfPresent(key)` first asks `PluginAccessor.getPluginModule(key)` and requires the resource only when that returns non-null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireResource",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireResourcesForContext",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireResourceIfPresent"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/require-quickedit-and-shortcuts",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`requireQuickEditResources()` requires, each only if present, `com.atlassian.jira.jira-quick-edit-plugin:quick-edit-issue` then `com.atlassian.jira.jira-quick-edit-plugin:quick-create-issue`. `requireIssueShortcuts()` asks Jira's `KeyboardShortcutManager` for the shortcuts of the `issueaction` and then the `issuenavigation` contexts.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireQuickEditResources",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireIssueShortcuts"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/require-issue-details",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`requireIssueDetailsResources()` requires the web-resource context `jira.view.issue`, then the resource `com.almworks.jira.structure:issue-details`, then puts page metadata `viewissue-use-history-api` = `false`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireIssueDetailsResources"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/require-widget-order",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`requireWidgetResource()` does, in this order: the quick-edit resources (as `requireQuickEditResources`), Jira's field-resource inclusion for the current user (`FieldsResourceIncluder.includeFieldResourcesForCurrentUser`), resources `com.almworks.jira.structure:widget` and `com.almworks.jira.structure:structure-info`, the context `structure.widget`, resources `com.almworks.jira.structure:details-providers` and `com.almworks.jira.structure:planningTaskCreationDialog`, and finally the issue-details resources (as `requireIssueDetailsResources`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireWidgetResource"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/require-localized-resource-variants",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`requireLocalizedResource(key)` requires the key, then takes the locale from Jira's `JiraAuthenticationContext.getLocale()` (not from `StructureAuth`); with a null locale nothing more is done. Otherwise it requires, each only if a module with that key is present: `key-<language>` if the language is non-empty; `key-<country>` if the country is non-empty and not equal (case-sensitively) to the language string; `key-<language>-<country>` if the country is non-empty; `key-<language>-<country>-<variant>` if the variant is non-empty (even with an empty country, giving `key-<language>--<variant>`). Example: locale de_DE requires `key`, then checks `key-de`, `key-DE`, `key-de-DE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireLocalizedResource",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#requireResourceLocalization"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/static-resource-prefix",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`getStaticResourcePrefix()` returns the platform web-resource URL provider's static resource prefix for URL mode AUTO, unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getStaticResourcePrefix"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/i18n-locale-collator",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`getI18n(user)` returns Jira's `I18nHelper.BeanFactory.getInstance(user)` (null user passed through). `getCollator(user)` returns a fresh `Collator.getInstance(locale)` for that helper's locale on every call. `getLocale()` returns the locale of the I18n helper for `StructureAuth.getUser()` (so it honours a `StructureAuth` sudo, unlike `getI18n()`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getI18n",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getCollator",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getLocale"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/jira-service-getters",
+   "module": "helper",
+   "api": null,
+   "behaviour": "The service getters of `StructurePluginHelper` (`getAuthenticationContext`, `getIssueManager`, `getPermissionManager`, `getPluginAccessor`, `getEventManager`, `getProjectManager`, `getProjectRoleManager`, `getUserManager`, `getJqlStringSupport`, `getJqlQueryParser`, `getSearchService`, `getJqlOperandResolver`, `getSearchRequestManager`, `getGlobalPermissionManager`, `getTimeTrackingConfiguration`, `getUserPreferencesManager`, `getCustomFieldManager`) return the Jira or platform component injected into the helper at construction, the same instance on every call, with no permission check. `getConfiguration()` returns the structure-configuration component and `getCacheHelper()` the plugin's `StructureCacheHelper`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#<init>",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getIssueManager",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getConfiguration",
+    "com.almworks.jira.structure.StructurePluginHelperInternal#getCacheHelper"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/isstructurelocked",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`isStructureLocked()` reports, on each call, whether the plugin's database-wide maintenance lock is currently held (it is taken while a backup is being restored and released afterwards); it does not wait for the lock or take it.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#isStructureLocked",
+    "com.almworks.structure.commons.db.AOLock"
+   ]
+  },
+  {
+   "key": "m4-config-helper/helper/instantiate-through-plugin",
+   "module": "helper",
+   "api": null,
+   "behaviour": "`instantiate(clazz)` asks Jira's `ComponentClassManager.newInstanceFromPlugin(clazz, plugin)` with the plugin of key `com.almworks.jira.structure`, returning a new instance each call with its constructor dependencies injected; exceptions from Jira propagate unchanged.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.StructurePluginHelperInternal#instantiate"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/permission-property-keys",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "Permission settings are stored in Jira application properties as a pair per permission: `USE` in `com.almworks.jira.structure.config.enabledForAnyone` and `...config.enabledSubjects`; `CREATE_STRUCTURE` in `...config.createForAnyone` and `...config.creatorSubjects`; `SYNCHRONIZATION` in `...config.synchronizationForAnyone` and `...config.synchronizationSubjects`; `AUTOMATION` in `...config.automationForAnyone` and `...config.automationSubjects`; each other `CoreAppPermissions` constant in `com.almworks.jira.structure.config.permission.<key>.anyone` and `...permission.<key>.subjects` (e.g. `...permission.executeEffectors.anyone`). `setAllowedForAnyone` writes `true` or `false`; `setPermissionSubjectsEncoded` writes the given text (null as empty).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$PropertyKeys#<init>",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setAllowedForAnyone",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setPermissionSubjectsEncoded"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/boolean-settings-parsing",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`isEnabledForAllProjects()` and `isAllowedForAnyone(permission)` read their property with a default-backed lookup: absent means true; a stored value means true only if it equals `true` ignoring case (`TRUE` is true; `yes`, `1` or empty text are false). `setEnabledForAllProjects` writes `true` or `false` to `com.almworks.jira.structure.config.enabledForAllProjects`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$GlobalLoader#getBooleanSetting",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setEnabledForAllProjects",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#isAllowedForAnyone"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/chunked-long-properties",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "Settings that can be long (`com.almworks.jira.structure.config.enabledProjects`, every permission `...Subjects`/`.subjects` key, `...config.defaultStructurePP` and `...config.attributeSensitivity`) are written in pieces of at most 250 characters: the first piece under the key itself, then under `<key>.1`, `<key>.2`, ...; any existing higher-numbered pieces left from a longer earlier value are set to null. On read the pieces from `<key>`, `<key>.1`, ... are concatenated until a missing or empty one. A 600-character value is stored as 250 + 250 + 100 characters in `<key>`, `<key>.1`, `<key>.2`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.util.StructureUtil#setLongProperty",
+    "com.almworks.jira.structure.api.util.StructureUtil#getLongProperty"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/setters-visible-immediately",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "Settings are cached in memory without expiry after the first read; every setter writes Jira's application properties and then drops its own cached entry, so the next getter call reflects the change. A value changed directly in Jira's application properties (not through this component) is not seen until the plugin's caches are cleared. The setters perform no permission check and publish no events.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#<init>",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setPickedProjectIds",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setAllowedForAnyone",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#getFromGlobalCache"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/load-failure-fallbacks",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "If loading a setting fails, the getter logs a warning and returns a fallback instead of throwing: `isEnabledForAllProjects()` false (unlike the absent-value default of true), `isAllowedForAnyone` true, `getPermissionSubjects` empty, `getPickedProjectIds` empty, default structures none (0), UI settings the built-in defaults and attribute sensitivity `ImmutableAttributeSensitivitySettingsBean.DEFAULT`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#getFromGlobalCache",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#isEnabledForAllProjects",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#getSystemUISettings"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/picked-project-parsing",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`getPickedProjectIds()` splits the stored `enabledProjects` text on commas, trims entries and skips blank ones. If the first usable entry is numeric, only numeric entries are taken (keys after it are ignored); if it is a key of an existing project (matched ignoring case through `ProjectManager.getProjectObjByKeyIgnoreCase`), only further keys are taken and later numeric entries are looked up as keys. Unknown keys are skipped and do not decide the kind. The result is sorted ascending without duplicates. Examples: `10101, 10000,10101` gives [10000, 10101]; `10000,ABC` gives [10000]; `abc,10000` gives [id of ABC]. Numeric IDs are not checked for existence.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$GlobalLoader#loadEnabledProjects"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/picked-projects-order",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`getPickedProjects()` returns, in the order of Jira `ProjectManager.getProjectObjects()`, those projects whose ID is among `getPickedProjectIds()`; IDs with no project are left out; with no picked IDs Jira's project list is not read and an empty list is returned. `getCurrentlyEnabledProjects()` returns `ProjectManager.getProjectObjects()` when enabled for all projects, otherwise `getPickedProjects()`. `isProjectEnabled(project)` is true for any non-null project when enabled for all projects; otherwise true only when the project's ID is non-null and among the picked IDs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#getPickedProjects",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#getCurrentlyEnabledProjects",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#isProjectEnabled"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/set-picked-project-ids-raw",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`setPickedProjectIds(String)` stores the text exactly as given (null as empty), with no validation, trimming or conversion of keys to IDs; it does not change `isEnabledForAllProjects`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setPickedProjectIds"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/permission-subject-decoding",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`getPermissionSubjects(permission)` splits the stored text on commas, trims each piece, skips empty pieces and pieces that `PermissionSubject.fromEncodedString` cannot parse, and returns the rest in stored order. Example: `anyone, ,???` read back gives one subject, the `PermissionSubject.Anyone`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$GlobalLoader#loadPermissionSubjects",
+    "com.almworks.jira.structure.util.Util#decodeList",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$1#la"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/unknown-permission-iae",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`isAllowedForAnyone`, `getPermissionSubjects`, `setAllowedForAnyone` and `setPermissionSubjectsEncoded` with a `StructureAppPermission` whose key is not one of the nine `CoreAppPermissions` keys throw `IllegalArgumentException` with message \"Unknown permission: <key>\" and store nothing. `isAllowed(unknownPermission, user)` returns false without error for a null user or a user failing `isStructureAvailable`, and otherwise throws the same exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#getPropertyKeys",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#isAllowed"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/structure-available-no-projects",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`isStructureAvailable(user)` is false for every user, Jira administrators included, when the plugin is not enabled for all projects and the stored picked-project ID list is empty. A non-empty list of IDs that match no existing project does not trigger this rule (the browse check later fails instead, except for administrators).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#isStructureAvailable"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/structure-available-admin-bypass",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "In `isStructureAvailable` and `isAllowed`, a user holding Jira's global Administer permission (asked of `GlobalPermissionManager`, never for null) is accepted without subject or project-browse checks, unless the dark feature `structure.permissions.jiraAdminHasAllPermissions` was false when the component was created (default true); then administrators are treated like everyone else.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#isStructureAvailable",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#isAllowed",
+    "com.almworks.jira.structure.util.Util#jiraAdminHasAllPermissions"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/structure-available-subjects-and-browse",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "For a non-administrator, `isStructureAvailable(user)` requires (unless the use permission is granted to anyone) that some stored use subject matches the user; an anonymous user is matched by the `anyone` subject, never by a group subject or by a user subject naming a user. Then, when enabled for all projects, it returns Jira `PermissionManager.hasProjects(BROWSE_PROJECTS, user)`, and false if that call throws; otherwise it is true only if one of `PermissionManager.getProjects(BROWSE_PROJECTS, user)` is enabled (null or empty gives false). The anonymous user can therefore be available.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#isStructureAvailable",
+    "com.almworks.jira.structure.api.permissions.PermissionSubject$JiraGroup#matches"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/scope-query-project-order",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "When not enabled for all projects, the project clause of `addConfigurationScopeClause` / `getConfigurationScopeQuery` lists the IDs of `getCurrentlyEnabledProjects()` in Jira's project order; picked IDs of projects that no longer exist are left out, and if none remain the clause uses the impossible project ID 2147483647.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#addConfigurationScopeClause"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/default-structure-storage",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "The global default structure is written to `com.almworks.jira.structure.config.defaultStructure` as a decimal (null as `0`) and read back with an unparsable value as 0. Project defaults are kept in `...config.defaultStructurePP` as comma-separated `<projectId>=<structureId>` pairs: setting one rewrites the whole list, keeping existing pairs in their order and appending a new project at the end; a change of an existing project's value keeps its position. When reading, a project key (case-insensitive) is accepted in place of the ID, pairs whose project is unknown or whose IDs are not positive, or which contain no `=` or start with it, are ignored, and for a repeated project the last pair wins.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setDefaultStructureId",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$GlobalLoader#loadDefaultStructures",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$GlobalLoader#getProjectId"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/default-structure-no-op-and-zero",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`setDefaultStructureId(project, id)` writes nothing when the project already has that same default, or when the ID is null and the project has no own default. Setting a project default to 0 or a negative ID stores the pair, but it is ignored when read back, so afterwards the project falls back to the global default and `isDefaultStructureSetForProject(project)` is false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setDefaultStructureId",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$GlobalLoader#loadDefaultStructures"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/default-structure-null-project-id",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`getDefaultStructureId` and `isDefaultStructureSetForProject` for a non-null project whose `getId()` is null look up the global entry: `getDefaultStructureId` returns the global default and `isDefaultStructureSetForProject` returns true even when no default is set at all (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#isDefaultStructureSetForProject",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#getDefaultStructureId"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/ui-settings-storage",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`setUISettings(null, project, s)` writes system settings to Jira application properties and `setUISettings(user, project, s)` writes to the user's Jira property set (`UserPropertyManager.getPropertySet(user)`), under the same keys: `com.almworks.jira.structure.config.issuePage.autoSwitch` from `s.getAutoSwitchStrategy(ISSUE_VIEW)`, `...config.projectPage.autoSwitch` from `s.getAutoSwitchStrategy(PROJECT_TAB)` (as the codes `off`, `withIssue`, `default`), `...config.issuePage.autoCollapse` from `getAutoCollapseStructurePanel()` and `...config.issuePage.keepWhileNavigating` from `getKeepStructureWhileNavigating()` (as `true`/`false`). A null value leaves its key unchanged. A `PropertyException` from the user property set is logged and swallowed. The change is visible to the next `getUISettings` call.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setUISettings",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setUserUISettings",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setSystemUISettings"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/ui-settings-resolution",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`getUISettings(user, project)` resolves each of the four values separately: the user's own stored value if set, else the system value, else the built-in default. A stored strategy code other than `off`, `withIssue` or `default` (case-sensitive) counts as unset for the user and as the built-in default for the system; a stored boolean counts as true only if it equals `true` ignoring case. For a null user only system values apply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#getUISettings",
+    "com.almworks.jira.structure.settings.ImmutableUISettings#overrideWith",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$GlobalLoader#loadSystemUISettings",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl$UserSettingsLoader#load"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/ui-settings-page-mapping",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "In the `UISettings` returned by `getUISettings`, `getAutoSwitchStrategy` gives the issue-page value for `ISSUE_VIEW`, the project-page value for `PROJECT_TAB`, `VERSION_TAB` and `COMPONENT_TAB`, always `AUTOSWITCH_OFF` for `GREENHOPPER_TAB`, and always `STRUCTURE_WITH_ISSUE` for every other page (`STRUCTURE_BOARD`, `STRUCTURE_BOARD_WITH_DETAILS`, `ISSUE_NAVIGATOR`, `GADGET`), whatever is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.ImmutableUISettings#getAutoSwitchStrategy"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/clear-ui-settings",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`clearUISettings(user, project)` removes the four UI keys (`...issuePage.autoSwitch`, `...projectPage.autoSwitch`, `...issuePage.autoCollapse`, `...issuePage.keepWhileNavigating`) from the user's Jira property set, logs and swallows a `PropertyException`, and drops the user's cached settings; with a null user it does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#clearUISettings"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/user-ui-settings-cache-expiry",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "Per-user UI settings are cached per user key and dropped 1 hour after last access (the dark feature `structure.userconfig.cache.timeout`, in seconds, changes this); so a change made to a user's properties outside this component may stay invisible to `getUISettings` until then or until the user's caches are cleared.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#<init>",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#slowlyExpiring"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/attribute-sensitivity-storage",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "`setAttributeSensitivitySettings(s)` stores JSON `{\"sensitivityMode\":<code>,\"nonSensitiveAttributes\":[...]}` under `com.almworks.jira.structure.config.attributeSensitivity` (mode code 0 STANDARD, 1 STRICT, 2 PERMISSIVE; each attribute as its REST spec, in no guaranteed order), then asks `StructureCacheHelper.clearAllStructureCachesOnAllNodes()`. `getAttributeSensitivitySettings()` returns `ImmutableAttributeSensitivitySettingsBean.DEFAULT` for absent, empty or unparsable JSON; JSON without a mode gives `STANDARD`; an unknown code such as 7 gives `STANDARD` with the stored attributes kept; a missing attribute list gives none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#setAttributeSensitivitySettings",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#toString",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#sensitivitySettingsFromString"
+   ]
+  },
+  {
+   "key": "m4-config-helper/structure-configuration/caching-component-clear",
+   "module": "structure-configuration",
+   "api": null,
+   "behaviour": "As a `CachingComponent`, `clearCaches()` drops every cached global and per-user setting so the next getter reloads from Jira properties; `clearUserCaches(user)` and `clearUserCaches(userKey)` drop only that user's cached UI settings.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#clearCaches",
+    "com.almworks.jira.structure.settings.StructureConfigurationImpl#clearUserCaches"
+   ]
+  }
+ ]
+}

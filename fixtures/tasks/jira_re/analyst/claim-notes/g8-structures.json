@@ -1,0 +1,1379 @@
+{
+ "claims": [
+  {
+   "key": "g8-structures/Structure/get-owner-default",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.Structure",
+   "behaviour": "The default `Structure.getOwner()` returns null when `getOwnerUserKey()` is null, without contacting Jira; otherwise it resolves the key to a Jira `ApplicationUser` and returns null when no such user exists.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.Structure#getOwner",
+    "com.almworks.jira.structure.api.util.JiraUsers#byKey"
+   ]
+  },
+  {
+   "key": "g8-structures/Structure/set-owner-default",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.Structure",
+   "behaviour": "The default `Structure.setOwner(user)` calls `setOwnerUserKey` with the user's key (`ApplicationUser.getKey()`), or with null when the user is null, and returns the very instance it was called on (not the value returned by `setOwnerUserKey`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.Structure#setOwner"
+   ]
+  },
+  {
+   "key": "g8-structures/Structure/setters-local-and-chain",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.Structure",
+   "behaviour": "On a structure obtained from the plugin, every setter (`setName`, `setDescription`, `setOwnerUserKey`, `setPermissions`, `setEditRequiresParentIssuePermission`, `setArchived`) returns the same instance, and the new value is visible through the matching getter immediately, before `saveChanges()` is called.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#setName",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#setArchived",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#setOwnerUserKey"
+   ]
+  },
+  {
+   "key": "g8-structures/Structure/name-null-and-length",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.Structure",
+   "behaviour": "On a structure obtained from the plugin, `setName(null)` makes `getName()` return the empty string; a name longer than 190 characters is stored abbreviated to 190 characters ending in `...`; `getDescription()` returns the empty string after `setDescription(null)`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#setName",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#getDescription",
+    "com.almworks.jira.structure.util.Util#abbreviateName"
+   ]
+  },
+  {
+   "key": "g8-structures/Structure/save-blank-name",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.Structure",
+   "behaviour": "`saveChanges()` on a plugin structure whose name is blank (empty or whitespace) throws `IllegalStateException`, even when nothing was changed since the copy was obtained; with a non-blank name and no changes it returns the same instance without persisting anything.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#saveChanges",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#validate"
+   ]
+  },
+  {
+   "key": "g8-structures/Structure/effective-permission-unsaved",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.Structure",
+   "behaviour": "`getEffectivePermission()` of a plugin structure that has never been saved (ID 0) returns `PermissionLevel.NONE`; for a saved structure it returns `ADMIN` while security is overridden.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#getEffectivePermission"
+   ]
+  },
+  {
+   "key": "g8-structures/Structure/permissions-copy",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.Structure",
+   "behaviour": "`getPermissions()` of a plugin structure returns a new list of cloned rules on each call; adding to or clearing the returned list does not change what a later `getPermissions()` returns.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#getPermissions"
+   ]
+  },
+  {
+   "key": "g8-structures/ForestVersion/fields",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.ForestVersion",
+   "behaviour": "`new ForestVersion(forest, entry)` exposes the given forest and entry unchanged (same instances) in the public final fields `fullForest` and `entry`. The forest may be null; a null entry throws `NullPointerException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.ForestVersion#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/ForestVersion/weight-formula",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.ForestVersion",
+   "behaviour": "`ForestVersion.weight` is 128 plus a forest term for the full forest plus, for every change of the entry, 80 plus the forest term of the change's forest plus the list terms of its path-from, after-from, path-to and after-to lists (original rows are not counted). The forest term is 0 for a null or empty forest, otherwise 128 + 12 x number of rows; the list term is 0 for a null or empty list, otherwise 64 + 8 x number of elements. Example: an empty full forest and an entry with no changes give 128; a 3-row full forest and one ADD change with a 2-row forest, null from-lists, a path-to of 1 element and an empty after-to give 128+164+80+152+72 = 596.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.ForestVersion#weigh",
+    "com.almworks.jira.structure.api.structure.history.ForestVersion#sizeOf"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryEntry/constructor-getters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryEntry",
+   "behaviour": "`HistoryEntry`'s seven-argument constructor stores structure ID, version, previous version, timestamp, user key, synchronizer ID and changes, returned unchanged by `getStructure`, `getVersion`, `getPrevVersion`, `getTimestamp`, `getUserKey`, `getSynchronizer` and `getChanges`. A null synchronizer stays null. No argument is validated (versions need not be consecutive).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry#<init>",
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry#getVersion"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryEntry/empty-user-key-null",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryEntry",
+   "behaviour": "`HistoryEntry.getUserKey()` returns null when the constructor received either null or the empty string as user key; any other string (including a blank one such as a single space) is kept as given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryEntry/changes-not-copied",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryEntry",
+   "behaviour": "`HistoryEntry.getChanges()` returns the very list passed to the constructor: changes made to that list afterwards are visible through the entry, and the list is modifiable if the caller's list was (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry#getChanges"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryEntry/equals-hashcode",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryEntry",
+   "behaviour": "Two `HistoryEntry` objects are equal when structure ID, version, previous version, timestamp, user key, synchronizer ID and change lists are all equal (lists compared with `equals`); a difference in any one of them, such as the timestamp alone, makes them unequal. Equal entries have equal hash codes. An entry is never equal to null or to an object of another class.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry#equals",
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry#hashCode"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryEntry/change-getters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryEntry",
+   "behaviour": "`HistoryEntry.Change`'s constructor stores operation, forest, path-from, after-from, path-to, after-to, direction and original rows as given (same instances, nulls allowed, nothing validated); `getOperation`, `getForest`, `getPathFrom`, `getAfterFrom`, `getPathTo`, `getAfterTo`, `getDirection` and `getOriginalRows` return them unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry$Change#<init>",
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry$Change#getPathTo"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryEntry/change-equals",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryEntry",
+   "behaviour": "Two `HistoryEntry.Change` objects are equal when operation, forest, the four position lists, direction and original rows are all equal (null equals null; lists and forests compared with their own `equals`); differing only in direction or only in original rows makes them unequal. Equal changes have equal hash codes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry$Change#equals",
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry$Change#hashCode"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryEntry/operation-external-names",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryEntry",
+   "behaviour": "`HistoryEntry.Operation` has constants ADD, COPY, MOVE, REMOVE in that order, with `getExternalName()` values `add`, `copy`, `move`, `remove`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry$Operation"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryEntry/operation-for-external-name",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryEntry",
+   "behaviour": "`HistoryEntry.Operation.forExternalName` returns the constant whose external name equals the argument exactly (`move` gives MOVE); a differently-cased text such as `MOVE` or `Move`, an unknown text, or null returns null (no exception).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryEntry$Operation#forExternalName"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryQuery/all-operations",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryQuery",
+   "behaviour": "`HistoryQuery.ALL_OPERATIONS` is the list [ADD, COPY, MOVE, REMOVE]; it is unmodifiable (`add` throws `UnsupportedOperationException`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryQuery/operations-normalization",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryQuery",
+   "behaviour": "In the full `HistoryQuery` constructor the `operations` field becomes null when the given operations include all four constants (in any order, duplicates allowed); otherwise it is an immutable set of exactly the given operations. A null or empty operations argument gives an empty set (not null) (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery#<init>",
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery#set"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryQuery/long-lists",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryQuery",
+   "behaviour": "In the full `HistoryQuery` constructor each `LongList` argument (issues, structures, projects, synchronizers, in and out) is stored as the same instance when non-null, and as an empty `LongList` when null; the lists are neither copied nor sorted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery#<init>",
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery#nn"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryQuery/author-ancestor-sets",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryQuery",
+   "behaviour": "In the full `HistoryQuery` constructor the author and ancestor arguments are copied into immutable sets (null gives an empty set); changing the source collection later does not change the query, and modifying the field throws `UnsupportedOperationException`. A null element in one of these collections makes the constructor throw `NullPointerException` (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery#<init>",
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery#set"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryQuery/dates-and-start",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryQuery",
+   "behaviour": "`HistoryQuery` stores the min and max `Date` arguments as their millisecond values in `minDate`/`maxDate` (null stays null) and the start key unchanged in `startId`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryQuery/structure-constructor",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryQuery",
+   "behaviour": "`new HistoryQuery(structureId, startId)` gives a query with `operations` null, `isStructuresSorted` containing only the structure ID, every other ID list empty, author and ancestor sets empty, `minDate` and `maxDate` null, and `startId` as given (may be null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/HistoryQuery/to-string-cached",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.structure.history.HistoryQuery",
+   "behaviour": "`HistoryQuery.toString()` mentions only conditions that are set (a query from `new HistoryQuery(5, null)` mentions the structure 5 but no start key; with start key 7 it also mentions 7), and repeated calls return equal text.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.structure.history.HistoryQuery#toString"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/constructor-components",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "The `AbstractSynchronizer` constructor takes the sync audit log, structure manager and row manager from the given `StructureComponents` (one call each) and exposes them as the protected fields `myAuditLog`, `myStructureManager` and `myRowManager`; the bundle itself is kept in `myStructureComponents`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/descriptor",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`AbstractSynchronizer.getDescriptor()` returns null until `init(descriptor)` is called, then the descriptor passed to `init`; a later `init` replaces it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#init",
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#getDescriptor"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/store-parameters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`AbstractSynchronizer.storeParameters` returns null for null, the JSON text of a `Map` (for example a map with `a`=1 gives `{\"a\":1}`), and throws `IOException` for any non-map object, with a message naming the object, its class and that a `Map` was expected.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#storeParameters"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/restore-parameters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`AbstractSynchronizer.restoreParameters` returns null for null, parses a JSON object text into a string-keyed `Map` (so `restoreParameters(storeParameters(m))` equals `m` for JSON-compatible values), and throws `IOException` for malformed JSON.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#restoreParameters"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/cast-parameters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`AbstractSynchronizer.castParameters` returns the same map instance when given a `Map`, and null when given null or a non-map (logging a warning in the latter case). `parametersAsMapObject` wraps the map in a `MapObject` or returns null in the same cases; `parametersAsNNMapObject` returns `MapObject.EMPTY` instead of null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#castParameters",
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#parametersAsMapObject",
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#parametersAsNNMapObject"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/default-form-parameters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`AbstractSynchronizer.addDefaultFormParameters` leaves the given map unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#addDefaultFormParameters"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/issue-id-by-row",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`AbstractSynchronizer.getIssueIdByRow(row)` returns the item's long ID when the row's item is an issue identity, and 0 for any other item type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#getIssueIdByRow"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/issue-id-by-row-id",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`getIssueIdByRowId` looks the row up in the row manager and returns its issue ID (0 for non-issue rows); when the row manager throws `MissingRowException` it logs it through the current thread's `SyncLogger` and returns 0. `getIssueByRowId` returns null when that ID is 0 without consulting Jira.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#getIssueIdByRowId",
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#getIssueByRowId"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/get-issue-lookup",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`getIssue(long)` and `getIssue(String)` return the issue Jira's issue manager gives for the ID or key, or null when it gives none; when the lookup throws any exception, they log a warning and return null. `getIssueManager` throws `StructureRuntimeException` when Jira's issue manager is not available, and caches it once found.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#getIssue",
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#getIssueManager"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/verify-edit-permissions",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`verifyStructureEditPermissions(structureId, log)` returns what the structure manager's `isAccessible(structureId, PermissionLevel.EDIT)` returns; when false it also logs a warning through the given `SyncLogger` saying it cannot run under the current user because that user may not edit the structure. The one-argument form uses `SyncLogger.get()`, so it fails with `IllegalStateException` when no logger is installed on the thread.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#verifyStructureEditPermissions"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/sync-records-audit",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`AbstractSynchronizer.sync(instance, data, source)` calls `doSync` with the same arguments, then asks the audit log `isActionGroupRecorded(actions)` with the result's actions; only when true it calls `recordActions(instance, description, actions)` where description is a `MapObject` with `action`=`sync`, the result description's entries (e.g. `result`=`success`), `ownerKey` (instance's user key), `parameters` (instance parameters, empty map when null), and `jiraEvents` and `structureEvents` lists built from the sync data's events.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#sync",
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#createAuditLogEntryDescription"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/resync-records-audit",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`AbstractSynchronizer.resync(instance, source)` calls `doResync` and records the result in the audit log as `sync` does, but with `action`=`resync` and without `jiraEvents`/`structureEvents` keys. If `doSync` or `doResync` throws, the exception propagates and the audit log is not called.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#resync"
+   ]
+  },
+  {
+   "key": "g8-structures/AbstractSynchronizer/success-failure-results",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.AbstractSynchronizer",
+   "behaviour": "`AbstractSynchronizer.success(actions)` gives a run result whose actions are that same list and whose description is the map {`result`=`success`}. `failure(reason)`, `failure(throwable)` and `failure(throwable, reason)` give results with an empty action list and the description `SyncAuditLogHelper.getFailureDescription(reason, throwable)`; the nested `SyncRunAuditEntry.Success` and `SyncRunAuditEntry.Failure` constructors behave the same.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#success",
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer#failure",
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer$SyncRunAuditEntry$Success",
+    "com.almworks.jira.structure.api.sync.AbstractSynchronizer$SyncRunAuditEntry$Failure"
+   ]
+  },
+  {
+   "key": "g8-structures/SourceOfTruth/codes",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SourceOfTruth",
+   "behaviour": "`SourceOfTruth` has constants JIRA and STRUCTURE (in that order) with `getCode()` values `jira` and `structure`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SourceOfTruth#getCode"
+   ]
+  },
+  {
+   "key": "g8-structures/SourceOfTruth/from-code",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SourceOfTruth",
+   "behaviour": "`SourceOfTruth.fromCode` maps a code to its constant ignoring case (`JIRA`, `Jira` and `jira` all give JIRA). Null or an unknown code throws `IllegalArgumentException` with message `Unknown code for SourceOfTruth ` followed by the argument (for null: `...SourceOfTruth null`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SourceOfTruth#fromCode",
+    "com.almworks.jira.structure.api.sync.SourceOfTruth#parse"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureSynchronizerException/constructors",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.StructureSynchronizerException",
+   "behaviour": "`StructureSynchronizerException` is a checked exception (subclass of `Exception`): the one-argument constructor sets the message with no cause; the two-argument one sets message and cause.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.StructureSynchronizerException#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLog/is-recorded",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLog",
+   "behaviour": "The plugin's `SyncAuditLog.isActionGroupRecorded` returns true for a non-empty action list; for null or an empty list it returns false unless storing of empty groups is turned on by a system setting.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.sync.AOBasedSyncAuditLog#isActionGroupRecorded"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLog/action-group-getters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLog",
+   "behaviour": "`SyncAuditLog.ActionGroup`'s constructor stores sync instance ID, module key, structure ID, timestamp, description and actions, returned by the matching getters. An empty-string module key is returned as null by `getSyncModuleKey()` (despite its not-null contract), null stays null, other keys unchanged. The description may be null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncAuditLog$ActionGroup#<init>",
+    "com.almworks.jira.structure.api.sync.SyncAuditLog$ActionGroup#getSyncModuleKey"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLog/action-group-actions-view",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLog",
+   "behaviour": "`SyncAuditLog.ActionGroup.getActions()` is an unmodifiable view of the list passed to the constructor: modifying it throws `UnsupportedOperationException`, but later changes to the original list show through. A null actions list makes the constructor throw `NullPointerException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncAuditLog$ActionGroup#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLogHelper/issue-info-id-key",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLogHelper",
+   "behaviour": "`SyncAuditLogHelper.issueInfo(id, key)` returns an immutable map with `key`=key followed by `id`=id (a `Long`); when key is null the map has only `id`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#issueInfo"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLogHelper/issue-info-issue",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLogHelper",
+   "behaviour": "`SyncAuditLogHelper.issueInfo(Issue)` returns an empty map for null, otherwise the map of `issueInfo(issue.getId(), issue.getKey())`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#issueInfo"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLogHelper/issue-info-lookup",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLogHelper",
+   "behaviour": "`SyncAuditLogHelper.issueInfo(long)` and the `ISSUE_INFO` function look the issue key up in Jira; when the issue is not found or the lookup fails (including when Jira is not available) the map contains only `id`. `ISSUE_INFO` applied to a null ID throws `NullPointerException`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#issueInfo",
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper$1#la"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLogHelper/constant-and-field-info",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLogHelper",
+   "behaviour": "`issueConstantInfo` returns an empty map for null, otherwise a map with `name` then `id` (the constant's string ID), each omitted when null. `customFieldInfo` does the same for a custom field, using its name and numeric ID (`getIdAsLong`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#issueConstantInfo",
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#customFieldInfo"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLogHelper/audit-description",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLogHelper",
+   "behaviour": "`createAuditLogEntryDescription(instance, data, aux)` returns a `MapObject` whose keys are, in order: `action` (`sync` when data is non-null, `resync` when null), every entry of aux, `ownerKey` (the instance's user key), `parameters` (instance parameters, an empty map when null) and, only when data is non-null, `jiraEvents` and `structureEvents` (lists of the data's events converted by `SyncEvents`). A key in aux that repeats one of these keys throws `IllegalArgumentException`; a null user key throws `NullPointerException` (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#createAuditLogEntryDescription"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLogHelper/failure-description",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLogHelper",
+   "behaviour": "`getFailureDescription(reason, throwable)` returns an immutable map: `result`=`failure`, then `reason` when non-null, then `exception` when non-null. The exception map has `message` (only when non-null), `class` (the exception's class name), `stackTrace` (the stack frames as a list of `StackTraceElement`) and, when there is a cause, `cause` described the same way recursively.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#getFailureDescription",
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#getThrowableDescription"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncAuditLogHelper/is-failed",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncAuditLogHelper",
+   "behaviour": "`SyncAuditLogHelper.isFailed(action)` is true exactly when the map's `result` value is the string `failure`; false for `success`, a missing key or a non-string value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncAuditLogHelper#isFailed"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncDirection/constants",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncDirection",
+   "behaviour": "`SyncDirection` has constants INBOUND and OUTBOUND in that order; `CODE_INBOUND` is `IN` and `CODE_OUTBOUND` is `OUT`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncDirection"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncDirection/get-code",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncDirection",
+   "behaviour": "`SyncDirection.getCode` returns `IN` for INBOUND, `OUT` for OUTBOUND and the four-letter string `null` for a null argument.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncDirection#getCode"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncDirection/from-code",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncDirection",
+   "behaviour": "`SyncDirection.fromCode` returns INBOUND for `IN`, OUTBOUND for `OUT`, and null for null or the string `null`; any other text, including lower-case `in`, throws `IllegalArgumentException` whose message is that text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncDirection#fromCode"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncEvent/compare-timestamp",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncEvent",
+   "behaviour": "`SyncEvent.compareTo` compares only timestamps: an event with the smaller timestamp is less, events with equal timestamps compare as 0 even if their kind or content differ.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncEvent#compareTo"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncEvent/jira-event",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncEvent",
+   "behaviour": "`new SyncEvent.Jira(timestamp, instanceId, event)` exposes the timestamp, the sync instance ID (null allowed) and the event via `getTimestamp`, `getSyncInstanceId` and `getEvent`; `getAffectedIssuesSorted()` returns what the event's `getAffectedIssuesSorted()` returns. A null event throws `NullPointerException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncEvent$Jira#<init>",
+    "com.almworks.jira.structure.api.sync.SyncEvent$Jira#getAffectedIssuesSorted"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncEvent/structure-event",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncEvent",
+   "behaviour": "`new SyncEvent.Structure(entry)` takes its timestamp from `entry.getTimestamp()` and its sync instance ID from `entry.getSynchronizer()`; `getHistoryEntry()` returns the entry. A null entry throws `NullPointerException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncEvent$Structure#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncEvent/to-string",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncEvent",
+   "behaviour": "`SyncEvent.Jira.toString()` is `j(`, then `:` and the instance ID when there is one, then the UTC time of day as `HH:mm:ss.SSS` followed by `Z`, then `,`, the event's text and `)`; for example timestamp 0, instance 5 gives text starting `j(:500:00:00.000Z,`. `SyncEvent.Structure.toString()` has the same form starting with `s(` and the history entry's text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncEvent#toString",
+    "com.almworks.jira.structure.api.sync.SyncEvent$Jira#toString",
+    "com.almworks.jira.structure.api.sync.SyncEvent$Structure#toString"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncEvents/jira-to-map",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncEvents",
+   "behaviour": "`SyncEvents.JIRA_EVENT_TO_MAP` maps null to null and a Jira sync event to an immutable map with, in order, `type` (the text of the event's change type), `issues` (a list with `SyncAuditLogHelper.issueInfo` of each affected issue ID, in order), `timestamp` (a `Long`) and `syncInstanceId` (the instance ID, or 0 when null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncEvents$1#la",
+    "com.almworks.jira.structure.api.sync.SyncEvents#buildSyncEventMap"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncEvents/structure-to-map",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.SyncEvents",
+   "behaviour": "`SyncEvents.STRUCTURE_EVENT_TO_MAP` maps null to null and a structure sync event to an immutable map with, in order, `version` (the history entry's version, an `Integer`), `timestamp` and `syncInstanceId` (0 when the entry has no synchronizer).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.SyncEvents$2#la",
+    "com.almworks.jira.structure.api.sync.SyncEvents#buildSyncEventMap"
+   ]
+  },
+  {
+   "key": "g8-structures/HierarchyHelper/get-parent",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.HierarchyHelper",
+   "behaviour": "With no recorded moves, `HierarchyHelper.getParent(row)` returns the row ID of the row's parent in the forest, or 0 for a top-level row. A row not in the index throws `IllegalArgumentException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.HierarchyHelper#getParent",
+    "com.almworks.jira.structure.api.sync.util.HierarchyHelper#getParentIndex"
+   ]
+  },
+  {
+   "key": "g8-structures/HierarchyHelper/record-move",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.HierarchyHelper",
+   "behaviour": "After `recordMove(row, newParent)`, `getParent(row)` returns newParent, and later `recordMove` calls for the same row replace earlier ones. Recording a move under 0 (or under a row not in the forest) makes the row report parent 0, i.e. top level. Other rows' parents are unaffected; the forest itself is not changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.HierarchyHelper#recordMove",
+    "com.almworks.jira.structure.api.sync.util.HierarchyHelper#getParent"
+   ]
+  },
+  {
+   "key": "g8-structures/HierarchyHelper/is-in-subtree",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.HierarchyHelper",
+   "behaviour": "`HierarchyHelper.isInSubtree(row, owner)` is true when owner is a proper ancestor of row, following parents with recorded moves applied (so a recorded move into or out of the owner's subtree changes the answer). A row is not in its own subtree. Row 0 gives false; owner 0 gives true for any non-zero row, even one not in the forest. Otherwise a row or owner not in the forest throws `IllegalArgumentException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.HierarchyHelper#isInSubtree"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/thread-local",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`SyncLogger.get()` returns the logger installed on the current thread with `SyncLogger.set`, and throws `IllegalStateException` when none is installed (or after `set(null)`). Loggers installed on one thread are not seen by other threads. `isInfo()` and `isDebug()` report the installed logger's levels and also throw `IllegalStateException` when none is installed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#get",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#set",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#isInfo"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/set-classloader",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`SyncLogger.set` throws `UnsupportedOperationException` (and installs nothing) when the current thread's context class loader is not the class loader that loaded `SyncLogger`, including when it is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#set"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/prefix-stack",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "A new `SyncLogger` has the empty prefix. `setPrefix(null)` sets the empty prefix. `pushPrefix(p)` appends a space and p (from the empty prefix `pushPrefix(\"a\")` gives ` a`, then `pushPrefix(\"b\")` gives ` a b`); `popPrefix()` restores the prefix from before the matching push; `popPrefix()` with no outstanding push throws `NoSuchElementException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#setPrefix",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#pushPrefix",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#popPrefix"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/create-log-message",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`SyncLogger.createLogMessage(args...)` starts with the prefix and appends each argument's `String.valueOf`, putting one space before an argument unless the text so far is empty or the argument is a string or `Character` whose first character is in Unicode category 'other punctuation' (such as `,` `:` `.` `!` `/`) or 'control' (such as a newline). With an empty prefix: (`a`, 1, null) gives `a 1 null`; (`x`, `:`, `y`) gives `x: y`; (`a`, `(b)`) gives `a (b)`; (`a`, ``, `b`) gives `a  b`. Nested `Object[]` arguments are flattened; a null array gives just the prefix. With prefix `P`, (`a`) gives `P a`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#createLogMessage",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#appendLogMessages",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#isNoSpaceBefore"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/level-methods",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`info`, `debug`, `warn` and `error` pass `createLogMessage(args)` to the underlying slf4j `Logger` at that level only when the level is enabled (nothing is called on the logger otherwise). `infoException` always passes the throwable; `debugException`, `warnException` and `errorException` pass it only when it is non-null, otherwise log the text alone. `isInfoEnabled` and `isDebugEnabled` report the underlying logger; `getLogger`/`setLogger` read and replace it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#info",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#warnException",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#errorException",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#setLogger"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/warn-exception-if-debug",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`warnExceptionIfDebug(ex, args)` does nothing when warn is disabled. When debug is also enabled it logs the text with the throwable at warn level. Otherwise it logs at warn level without the throwable, with the exception's message appended to the text as one more space-separated argument (for a null exception just the text).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#warnExceptionIfDebug"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/sync-mode",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`isAutoSync()` returns the constructor's auto flag. `isOneTimeSync()` is true only when a sync instance was given and its ID is 0. `selectBySyncMode(a, r, o)` returns a when auto, otherwise o for a one-time sync, otherwise r (also when no instance was given).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#isOneTimeSync",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#selectBySyncMode"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/default-prefix",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`defaultPrefix()` is the empty string when no sync instance was given. Otherwise it is the synchronizer descriptor's label (the synchronizer's class name when the label is null or empty; `<unavailable> ` plus the module key when the instance has no synchronizer), then ` autosync`, ` one-time sync` or ` full sync`, then ` #<instance id>` unless one-time, then ` for structure ` and `'<name>' (#<id>)`, or `#<id>` when the structure cannot be read.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#defaultPrefix",
+    "com.almworks.jira.structure.api.util.StructureUtil#appendDebugStructureString"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/issue-text",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "With debug disabled, `issue(Long)` gives `null` for null, the issue key when Jira finds the issue, otherwise the number as text; `issue(Issue)` gives `null` for null, the issue key, or `#<id>` when the key is null. With debug enabled both give `(<key> <id>)` when a key is known, otherwise just the ID. `appendIssue` appends the same text as `issue(Long)` to the builder and returns it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#issue",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#appendIssue",
+    "com.almworks.jira.structure.api.util.StructureUtil#appendDebugIssueString"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/issues-list",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`issues(Iterable)` and `issues(LongIterable)` return `null` for null, `[]` for an empty input, and otherwise the `issue` texts in input order joined by `, ` inside square brackets (e.g. `[A-1, A-2]`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#issues"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/row-text",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`SyncLogger.row(id)` gives `0` for 0 and `r` followed by the number for negative IDs (`row(-5)` is `r-5`) without consulting the row manager; for positive IDs it gives the row's item text followed by ` (row <id>)`, or `<missing row <id>>` when the row manager throws `MissingRowException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#row"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/item-text",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`appendItem(ItemIdentity, sb)` appends issue text (as `appendIssue`) for issue identities and `<item type>/<id>` for any other item, using the long ID or the string ID as the identity has; `appendItem(rowId, sb)` does the same for the row's item, or appends `<missing row <id>>` for a missing row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#appendItem"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/forest-and-rows-text",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`forest(f)`/`appendForest` produce `<rowId>:<depth>:<item>` for each row of the forest in order, joined by `,` with no spaces (empty forest gives the empty string). `itemForest`/`appendItemForest` do the same taking items from the item forest, with `<missing row <id>>` for rows it does not know. `rows`/`appendRows` produce `<rowId>:<item>` joined by `,`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#appendForest",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#appendItemForest",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#appendRows"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/warn-structure-exception",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`warnStructureException(e)` logs a warning and returns its text for four errors: structure missing or not accessible (text `cannot run because the structure does not exist or is not accessible for user <username>`), forest change prohibited by parent permissions (`Error while synchronizing <row text>: <problem details>`), edit denied (`cannot run under user <username> because he or she does not have permissions to edit the structure`), plugin access denied (`cannot run under <username>: <product> plugin is not enabled for this user`). The returned text starts with the prefix; the logged text carries the prefix twice when the prefix is non-empty (as the original does). Other errors are logged as `encountered a problem` via `warnExceptionIfDebug` and null is returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#warnStructureException",
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#warnAndReturn"
+   ]
+  },
+  {
+   "key": "g8-structures/SyncLogger/username",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.sync.util.SyncLogger",
+   "behaviour": "`SyncLogger.username()` returns the display name of the sync instance's owner (or of the current user when no instance was given), and `(null)` when there is no such user (for example a null user key).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.sync.util.SyncLogger#username"
+   ]
+  },
+  {
+   "key": "g8-structures/EmptyTemplate/basics",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.template.EmptyTemplate",
+   "behaviour": "`EmptyTemplate.isEnabled()` is always true, `getInitialStep()` is `__end`, and `configureNewStructure` does nothing to the structure (no setter or save is called). Its inherited defaults are unchanged (see `NewStructureTemplate`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.template.EmptyTemplate#isEnabled",
+    "com.almworks.jira.structure.api.template.EmptyTemplate#getInitialStep",
+    "com.almworks.jira.structure.api.template.EmptyTemplate#configureNewStructure"
+   ]
+  },
+  {
+   "key": "g8-structures/EmptyTemplate/create-step-throws",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.template.EmptyTemplate",
+   "behaviour": "`EmptyTemplate.createStep(step, params, context)` always throws `StructureTemplateException` whose message is `context.getText(\"s.tpl.error.unknown-step\", context.htmlEncode(step))`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.template.EmptyTemplate#createStep"
+   ]
+  },
+  {
+   "key": "g8-structures/NewStructureTemplate/defaults",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.template.NewStructureTemplate",
+   "behaviour": "`NewStructureTemplate` defaults: `getCreateButtonTextKey()` is `s.tpl.btn.finish.name`; `prepareNewStructureUrl(s)` is `/secure/StructureBoard.jspa?s=` followed by `s.getId()` (e.g. `...?s=42`); `shouldRedirectForNewStructure()` and `hasCustomFinalStep()` are false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.template.NewStructureTemplate#getCreateButtonTextKey",
+    "com.almworks.jira.structure.api.template.NewStructureTemplate#prepareNewStructureUrl"
+   ]
+  },
+  {
+   "key": "g8-structures/NewStructureTemplateStep/constants-direction",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.template.NewStructureTemplateStep",
+   "behaviour": "`NewStructureTemplateStep.END_STEP` is `__end`, `START_STEP` is `__start`, `CREATE_STRUCTURE` is `__create`. `NewStructureTemplateStep.Direction` has FORWARD and BACK in that order; `isBack()` is true only for BACK.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.template.NewStructureTemplateStep",
+    "com.almworks.jira.structure.api.template.NewStructureTemplateStep$Direction#isBack"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureTemplateException/constructors",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.template.StructureTemplateException",
+   "behaviour": "`StructureTemplateException` is a checked exception: `(message)` sets the message, `(message, cause)` sets both, and `(cause)` sets the cause with the message equal to `cause.toString()` (null when the cause is null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.template.StructureTemplateException#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/ColumnDisplayMode/values",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ColumnDisplayMode",
+   "behaviour": "`ColumnDisplayMode.AUTO_FIT` is 1 and `SCROLLABLE` is 2; `isValid` is true for 1 and 2 only (false for 0, 3, 11, -1). The class has no public constructor.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ColumnDisplayMode#isValid"
+   ]
+  },
+  {
+   "key": "g8-structures/RowDisplayMode/values",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.RowDisplayMode",
+   "behaviour": "`RowDisplayMode.ONE_LINE` is 11 and `TEXT_WRAPPING` is 12; `isValid` is true for 11 and 12 only (false for 1, 2, 10, 13). The class has no public constructor.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.RowDisplayMode#isValid"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewBean/empty",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewBean",
+   "behaviour": "`StructureViewBean.EMPTY` has ID 0, empty name and description, null owner, an empty `getPermissions()` list and `ViewSpecification.EMPTY` as specification.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewBean"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewBean/build-valid",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewBean",
+   "behaviour": "`StructureViewBean.Builder.build()` with a non-zero ID, a non-blank name and a specification builder gives a bean with that ID and name, the description (empty string when unset), an equal copy of the owner (null when unset), equal copies of the rules (empty list when unset) and the specification built from the builder.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#build",
+    "com.almworks.jira.structure.api.view.StructureViewBean#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewBean/build-invalid",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewBean",
+   "behaviour": "`StructureViewBean.Builder.build()` throws `IllegalStateException` (message starting `builder is not in valid state: `) when the ID is null or 0, the name is null or blank (only whitespace), or no specification builder is set. `isValidExceptId()` is true when name is non-blank and a specification is set; `isValid()` additionally requires a non-null, non-zero ID (a negative ID counts as valid).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#build",
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#isValid",
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#isValidExceptId"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewBean/getters-copy",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewBean",
+   "behaviour": "`StructureViewBean.getOwner()` returns a new copy on each call (equal but not the same instance) and `getPermissions()` returns a new list of cloned rules each call; modifying the returned list does not affect the bean.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewBean#getOwner",
+    "com.almworks.jira.structure.api.view.StructureViewBean#getPermissions"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewBean/equals-hashcode",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewBean",
+   "behaviour": "Two `StructureViewBean`s built from equal inputs are equal and have equal hash codes; a difference in ID, name, description, owner, rules or specification (for example only the column display mode) makes them unequal.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewBean#equals",
+    "com.almworks.jira.structure.api.view.StructureViewBean#hashCode"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewBean/builder-fields",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewBean",
+   "behaviour": "A new `StructureViewBean.Builder` has every property unset: `getId`, `getName`, `getDescription`, `getOwner`, `getSpecification` return null, `hasOwner()` and `hasPermissions()` are false and `getPermissions()` is an empty list. Setters store the values; `setPermissions` stores a copy (null unsets, an empty collection makes `hasPermissions()` true); `setOwner` stores a copy; `getSpecification()` returns the very builder that was set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#setPermissions",
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#hasPermissions",
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#getSpecification"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewBean/builder-from-bean",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewBean",
+   "behaviour": "`new StructureViewBean.Builder(bean)` copies ID, name, description, owner, rules and a builder of the bean's specification, so `build()` on it gives a bean equal to the original; `new Builder(null)` gives an empty builder.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewBean/builder-clone",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewBean",
+   "behaviour": "`StructureViewBean.Builder.clone()` returns an independent copy: changing the clone's ID, name, rules or its specification builder's columns does not change the original builder, and vice versa.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#clone"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewBean/update-properties-of",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewBean",
+   "behaviour": "`a.updatePropertiesOf(b)` copies into builder b each of ID, name, description, owner, rules and specification that is set (non-null) in a, leaving b's other properties unchanged; afterwards b's specification builder is the same instance as a's.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#updatePropertiesOf"
+   ]
+  },
+  {
+   "key": "g8-structures/StructureViewMenuItem/getters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.StructureViewMenuItem",
+   "behaviour": "`new StructureViewMenuItem(view, preferred)` returns the same view from `getView()` (null allowed) and the flag from `isPreferred()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.StructureViewMenuItem#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/page-sets",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.ALL_PAGES` contains exactly STRUCTURE_BOARD, ISSUE_VIEW, PROJECT_TAB and GADGET; `PAGES_WITH_DEFAULT_VIEW` exactly STRUCTURE_BOARD, ISSUE_VIEW and PROJECT_TAB; `NO_PAGES` is empty. All three are unmodifiable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/empty-settings",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.EMPTY_SETTINGS` and the result of building a fresh `ViewSettings.Builder` are undefined: `isDefined()` false, `getAssociatedViews()` an empty list, `getDefaultViewForPage` null for every page, `hasView` false. After `makeDefined()` (and no views) the built settings are defined with an empty list and are not equal to `EMPTY_SETTINGS`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings#isDefined",
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#makeDefined",
+    "com.almworks.jira.structure.api.view.ViewSettings#equals"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/add-view",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.Builder.addView(id, false)` appends a view that is on all menus (`getMenuPages()` equals `ALL_PAGES`) and default nowhere; `addView(id, true)` also makes it default on STRUCTURE_BOARD, ISSUE_VIEW and PROJECT_TAB. `addViews(ids...)` appends each as non-default, in order; `addViews(null)` does nothing. Builder methods return the builder.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#addView",
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#addViews"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/add-view-replaces",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "Adding a view ID that is already in a `ViewSettings.Builder` first removes the old entry, so each ID appears once; with a negative index the view moves to the end. Example: views 1,2,3 then `addView(-1, 1, null, null)` gives 2,3,1; `addView(0, 3, null, null)` gives 3,1,2. The index is checked against the size before the removal and adjusted when the removed entry was before it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#addView"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/add-view-errors",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.Builder.addView(index, id, menu, defaults)` throws `IllegalArgumentException` for an ID of 0 or less (message `cannot set parameters for view <id>`) and `IndexOutOfBoundsException` (message `bad index <index>`) when the index is greater than the current number of views; index equal to the size appends.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#addView"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/add-view-pages",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "In `ViewSettings.Builder.addView(index, id, menu, defaults)`, null or empty menu pages mean all pages and null or empty default pages mean none; menu pages outside `ALL_PAGES` and default pages outside `PAGES_WITH_DEFAULT_VIEW` (such as GADGET) are dropped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#addView",
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView$Builder#setMenuPages"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/default-view-for-page",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.getDefaultViewForPage(page)` returns the ID of the first view, in list order, that is default for the page, or null. COMPONENT_TAB and VERSION_TAB are treated as PROJECT_TAB; null and any page not in `ALL_PAGES` (e.g. ISSUE_NAVIGATOR, the deprecated board-with-details page) are treated as STRUCTURE_BOARD. GADGET is never a default page.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings#getDefaultViewForPage",
+    "com.almworks.jira.structure.api.view.ViewSettings#adjustPage"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/has-view",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.hasView(id)` is true when a view with that ID is in the list; false for null, for an unknown ID and for undefined settings.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings#hasView"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/immutability",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.getAssociatedViews()` is unmodifiable, and the built settings do not change when the builder is changed afterwards. `getViews()` of the builder returns a new list (null when undefined) and `setViews` copies the list (null makes it undefined); association builders with view ID 0 are skipped by `build()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#build",
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#getViews",
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#setViews"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/builder-copy",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`new ViewSettings.Builder(settings)` copies the views of defined settings in order, so building it gives settings equal to the original; for null or undefined settings the builder is undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/equals",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "Two `ViewSettings` are equal when both are undefined or both have equal view lists (same order); hash codes agree with equality.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings#equals",
+    "com.almworks.jira.structure.api.view.ViewSettings#hashCode"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/associated-view-pages",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.AssociatedView.isOnMenu(page)` and `isDefault(page)` check the page against its menu and default pages after mapping COMPONENT_TAB and VERSION_TAB to PROJECT_TAB and null or other pages outside `ALL_PAGES` to STRUCTURE_BOARD. Its `getMenuPages()` and `getDefaultPages()` are unmodifiable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView#isOnMenu",
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView#isDefault"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/associated-view-builder",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.AssociatedView.Builder.build()` returns null when the view ID is 0 (any other ID, even negative, builds). A built association with unset menu pages has `ALL_PAGES` as menu pages and with unset default pages has an empty set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView$Builder#build",
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/associated-view-builder-menu",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.AssociatedView.Builder.setMenuPages`: null, an empty set or a set equal to `ALL_PAGES` leave the menu pages unset (`getMenuPages()` null). The deprecated board-with-details page is replaced by STRUCTURE_BOARD and PROJECT_TAB; other pages outside `ALL_PAGES` are dropped, which can leave an empty (but set) menu, giving a view on no menu. The caller's set is not modified; `getMenuPages()` returns a copy.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView$Builder#setMenuPages",
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView$Builder#getMenuPages"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/associated-view-builder-defaults",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "`ViewSettings.AssociatedView.Builder.setDefaultPages` keeps only pages in `PAGES_WITH_DEFAULT_VIEW`; null or an empty set leaves default pages unset (`getDefaultPages()` null). `getDefaultPages()` returns a copy. `new Builder(view)` copies view ID and pages from an association, and `new Builder(null)` gives view ID 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView$Builder#setDefaultPages",
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView$Builder#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSettings/associated-view-equals",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSettings",
+   "behaviour": "Two `ViewSettings.AssociatedView`s are equal when view ID, menu pages and default pages are equal; hash codes agree.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView#equals"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/empty",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`ViewSpecification.EMPTY` and a spec built from a fresh `ViewSpecification.Builder` have no columns, column display mode 1 (`AUTO_FIT`), row display mode 11 (`ONE_LINE`) and no pins; the two are equal.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#build"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/display-modes",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`ViewSpecification.Builder.setColumnDisplayMode` stores 1 or 2 and replaces any other value with 1; `setRowDisplayMode` stores 11 or 12 and replaces any other value with 11. Both return the builder; the built spec reports the stored modes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#setColumnDisplayMode",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#setRowDisplayMode"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/auto-csid",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`ViewSpecification.Builder.addColumn(key)` gives the new column the csid one greater than the largest csid of the builder's columns that parses as an integer (non-numeric csids such as `main` are ignored; with none the first csid is `1`). Example: after `addMainColumn()`, `addColumn(\"a\")` gets `1` and `addColumn(\"b\")` gets `2`; with an existing csid `7`, the next is `8`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#addColumn",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#getNextCsid"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/shortcut-columns",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`addMainColumn()` appends a column with key and csid `main`; `addFieldColumn(f)` a `field` column with parameter `field`=f; `addTimeAggregateColumn(f)` and `addFieldSumColumn(f)` both a `field` column with `field`=f and `aggregate`=`sum`; `addProgressColumn()` a `progress` column with no parameters; `addIconsColumn(f1, f2...)` an `icons` column with parameter `fields` = the list of the given strings. All except `addMainColumn` use the next numeric csid, and all return the builder.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#addMainColumn",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#addFieldColumn",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#addFieldSumColumn",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#addIconsColumn"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/tp-column",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`addTPColumn()` appends an `icons` column with parameter `fields` = [`issuetype`, `priority`] and a name taken from the localized text for the key `s.w.column.tp.label` (needs Jira's i18n).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#addTPColumn"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/add-remove-columns",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`addColumn(key, csid)` appends a column builder with that key and csid and returns it, so further changes to it show up in the next `build()`. `addColumns(builders...)` appends the given builders by reference; null does nothing. `removeColumn(csid)` removes every column builder whose csid equals the argument (null removes those with a null csid).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#addColumn",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#addColumns",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#removeColumn"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/build-skips-invalid",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`ViewSpecification.Builder.build()` keeps the column order and silently drops column builders with a null or empty csid or key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#build"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/spec-immutable",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`ViewSpecification.getColumns()` and `getPins()` are unmodifiable lists, and later changes to the builder's column list or display modes do not change an already built spec.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification#<init>",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#build"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/pins-leak",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "A built `ViewSpecification` shares the builder's pin list: adding to the list returned by the builder's `getPins()` after `build()` makes the new pin appear in the spec's `getPins()` (as the original does). `setPins` replaces the builder's list with a copy (null gives an empty list), after which earlier specs no longer change.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#build",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#getPins",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#setPins"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/builder-lists",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`ViewSpecification.Builder.getColumns()` returns the live mutable list of column builders (changes through it affect the builder); `setColumns` copies the given list (null gives an empty list).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#getColumns",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#setColumns"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/builder-copy-clone",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`new ViewSpecification.Builder(spec)` copies columns, both display modes and pins, so its `build()` equals the spec; null gives defaults. `clone()` copies the column builders and pins, so changing a column's parameters or the pins in the clone does not affect the original.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#<init>",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Builder#clone"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/equals-hashcode",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "Two `ViewSpecification`s are equal when columns, column display mode, row display mode and pins are equal; specs differing only in row display mode are unequal but have the same hash code.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification#equals",
+    "com.almworks.jira.structure.api.view.ViewSpecification#hashCode"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/column-build",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`ViewSpecification.Column.Builder.build()` throws `IllegalStateException` (message starting `column builder is not in valid state: `) unless csid and key are both non-empty; `isValid()` reports that. The built column returns the csid, key and name (name may be null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column$Builder#build",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column$Builder#isValid"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/column-parameters-immutable",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`ViewSpecification.Column.getParameters()` is never null (empty when the builder had none) and is a deep, unmodifiable copy: putting into it, or into a list nested in it, throws `UnsupportedOperationException`, and changing the builder afterwards does not affect the column. Entry order is preserved.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column#<init>"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/column-set-parameter",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`Column.Builder.setParameter(name, value)` stores a copy of the value (lists and maps copied deeply, so later changes to the caller's list do not show) and creates the map on first use; a null value or `removeParameter(name)` removes the entry; a null name throws `NullPointerException`. Values must be `String`, `Integer`, `Long`, `Double`, `Boolean`, or lists or string-keyed maps of these; anything else (for example a `Float`, a null inside a list, or a map with a non-string key) throws `IllegalArgumentException`. Returns the builder.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column$Builder#setParameter",
+    "com.almworks.jira.structure.api.util.JsonMapUtil#checkValidParameter"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/column-builder-parameters",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`Column.Builder.getParameters()` is null until a parameter is set and returns the live map afterwards. `setParameters(map)` stores a deep mutable copy, and null or an empty map makes `getParameters()` null. `setStringListParameter(name, a, b)` sets the parameter to the list [a, b].",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column$Builder#getParameters",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column$Builder#setParameters",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column$Builder#setStringListParameter"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/column-builder-copy",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "`new ViewSpecification.Column.Builder(column)` copies csid, key, name and a mutable deep copy of the parameters (null when the column has none); null gives an empty builder. `clone()` gives a copy whose parameter map is independent of the original's.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column$Builder#<init>",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column$Builder#clone"
+   ]
+  },
+  {
+   "key": "g8-structures/ViewSpecification/column-equals",
+   "module": null,
+   "api": "com.almworks.jira.structure.api.view.ViewSpecification",
+   "behaviour": "Two `ViewSpecification.Column`s are equal when csid, key, name and parameters are equal; hash codes agree.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column#equals",
+    "com.almworks.jira.structure.api.view.ViewSpecification$Column#hashCode"
+   ]
+  }
+ ],
+ "tests": {}
+}

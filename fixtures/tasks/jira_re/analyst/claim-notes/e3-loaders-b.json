@@ -1,0 +1,793 @@
+{
+ "claims": [
+  {
+   "key": "e3-loaders-b/customfield-provider/spec-and-field-lookup",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "Answers only attribute id `customfield`. The custom field is named by the params key `fieldId`, read as a long (a JSON number or a numeric string, e.g. 10010, not `customfield_10010`). A missing, zero or non-numeric `fieldId` makes the provider decline (no loader), and so does an id for which Jira's CustomFieldManager.getCustomFieldObject(long) returns no field. Any other attribute id is declined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/kind-selection-order",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "The kind of value is chosen from the custom field, first by its type key and then by its JSON schema type, in this order: Jira Software sprint (`com.pyxis.greenhopper.jira:gh-sprint`), service desk request type (`com.atlassian.servicedesk:vp-origin`), Tempo account (`com.tempoplugin.tempo-accounts:accounts.customfield`), Tempo team (`com.tempoplugin.tempo-teams:team.customfield`), Advanced Roadmaps team (`com.atlassian.teams:rm-teams-custom-field-team`), Epic Sum Up time (`aptis.plugins.epicSumUp:epic-sum-up-custom-field-time`), the Epic Sum Up client-side fields (declined), then schema type `date` or `datetime` (time), numeric fields (number), schema type `user` (user), the Xray status fields (text with test-run tracking) and finally every other field (text). The requested value format does not change the kind, except for the date and Epic Sum Up text forms described separately: the loader serves the kind's own format (TEXT, NUMBER, TIME, DURATION or the user format).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/issue-only-and-relevance",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "Except for the service desk request type, values exist only for issue items (`com.almworks.jira.structure:type-issue`) that resolve to a Jira Issue. When the field is not relevant for the issue (CustomField.isRelevantForIssueContext(issue) is false: wrong project or issue type), the value is undefined without reading the field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldAttributeLoader#getValue",
+    "com.almworks.jira.structure.api.attribute.loader.basic.IssueAttributeLoader"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/sprint-field",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For a Jira Software sprint field the value is TEXT: the names of the sprints in the field value (CustomField.getValue), in the field's order, joined with `, ` (comma and space). Elements that are not sprints are left out. A null or non-collection value, or an issue with no sprints, gives the empty text, which is a defined value, not undefined. Every sprint in the value is recorded in the loading trail as a sprint item (CoreIdentities.sprint(sprint id)), so the text is recalculated when one of those sprints changes (for example, is renamed).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$SprintLoader#getFieldValue",
+    "com.almworks.structure.commons.agile.SprintServicesWrapper#convertSprints"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/service-desk-request-type",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For the service desk request type field (`com.atlassian.servicedesk:vp-origin`) the value is TEXT: the name of the issue's request type, as `sd-integration-supplier` reports it for the issue id (a query by issue id as the current user). No request type, or Service Management absent, gives undefined. This kind works on the issue id alone: it does not resolve the issue and does not check whether the field is relevant for the issue, but it still applies only to issue items.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$ServiceDeskRequestTypeLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/tempo-account-field",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For the Tempo Accounts field the value is TEXT: the toString() of the field's value for the issue (CustomField.getValue). A null value gives undefined. If reading the value throws any exception or LinkageError (for example, Tempo is disabled or its classes are missing), the value is undefined and a throttled warning `Failed to load a custom field value for <issue key>` is logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldTempoAccountLoader#getFieldValue",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#getFieldValueSafe"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/tempo-team-field",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For the Tempo Teams field the value is TEXT: the name of the team that `tempo-integration` finds for the field value (a numeric string is read as a team id and looked up, other objects are read as a team). No team, a null value, or Tempo absent gives undefined. Exceptions while reading the field value are caught as for the Tempo account field (undefined plus a throttled warning).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldTempoTeamLoader#getFieldValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/roadmaps-team-field",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For the Advanced Roadmaps Team field (`com.atlassian.teams:rm-teams-custom-field-team`) the value is TEXT: the field value's toString() is parsed as a long team id and the team's title is taken from `portfolio-integration` (team by id). A null value, a value that is not a number, or an id with no team (or Advanced Roadmaps absent) gives undefined. Exceptions while reading the value are caught as for the Tempo account field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldPortfolioTeamLoader#getFieldValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/epic-sum-up-time",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For the Epic Sum Up time field, when the requested format is neither TEXT nor HTML, the value is a DURATION in milliseconds: a java.lang.Double field value (seconds) times 1000, truncated to a long (e.g. 5400.0 gives 5400000). Any other value, including null, gives undefined. Exceptions while reading the value are caught (undefined, throttled warning). When TEXT or HTML is requested, the value is derived from the same spec in DURATION format and formatted as Jira time-tracking text for the current user, as `format-helper` formats durations (e.g. 5400000 gives `1h 30m` with standard settings). That text value depends on the current user. Epic Sum Up absent: the field does not exist, so the provider declines.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$EpicSumUpTimeFieldLoader#getFieldValue",
+    "com.almworks.jira.structure.integration.EpicSumUpIntegration"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/epic-sum-up-client-side-declined",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "The provider declines (no loader) for the Epic Sum Up fields that are only rendered in the browser, which have these type keys: `aptis.plugins.epicSumUp:epic-sum-up-custom-field-attachment-indicator`, `...-comments-indicator`, `...-issue-count-progress`, `...-progress`, `...-status-category-progress`, `...-story-points-progress`, `...-type-allocation` and `...-time-progress`, all with the prefix `aptis.plugins.epicSumUp:epic-sum-up-custom-field-`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#createAttributeLoader",
+    "com.almworks.jira.structure.integration.EpicSumUpIntegration"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/date-field-time-value",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For a field whose JSON schema type is `date` or `datetime`, any requested format other than TEXT gives a TIME value (epoch milliseconds) from the java.util.Date field value. A value that is not a Date gives undefined. A `datetime` field's timestamp is returned unchanged. For a `date` field the timestamp is by default shifted as `structure-datetime-formatter` corrects date-only values: the calendar date in the JVM default zone becomes the start of that date in the loading context's time zone. The value then depends on the user's time zone. With the params key `disableDateShift` true (Boolean true or the string `true`), the raw timestamp is returned and the value does not depend on the time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldDateTimeLoader#getFieldValue",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldDateTimeLoader#getContextDependencies",
+    "com.almworks.structure.commons.util.AttributeUtil#isDateShifted",
+    "com.almworks.jira.structure.StructureDateTimeService"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/roadmaps-target-dates",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For the Advanced Roadmaps target start and target end fields (`com.atlassian.jpo:jpo-custom-field-baseline-start` and `...-baseline-end`) in a non-TEXT format, the TIME value is the field's Date timestamp converted from a source zone to a target zone. The source zone is UTC when `portfolio-integration` says target dates need a UTC shift (from the `com.atlassian.teams` version), otherwise the JVM default zone. The target zone is the context's time zone unless `disableDateShift` is true, in which case it is the JVM default. When the two zones differ, the timestamp becomes the start of its calendar date (in the source zone) in the target zone; when they are equal it is unchanged. Only the shifted form depends on the user's time zone. A non-Date value gives undefined. The Secure Fields user dependency is not added for these fields.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$PortfolioCustomFieldDateTimeLoader#getFieldValue",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$PortfolioCustomFieldDateTimeLoader#getContextDependencies"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/date-field-text",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "When TEXT is requested for a `date` or `datetime` field (target date fields included), the value is derived from the same spec in TIME format, and undefined when that value is. It is formatted with a Jira DateTimeFormatter: a `datetime` field uses the current user's formatter with style DATE_TIME_PICKER; a `date` field with date shift (the default) uses the current user's formatter with style DATE; a `date` field with `disableDateShift` true uses Jira's system formatter for the context's locale with style DATE. Only the last depends on the locale alone; the first two depend on the user. The formatter is created once per loading context for each spec.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#getFormattedDateTimeCF",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/number-field",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "A field counts as numeric when its JSON schema type is `number`, or when its searcher is Jira's NumberRangeSearcher or ExactNumberSearcher, unless its type key is `com.keplerrominfo.jira.plugins.keplercf:silscriptcf` (that type is numeric only through its schema). The value is a NUMBER: a java.lang.Number field value as it is, or a String parsed as a double. A string that does not parse gives undefined and a throttled warning `Custom field:<field id> value is a string instead of a number`. Any other value, including null, gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#isNumericCustomField",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldNumberLoader#getFieldValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/user-field",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For a field with JSON schema type `user` (single user picker) the value is the ApplicationUser in the field (user format). The user is recorded in the loading trail as a user item (by user key), so the value is recalculated when that user changes. A value that is not an ApplicationUser, including null, gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldUserLoader#getFieldValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/text-field",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "Every other custom field (text, selects, multi-user and multi-value pickers, versions, labels, cascading and so on) gives TEXT. The field's REST representation is read (CustomField.getJsonFromIssue(issue, false, null)) and its standard data is turned into text by `value-text-converter` for this custom field type. A missing representation or data gives that converter's answer for null, which is undefined. The Jira entities the converter records go into the loading trail, so the text is recalculated when one of them changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldTextLoader#getFieldValue",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldTextLoader#getContextDependencies"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/xray-status-fields",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "The Xray status fields `com.xpandit.plugins.xray:test-set-status-custom-field`, `com.xpandit.plugins.xray:test-execution-status-custom-field` and `com.xpandit.plugins.xray:test-plan-status-custom-field` are loaded as TEXT, like other fields. In addition, their values declare a global trail of every item of type `com.almworks.jira.structure:xray-test-run`, so any change to an Xray test run item invalidates them. Without Xray these fields do not exist.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#createAttributeLoader",
+    "com.almworks.jira.structure.integration.xray.XrayUtils#isTestRunStatusDependantCustomField",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldTextLoader#getGlobalTrail"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/secure-fields-user-dependency",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "When the custom field's type key starts with `com.coresoftlabs.secure-fields.secure-fields` (Secure Fields app), the values also depend on the current user, so they are computed and cached per user. This applies to the sprint, date (time value), number, user, text and Xray kinds. It does not apply to the request type, Tempo, Roadmaps team, Epic Sum Up or target date kinds. Other fields get no such user dependency from this rule.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.SecureFieldsIntegration#getAddedContextDependencies",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldAttributeLoader#extendContextDependencies"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/customfield-provider/uncaught-read-errors",
+   "module": "customfield-provider",
+   "api": null,
+   "behaviour": "For the sprint, date, target date, number and user kinds, an exception thrown by CustomField.getValue is not caught by the provider; it reaches the attribute framework, which handles a failing loader. Only the Tempo account, Tempo team, Roadmaps team and Epic Sum Up time kinds catch read failures and give undefined.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$SprintLoader#getFieldValue",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider$CustomFieldNumberLoader#getFieldValue",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldProvider#getFieldValueSafe"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/spec-formats",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "Answers only attribute id `progress`, in three forms: format id `progress` (an internal aggregate holding a progress and a weight per row), format id `issue-progress-data` (internal per-issue data: own progress, overriding progress, own weight), and any other requested format, which is served as a NUMBER. The NUMBER is the progress part of the `progress`-format value with the same params: a fraction from 0 to 1 (e.g. 0.25), undefined when there is none, NaN, or outside 0..1.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressLoader#getValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/based-on-values",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "The params key `basedOn` selects the method: `timetracking`, `resolution`, `percentfield`, `status` or `category` (exact, case-sensitive). With any other value, or without it, the provider declines the `progress` and `issue-progress-data` forms, so the NUMBER form has no source value. There is no default method.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#getAggregateLoader",
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#getIssueDataLoader"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/weight-by",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "The params key `weightBy` sets how children are weighted: `equal` (all equal; also used when the key is absent or has any other value), `time` (an issue's time spent plus remaining estimate in milliseconds, only when that total is above 0, otherwise no weight), or `field`, with the field id in `weightByField` (e.g. `customfield_10002`). A `field` weight is the field's numeric value: a Number, or a String parsed as a double. The field must be a numeric custom field: type key `com.atlassian.jira.plugin.system.customfieldtypes:float`, or JSON schema type `number` other than the Jira Software rank fields and the import-id field. Otherwise (unknown id, not numeric, or `weightByField` missing) creating the loader fails with StructureProviderException `field <id> not found or not supported`. With `basedOn` = `timetracking`, `weightBy` is ignored and the weight is always the time.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#getWeightBy",
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#getWeightFunction",
+    "com.almworks.structure.commons.util.JiraFieldUtils#isNumericCustomField",
+    "com.almworks.jira.structure.api.util.JiraFunc"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/timetracking-issue-progress",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "Time tracking: an issue's own progress is computed from its time spent S and remaining estimate R (Issue.getTimeSpent, Issue.getEstimate, in seconds). When both are set: S/(S+R) clamped to 0..1, or no progress when S+R is 0. When only S is set and above 0: 1. When only R is set and above 0: 0. Otherwise there is no progress. When the params key `resolvedComplete` is true, a resolved issue (Issue.getResolution not null) has progress 1, whatever its children.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider",
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#getForTimeTracking"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/resolution-progress",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "Resolution: an issue's own progress is 1 when it has a resolution and 0 otherwise. A resolved issue always shows 1, whatever its children (`resolvedComplete` is not needed). An unresolved issue with children shows the weighted average of the children; its own 0 is not counted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#getForResolutionOnly"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/percent-field-progress",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "Percent field: the params key `percentField` holds a field id. When it is absent, creating the loader fails with StructureProviderException `empty percent field id`. When the field is not a numeric custom field, it fails with `field <id> not found or not supported`. An issue's progress is the field value divided by 100 and clamped to 0..1 (Number values, or numeric String values; 50 gives 0.5, 150 gives 1). An issue with a value shows it, whatever its children. With `resolvedComplete` true, a resolved issue shows 1 instead. Issues without a value show their children's weighted average.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#getForPercentField",
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#createPercentFieldFunc",
+    "com.almworks.jira.structure.extension.attribute.progress.ScaleAndClamp#la",
+    "com.almworks.jira.structure.extension.attribute.progress.NumericCustomField#la"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/status-category-progress",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "Status or category: the params `statuses` (list of status ids as strings) and `percents` (list of integers) are paired by position, up to the shorter list; for `category`, `categories` (status category ids, e.g. `3`) and `categoryPercents` are used instead. An issue's own progress is percent/100 for its status id (Issue.getStatusId) or its status category id, clamped to 0..1. A status or category not in the lists gives no own progress. Non-numeric entries of the percent list are skipped before pairing. With `resolvedComplete` true, a resolved issue shows 1, whatever its children.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#buildStagesMap",
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#getForStageHistogram",
+    "com.almworks.jira.structure.extension.attribute.progress.StageMapProgressFunction#apply"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/include-self",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "The params key `includeSelf` (boolean, default false) applies to `timetracking`, `status` and `category`. When true, a parent row's own progress joins its children's, with its own weight or, when it has none, the children's average weight (1 if no child has a weight). When false, a parent row's own progress is ignored. For `resolution` and `percentfield` the parent's own progress never takes part (only overrides apply).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.ProgressProvider#getAggregateLoader",
+    "com.almworks.jira.structure.extension.attribute.progress.WeightedProgressLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/weighted-average",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "A parent row's progress is a weighted average of its children's (progress, weight) values. A child with both contributes progress x weight and its weight. A child with a progress but no weight counts with the average weight of the weighted children (1 when there are none). Children with no progress are left out, except under `timetracking` on an issue row, where they count as progress 0 (with their own weight, or the average one). Negative numbers count as 0. The result is clamped to 0..1, is 0 when the total weight is at most 0.00001, and results below 0.00001 are reported as exactly 0. Example (equal weights): children 0.5 and 1 give 0.75; with time weights 1h at 0.5 and 3h at 1, the result is 0.875.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.WeightedProgressLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/leaf-and-empty",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "A leaf row (no children) shows its own progress. Under `timetracking`, an issue leaf with no time-tracking data shows 0. Otherwise, a leaf without progress has none (NUMBER undefined). A parent whose children all lack progress shows nothing, except under `timetracking` on an issue row, where it shows 0. An issue's overriding progress (resolved with `resolvedComplete`, resolved under `resolution`, or its own percent value) replaces any computed value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.WeightedProgressLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/row-weight-propagation",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "Each row also passes a weight up to its parent. A leaf passes its own weight (none under equal weighting). For `resolution` and `percentfield`, a parent passes the sum of its children's weights (unweighted children counted at the average) plus its own weight when at least one child had a real weight, and only its own weight otherwise. For the other methods, a parent passes the summed weight (including itself when `includeSelf` counted it) when at least one child had a real weight, and no weight otherwise.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.WeightedProgressLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/automation-and-non-issue-rows",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "Generator and effector rows have no progress (undefined), and so do not take part in their parent's average. Rows that are not issues (folders, projects, users and so on) have no own data: they show the weighted average of their children, never an override, and under `timetracking` missing child progress is not counted as 0 for them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.WeightedProgressLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.progress.IssueProgressDataLoader"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/progress-provider/caching-and-invalidation",
+   "module": "progress-provider",
+   "api": null,
+   "behaviour": "The per-issue progress data is read from the issue (time tracking, resolution, status, the percent or weight field) and should be cached, so it changes when the issue changes. The row values are aggregates that are recomputed when a descendant's data or the forest changes.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.progress.IssueProgressDataLoader#getCachingStrategy",
+    "com.almworks.jira.structure.extension.attribute.progress.WeightedProgressLoader#getAttributeDependencies"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/worklogged-provider/spec-and-format",
+   "module": "worklogged-provider",
+   "api": null,
+   "behaviour": "Answers only attribute id `worklogged` and serves it as a DURATION (milliseconds, long), whatever format is requested. Only issue items have a value: the total time spent of the issue's work logs (WorklogManager.getByIssue) whose start date is in the period and that pass the author filter, each log's time spent in seconds times 1000. Logs with no time spent are skipped. No matching logs gives 0 (a defined value).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.WorkLoggedProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.WorkLoggedProvider$WorkLoggedLoader#getValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/worklogged-provider/author-group-role-filters",
+   "module": "worklogged-provider",
+   "api": null,
+   "behaviour": "Optional filters, at most one of which may be given: `author` (a user key, matched against the work log's author key ignoring case), `group` (a group name: the log's author must be in the group per Jira's GroupManager.isUserInGroup), or `role` (a project role id or name: the author must be in that role in the log's issue's project per ProjectRoleManager.isUserInProjectRole). A `role` value that parses as a long is looked up by id, otherwise by name. When more than one of the three keys is present, or the role is not found, the provider declines (no loader). With none of them, every log counts.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.WorkLoggedProvider#createWorkLogPredicate",
+    "com.almworks.jira.structure.extension.attribute.WorkLoggedProvider#parseProjectRole"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/worklogged-provider/period-presets",
+   "module": "worklogged-provider",
+   "api": null,
+   "behaviour": "With the params key `period` set to a preset and `timeZone` set to a time zone id (read with java.util.TimeZone.getTimeZone, so an unknown id means GMT), the period is relative to the current time in that zone. Each period runs from local midnight (inclusive) to local midnight (exclusive): `today` is today; `yesterday` is yesterday; `this_week` is from the first day of the current week to the same day next week; `last_week` is the week before; `this_month` and `last_month` run from the 1st of the month to the 1st of the next; `this_year` and `last_year` run from 1 January to 1 January of the next year. Preset names are exact and case-sensitive.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.Preset#getDateFrom",
+    "com.almworks.jira.structure.extension.attribute.Preset#getDateTo",
+    "com.almworks.jira.structure.extension.attribute.Period#createPeriod"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/worklogged-provider/week-start",
+   "module": "worklogged-provider",
+   "api": null,
+   "behaviour": "For `this_week` and `last_week`, weeks start on Monday when Jira's application option `jira.date.time.picker.use.iso8061` is true, and on Sunday otherwise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.Period#createPeriod"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/worklogged-provider/explicit-range",
+   "module": "worklogged-provider",
+   "api": null,
+   "behaviour": "When `period` is absent or empty, the period comes from `dateFrom` and `dateTo` (both `yyyy-MM-dd`), read in the zone `timeZone`. It runs from the start of `dateFrom` to the start of the day after `dateTo`, so both days are included. A work log counts when its start date is at or after the start and before the end.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.Period#createPeriod",
+    "com.almworks.jira.structure.extension.attribute.Period#check"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/worklogged-provider/no-period",
+   "module": "worklogged-provider",
+   "api": null,
+   "behaviour": "When no period can be formed, the issue gets no value (not 0). That happens when `timeZone` is missing or empty, when `period` names an unknown preset (the dates are then not used), when `dateFrom` or `dateTo` is missing, or when a date does not parse as `yyyy-MM-dd`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.WorkLoggedProvider$WorkLoggedLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.Period#createPeriod"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/worklogged-provider/now-per-loading",
+   "module": "worklogged-provider",
+   "api": null,
+   "behaviour": "A preset period is worked out once per attribute loading context, from the system clock (System.currentTimeMillis) at the first issue that needs it. All issues loaded together use the same period. Nothing invalidates the values when a period boundary such as midnight passes.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.WorkLoggedProvider$WorkLoggedLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.WorkLoggedProvider#now"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/is-user-added-automation-provider/spec",
+   "module": "is-user-added-automation-provider",
+   "api": null,
+   "behaviour": "Serves the internal attribute id `user-added-automation` in format id `user-added-automation`, whose value is an ItemIdentity. Rows whose item is not a generator or an effector get no value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.UserAddedAutomationProvider"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/is-user-added-automation-provider/transient-generator-items",
+   "module": "is-user-added-automation-provider",
+   "api": null,
+   "behaviour": "A generator item with a transient long id (positive and odd, i.e. a generator created on the fly rather than saved) gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.UserAddedAutomationProvider"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/is-user-added-automation-provider/trace-to-original",
+   "module": "is-user-added-automation-provider",
+   "api": null,
+   "behaviour": "For other generator and effector rows, the row is traced back through transient copies. While the row is a TransientRow whose creator row id is not a persistent id (persistent ids are positive and even), the trace moves to the row's original row (RowManager.getRow(originalId)). The value is the row's item identity (e.g. generator/12) when the trace ends on a row with a persistent row id, meaning a user saved this automation in the structure. It is undefined when the trace ends on a transient row made by a persistent generator, meaning another generator produced it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.UserAddedAutomationProvider"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/is-user-added-automation-provider/missing-row-error",
+   "module": "is-user-added-automation-provider",
+   "api": null,
+   "behaviour": "If a row on the trace is missing (RowManager throws MissingRowException), the value is an error value and a throttled warning `cannot trace back to original item` is logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.UserAddedAutomationProvider"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/children-automations-hint-provider/aggregate-collects-children",
+   "module": "children-automations-hint-provider",
+   "api": null,
+   "behaviour": "An internal aggregate with id `children-automations-hint` and format id `children-automations-aggregate` depends on `user-added-automation`. A row that is a user-added generator or effector holds just itself. Any other row collects the user-added generators and effectors among its direct children, in row order. Automations deeper down are not collected, because a child's own collected list is not passed up. A row with none gets undefined. This value may be cached.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ChildrenAutomationsHintProvider$AggregateHintsLoader#getAggregateHint",
+    "com.almworks.jira.structure.extension.attribute.ChildrenAutomationsHintProvider$AggregateHintsLoader#getCachingStrategy"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/children-automations-hint-provider/hint-html",
+   "module": "children-automations-hint-provider",
+   "api": null,
+   "behaviour": "The attribute `children-automations-hint` in HTML format exists only for rows with at least one user-added generator or effector among their direct children (not for the automation rows themselves). It is `<p>` + text of `s.ext.aut.hint.header` (`The contents of structure under this row are automated.`) + `</p>`. When there are generators, it continues with `<p>Generators in use:</p>` (`s.ext.aut.hint.gen.header`) and a `<ul>` with one `<li>` per generator. When there are effectors, it continues with `<p>Effectors in use:</p>` (`s.ext.aut.hint.eff.header`) and a `<ul>` with one `<li>` per effector. Texts are in the current user's language.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ChildrenAutomationsHintProvider$HintLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.ChildrenAutomationsHintProvider$HintLoader#renderChildrenHint"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/children-automations-hint-provider/generator-entry",
+   "module": "children-automations-hint-provider",
+   "api": null,
+   "behaviour": "Each generator entry is `<span class=\"s-summary-icon s-tooltip-align\">` + the generator's icon HTML + `</span>` + the generator's summary, the same summary `main-provider` shows for that generator row. The generator is resolved from its generator item id. A blank or missing icon gives an empty span. A blank or missing summary gives `(Some automation)` (`s.ext.gen.hint.no-summary`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ChildrenAutomationsHintProvider$HintLoader#renderSingleGeneratorHint",
+    "com.almworks.jira.structure.extension.attribute.ChildrenAutomationsHintProvider$HintLoader#packIconAndSummary"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/children-automations-hint-provider/effector-entry",
+   "module": "children-automations-hint-provider",
+   "api": null,
+   "behaviour": "Each effector entry has the same span, holding the icon span from the effector module's descriptor, followed by the effector's summary: its `effectorName` parameter HTML-encoded when not blank, otherwise the summary built by the effector module, wrapped as an effector summary span. An effector that cannot be resolved or has no summary shows `Unknown effector <module key>` (`s.ext.eff.summary.unknown`), or `Unknown effector` (`s.ext.eff.summary.unknown-no-module`) when the instance is missing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ChildrenAutomationsHintProvider$HintLoader#renderSingleEffectorHint",
+    "com.almworks.jira.structure.extension.attribute.EffectorSummaryLoader#getEffectorSummary",
+    "com.almworks.jira.structure.extension.attribute.EffectorSummaryLoader#getUnknownEffectorSummary"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/non-unique-items-provider/spec-and-strict",
+   "module": "non-unique-items-provider",
+   "api": null,
+   "behaviour": "Answers only the internal attribute id `-non-unique-items`. The params key `type` picks the traversal. `strict` makes creating the loader fail with StructureProviderException `Non-unique loaders must not be used with 'strict' parameters`. `preceding` selects the running (scanning) form. Any other value uses the aggregate form with the reduction type of that name (`subtree` when absent, `children`, `leaves`). The format must have the id `counts` (a map from item identity to occurrence count) or `values` (a map from item identity to a value); any other format is declined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsProvider#createAttributeLoader",
+    "com.almworks.jira.structure.attribute.distinct.DistinctAttributes"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/non-unique-items-provider/unique-items-excluded",
+   "module": "non-unique-items-provider",
+   "api": null,
+   "behaviour": "Only items that occur more than once in the whole forest are reported. A row whose item is unique in the forest adds nothing, so a subtree where every item occurs once gets undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsCountLoader#getSelfValue",
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsCountScanningLoader#loadValueForPassingRow"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/non-unique-items-provider/counts-aggregate",
+   "module": "non-unique-items-provider",
+   "api": null,
+   "behaviour": "In `counts` format with the aggregate form, a row's own contribution is {its item: 1} when the item is not unique. Contributions are merged by adding counts per item, following the reduction type (`subtree`: the row and its subtree; `children`: the direct children's own contributions; `leaves`: the leaves). Generator and effector children are ignored, and the first error among child values is returned. Example: an item placed twice under a parent gives {item: 2} on that parent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsCountLoader#reduce",
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsCountLoader#merge",
+    "com.almworks.jira.structure.api.attribute.loader.reduce.ReducingAggregateLoader"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/non-unique-items-provider/counts-preceding",
+   "module": "non-unique-items-provider",
+   "api": null,
+   "behaviour": "In `counts` format with `type` `preceding`, the value is a running map over the rows in forest order (with the `levels` and `baseLevel` rules of scanning loaders). Each passing row whose item is not unique raises that item's count by 1. Unique rows keep the preceding map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsCountScanningLoader#loadValueForPassingRow"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/non-unique-items-provider/values-dependency",
+   "module": "non-unique-items-provider",
+   "api": null,
+   "behaviour": "In `values` format, the attribute whose values are collected is the nested attribute spec under the params key `attribute` (an object with `id`, optional `format`, optional `params`; the stored format is used). When it is missing or cannot be built, the provider declines. The aggregate form also depends on the `counts` form with the same `type`, `levels` and `baseLevel` (a `type` of `subtree` or `strict` is dropped).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsProvider#createValueMapLoader",
+    "com.almworks.jira.structure.attribute.distinct.DistinctAttributes#createNonUniqueItemsSpec",
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsValueLoader"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/non-unique-items-provider/values-aggregate",
+   "module": "non-unique-items-provider",
+   "api": null,
+   "behaviour": "In `values` format with the aggregate form, a row's own contribution is {its item: that item's value of the nested attribute} when the item is not unique (the value may be null). The result maps each non-unique item of the traversal to its value and has exactly as many entries as the `counts` result. When the counts are absent or empty, the result is undefined. The first error among child values is returned unchanged. With assertions enabled (as the tests run), a result whose size differs from the counts throws AssertionError.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsValueLoader#loadValue",
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsValueLoader$NonUniqueItemsValueReducer"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/non-unique-items-provider/values-preceding",
+   "module": "non-unique-items-provider",
+   "api": null,
+   "behaviour": "In `values` format with `type` `preceding`, the value is a running map in forest order. Each passing row whose item is not unique adds {item: its nested attribute value} the first time the item is met; later occurrences keep the first value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.NonUniqueItemsValueScanningLoader#loadValueForPassingRow"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/run-as-user-provider/spec",
+   "module": "run-as-user-provider",
+   "api": null,
+   "behaviour": "Serves attribute id `run-as-user` in the user format, for generator items (`com.almworks.jira.structure:type-generator`) only. Values depend on the loading trail.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.RunAsUserProvider",
+    "com.almworks.jira.structure.extension.attribute.RunAsUserProvider$GeneratorRunAsUserLoader#getContextDependencies"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/run-as-user-provider/owner-of-structure",
+   "module": "run-as-user-provider",
+   "api": null,
+   "behaviour": "For a saved generator (positive even long id), the value is the owner of the structure that holds the generator. The structure is read for the current user with VIEW access through `structure-manager`, and its owner user key is looked up with Jira's UserManager.getUserByKey. When the user is found, the structure and the user are recorded in the loading trail, so the value changes when either changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.RunAsUserProvider$GeneratorRunAsUserLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/run-as-user-provider/undefined-cases",
+   "module": "run-as-user-provider",
+   "api": null,
+   "behaviour": "The value is undefined for transient generators (odd ids), string ids, generators not held by a structure, a structure the current user cannot view or that does not exist (any StructureException), and an owner key whose user no longer exists. A structure with no owner key also gives undefined, but the structure is still recorded in the trail.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.RunAsUserProvider$GeneratorRunAsUserLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/original-generator-kind-provider/kind-code",
+   "module": "original-generator-kind-provider",
+   "api": null,
+   "behaviour": "Serves attribute id `original-generator-kind` as TEXT. For a row that a generator produced, the value is a code for the kind of generator that first produced it, taken from the generation history of the forest being loaded (the first generator row id in the row's provenance): `e` extender, `g` grouper, `i` inserter (sub-structure inserters included), `s` sorter. Other generator kinds, rows with no history, a first entry of 0, or loading without generation information give undefined.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.OriginalGeneratorKindProvider$OriginalGeneratorKindLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/original-generator-kind-provider/missing-generator-row",
+   "module": "original-generator-kind-provider",
+   "api": null,
+   "behaviour": "The generator row is looked up with RowManager.getRow. If it is missing, the MissingRowException is not caught and reaches the attribute framework.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.OriginalGeneratorKindProvider$OriginalGeneratorKindLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/basic-generation-info-provider/json-object",
+   "module": "basic-generation-info-provider",
+   "api": null,
+   "behaviour": "Serves attribute id `basic-generation-info` as a JSON object for rows created by a generator (TransientRow with a non-zero creator row id). The creator row is looked up (RowManager.getRow) and its generator read. The object has `creator`: `ssi` (sub-structure inserter), `extender`, `grouper` or `inserter`, left out for other kinds. It has `label`: the generator's semantic label, when it has one (only groupers give one, from the grouper's label for its parameters).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BasicGenerationInfoProvider$Loader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.BasicGenerationInfoProvider#getDriverType"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/basic-generation-info-provider/undefined-cases",
+   "module": "basic-generation-info-provider",
+   "api": null,
+   "behaviour": "The value is undefined for rows not created by a generator, when the creator row is missing (MissingRowException), when the creator row is not a generator, and when the object would be empty (e.g. a sorter with no label).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BasicGenerationInfoProvider$Loader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/basic-generation-info-provider/never-cached",
+   "module": "basic-generation-info-provider",
+   "api": null,
+   "behaviour": "Its values are never cached (caching strategy SHOULD_NOT); they are computed on every load.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BasicGenerationInfoProvider$Loader#getCachingStrategy"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/status-attributes-provider/status-lozenge",
+   "module": "status-attributes-provider",
+   "api": null,
+   "behaviour": "For status items (`com.almworks.jira.structure:type-status`) that resolve to a Jira Status, the attribute `extended-summary` (HTML) is Jira's status lozenge. It is rendered with the Soy template `JIRA.Template.Util.Issue.Status.issueStatusResolver` from module `jira.webresources:issue-statuses`, with data `issueStatus` = Status.getSimpleStatus(), `isSubtle` false, `isCompact` false and `maxWidth` `medium`. The HTML is trimmed of leading and trailing whitespace and of the entities `&nbsp;`, `&#160;` and `&#xA0;`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.StatusAttributesProvider",
+    "com.almworks.jira.structure.util.Util#trimHtml"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/status-attributes-provider/errors-and-other-items",
+   "module": "status-attributes-provider",
+   "api": null,
+   "behaviour": "If the template renderer throws SoyException, the value is an error value and a warning `problem rendering status <status>` is logged. A status item that does not resolve gives undefined. Other item types are not served by this module.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.StatusAttributesProvider"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/primitives-provider/count-subitems",
+   "module": "primitives-provider",
+   "api": null,
+   "behaviour": "`count` (NUMBER, without `leaves`) is the number of rows under a row, at any depth. Generator, effector and loop-marker rows, and everything under them, are not counted. A leaf row gives undefined, not 0. A row that is itself a generator, effector or loop marker gives undefined. A row whose only children are automations gives 0. Example: a parent with two children, one of which has three children, gives 5.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.PrimitivesProvider$CountLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.PrimitivesProvider$CountLoader#isCounted"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/primitives-provider/count-leaves",
+   "module": "primitives-provider",
+   "api": null,
+   "behaviour": "`count` with the params key `leaves` true counts only leaves. A row's value is the sum of its children's values, where a counted leaf child counts 1 and a child that has children counts its own value. The same exclusions and undefined cases apply as for the plain count. With assertions enabled (as the tests run), a child with a defined but null count throws AssertionError.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.PrimitivesProvider$CountLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/primitives-provider/depth-level",
+   "module": "primitives-provider",
+   "api": null,
+   "behaviour": "`depth` and `level` (NUMBER) are the same: 1 for a top-level row, plus 1 for each level below. Both are undefined for title rows (semantics 1), the super-root (row id -1), generators, effectors and loop markers. They depend on the whole forest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.PrimitivesProvider$DepthLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.PrimitivesProvider$DepthLoader#isWholeForestDependent"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/primitives-provider/itemtype-itemid-issueid",
+   "module": "primitives-provider",
+   "api": null,
+   "behaviour": "`itemtype` (TEXT) is the row's item type in short form for any item: the `com.almworks.jira.structure:type-` prefix removed, e.g. `issue`, `folder`, while other keys stay whole. `itemid` (TEXT) is the item identity in short form, e.g. `issue/10001` or `user//jsmith`. `issueid` (NUMBER) is the issue id for issue items and is not given for other items. These three values may be cached.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.PrimitivesProvider",
+    "com.almworks.jira.structure.api.item.CoreItemTypes#simplifyType"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/primitives-provider/spec-matching",
+   "module": "primitives-provider",
+   "api": null,
+   "behaviour": "The loaders are matched by attribute id: `count`, `depth`, `level`, `itemtype`, `itemid`, `issueid`. A `count` request whose params include `leaves` true gets the leaves count; any other `count` request (including `leaves` false) gets the plain count. Other ids are declined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.PrimitivesProvider"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/sequence-provider/outline-number",
+   "module": "sequence-provider",
+   "api": null,
+   "behaviour": "Serves `seq` (TEXT): the outline number of each row, propagated down the forest. Top-level rows are numbered `1`, `2`, ... in order. A child of a numbered row gets the parent's number, a dot and its own position among its numbered siblings (e.g. `1.2.3`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SequenceProvider$SequenceLoader#loadChildren"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/sequence-provider/unnumbered-rows",
+   "module": "sequence-provider",
+   "api": null,
+   "behaviour": "Title rows (semantics 1), generators, effectors and loop markers get no number (undefined) and do not use up a number, so the next sibling takes it. The children of an unnumbered row start again from `1` with no prefix.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SequenceProvider$SequenceLoader#isNumbered",
+    "com.almworks.jira.structure.extension.attribute.SequenceProvider$SequenceLoader#loadChildren"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/links-count/spec-and-params",
+   "module": "links-count",
+   "api": null,
+   "behaviour": "Answers attribute id `links-count` only when NUMBER is requested; other formats are declined. The params key `linkTypeId` (long; absent or 0 means all link types) keeps only links of that type. The key `inward` keeps inward links when true and outward links when false (any value that is not true, including null); when the key is absent, both directions are counted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueLinksCountProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.IssueLinksCountProvider$IssueLinksCountLoader"
+   ]
+  },
+  {
+   "key": "e3-loaders-b/links-count/count-value",
+   "module": "links-count",
+   "api": null,
+   "behaviour": "For issue items the value is the number of matching links from Jira's IssueLinkManager.getInwardLinks(issueId) plus getOutwardLinks(issueId), as a long (0 when none). The count is taken from the issue id without checking whether the user can see the linked issues. Other item types are not served.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueLinksCountProvider$IssueLinksCountLoader#loadValue"
+   ]
+  }
+ ]
+}

@@ -59,7 +59,8 @@ def scan_tree(tree: Path, *, sec, python: Path, repo_root: Path, forbid=None) ->
         ce = [str(rules / r) for r in sec.semgrep_rulesets]
     with sandbox.temp_copy(tree, forbid=forbid, exclude_git=True) as copy:
         out = sast.scan(copy, python=python, semgrep_bin=exe, ce_configs=ce,
-                        pro_configs=list(sec.semgrep_pro_configs) if exe else [], ignore=list(sec.ignore))
+                        pro_configs=list(sec.semgrep_pro_configs) if exe else [], ignore=list(sec.ignore),
+                        languages=list(sec.languages))
     if problem:  # a version mismatch keeps the findings but they are no longer reproducible
         for name in ("semgrep-ce", "semgrep-pro"):
             if name in out["tools"]:

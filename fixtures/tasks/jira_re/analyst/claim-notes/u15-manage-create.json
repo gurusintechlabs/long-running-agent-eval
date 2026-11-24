@@ -1,0 +1,2142 @@
+{
+ "claims": [
+  {
+   "key": "u15-manage-create/manageSpa/page-shell",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "`/secure/ManageStructure.jspa` has the browser title `Manage Structures`, uses Jira's general page decorator with the plugin's top menu section (web item `wi-structure-link`) selected, and has no server-rendered content: a script draws the whole screen into Jira's main content area, starting from the JSON object of the page (C-4962). The JSON key `licensed` is not used by the screen.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js",
+    "templates/structure/manage/manage.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/header",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The page header shows the heading `Manage Structures`, a small help icon linking to the plugin's documentation in a new window (tooltip `Open related part of documentation in a separate browser window or tab`, hidden label `Help`), and, when allowed, the create button.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/create-button",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The header button `Create Structure` is shown only when the page JSON has `mayCreateNew` true. It is a plain link to `EditStructure.jspa` in the same window (the single-form create page), not the create-structure wizard.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/layout",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Below the header the screen has, from left to right, a vertical list of tabs (the presets) and the main panel. The main panel holds, top to bottom: the filter bar, a status line with the Reload button, the table, and the pagination. Three headings exist for screen readers only and are not visible: `Filter presets`, `Filtering and Sorting`, `Matching Structures`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/tabs-which",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Tabs: a logged-in user (`myUserKey` present) sees, in this order, Current, Recent, Favorite, My, Needs Attention, Popular, Archived, All, where Current exists only while a current structure id is known. An anonymous user sees only All, Archived, Popular, in that order. The tab of the active preset is marked active.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/tabs-links",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Each tab is a link: preset `all` goes to `ManageStructure.jspa`, any other preset to `ManageStructure.jspa?view=<preset>`, the presets being `current`, `recent`, `favorites`, `my`, `problems`, `popular`, `archived`. Labels and tooltips: current `Current`/`Current Structure`; recent `Recent`/`Recent Structures`; favorites `Favorite`/`Favorite Structures`; my `My`/`My Structures`; problems `Needs Attention`/`Needs Attention`; popular `Popular`/`Popular Structures`; archived `Archived`/`Archived Structures`; all `All`/`All Structures`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/preset-settings",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Choosing a preset replaces every filter and the sort with that preset's values. All others are at their cleared state (empty name, not a regular expression, no owner, no status, no alert, no favourite filter, no manual-adjustments filter, Recent off, no sort, Descending). `all`: nothing set, so archived structures are listed too. `archived`: status Archived. `recent`: Recent on, status Active. `favorites`: Favorite on, status Active. `my`: owner is the current user, status Active. `problems`: all three alerts, status Active. `popular`: sort by Popularity, Descending, status Active. `current`: only the current structure's row, whatever the filters say.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/url-to-preset",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "On load and on each intercepted navigation the URL is read so: `view` naming a known preset (including `all` and `current`) gives that preset; otherwise a present `id` gives preset `current`; otherwise `all`. `id` read as an integer is the current structure id, also when `view` is a known preset, so `?view=recent&id=5` opens Recent and shows the Current tab for structure 5. `view=current` with no id known falls back to `all`, and `view=my` for an anonymous user falls back to `all`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/anon-fallback",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "An anonymous user opening `?view=recent` or `?view=favorites` is switched to preset `all` before the first load.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/preset-to-url",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "When the active preset changes for any reason, the URL is updated with a browser navigation, other query parameters kept and parameters sorted by name: `current` removes `view` and sets `id=<structure id>`; `all` removes both `view` and `id`; any other preset sets `view=<preset>` and leaves `id` alone. No navigation happens when the URL would not change.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/navigation",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Where the browser has the Navigation API, a navigation to the same origin and path, including back and forward, is intercepted: the page is not reloaded and focus is not reset. If the URL's preset differs from the active one it is applied, keeping the known current structure id when the URL has none and using the current user as owner for `my`. If the preset is the same, nothing happens, so a click on the active tab does not clear filters. Without the Navigation API the tabs are ordinary links that reload the page, and filter changes leave the URL as it is.",
+   "confidence": "medium",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/filter-leaves-preset",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Changing any filter or the sort by hand (name text, Recent, Favorite, Manual adjustments, owner, status, alert, sort column, sort direction) makes the active preset `all`, keeping all the other filter values as they were, so the tab marker moves to All and `view` leaves the URL. Setting a value equal to the present one does nothing. Clicking the regular-expression toggle is the exception: it changes the results but keeps the preset.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/filterbar-order",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The filter bar holds, in this order: the name box, the `Recent` toggle, the owner drop-down (when allowed), the status drop-down, the alerts drop-down, the `Favorite` toggle, the `Manual adjustments` toggle, the sort drop-down and a subtle `Clear all` button. Pressing Enter in the bar does not submit anything.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/clear-all",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "`Clear all` applies preset `all`: every filter and the sort go back to cleared, the name box empties at once, and a known current structure id stays, so the Current tab remains.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/name-filter",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The name box has placeholder `Filter structures by name` and takes the focus when the page opens. The filter applies 500 ms after the last keystroke. The match is a case-insensitive substring of the structure name. An empty box filters nothing. No request is sent for it.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/name-regexp",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "A toggle inside the name box, shown as `.*` with tooltip `Treat the term as a regular expression (case-insensitive)` and a pressed state, makes the name a case-insensitive regular expression matched anywhere in the name. When the text is not a valid regular expression, the filter silently uses the plain substring match, for example `a(` matches names containing `a(`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/toggle-buttons",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "`Recent`, `Favorite` and `Manual adjustments` are toggle buttons with a selected state, available to anonymous users too. `Favorite` on keeps favourites only, off means no favourite filter. `Manual adjustments` on keeps structures with `adjustable` true, off means no such filter. `Recent` on lists the user's recent structures in recency order.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/owner-visible",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The owner drop-down is shown only when the page JSON has `maySearchUsers` true. Its button reads `Owner: All` with none selected; otherwise it is selected, and reads the selected users' display names joined with `, `, with the same text as tooltip. A selected user whose details are unknown shows as the user key. The current user's name is known from the page's user data, so preset `my` shows it.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/owner-search",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Inside the owner drop-down, a search box (placeholder `Name`, focused on opening) calls Jira's own REST, `GET /rest/api/2/user/picker?query=<trimmed text>&maxResults=20&showAvatar=true`, 500 ms after the last keystroke. A blank text sends nothing. While waiting, a disabled entry `Loading…` is shown, and an answer to an older text is dropped. Jira's fields `users[].key`, `displayName` and `avatarUrl` are used.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/owner-search-states",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "After a search, each user is a checkbox entry with avatar and display name, checked if selected, and the drop-down stays open on click. No users for a non-blank text gives a disabled entry `No match`. A failed call (with Jira's `errorMessages` logged to the console) shows an error flag `Cannot load data`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/owner-selected-list",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "With users selected and no text in the search box, the drop-down lists a clear entry (Jira's `common.filters.clear` text) that removes all owners, followed by the selected users as checked entries; unchecking removes one. Each selection takes effect at once. Structures match when their `ownerKey` is any selected user; a structure with no owner never matches.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/owner-close",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Closing the owner drop-down cancels a pending search, empties the box and results, and forgets the details of users that are not selected.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/status-filter",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The status drop-down lists checkboxes `Active` and `Archived`, staying open on click. Its button reads `Status: all` with none selected, otherwise the checked labels joined with `, ` in the order they were checked, and is shown selected. With none or both checked, nothing is filtered out. Preset `all` shows `Status: all`; the presets that set status Active show `Active`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/alerts-filter",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The alerts drop-down lists checkboxes `Inactive owner` (`USER_INACTIVE`), `Deleted owner` (`USER_DELETED`), `Automation paused` (`STOPPED`). Its button reads `Alerts: All` with none checked, otherwise the checked labels joined with `, ` in checking order, also as tooltip. A structure matches when it has at least one checked problem.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/sort-control",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The sort drop-down has a group `Popularity`, `Last Opened` and a group `Descending`, `Ascending`, each single-choice, staying open on click. Clicking the selected column clears the sort. Direction starts as Descending and survives clearing the column. The button reads `Sort by` with no column, otherwise `↑ Sort by: <column>` when Descending and `↓ Sort by: <column>` when Ascending, and is shown selected. It is disabled while Recent is on.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/sort-logic",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Popularity sorts by `stars` numerically. Last Opened sorts by `lastOpenedForSort` as text with locale comparison. Ties keep the base order. Without a sort the base order is that of the server's list. With Recent on no sort applies, even if one is set.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/filter-logic",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "All filters combine with AND, applied in the browser to the rows already held. In preset `current` none apply and the list is the current structure alone.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/data-source",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The rows come from one of four sources, chosen in this order: Recent on: `GET /rest/structure/2.0/manage-structures/recents`; else Favorite on: `GET /rest/structure/2.0/manage-structures/favorites`; else preset `current`: `GET /rest/structure/2.0/manage-structures/one?id=<id>`; else `GET /rest/structure/2.0/manage-structures/all`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/data-cache",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "A source is loaded once: after that, changing filters, sort or preset recomputes the list without a request. A successful `all` load counts for all four sources, so after it the tabs and toggles send nothing until Reload.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/recent-ids",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "When the `all` source loads and recents are not yet held, `GET /rest/structure/2.0/manage-structures/recent-ids` is sent alongside it, so that Recent can later work without a request. The `recents` source sets the recency order to the ids of its answer, in order.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/data-merge",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "An `all` answer replaces all held rows and users, except that the details of currently selected owners stay if missing from the answer. Answers of the other sources add to or replace rows and users one by one, keeping all others. Replaced rows lose their loaded description and effector count, which are then asked for again.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/loading-state",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "While a source is loading, an overlay with a large spinner and tooltip `Loading…` covers the page, and the rows shown before stay underneath. There is no separate empty-state message: with no rows the table has just its header and the status line says `No matches`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/load-failure",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Any failed load (non-2xx status, including 429 from the rate limit of the `all` source, or a network error) logs to the console, shows an error flag `Cannot load data` and empties the list. The source is not marked as loaded, so the next change that needs it tries again. There is no automatic retry and no use of `Retry-After`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/load-failure-current",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "A failed load of the `current` source (for example a 404 for an id that does not exist or is not visible) shows the error flag `Cannot load data`, clears the current structure id, removing the Current tab, and switches to preset `recent`, which also changes the URL.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/reload-button",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The button beside the status line reads `Reload`. While loading it reads `Loading…` and is disabled; for 500 ms after loading ends it reads `Done` and stays disabled; then it reads `Reload` again.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/reload-action",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "`Reload` forgets which sources are loaded and at once loads the source needed for the present filters. Filters and preset stay, the page goes back to the first page, and an open action menu closes. Rows of other sources stay held but are loaded again when next needed.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/status-line",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The status line, announced as a status region, says with N matching rows on a single page `No matches` (N = 0), `1 row` (N = 1) or `N rows`, for example `15 rows`. With two or more pages it adds the range in front: `<first>-<last> of N rows`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/status-range-off-by-one",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The range of the status line uses first = page index × 20 + 1 and last = the smaller of first + 20 and N, so a full page claims one row too many: with 45 rows it reads `1-21 of 45 rows` on page 1, `21-41 of 45 rows` on page 2 and `41-45 of 45 rows` on page 3 (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/page-size",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The table shows 20 rows per page. Any recomputed list (filter, sort, preset, reload) returns to page 1 and closes an open action menu.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/pagination",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "With 21 or more rows pagination appears under the table; otherwise there is none. It shows `<`, page numbers and `>`. Always present: `<` (disabled on page 1), the current page (not clickable), `>` (disabled on the last page). Page 1 and the last page are always buttons unless current. The pages right before and after the current one are buttons too, and `…` stands in for any pages not shown between those. With 5 pages: on page 1 `< 1 2 … 5 >`, on page 2 `< 1 2 3 … 5 >`, on page 3 `< 1 2 3 4 5 >`, on page 4 `< 1 … 3 4 5 >`, on page 5 `< 1 … 4 5 >`. Tooltips: `Go to the previous page (P of T)`, with P the page before the current one but at least 1; `Go to the next page (P of T)`, with P the page after it but at most T.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/page-details",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Whenever the shown page or the list changes, the rows on the shown page whose description or effector count is not yet known are collected, and if any, `POST /rest/structure/2.0/manage-structures/page-details` is sent with a JSON array of their ids (20 at most). Each id then takes `descriptionHtml` and `effectors` from the answer, with empty text and 0 for an id missing from the answer. Rows already known are not asked for again.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/page-details-failure",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "A failed `page-details` call shows the error flag `Cannot load data`, and those rows get empty descriptions and an effector count of 0, so the spinners stop and they are not asked for again until their rows are reloaded.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/table-columns",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The table's columns are, in this order: `Name` (spanning three columns), `Owner`, `Last opened`, `Popularity` (tooltip `How many users have added this structure to their favorites.`), `Applications`, `Manual adjustments`, `Access`, `Effectors`, `Sync With`, `Issue`, `Actions`. `Sync With` is there only when the page JSON has `showSynchronizers` true.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-truncate",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Long text in the Owner, Last opened, Access, Sync With and Issue cells and in their headers is cut off with an ellipsis, and shows in full while the pointer is over the cell, drawn above the next cell.",
+   "confidence": "high",
+   "evidence": [
+    "css/structure/ManageSpa.css",
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-name",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The name cell starts with a star button (filled for a favourite; tooltip `Add to favorites` or `Remove from favorites`), then the structure's name as a link to `StructureBoard.jspa?s=<id>` with tooltip `Open Structure`, then a lozenge `Archived` for an archived structure.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-description",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Under the name is the description, inserted as the HTML `descriptionHtml`, with a small spinner while it is unknown. An empty description shows nothing.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-copy-processes",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "For each entry of `copyProcesses` the name cell adds a line `This structure is being copied | <link>`, the link going to `StructureCopy.jspa?processId=<id>`. Its text by `status`: `running`: `Running` at 0 percent, otherwise `<progressPercent>% complete`; `waiting`: `Open to finish copying`; `failed`: `Failed`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-owner",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The Owner cell shows the owner's avatar and display name, as a link to `profileUrl` in a new window when that is present, otherwise as text, in Jira's user-hover style. With no `ownerKey`, or a key not in the answer's `users`, it reads `someone`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-opened-stars",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "`Last opened` shows the row's `lastOpened` text as given, empty when null. `Popularity` shows `stars`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-applications",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The `Applications` cell shows, for each name in `addons`, the logo from the page JSON's `addonLogos` with the name as tooltip. It is empty with no add-ons.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-manual",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The `Manual adjustments` cell shows an icon with tooltip `This structure has manual adjustments` when `adjustable` is true, otherwise it is empty.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js",
+    "css/structure/ManageSpa.css"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-access",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The `Access` cell shows the caller's level from `myAccess`: `NONE` `None`, `VIEW` `View`, `EDIT` `Edit`, `AUTOMATE` `Automate`, `ADMIN` `Control`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-effectors",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The `Effectors` cell shows a small spinner until the count is known. A count above 0 is a link with that number to `StructureProcesses.jspa?structureId=<id>`, tooltip `Manage Effectors`. A count of 0 shows nothing.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-sync",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The `Sync With` cell lists each synchronizer's `desc` on its own line with `extra` as tooltip, or `Not synchronized` when there are none. Under that, a link `Settings` to `StructureSync.jspa?id=<id>` is shown when `mayManageSynchronizers` is true and the caller's level is `ADMIN`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-issue",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The `Issue` cell shows the labels of the row's `problems` joined with `, `: `Inactive owner`, `Deleted owner`, `Automation paused`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/cell-actions",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The `Actions` cell shows a configure button, tooltip `Configure structure`, linking to `EditStructure.jspa?id=<id>` in a new window, when `mayApplyAllAdminRights` is true and the caller's level is `ADMIN`; and the menu button, tooltip `Other actions menu`, unless the menu would have no entries.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/menu-entries",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The menu's entries, in order, when present: with level `ADMIN` and `mayApplyBasicAdminRights`: `Views`, `Delete`, and `Archive` if the structure is not archived; with level `ADMIN` and `mayApplyAllAdminRights`: `Unarchive` if archived, `Remove Adjustments` if `adjusted`, and `Import`, `Export` if `mayImExPort`; with `mayCreateNew`, at any level: `Copy`, a link to `StructureCopy.jspa?id=<id>`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/menu-open-close",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The menu button toggles the menu of its row, only one menu being open at a time, and shows a pressed state. Opening moves focus to the first entry. The menu closes when focus leaves it, when an entry is chosen, or when the list is recomputed.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/menu-reopen",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Since focus leaving the menu closes it, clicking the menu button of an open menu in a browser that focuses buttons on click closes the menu and then opens it again, so the button does not close it (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/favorite-request",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The star sends `PUT /rest/structure/2.0/structure/<id>/favorite` with JSON `{\"favorite\": <the opposite of the present state>}`. The row changes only after the answer: when `favorite` in the answer equals the wanted value, the star flips and `stars` goes up or down by 1. An answer with another value changes nothing and shows no message, which is what an anonymous user adding a favourite sees.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/favorite-error",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "A favourite call that fails in a way that gives no JSON (network failure or a text error body, such as 403 for a structure no longer visible) shows the error flag `An error occurred while trying to change the Favorite status of a structure`.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/favorite-no-refilter",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "Toggling a star does not recompute the list: with the Favorite filter on, a row whose star was just removed stays listed until the next filter change or Reload. The cached state of the row is used then, so no request is needed.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/unarchive-request",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "`Unarchive` sends at once, with no confirmation, `POST /rest/structure/2.0/structure/<id>/update` with JSON `{\"isArchived\": false}`. When the answer has a boolean `isArchived`, the row takes that value. The lozenge and the menu change, but the list is not recomputed.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/unarchive-errors",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "An unarchive failure that gives no JSON shows the error flag `An error occurred while trying to change the Archived status of a structure`. A JSON error body (`structure-error`) has no `isArchived`, so nothing changes and no message is shown (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/unarchive-invitation",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "After a successful unarchive of a structure that has synchronizers, a modal dialog appears: heading `Structure has been successfully unarchived.`, text `There are disabled synchronizers for the structure. Please review the synchronizers configuration and maybe Resync and Enable them.`, primary button `Review Synchronizers`, and a button with Jira's `common.words.ignore` text. The primary button opens `StructureSync.jspa?id=<id>` in a new window. Either button closes the dialog. Without synchronizers there is no dialog.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/action-dialogs",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "The entries `Views`, `Delete`, `Archive`, `Remove Adjustments`, `Import` and `Export` open a large Jira form dialog that loads by AJAX, respectively, `StructureViews.jspa?id=<id>`, `DeleteStructure.jspa?id=<id>`, `StructureArchive.jspa?id=<id>`, `StructureRemoveAdjustments.jspa?id=<id>`, `StructureImport.jspa?id=<id>`, `StructureExport.jspa?id=<id>`. The dialog closes itself on success, and the page is not refreshed by it.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/dialog-delete",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "After a successful delete dialog the row's data is dropped: the row stays in the list and shows just `Deleted` across all columns, and the row count does not change, until the list is next recomputed.",
+   "confidence": "high",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/dialog-others",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "After any other successful dialog, the page refreshes only that row when the answer has no redirect or one that starts with the present page's path, which is the default case, since these pages return to `/secure/ManageStructure.jspa?view=recent`: it sends `GET /rest/structure/2.0/manage-structures/one?id=<id>` and updates the row and its users. A failure of that call shows the flag `Cannot load data`. A redirect elsewhere, as Import and Export give, is left to the dialog, and the row is not refreshed. The list is not recomputed, so an archived structure stays listed with its lozenge, and its description is not reloaded.",
+   "confidence": "medium",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/recent-after-delete",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "After a structure is deleted from the page and its row dropped, any later list computation that runs through the recency order (Recent on) fails in the browser, and the list stays as it is until `Reload`, which works (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSpa/dependencies",
+   "module": "manageSpa",
+   "api": null,
+   "behaviour": "`manageSpa` depends on `:page-util`, `:structure-views-js`, `:filtersync-config-js`, `:ghsync-config-js`, `:linksync-config-js`, `:statusup-config-js`, `:vendors` and `jira.webresources:share-types`, so the forms shown in the action dialogs work on the page, and provides the messages with the prefixes `s.common.`, `s.manage.`, `s.archived`, `s.help.general`. Its download resources are the folder `img/`, `pagination.css`, the page's stylesheet and script, and `s.manage.messages.js`.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "fe/ManageSpa.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageAjaxTabs/not-loaded",
+   "module": "manageAjaxTabs",
+   "api": null,
+   "behaviour": "`manageAjaxTabs` has no effect on the current Manage Structures page: no shipped page asks for it, and the page has no search form. Its key and dependency stay as declared (`jira.webresources:manageshared`). What it would do on a page with Jira navigation tabs and more than one tab follows in the other claim of this module.",
+   "confidence": "medium",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/manageAjaxTabs.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageAjaxTabs/tab-search",
+   "module": "manageAjaxTabs",
+   "api": null,
+   "behaviour": "On a page with Jira's navigation tabs that has more than one tab, the script registers those tabs with Jira's tab manager, the tab being taken from the `view` part of the URL, and takes over the submit of the structure search form: instead of a normal submit it empties the table, sends `GET secure/ManageStructure.jspa?<form fields>&decorator=none&contentOnly=true&Search=Search`, puts the HTML of the answer into the page's content area and fires Jira's new-content-added event. It takes over the form again after each such event.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/manageAjaxTabs.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/manageSearchType/switch",
+   "module": "manageSearchType",
+   "api": null,
+   "behaviour": "On Jira's new-content-added event the script reads a hidden search-type field and shows one of two search panes: `structure-id` shows search by structure id, any other value shows search by parameters. Two links switch the pane and the marked tab, and set the hidden field to `structure-id` or `structure-params`, without a request. No shipped page has these elements, so the script has no effect on the current Manage Structures page.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/manageSearchType.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/favorites/control",
+   "module": "favorites",
+   "api": null,
+   "behaviour": "`favorites` offers a star control for one structure, given the structure id and its present state. It is what the structure selector on the board uses (`widget-bare` owns that use). With a favourite the star is filled, with tooltip `This structure is one of your favorite. Click to remove it from favorites.` and accessible label `Remove from favorites`. Otherwise it is outlined, with tooltip `This structure is not your favorite. Click to add it to favorites.` and label `Add to favorites`. The caller may replace the two tooltips and the error message.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/favorites.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/favorites/click",
+   "module": "favorites",
+   "api": null,
+   "behaviour": "Clicking the star sends `PUT /rest/structure/2.0/structure/<id>/favorite` with JSON `{\"favorite\": <opposite of present state>}`, expecting JSON, and shows a progress indicator on the control while it runs. The click's default action is cancelled.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/favorites.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/favorites/answer",
+   "module": "favorites",
+   "api": null,
+   "behaviour": "On success, a boolean `favorite` in the answer becomes the new state, the star and tooltip follow, and the caller's update callback runs. The answer decides, not the request, so an anonymous caller's star stays outlined. The label callback runs at start and on each state change. An answer with no boolean `favorite` changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/favorites.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/favorites/error",
+   "module": "favorites",
+   "api": null,
+   "behaviour": "On a failed request the state does not change and an error flag shows `An error occurred while trying to change the Favorite status of a structure`, or the caller's message, HTML-escaped.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/favorites.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/favorites/page-init",
+   "module": "favorites",
+   "api": null,
+   "behaviour": "The page-wide variant sets up, on each Jira new-content-added event, every star link on the page that has a structure id, and adds another click handler to the links already set up, so a link then sends one request per handler (as the original does). No shipped page calls this variant.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/favorites.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/favoriteEditor/toggle",
+   "module": "favoriteEditor",
+   "api": null,
+   "behaviour": "On `EditStructure.jspa` the `Favorite` field is a star link that sends nothing when clicked: each click flips the star and the hidden form field `favorite` between `true` and `false`, which is saved with the form. The click's default action is cancelled.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/favoriteEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/favoriteEditor/texts",
+   "module": "favoriteEditor",
+   "api": null,
+   "behaviour": "With the field on, the star is filled, with tooltip `This structure is one of your favorite. Click to remove it from favorites.` and accessible label `Remove from favorites`. With it off, it is outlined, with tooltip `This structure is not your favorite. Click to add it to favorites.` and label `Add to favorites`. The start state is the structure's favourite state from the server, on for a new structure (C-4969).",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/favoriteEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/favoriteEditor/dependencies",
+   "module": "favoriteEditor",
+   "api": null,
+   "behaviour": "`favoriteEditor` depends on `com.almworks.jira.structure:jsutil` and provides `favorites.css` and `favoriteEditor.js`. The stylesheet covers the star's look, including its hover state. The field exists only for logged-in users.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/favoriteEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/resources",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "`permissionsEditor` depends on `com.almworks.jira.structure:jquery` and `com.almworks.jira.structure:page-util`. It is active only on a page with the `permissions` form field and its templates, which is `EditStructure.jspa`.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/permissionsEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/rule-encoding",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "The hidden form field `permissions` holds a JSON array of rule strings, the order being the list's order: `apply:<structure id>`; `set:<level>:anyone`; `set:<level>:user:<user key>`; `set:<level>:group:<group name>`; `set:<level>:role:<project id>:<role id>`, where `<level>` is the level's serial, 10, 20, 25 or 30.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/load",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "On load the rules are read from `permissions`. User names come from the page's map of user key to display name (C-4968). A string of an unknown form is left out of the list, and is lost from the field at the first change. The field is rewritten only on a change, so saving without a change sends it as it came.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/rule-text",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "The list shows rules as: `Apply permissions from structure <name>`; `<level name> for <subject>`, where the subject is `Everyone`, `<user display name>`, `<group> (Group)` or `<role> of <project> (Project Role)`. Level names are `View`, `Edit`, `Automate`, `Control`. Names are bold, and user and group names are HTML-escaped. A structure, project, role or level id with no name known to the page shows as `?[<id>]`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/empty-list",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "With no rules, the list has one line: `By default, permission level is None`, with no action icons.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/help-text",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "Above the list, a text of about two sentences says that the level is calculated by applying the rules from top to bottom, that `The last matching rule takes precedence.`, and that the owner and Jira administrators always have `Control`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/rule-actions",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "Each rule has three icons: move up, move down and delete. Up is hidden on the first rule and down on the last; if used anyway they do nothing. Each swaps the rule with its neighbour, or removes it, redraws the list and rewrites `permissions` at once. Nothing is sent to the server until the form is saved.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js",
+    "templates/structure/manage/edit-structure.vm",
+    "css/structure/structure-pages.css"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/add-form",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "Under the list, the field `Add Rule` has a kind selector with `Set Permission Level` (default) and `Apply Permissions`. With the first, it reads: `to` <level select, first level default> `for` <subject select>. Subject options are `Everyone` (default), `Group`, `Project Role`, `User`. With the second, it reads `from` <structure select>. The action link `Add` follows. Only the parts that belong to the chosen kind and subject are visible, and they update on change or on a key press in a select.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/add-subject-parts",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "Subject `Group` adds a group picker; `Project Role` adds a role select (from the page's role list), then `in project` and a project picker; `User` adds a user picker; `Everyone` adds nothing.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/pickers",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "The pickers are Jira single selects with a drop-down button and free text. Typing queries, with parameter `query`: the group picker `GET /rest/structure/2.0/group-picker`; the project picker `GET /rest/structure/2.0/projects-picker`; the user picker Jira's own `GET /rest/api/2/user/picker` with `showAvatar=true&maxResults=20`. The structure picker filters the page's own list of structures (C-4972) and sends nothing.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/picker-results",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "Group and project answers are shown by group, each with its `label` and `footer`; an item shows its `icon` if any and its `html`, or else its escaped `label`; empty groups are left out. Jira's user answer is one group with Jira's `header` as footer, each entry showing the user's `html`. Choosing an item puts it into the picker.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/add-disabled-look",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "The `Add` link looks disabled while the visible picker has no chosen value, and from the moment the user types in a picker until an item is chosen. It stays clickable: it adds a rule only when the rule is complete.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/permissionsEditor.js",
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/permissionsEditor/add-action",
+   "module": "permissionsEditor",
+   "api": null,
+   "behaviour": "`Add` builds a rule from the chosen values and appends it at the end of the list, then redraws and rewrites `permissions`. An incomplete rule (no structure, no group, no project or role, no user, no level) does nothing. The pickers keep their values after adding.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/permissionsEditor.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-title",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/EditStructure.jspa` is titled `Create Structure` for a new structure and `Edit Structure` for a saved one, both as the browser title and heading, with the plugin's top menu section selected. A help icon links to the plugin's documentation in a new window.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-copied-block",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "After a copy (C-4971), a block appears above the form: heading `Structure Copied`, a success message (`The structure has been successfully copied. It contains the same items as the original structure.` after a plain copy; `The structure has been successfully copied. It contains new issues (copied from the issues in the original structure) and other non-issue items from the original structure.` after a clone), then read-only `ID` and `Structure`, then the button `Open Structure` to `/secure/StructureBoard.jspa?s=<id>`, and a link `Back` to the return URL, tooltip `Go back to the Manage Structures page`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-copied-warnings",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "In that block, `syncCopyError` shows the warning `Some synchronizers were not copied.`, else a structure with synchronizers shows the success text `The structure's synchronizers have been successfully copied. They are currently disabled. To use them, please review their configuration, adjust if necessary, and run Resync & Enable.`. In either of those cases a button `Review Synchronizers` to `/secure/StructureSync.jspa?id=<id>` is added. `issueCloneErrors` above 0 shows the warning `Some issues could not be cloned. They have been substituted with \"Failed clone\" folders in the cloned structure. Total number of issues not cloned: <n>.`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-basic-fields",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The form has: `Name` (required mark, text box, field name `name`); `Description` (Jira's wiki editor, field `description`), with the checkbox `Expand structure description when opening structure` (`descriptionShown`). A field error from the server shows under its field for `name` and `description`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-owner",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`Owner`: when the user may change it (C-4973) it is the plugin's user picker with field `newOwner`, showing the current owner; otherwise a read-only line with an icon and the formatted subject (C-4916), the icon being a single-user one for a user, and a shared one for others.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-options",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The field `Options` has the checkbox `Require Edit Issue permission on parent issue to rearrange sub-issues` (`editRequiresParentPermission`) and, only when the manual-adjustment feature is on, `Allow manual adjustments of generated content` (`allowManualAdjustments`). With the feature off, the present value goes along in a hidden field.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-time-limit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`Time limit`: a required number box `generationTimeLimit` followed by `seconds (for automation)`, bounded by the minimum and the hard limit of the page (C-4970). Only digits, navigation and editing keys and the clipboard shortcuts are accepted, and the value is normalised to an integer as it changes.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm",
+    "js/structure/pageutil.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-buttons",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Footer: a first submit button `Create` for a new structure or `Update` for a saved one, tooltip `Save changes and open Manage Structures page`; a second submit `Create and Open` or `Update and Open`, with field name `openStructure`, tooltip `Save changes and open <product> Board with this structure`; and a link `Cancel` to the return URL, tooltip `Do not create new structure and get back to Manage Structures page`, also when editing.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-owner-confirm",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When the first submit button is clicked with the owner field different from its starting value, the browser asks `By changing the owner you might lose access to this structure.`; declining stops the submit. The `Update and Open` button submits without asking (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/edit-hidden",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The form posts to `EditStructure!apply.jspa` with hidden `atl_token`, `id` and `confirm=true`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/edit-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/archive-screen",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureArchive.jspa` is titled `Archive Structure - <name>` in the browser and `Archive Structure` as page heading, with the section heading `Archive Structure \"<name>\"`, a help link to the plugin's documentation, a note of four short paragraphs saying that archiving makes the structure read-only and hides it from menus, issues stay in Jira, synchronizers get disabled and the action can be reversed, any error messages, read-only `ID`, `Structure`, `Description`, `Owner`, and the warning `The structure is synchronized. All installed synchronizers will be disabled.` when C-5038 asks for it. Buttons: submit `Archive Structure`, link `Cancel` to the return URL. The form posts to `StructureArchive!apply.jspa` with `atl_token`, `id` and `execute=true`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/archive-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/delete-screen",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/DeleteStructure.jspa` is titled `Delete Structure - <name>` in the browser and `Delete Structure` as page heading, with the section heading `Delete Structure \"<name>\"`, a help link to the plugin's documentation, a note saying that only the hierarchy data goes, items are not affected and synchronizers are uninstalled, any error messages, read-only `ID`, `Structure`, `Description`, `Owner`, `Items in Structure` with the count and the hint `Does not include generated parts.`, and a warning `There is no Undo! Please make sure you delete the correct structure.`. Buttons: submit `Delete Structure`, link `Cancel`. The form posts to `DeleteStructure!apply.jspa` with `atl_token`, `id` and `execute=true`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/delete-structure.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/remove-adjustments-screen",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureRemoveAdjustments.jspa` is titled `Remove Manual Adjustments - <name>` in the browser and `Remove Manual Adjustments` as page heading, with the section heading `Remove Manual Adjustments for Structure \"<name>\"`, a help link to the plugin's documentation, a note saying that generated content goes back to its original state and this cannot be undone, any error messages, and read-only `ID`, `Structure`, `Description`, `Owner`. Buttons: submit `Remove Adjustments`, link `Cancel`. The form posts to `StructureRemoveAdjustments!apply.jspa` with `atl_token`, `id` and `execute=true`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/remove-adjustments.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/remove-adjustments-count",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The field `Adjustments` on that screen shows, first match wins: `Manual adjustments are disabled for this Jira` when the feature is off; `Manual adjustments are disabled for this structure`; `None` when the structure has no adjustments; otherwise the number of adjustments. The submit button is there in every case.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/remove-adjustments.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/views-titles",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureViews.jspa` with a structure is titled `Views - <name>` in the browser, `Views` as page heading and `Views for Structure \"<name>\"` as section heading, with a help link to the plugin's documentation, in Jira's general layout. Without one it uses Jira's admin layout (page `wi-structure-defaults` under `structure-admin/structure-admin-main`), both titles being `Default View Settings for Structures`, with no help link. A short note explains views, the menu and defaults, in two different texts for the two cases. Error messages follow the note.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/views-structure-part",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With a structure the page shows `Structure` with name, `(ID: <id>)` and description, and then, under `View Settings`, two radio options `Default` (`useDefault=true`) and `Customized` (`useDefault=false`), the current state preselected. The global page has no radio options. The behaviour of the options, drag and add is in `structure-views-js`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/views-lists",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Two panels of the same layout are present: a read-only one headed `Default settings:` with the global settings, and an editable one, holding the structure's settings when customized, otherwise a copy of the global settings as a starting point. Each has a part `Views Menu`, with `No views are added to the menu.` when empty, and a part `Default Views`, with one line per page that has a default view.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/views-view-entry",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A view in a list shows a drag handle; a `Remove` link, tooltip `Remove this view from the list`; its name as a link to `StructureBoard.jspa?s=<id>&view=<view id>` in a new window, with the description as tooltip (plain text on the global page); and a link `Offered on:` with a summary of pages, tooltip `Select which pages should have this view on the menu`. That link opens the text `Which pages should have this view included in the Views menu?` with a checkbox per page, field `v<view id>-<page id>-menu`, value `true`. The summary words are `All pages` and `No pages!`. A view the user cannot see shows as `? (Unknown View)` and cannot be opened.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/views-add-defaults",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The editable panel adds `Add view:`, a select of all views the user can see and an add icon with tooltip `Add`. Its `Default Views` selects, field `default-<page id>-view`, group views as `Public views - shared with everyone`, `Shared views - shared with some users`, `Private views - usable only by owners`, an empty group being hidden. A view with a name shared by another reads `<name> [<id>, <owner>]`. The read-only panel shows the default view's name, or `-` when there is none.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/views-form",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The form posts to `StructureViews!apply.jspa` with `atl_token`, `id`, `execute=true` and `view-sequence`. Buttons: submit `Apply`, link `Cancel` to the return URL. A view added just before opening the page is marked for highlighting in the editable panel.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/manage/structure-views.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-head",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureCopy.jspa?id=<id>` has page heading `Copy Structure` and browser title `Copy Structure \"<name>\"`, repeated as section heading, with a help link to the plugin's documentation, and shows read-only `Structure` as `<name> (ID <id>)`, `Description`, `Owner`, and `Permissions` reading `Permissions will not be copied` when they cannot be copied.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-synchronizers",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When synchronization is allowed and the structure has active synchronizers, the form shows `Synchronizers` with the count and one line per synchronizer, and under `Options` the unchecked checkbox `Copy Synchronizers` (`copySynchronizers`). Checking it reveals, for a Jira administrator, `Synchronizer ownership:` (tooltip `Here you can choose to have all synchronizers in the copied structure run on your behalf`) with radios `keepSynchronizersOwner`: `Leave as is` (`true`, default) and `Make me (<user>) the new owner` (`false`); for others the text `You (<user>) will become the new owner of all copied synchronizers`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-options",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`Options` also has the unchecked checkboxes `Copy Quick Transformations` (`copyQuickTransforms`), when the structure has quick transformations, and `Copy Notes Column Data` (`copyNotes`), when it has notes data. The whole group is absent when none of the three checkboxes applies.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-stats",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`Non-automated Content` lists `All items: <n>`, `Issues: <n>`, `Generators: <n> (<a list by type such as 2 inserters, 1 grouper>)`, `Effectors: <n>`, with the hint `Does not include generated parts.` when there are generators.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-generated-stats",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With generators, `Visible Content` shows `All items: Not calculated`, `Issues: Not calculated` and a link `Calculate` to `StructureCopy.jspa?id=<id>&visibleStats=true`. After calculating it shows the numbers with the hint `Includes generated parts.`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-generators",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "With generators, the select `Generators` (`generatorMode`) offers `Copy generators to the resulting structure` (`copy`, default), `Replace all generators with the generated content` (`replaceAll`) and `Do not copy generators` (`skip`). When generation is stopped, `replaceAll` is disabled and a warning says `\"Replace all generators with the generated content\" option is disabled because automation is paused.`. Without generators a hidden `generatorMode=copy` is sent.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-clone-radio",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A user with Jira's bulk change permission sees `Clone Issues?` with radios `cloneIssues`: `No — the new structure will contain the same issues as the original structure` (`false`, default) and `Yes — the new structure will contain copies (clones) of the issues from the original structure` (`true`). Others send a hidden `cloneIssues=false`, and have no cloning section.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-clone-toggle",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Choosing Yes reveals the section `Issue Cloning Parameters`, with a short explanation, and renames the submit button from `Copy Structure` to `Start Cloning`. Choosing No reverses both.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-clone-warning",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The cloning section has a warning that follows `generatorMode` and the number N of manually added issues. `copy`: N = 0 `No issues will be cloned. Some issues may be inserted by the copied generators.`, otherwise `Only N manually added issue(s) will be cloned. Other issues will be inserted by the copied generators.`. `skip`: N = 0 `No issues will be cloned.`, otherwise `Only N manually added issue(s) will be cloned.`. `replaceAll`: `Both manually added issues and issues from dynamic content will be cloned.`. The word is `issue` for N = 1, `issues` above that.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-clone-fields",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The cloning section's fields: `Create in Project` (`targetProject`), first option `-- same as original issue --` with value 0, then the available projects; `Summary Prefix` (`summaryPrefix`); `Summary Suffix` (`summarySuffix`); `Labels` (`labels`, separated by spaces); each with a one-line hint.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-clone-link",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When linking is possible, `Link Back` has the unchecked checkbox `Link each clone to its original issue` (`linkBack`) and the line `Link type: cloned issue` <select> `original issue`, disabled until the checkbox is on. The select `link` has two options per link type, values `<id>:outward` and `<id>:inward`, labelled with the type's outward and inward text, and Jira's system clone link type's outward option selected.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-clone-options",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`Options` has unchecked checkboxes, each shown only when the action is possible: `Copy comments` (`cloneComments`), `Copy attachments` (`cloneAttachments`), `Clone Jira sub-tasks of the cloned issues (even if the sub-tasks are not in the structure)` (`cloneSubTasks`), `Copy issue links` (`cloneLinks`), `Copy watchers` (`cloneWatchers`). `Notifications` has `Send e-mail notifications for cloned issues` (`sendMail`), checked, when mail can be disabled; otherwise a hidden `sendMail=true` is sent.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-confirm",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "Submitting asks no question unless issues are being cloned. When cloning, the number to clone is N for `copy` and `skip`, and the visible issue count for `replaceAll`, unknown when not calculated. From 0 to 9 there is no question. At 10 or more the browser asks `This operation will create a copy of each issue in this structure (total number of issues to be created: <count>). Would you like to proceed?`. For an unknown count it asks the same without the number. Declining stops the submit.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-form-submit",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "A confirmed submit disables the submit button. The form posts to `StructureCopy!apply.jspa` with `atl_token`, `id` and `execute=true`. A link `Cancel` goes to the return URL.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-params.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-status-running",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "`/secure/StructureCopy.jspa?processId=<id>` while the process is in progress has page heading and browser title `Copy Structure \"<name>\"`, the activity as section heading, a progress bar, the text `<n>% complete`, a `Refresh` button that reloads the page, and a link `Cancel`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-status.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-status-poll",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "While in progress the page asks every 3000 ms for its own URL plus `progress=true&decorator=none`, the next request being timed from the previous answer. It updates activity, bar and percent text from the answer. An answer holding the word `refresh` (C-5017), or a failed request, reloads the page.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-status.vm",
+    "templates/structure/copy/copy-progress.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-progress-fragment",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The progress fragment is a bare HTML body: while in progress three blocks with the activity (HTML-escaped), the bare percent number and the percent text; otherwise one block with the word `refresh`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-progress.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-status-cancel-confirm",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "The `Cancel` link while in progress asks `Are you sure you want to cancel cloning? New issues that have been already created will be assembled into a new structure. If you would like to delete them, use bulk action on this structure.`; agreeing opens `/secure/StructureCopy.jspa?processId=<id>&cancel=true`. The link on a finished page has no question.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-status.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/ww-structure/copy-status-finished",
+   "module": "ww-structure",
+   "api": null,
+   "behaviour": "When not in progress the page shows the title and explanation of C-5018, then a numbered list of messages, errors emphasised, each with its exception text below it when it has one, and the link `Cancel`. When the status is success there is also a submit button `Continue`, posting to `StructureCopy!apply.jspa` with `atl_token`, `processId`, `stepId` and `execute=true`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/copy/copy-status.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/printable-rc/resources",
+   "module": "printable-rc",
+   "api": null,
+   "behaviour": "`printable-rc` depends on `com.almworks.jira.structure:jquery`, `com.almworks.jira.structure:jsutil` and `com.almworks.jira.structure:fonts`, and provides `structure-printable.css`, `structure-printable.js` and `structure-icon.png`.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/structure-printable.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/printable-rc/page",
+   "module": "printable-rc",
+   "api": null,
+   "behaviour": "`/secure/StructurePrintable.jspa` is a bare page with no Jira chrome: a control bar on top and under it one table holding the export's header row and data rows (C-4927, C-4933).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/structureboard/printable.vm",
+    "js/structure/structure-printable.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/printable-rc/print-rules",
+   "module": "printable-rc",
+   "api": null,
+   "behaviour": "When printing, the control bar is not printed, the page background is white, and the header row repeats on each printed page.",
+   "confidence": "high",
+   "evidence": [
+    "css/structure/structure-printable.css",
+    "templates/structure/structureboard/printable.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/printable-rc/print-button",
+   "module": "printable-rc",
+   "api": null,
+   "behaviour": "The control bar's `Print` button opens the browser's print dialog.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/structureboard/printable.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/printable-rc/font-field",
+   "module": "printable-rc",
+   "api": null,
+   "behaviour": "The control bar has `Font size:`, a text box of at most 3 characters, and two buttons `A` (bigger) and `a` (smaller). The font size starts at 10 pt and the box shows `10`. It applies to the table only.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/structureboard/printable.vm",
+    "js/structure/structure-printable.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/printable-rc/font-buttons",
+   "module": "printable-rc",
+   "api": null,
+   "behaviour": "Bigger adds 2 when the size is 8 or more, otherwise 1. Smaller subtracts 2 when above 8, never going below 8 that way, otherwise 1. The result stays within 2 to 72 and is written to the box. Examples: 10 to 12; 7 to 8; 8 to 10; 72 stays 72; smaller from 10 to 8; 9 to 8; 8 to 7; 2 stays 2.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-printable.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/printable-rc/font-typing",
+   "module": "printable-rc",
+   "api": null,
+   "behaviour": "Typing in the box applies the size on each key release: a whole number from 0 up is clamped to 2 to 72 and the table follows, while the box keeps what was typed. A blank box or text that is not a number changes nothing. When the box loses focus after a change, it is rewritten with the size in force, for example `200` becomes `72` and `abc` goes back to the last size.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/structure-printable.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/printable-rc/warnings",
+   "module": "printable-rc",
+   "api": null,
+   "behaviour": "When the forest was outdated or the loaded data was inconsistent, the control bar shows one warning line for each case, with a warning icon and the export's text, followed by a help link to the plugin's documentation in a new window.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/structureboard/printable.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/new-structure-wizard-js/resource",
+   "module": "new-structure-wizard-js",
+   "api": null,
+   "behaviour": "`new-structure-wizard-js` has no files of its own. It is in the contexts `atl.general` and `atl.admin`, so the wizard is ready on every Jira page, and depends on `com.atlassian.auiplugin:ajs`, `com.atlassian.auiplugin:aui-select2`, `com.almworks.jira.structure:jsutil`, `:widget-i18n`, `:structure-aui`, `:template-common`, `:template-backlog`, `:template-agile` and `:template-personal-backlog`.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/widget/templates/createStructureWizard.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/dialog",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "On every page, a click on a link marked as a wizard trigger, or on the menu item of `wi-structure-create-wiz` (link id `wi-structure-create`), opens a large Jira form dialog that loads the link's URL with `decorator=dialog`, `inline=true` and `__structurePage=<true when the page's URL contains /secure/StructureBoard.jspa, else false>`. The web item carries the style class `new-structure-wizard`, which is the trigger mark, and it is also the mark on the welcome page's links.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/createStructureWizard.js",
+    "atlassian-plugin.xml"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/on-board-finish",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "When the wizard finishes with response header `X-Wizard-Structure-Id` (C-5000), the board is asked, once ready, whether its primary panel may change structure silently. If so it switches to the new structure in place. If not, Jira shows a success message that cannot be closed: `New structure has been created.`, where the words `New structure` link to `/secure/StructureBoard.jspa?s=<id>`. Without the header nothing else is done here, and the redirect of C-5000 applies.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/createStructureWizard.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/enter-key",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "In the dialog, pressing Enter in any control except the `description` field clicks the primary button. On a full `/secure/CreateStructure.jspa` page without a dialog this rule does not apply, and Enter submits the form the normal way, which goes forward, because a hidden first submit button comes before Back.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/widget/templates/createStructureWizard.js",
+    "templates/structure/create/step.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/chooser",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "The template chooser is titled `Select Template` (window and header). Templates are shown in rows of two, each with a 48 px icon, its label and description, and a selected state. The selected one is the template given by `__templateKey`, otherwise the first (C-2891), even if that one is disabled. The footer has `Next` (Jira's `common.words.next`), tooltip `Proceed to the next step`, and a `Cancel` link.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/choose.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/chooser-fields",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "The chooser's form posts to `CreateStructure.jspa` with hidden `atl_token`, `__structurePage`, `__templateKey`, `__params`, and `__prevTemplateKey` when a template was given.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/choose.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/chooser-select",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "Clicking an enabled template selects it, removes the selection from the others and sets `__templateKey`. A disabled one is dimmed, and a click on it does nothing. Each template can take keyboard focus and reports its selected state.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/createStructureWizard.js",
+    "templates/structure/create/choose.vm",
+    "css/structure/templates/create-structure-wizard.css"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/chooser-keys",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "Enter or Space on a focused template selects it and clicks `Next`. On a disabled template it does not select, yet still clicks `Next` for the template already selected (as the original does). A double click on the selected template clicks `Next`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/createStructureWizard.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/step-page",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "A step page has the header of the step's title, the browser title `Select Template`, the step's fragment, and a footer with `Back`, tooltip `Go back to the previous step`, then the primary button and a `Cancel` link. The primary button reads `Next` with tooltip `Proceed to the next step`, or on the final step `Create` with tooltip `Create and open new structure`. `Back` is left out on the initial step of a welcome-screen wizard (C-5002).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/step.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/step-fields",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "A step's form posts to `CreateStructure.jspa`, or to `CreateStructure!apply.jspa` on the final step, with hidden `__structurePage`, `__welcomeScreen`, `__step`, `__params`, `atl_token`, `__templateKey` and `__back=false`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/step.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/back",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "Clicking `Back`, or pressing Enter or Space on it, sets `__back` to `true` and submits, so the server goes back without validating (C-4989).",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/createStructureWizard.js",
+    "templates/structure/create/step.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/cancel",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "`Cancel` closes the dialog. Nothing has been created at that point, as the structure is only made by the final step.",
+   "confidence": "medium",
+   "evidence": [
+    "templates/structure/create/choose.vm",
+    "templates/structure/create/step.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/async-select",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "The wizard's server-backed pickers (share with, projects, boards, versions) wait 250 ms after typing, then send `GET` with `query=<text>&maxResults=10` to their URL under `/rest/structure/2.0/create-structure/`. A `picker-search-result` is shown so that a group with a label is a titled section and one without shows its items directly. A group's `footer` is a last disabled line. An item shows its `html`, with its `title` as tooltip. A chosen item shows its escaped `label`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/utils.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/async-select-memory",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "On each change, a picker writes the chosen items as JSON to its companion hidden field (`roles-selection`, `projects-selection`, `agile-boards-selection`, `backlog-projects-selection`, `backlog-versions-selection`), and the picker's own field gets the ids, comma-separated when multiple. When a step is shown again, the picker's selection is restored from the hidden field.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/utils.js",
+    "templates/structure/create/general.vm",
+    "templates/structure/create/agile_epics.vm",
+    "templates/structure/create/backlog_project.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/general-step",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "The general step (C-4991) shows a short text on the side, about naming the structure, choosing who can edit it, and adjusting permissions later in the structure's configuration, and the heading `Specify Name and Permissions`. The fields are `Name` (required mark, `name`), `Description` (a two-row text box, `description`), `Share With` (`roles`), and `in projects` (required mark, `projects`). Errors from the server appear under `name`, `description`, `roles` and `projects`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/general.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/general-share",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "`Share With` is a single-choice picker on `create-structure/share-with`, preselected as in C-4995. `in projects` is a multiple-choice picker on `create-structure/projects`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/createStructureWizard.js",
+    "templates/structure/create/general.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/general-projects-visible",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "The `in projects` field is visible only while the value of `Share With` starts with a number and is not `-1`, which is a project role. `Nobody` hides it. A group whose name starts with digits, such as `123-team`, also shows it (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/createStructureWizard.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-common/theme-css",
+   "module": "template-common",
+   "api": null,
+   "behaviour": "`template-common` has no dependencies, and provides `utils.js`, `createStructureWizard.js`, `theme.css`, `create-structure-wizard.css` and `select.css`, covering the wizard's look and the plugin's colour variables, in light and dark themes.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/widget/templates/createStructureWizard.js",
+    "js/structure/widget/templates/utils.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-agile/resource",
+   "module": "template-agile",
+   "api": null,
+   "behaviour": "`template-agile` has no dependencies. It provides the script for the Agile steps, `agile-template.css` and four side images, with a dark variant of each of the two kinds used on the Stories and Sorting steps when Jira is in dark mode: `agile-stories.png`, `agile-stories-dark.png`, `agile-sorting.png`, `agile-sorting-dark.png`.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/widget/templates/agileTemplate.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-agile/rank-dependency",
+   "module": "template-agile",
+   "api": null,
+   "behaviour": "On the sorting step, `Allow changing Rank via <product>` is enabled only while `Add Rank Sorter` is checked, and it is also disabled on first display when that box starts unchecked. Its checked state stays as it was while disabled, and a disabled box does not send its value.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/agileTemplate.js",
+    "templates/structure/create/agile_sorting.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-agile/epics-script",
+   "module": "template-agile",
+   "api": null,
+   "behaviour": "On the epics step the board field becomes a multiple-choice picker on `GET /rest/structure/2.0/create-structure/agile-boards`. In a dialog the script runs on each Jira new-content-added event, so that it works for each step.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/agileTemplate.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/agile-structure/epics-screen",
+   "module": "agile-structure",
+   "api": null,
+   "behaviour": "The `epics` step shows a side text saying that epics of the chosen boards go at the top level and how to build the same by hand with the `Agile board` generator, and the heading `Add Epics from the Boards`. It has one required field, `Boards` (`agile-boards`), placeholder `Select boards`. A server error shows under it.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/agile_epics.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/agile-structure/stories-screen",
+   "module": "agile-structure",
+   "api": null,
+   "behaviour": "The `stories` step shows a side text saying that stories linked to the epics form the second level and how to build that with the `Stories under Epics` extender, and the heading `Additional Options`. It has the checkbox `Allow changing Epic via <product>` (`agile-update-epics`), with a one-line note saying that a story can then be reassigned by moving it.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/agile_stories.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/agile-structure/sorting-screen",
+   "module": "agile-structure",
+   "api": null,
+   "behaviour": "The `sorting` step shows a side text about ordering by rank and the `Rank` sorter, and the heading `Order Issues by Rank`. Checkboxes: `Add Rank Sorter` (`agile-rank-sorter`), noted as making the order match Jira boards; and `Allow changing Rank via <product>` (`agile-update-issues`), noted as letting rows be moved to update rank. Each checkbox has a hidden companion field of the same name with value `false`, which gives the two-value rule of C-2909.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/agile_sorting.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-backlog/resource",
+   "module": "template-backlog",
+   "api": null,
+   "behaviour": "`template-backlog` has no dependencies. It provides the script for the Backlog steps, `backlog-template.css`, side images `backlog-group-by.png` and `backlog-group-by-dark.png` (the latter when Jira is in dark mode) and `progress.gif`.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/widget/templates/backlogTemplate.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-backlog/project-picker",
+   "module": "template-backlog",
+   "api": null,
+   "behaviour": "On the project step, `Projects` is a multiple-choice picker on `GET /rest/structure/2.0/create-structure/projects`, and `Versions` a multiple-choice picker on `GET /rest/structure/2.0/create-structure/versions/?projectIds=<ids of the chosen projects, comma-separated>`, the URL being rebuilt for each request.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/backlogTemplate.js",
+    "js/structure/widget/templates/utils.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-backlog/version-picker",
+   "module": "template-backlog",
+   "api": null,
+   "behaviour": "With no project chosen `Versions` is read-only and empty. On each change of `Projects`, chosen versions of projects no longer chosen are removed, and the others stay. With one project a chosen version shows its name, and with more than one its `versionFullName` from the item's `params`, also for those already chosen.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/backlogTemplate.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-backlog/group-field",
+   "module": "template-backlog",
+   "api": null,
+   "behaviour": "On the group-by step, `Field` becomes a searchable select working in the browser, with no request.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/backlogTemplate.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/backlog-structure/project-screen",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "The `project` step shows a side text saying to choose projects and optionally versions, and how to build the same with the `JQL Query` generator, and the heading `Select Projects and Versions`. Fields: `Projects` (required mark, `backlog-project`, placeholder `Select projects`), with a server error under it, and `Versions` (`backlog-version`, placeholder `Select versions`).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/backlog_project.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/backlog-structure/group-screen",
+   "module": "backlog-structure",
+   "api": null,
+   "behaviour": "The `group-by` step shows a side text suggesting a field to group by, with Assignee as the example, and how to use `Group` generators, and the heading `Select Field to Group Issues`. It has `Field` (required mark, `backlog-field`, placeholder `Select field`), an empty first option, then the choices of C-2902, the last value selected, a server error under it, and the checkbox `Allow changes via <product>` (`backlog-allow-changes`), noted as meaning that moving an issue between groups updates the field. The checkbox has a hidden companion `false` (C-2901).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/backlog_group_by.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-personal-backlog/resource",
+   "module": "template-personal-backlog",
+   "api": null,
+   "behaviour": "`template-personal-backlog` has no dependencies. It provides the script of its step, `personal-backlog-template.css`, and the side images `issues.svg` and `issues-dark.png` (the latter when Jira is in dark mode).",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "js/structure/widget/templates/personalBacklogTemplate.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-personal-backlog/columns-picker",
+   "module": "template-personal-backlog",
+   "api": null,
+   "behaviour": "The field `personal-backlog-columns` becomes a searchable multiple-choice select working in the browser. Any change to it sets `personal-backlog-columns-changed` to `true`, which is what makes the server use the submitted list (C-2919).",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/personalBacklogTemplate.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/template-personal-backlog/checkbox-mirror",
+   "module": "template-personal-backlog",
+   "api": null,
+   "behaviour": "Each of the three tracking checkboxes has a hidden field of the same name. Clicking the box sets its hidden field to `true` or `false`, so an unchecked box still sends `false` (C-2914).",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/templates/personalBacklogTemplate.js",
+    "templates/structure/create/personal_backlog_issues.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/personal-backlog-structure/screen",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "The final step `__end` has the side text `Manage all the issues important to you, with all the data you need to see.` and these fields: `Name` (required mark, `personal-backlog-name`); `Issues I want to track` (required mark), checkboxes `Assigned to me`, `I'm Reporter`, `I'm watching` (`personal-backlog-assigned`, `personal-backlog-reporter`, `personal-backlog-watching`), starting as the step's values, with the error of field `personal-backlog-track` under them; and `Information I want to track` (`personal-backlog-columns`, multiple).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/personal_backlog_issues.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/personal-backlog-structure/columns-order",
+   "module": "personal-backlog-structure",
+   "api": null,
+   "behaviour": "The columns select lists the step's preselected columns first, in their order and selected, then the other choices (C-2922), each with its label as tooltip.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/create/personal_backlog_issues.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/resource",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "`welcome` depends on `com.almworks.jira.structure:help-widget`, `:page-rc`, `:widget-i18n`, `com.atlassian.auiplugin:ajs` and `com.atlassian.auiplugin:dialog2`. It provides the page's scripts and styles and the image folder `img/`, whose absolute URL the page uses (C-5069). The pictures are the implementer's own.",
+   "confidence": "high",
+   "evidence": [
+    "atlassian-plugin.xml",
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/layout",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "`/secure/StructureWelcome.jspa` has the browser title `Welcome`, uses Jira's general decorator, and shows from top to bottom: the intro with buttons, a picture carousel, the use cases block, and at the bottom a two-column part with app panels on one side, help and video panels on the other. The administrator's help panel (C-5068), in `interactive` mode of `help-widget`, sits beside it when present; at a window width of 1670 px or less it pushes the main content aside rather than overlaying it.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm",
+    "css/structure/welcome/welcome.css"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/intro",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The intro has a logo of the implementer's own, one heading line, about ten words on organising and viewing Jira projects as needed, and a row of buttons, which is always present, since licensing always answers yes.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/create-button",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The primary button `Create a new structure` links to `/secure/CreateStructure.jspa` and opens the wizard dialog. It is shown only when the user may create structures. If the wizard is not available it works as a plain link.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/recent-button",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The drop-down button `Recent structures` is shown only when the user has recent structures (C-5069).",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/search-load",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The `Recent structures` menu holds a search box, placeholder `Search`, and a results area. The results come from `GET /rest/structure/2.0/structureWelcome/search?query=<text>`, sent 250 ms after the last change of the text, and once 250 ms after the page starts, with an empty text. A request still running is aborted when a new one starts.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/SearchDropdownMenu.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/search-encoding",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The text goes into the URL as typed, without URL-encoding, so a text like `a&b` searches for `a` (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/SearchDropdownMenu.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/search-results",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "Each entry of `result` is a menu link to `<base>/secure/StructureBoard.jspa?s=<id>`, labelled with the `name` as HTML from the server, so a match shows bold. An empty `result` shows `Not found`. When `total` is larger than the entries shown, a last line says `There are more results. Try refining search.`. Any entry whose text is cut off gets its full text as tooltip.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/SearchDropdownMenu.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/search-progress",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "While a request runs the results area is hidden, and after 500 ms a spinner replaces it. A failed request, other than one aborted, adds the message `Cannot load data` above the area.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/welcome/SearchDropdownMenu.js",
+    "js/structure/almworks-util.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/search-open",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "Each opening of the menu clears the search text, which brings back the recent structures. When the menu element receives focus, focus moves to the search box.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/welcome/SearchDropdownMenu.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/search-keys",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "With the first result highlighted and focused, the Up key removes the highlight and moves focus to the search box. Up in the search box removes any highlight from the results and keeps focus there.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/SearchDropdownMenu.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/carousel-slides",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The carousel has five slides, in order, each a small screenshot with a caption of about five to seven words on, respectively: managing projects in one place; building a view that suits you; live calculations; insights at a glance; and seeing dependencies on a Gantt chart. The pictures are the implementer's own.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm",
+    "js/structure/welcome/Carousel.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/carousel-arrows",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "As many whole slides are shown as fit the width. When all fit, they are centred, with no arrows. Otherwise, at the first position only the next arrow shows, at the last only the previous arrow, in between both. An arrow moves by one slide, with no wrap-around, and a fade shows on the side where more slides exist.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/Carousel.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/carousel-select",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "A click on a slide marks it selected and opens the lightbox at that slide. Keyboard focus on a slide marks it selected, and leaving it clears the mark. Enter on a focused slide opens the lightbox without changing the mark. Only the slides now in view can take keyboard focus. Closing the lightbox clears the mark.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/Carousel.js",
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/lightbox-open",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The lightbox fades in over the whole window, blocks scrolling of the page and takes focus. It shows a large picture of the slide with previous and next buttons and a close button, and under it a strip of the same five slides as small pictures, 128 by 64 px, with no captions, which works like the carousel. Clicking a strip slide shows it large. The strip marks the slide shown large.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/Lightbox.js",
+    "js/structure/welcome/Slider.js",
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/lightbox-nav",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The previous and next buttons move by one slide with no wrap-around. They do nothing at the ends, and neither button is hidden. The large picture fits the window and follows resizing. Clicking the large picture does nothing. Clicking outside it does not close the lightbox.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/Slider.js",
+    "js/structure/welcome/Lightbox.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/lightbox-keys",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "Once all large pictures have loaded, keys work on the whole document: Escape closes the lightbox, Left and Right arrows go to the previous and next slide. Each is swallowed, also while the lightbox is closed, so Escape closes nothing else on the page and the arrow keys do not move the cursor in the search box (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/Slider.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/lightbox-tab",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "With the lightbox open, Tab on the last strip slide moves focus to the previous button, and Shift+Tab on the previous button moves it to the last strip slide, keeping focus inside.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/Lightbox.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/lightbox-close",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The close button or Escape fades the lightbox out, restores page scrolling and tells the carousel to clear its mark.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/Lightbox.js",
+    "js/structure/welcome/Slider.js"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/use-cases-list",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The use cases block has a header of a few words and, on one side, a list of five buttons with icon and label: `Personal backlog` (the icon is the user's avatar), `Reporting`, `Sprint planning`, `Release management`, `Scaled Agile Framework`. The other side shows the banner of the selected one. The first is selected at start, and a click selects another, showing its banner only.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/UseCases.js",
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/use-cases-banners",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "A banner has a picture, a title and one sentence, all marketing of about ten to twenty words, on the use case. The titles equal the list labels, except that the last is a short line on visualising SAFe.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/UseCases.js",
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/use-case-personal",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The `Personal backlog` banner has a primary button `Create` (Jira's `common.words.create`), only when the user may create structures. It opens the wizard on the template of C-5071. Without that right the banner has no button.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/UseCases.js",
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/use-case-dialogs",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The other four banners have a button `Learn more`, which opens a large modal dialog titled with the use case's label: `Reporting`, `Sprint planning`, `Release management`, `Scaled Agile Framework`.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/welcome/UseCases.js",
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/dialog-frame",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "Each such dialog has a banner picture, a body, a footer with a link button `Close` (Jira's `common.words.close`) that closes it, and a hint link `<product> Guide` to the plugin's documentation in a new window. The body can scroll.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/dialog-reporting",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The reporting dialog's text (about 100 words) says the plugin gives a visual overview with the data to track, gives steps (create a structure from the Jira menu, add issues by hand or by automation, add columns with the add button at the top right of the grid), and shows a short animation. It then suggests columns to try: progress, work logged, time in status, last comment, formulas, and aggregating values from children, each a link to the plugin's documentation.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/dialog-reporting.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/dialog-sprint",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The sprint dialog's text (about 90 words) says all upcoming sprints can be tracked on one screen, gives steps (create a structure, insert the issues of an Agile board, group by assignee, group by sprint, turn on the Sprint and Version attributes in the Summary settings), and shows two short animations: one on grouping, one on summing a field over sub-items in the column settings.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/dialog-sprint.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/dialog-release",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The release dialog's text (about 90 words) says releases can be tracked by organising issues by version, gives steps (create a structure, add issues, group by fix version, or by version name if projects share names, turn on the Sprint and Version attributes in the Summary settings), and shows two short animations as in the sprint dialog.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/dialog-release.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/dialog-safe",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The SAFe dialog's text (about 110 words) says the framework's hierarchy can be shown, gives steps (create a structure, insert initiatives by JQL, extend with epics through linked issues, extend with stories under epics and with sub-tasks, sort by rank), says the plugin can be tailored, and ends with an info box on keeping strategy documents next to issues, with a link to the plugin's documentation. It has no pictures but the banner.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/dialog-safe.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/companion-panels",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "The bottom part has a section with one panel per companion app: Gantt and Pages under one short heading, Colors, Testy and Deliver under another, each with a one-sentence description. A panel has a `not installed` marker image when that app is absent (C-5070). The links to the vendor's Marketplace listings are left out. Gantt's panel has a `Create` button under C-5071, opening the wizard. With all apps absent the section is only descriptions and markers.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/help-panels",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "Beside them a panel with a short heading on getting help has a picture and a short intro. The vendor's support, community, demo and newsletter links are left out, and the implementer provides its own or none.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/video-panel",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "A panel with a short heading on watching videos lists three entries (formula writing, feature discovery, how-to series), each with a picture, a play icon, a title and a visible link. The vendor's video links are left out, and the implementer provides its own. A click anywhere in an entry opens its link in a new window, and Enter on the entry's focusable icon does the same.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm"
+   ]
+  },
+  {
+   "key": "u15-manage-create/welcome/no-vendor-contact",
+   "module": "welcome",
+   "api": null,
+   "behaviour": "Nothing on the welcome page sends data to the vendor: no analytics, no feedback, no error reports. The only server call of its own is the search of `Recent structures`.",
+   "confidence": "high",
+   "evidence": [
+    "templates/structure/welcome/welcome.vm",
+    "js/structure/welcome/SearchDropdownMenu.js"
+   ]
+  }
+ ]
+}

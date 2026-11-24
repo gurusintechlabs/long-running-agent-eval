@@ -77,7 +77,7 @@ def precheck_file(path: Path | str) -> None:
 
 _REF_KEYS = frozenset({"prompt_file", "constraints_file", "hidden_tests", "seed_requirements_lock", "policy_file",
                        "script", "stages_file", "workspace_memory", "exploit_tests", "judge_fixtures",
-                       "context_file"})
+                       "context_file", "jar"})
 
 
 def _yaml_refs(node: Any, out: list[str], depth: int = 0) -> None:

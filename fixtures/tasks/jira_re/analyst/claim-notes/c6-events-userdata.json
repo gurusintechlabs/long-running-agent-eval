@@ -1,0 +1,1464 @@
+{
+ "claims": [
+  {
+   "key": "c6-events-userdata/data-tracker/forwards-affected-issues",
+   "module": "data-tracker",
+   "api": null,
+   "behaviour": "While started, the component listens to the issue event bridge (`event-bridge`, `IssueEventBridge`). For every `JiraChangeEvent` it receives, it calls `ItemTracker.recordChange(CoreIdentities.issue(id))` once for each id in the event's affected issues, in ascending id order (the order of `getAffectedIssuesSorted()`). Example: an event affecting issues 30 and 12 gives two calls, for issue 12 then issue 30. It records nothing else (no link, project or other item identities).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.EventBridgeItemTrackerPublisher",
+    "com.almworks.jira.structure.event.EventBridgeItemTrackerPublisher#recordIssue",
+    "com.almworks.jira.structure.event.EventBridgeItemTrackerPublisher$1#onIssueChanged"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/data-tracker/null-or-empty-event",
+   "module": "data-tracker",
+   "api": null,
+   "behaviour": "A null event, or an event with no affected issues, records nothing and does not throw.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.EventBridgeItemTrackerPublisher$1#onIssueChanged"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/data-tracker/lifecycle",
+   "module": "data-tracker",
+   "api": null,
+   "behaviour": "The listener is added to the issue event bridge when the component starts and removed when it stops. Events reported before the start or after the stop reach no item tracker.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.EventBridgeItemTrackerPublisher#startComponent",
+    "com.almworks.jira.structure.event.EventBridgeItemTrackerPublisher#stopComponent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-deleted-event-listener/cleans-up-structure-data",
+   "module": "structure-deleted-event-listener",
+   "api": null,
+   "behaviour": "The component registers with Jira's `EventPublisher` when it starts and unregisters when it stops. On a `StructureDeletedEvent` for structure N it does four things in this order: it uninstalls all synchronizers of N (`StructureSyncManager.uninstallSynchronizersForStructure(N)`, module `sync-manager`), deletes N's manual adjustments of generated content (module `adjustment-service`), removes all of N's structure properties (`StructurePropertyService`, module `structure-property-service`; rows of AO_8BAD1B_STRUCTURE_PROPERTY), and deletes all of N's item properties (notes, module `notes-manager`). Other structures' data is untouched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureDeletedEventListener#onStructureDelete",
+    "com.almworks.jira.structure.event.StructureDeletedEventListener#startComponent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-deleted-event-listener/failure-stops-and-is-logged",
+   "module": "structure-deleted-event-listener",
+   "api": null,
+   "behaviour": "If any of the four clean-up steps throws an `Exception` or a `LinkageError`, the remaining steps are skipped, a warning naming the structure is logged and nothing is rethrown to the event publisher. Example: when uninstalling synchronizers fails, the adjustments, structure properties and notes of that structure are left in place.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureDeletedEventListener#onStructureDelete"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/jira-thread-env-factory/prepares-and-clears-thread",
+   "module": "jira-thread-env-factory",
+   "api": null,
+   "behaviour": "Each request to the factory creates a new, independent per-thread environment for background work (used by `job-manager`). Creating it calls Jira's `JiraThreadLocalUtils.preCall()` on the calling thread; clearing it calls `JiraThreadLocalUtils.postCall()`. Nothing is shared between two environments.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnvFactory#create",
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#init",
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#clear"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/jira-thread-env-factory/request-emulation-off-by-default",
+   "module": "jira-thread-env-factory",
+   "api": null,
+   "behaviour": "An emulated HTTP request is installed only when the dark feature `structure.job.emulateHttpRequest` is true (Jira application property, else JVM system property; default false). The flag is read once, when the component's code is first used; later changes need a restart. With the flag false the `http-request-emulator` module is never called, neither on creation nor on clearing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv",
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#initServletRequest",
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#clearServletRequest"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/jira-thread-env-factory/request-emulation-context-path",
+   "module": "jira-thread-env-factory",
+   "api": null,
+   "behaviour": "With emulation on, creation asks `http-request-emulator` to install an emulated request and hands it the context path, computed only when the emulator asks for it (at most once): the path part of Jira's base URL, e.g. `/jira` for `http://host:8080/jira` and the empty string for `http://host:8080`. If the base URL is missing or malformed, the context path is the empty string and a warning is logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#initServletRequest",
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#getContextPath"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/jira-thread-env-factory/request-emulation-clear-once",
+   "module": "jira-thread-env-factory",
+   "api": null,
+   "behaviour": "With emulation on, clearing calls the emulator's clear operation only if the install reported success (returned true), and only once: clearing the same environment a second time does not call it again. If the install returned false, clearing never calls the emulator's clear operation.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#clearServletRequest",
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#initServletRequest"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/jira-thread-env-factory/emulation-errors-swallowed",
+   "module": "jira-thread-env-factory",
+   "api": null,
+   "behaviour": "An exception thrown by the emulator while installing or clearing is logged as an error and swallowed: creating and clearing the environment never fail because of it, and `preCall()` / `postCall()` still run. A failed install counts as not installed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#initServletRequest",
+    "com.almworks.structure.commons.lifecycle.JiraThreadEnv#clearServletRequest"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-usage-tracker/touch-writes-last-polled",
+   "module": "structure-usage-tracker",
+   "api": null,
+   "behaviour": "Recording that structure N was used writes the structure property `lastPolledMillis` of N (module `structure-property-service`) with the current time in epoch milliseconds as a decimal number, overwriting the earlier value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.StructureUsageTracker#touch",
+    "com.almworks.jira.structure.property.StructureUsageTracker#persistTouch"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-usage-tracker/throttle-two-hours",
+   "module": "structure-usage-tracker",
+   "api": null,
+   "behaviour": "Per node, a structure's use is written at most once every 2 hours (7,200,000 ms), counted from the last write this node made: a use at time t after a write at time w is skipped while t < w + 7,200,000 and written when t >= w + 7,200,000. Example: writes at 10:00, uses at 10:30 and 11:59 skipped, a use at 12:00 written. The throttle lives in memory only: after a restart the first use is always written. Each structure is throttled on its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.StructureUsageTracker#touch",
+    "com.almworks.jira.structure.property.StructureUsageTracker"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-usage-tracker/touch-result-and-lock-timeout",
+   "module": "structure-usage-tracker",
+   "api": null,
+   "behaviour": "Recording a use reports success (true) both when it wrote the property and when the throttle skipped it. It waits at most 100 ms for its internal lock (for the check and again for the update); when it cannot get the lock in time it reports false and writes nothing. When the waiting thread is interrupted it reports false and keeps the thread's interrupt flag set. The 'reliable' form retries until a use is recorded (true). The component is thread-safe.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.StructureUsageTracker#touch",
+    "com.almworks.jira.structure.property.StructureUsageTracker#reliableTouch",
+    "com.almworks.jira.structure.property.StructureUsageTracker#persistTouch"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-usage-tracker/memory-bounds",
+   "module": "structure-usage-tracker",
+   "api": null,
+   "behaviour": "The component remembers the last write time of at most 40,000 structures. When that many are known, arbitrary remembered structures are forgotten before a new one is added (a forgotten structure is written again on its next use, even within 2 hours). After every 1,000 writes, the next write first forgets all structures whose last write is more than 2 hours old.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.property.StructureUsageTracker#persistTouch",
+    "com.almworks.jira.structure.property.StructureUsageTracker"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-usage-tracker/write-after-memory",
+   "module": "structure-usage-tracker",
+   "api": null,
+   "behaviour": "The in-memory write time is updated before the property is written. If writing the property throws, the exception reaches the caller, and the structure still counts as written for the next 2 hours.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.property.StructureUsageTracker#persistTouch"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-usage-tracker/read-last-used",
+   "module": "structure-usage-tracker",
+   "api": null,
+   "behaviour": "The last-used time of a structure is read from its `lastPolledMillis` property: a positive number of milliseconds gives that instant; an absent, empty, non-numeric, zero or negative value means 'never used' (no date). This is the 'last used' value shown when managing structures.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.StructureUsageTracker#getLastTouchedTime",
+    "com.almworks.jira.structure.property.StructureUsageTracker#extractLastTouchedTime"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/recents-manager/stored-in-user-settings",
+   "module": "recents-manager",
+   "api": null,
+   "behaviour": "A user's recent structures are kept in SAL user settings (`UserSettingsService`, keyed by the Jira user key) under the key `almworks.jira.structure.recents`, as a string of decimal structure ids separated by single spaces, most recent first. Example: after opening 5, then 7, then 5 again, the value is `5 7`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#markStructureRecent",
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#composeRecents"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/recents-manager/mark-moves-to-front",
+   "module": "recents-manager",
+   "api": null,
+   "behaviour": "Marking structure N as recent for a user puts N first and removes any earlier occurrence of N, keeping the other ids in their order. Marking does not check that N exists or that the user can see it. With a null user (anonymous) nothing is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#markStructureRecent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/recents-manager/max-recents-dark-feature",
+   "module": "recents-manager",
+   "api": null,
+   "behaviour": "The number of recent structures kept is the dark feature `almworks.attributes.dev.recents.max` (default 10; negative values count as 0), read once when it is first needed. When it is 0, marking stores nothing and every read returns no recent structures.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager$Env$ProductionEnv#getMaxRecents",
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#parseRecents"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/recents-manager/stored-list-may-hold-max-plus-one",
+   "module": "recents-manager",
+   "api": null,
+   "behaviour": "When marking, the stored list is first cut to its first max entries and only then is the new id put at the front, so when the id was not in the list the stored value holds max + 1 ids (11 with the default) (as the original does). Reads only ever use the first max ids.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#markStructureRecent",
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#parseRecents"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/recents-manager/parse-rules",
+   "module": "recents-manager",
+   "api": null,
+   "behaviour": "Reading the stored value splits it on whitespace and looks only at the first max tokens; tokens that are not decimal longs are skipped, but still count towards max. A missing value, or one that is not a string, means no recent structures.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#parseRecents",
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#getRecentIds",
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#markStructureRecent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/recents-manager/recent-structures-list",
+   "module": "recents-manager",
+   "api": null,
+   "behaviour": "Listing a user's recent structures returns, in stored order, every recent id that the structure manager returns at the `VIEW` level and that is not archived. Ids of missing structures and of structures the check refuses (a `StructureException`) are skipped silently. The check uses the current `StructureAuth` user, not the user passed in. A null user, or a user with no settings, gets an empty list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#getRecentStructures"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/recents-manager/most-recent-accessible",
+   "module": "recents-manager",
+   "api": null,
+   "behaviour": "The most recent accessible structure of a user is the first stored id whose structure is not archived (checked without access checks) and on which the given user's permission includes `VIEW`. Its id is used to auto-select a structure. When there is none, or the user is null, the answer is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.recent.UserSettingsBasedRecentsManager#getMostRecentAccessibleStructureId"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/nothing-outside-batch",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "Forest changes are recorded only inside a batch started on the same thread. Adding, committing or cancelling changes on a thread with no open batch does nothing and writes no history. Ending a batch that was never started does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#addChanges",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#commitChanges",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#cancelChanges",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#endBatch"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/batches-nest-per-thread",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "Batches nest per thread: each start adds one level and each end removes one; history is written only when the outermost batch ends. Batches on different threads are independent and never see each other's changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#startBatch",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#endBatch"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/author-captured-at-batch-start",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "The user and synchronizer of every entry written by a batch are fixed when the outermost batch starts: the current `StructureAuth` user key (null when anonymous or system) and the id of the synchronizer the thread is running, if any (else null). They go to C_USER_KEY and C_SYNCHRONIZER of AO_8BAD1B_HISTORY_ENTRY. An entry's C_TIMESTAMP is the time it is written, in epoch milliseconds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl$Batch",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#saveEntry"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/buffer-commit-cancel",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "Changes added for a structure are held until committed. A commit (structure, old version, new version) moves that structure's held changes into the batch's committed changes. A cancel drops only the changes added for that structure since its last commit; changes already committed in the batch stay. Added null or empty change lists are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#addChanges",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#commitBuffer",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#cancelChanges"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/contiguous-commits-one-entry",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "Within one batch, the commits for a structure whose versions follow on (each commit's old version equals the previous commit's new version) give a single history entry when the batch ends. Its version is the last new version, its previous version (C_PREV_VERSION) is the first commit's old version, and its changes come in the order added. Example: commits 3->4 then 4->5 give one entry with version 5 and previous version 3.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#commitChanges",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#commitBuffer",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#saveEntry",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#endBatch"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/non-contiguous-commit-writes-early",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "When a commit's old version differs from the new version of the structure's previous commit in the same batch, the changes collected so far for that structure are written at once as an entry (version = the previous commit's new version). A new entry then starts, with this commit's old version as its previous version. Example: 3->4, then 7->8 gives an entry 4 (prev 3) at the second commit and an entry 8 (prev 7) at the end of the batch.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#commitChanges",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#saveEntry"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/no-changes-no-entry",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "A structure whose commits in the batch carried no changes gets no history entry. Its version is still tracked for the contiguity rule.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#saveEntry",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#commitBuffer"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/batch-listeners",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "Batch listeners can be added and removed; the same listener can be added twice. When an outermost batch ends, after all of its entries are written, each listener is called once, in the order added. It gets a map from structure id to the entry written at the end of the batch, with one key for every structure committed in the batch. The value is null for a structure that got no entry at the end, and entries already written early by a non-contiguous commit are not in the map. Listeners are not called when the batch had no commits (they then get an empty map).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#endBatch",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#addBatchListener",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#removeBatchListener"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/merges-adjacent-changes",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "Before an entry is written, neighbouring changes are merged when they continue each other. Two `HistoryEntry.Operation.MOVE` changes, or two `REMOVE` changes, merge when their 'path from' and 'after from' are equal. Two `ADD` changes, or two `COPY` changes, merge when their 'path to' is equal, the second's 'after to' is not empty, and its last element is the last root row of the first change's forest. A merged change keeps the first change's positions; the second change's forest is appended to it, and so are its original rows, when the first has them. Changes of different operations never merge. (AO_8BAD1B_HISTORY_CHANGE then holds one row per merged change.)",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#optimizeChanges",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#isContiguous",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#combine"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/storage",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "Each entry is written as one AO_8BAD1B_HISTORY_ENTRY row (C_ID = structure id << 32 | version), one AO_8BAD1B_HISTORY_CHANGE row per change, and the issue and project index rows in AO_8BAD1B_HISTORY_ISSUE and AO_8BAD1B_HISTORY_PROJECT for the issues in its changes' forests (module `history-recorder-io`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#saveEntry",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#writeEntry",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#writeIndexes"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/restore-entry-verbatim",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "Restoring a `HistoryEntry` (from a backup) writes it exactly as given (structure, version, previous version, timestamp, user key, synchronizer, changes) together with its index rows. There is no merging, no batch is needed, and batch listeners are not called.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#restoreEntry"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/clear-history",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "Clearing the history of structure N deletes all of its rows in AO_8BAD1B_HISTORY_ENTRY, _CHANGE, _ISSUE and _PROJECT, for every version. Clearing N for versions [from, to) deletes the rows whose version v satisfies from <= v < to (e.g. from 2 to 5 removes versions 2, 3 and 4). Other structures are untouched. With assertions enabled (as the tests run), a structure id outside 1..2^31-1 or a negative version throws `AssertionError`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#clearHistory",
+    "com.almworks.jira.structure.structure.history.HistoryUtil#hid",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#clearHistory"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/anonymize-count",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "For Jira's user anonymization the component reports how many history entries name the user: the count of AO_8BAD1B_HISTORY_ENTRY rows whose C_USER_KEY equals the user's key. With a count of 0 it reports nothing. Otherwise it reports one affected entity with the description key `s.anonymize.history-entries.description` ('<product> change history entries') and that count as its number of occurrences.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#getAnonymizeEntities",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#countEntriesByUser"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/history-recorder/user-key-change",
+   "module": "history-recorder",
+   "api": null,
+   "behaviour": "When a Jira user key changes (anonymization), every AO_8BAD1B_HISTORY_ENTRY.C_USER_KEY equal to the old key is set to the new key in one SQL update. On success the returned result has no errors. On an `SQLException` the error is logged and the result carries one error message, the translated `s.anonymize.history-entries.failed` ('Failed to anonymize structure history entries').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#changeUserKey",
+    "com.almworks.jira.structure.structure.history.AOBasedHistoryRecorderIO#changeEntriesUserKey"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/lifecycle-and-dispatch",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "The component registers with Jira's `EventListenerRegistrar` when it starts and unregisters when it stops. It receives every event and checks the kinds below in a fixed order, handling an event by the first kind it matches: version, custom field, project, archived issues, project category, component, Agile sprint, Agile board, sprint analytics, Tempo work attribute, Tempo permission group, Tempo team membership, issue type, priority deleted, priority edited, global permission added, project permission added, permission scheme revoke, Tempo allocation, Assets object, Xray test run. Any other event is ignored. Item changes go to the item tracker (`ItemTracker`, module `item-tracker`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle",
+    "com.almworks.jira.structure.event.StructureEventBridge#startComponent",
+    "com.almworks.jira.structure.event.StructureEventBridge#stopComponent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/version-events",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "For any Jira version event (`AbstractVersionEvent`, e.g. created, updated, released, archived, deleted, merged) with a non-null version, one `ItemTracker.recordChanges` call records `CoreIdentities.version(version)` when the version id is not null, plus `CoreIdentities.versionName(version)` when its name is not blank. For a `VersionUpdatedEvent` it also records `CoreIdentities.versionName(original)` when the original version's name is not blank, even if the name is unchanged, so the same identity may appear twice. With a null version, or nothing to record, there is no call.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/custom-field-events-clear-all",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "Any custom field event (`AbstractCustomFieldEvent`: created, updated, deleted ...) calls `StructureCacheHelper.clearAllStructureCachesOnAllNodes()`. No item change is recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/project-events",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "A `ProjectDeletedEvent` or `ProjectArchivedEvent` resets the item tracker (`ItemTracker.reset()`), which marks everything as changed. Any other project event (`ProjectRelatedEvent`, e.g. created or updated) records `CoreIdentities.project(project)` for the event's project.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/issues-archived-single-only",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "An `IssuesArchivedEvent` records `CoreIdentities.issue(id)` only when it carries exactly one issue id. With two or more ids (bulk archiving), or with no ids, nothing is recorded (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/project-category-event",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "A `ProjectCategoryUpdateEvent` records `CoreIdentities.projectCategory(id)` for the old category and for the new one. When both have the same id it is recorded once. A null category, or a null id, is left out, so with both null nothing is recorded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle",
+    "com.almworks.jira.structure.event.StructureEventBridge#processProjectCategoryEvent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/component-events",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "Any project component event (`AbstractProjectComponentEvent`: created, updated, deleted, merged ...) records `CoreIdentities.component(component)` for the event's component.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/agile-sprint-and-board-events",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "A Jira Software event whose class is in the package `com.atlassian.greenhopper.api.events.sprint` and which is a `SprintEvent` records `CoreIdentities.sprint(sprintId)` of its sprint. One in `com.atlassian.greenhopper.api.events.board` that is a `BoardEvent` records `CoreIdentities.board(boardId)`. When Jira Software's classes cannot be loaded (`Exception` or `LinkageError` during the check), such events are ignored without error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle",
+    "com.almworks.jira.structure.event.StructureEventBridge#shouldHandleSprintEvent",
+    "com.almworks.jira.structure.event.StructureEventBridge#shouldHandleBoardEvent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/sprint-analytics-event",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "An event of class `com.atlassian.greenhopper.analytics.SprintUpdatedAnalyticsEvent` is read by reflection through its public `getSprintId()` method. A non-null result records `CoreIdentities.sprint(id)`. The method is looked up once, on the first such event, and the result is kept, even when the method is missing (then such events are never handled). Errors calling it, or a non-`Long` result, record nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle",
+    "com.almworks.jira.structure.event.StructureEventBridge#getUpdatedSprintId"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/tempo-events",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "Tempo events, matched by class name: `com.tempoplugin.workattribute.api.event.WorkAttributeDeletedEvent` records `AuxiliaryIdentities.tempoWorkAttribute(x)`, where x is the name of the deleted work attribute's type (read by reflection as work attribute -> type -> value -> `name()`); if reading it fails, a warning is logged and nothing is recorded. `com.tempoplugin.pgp.event.PermissionGroupChanged` records `AuxiliaryIdentities.tempoTeamPermissions(\"*\")`. `com.tempoplugin.team.api.event.MembershipUpdateEvent` records `AuxiliaryIdentities.tempoTeamMembership(\"*\")`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getWorkAttributeId"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/tempo-allocation-event",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "An event whose direct superclass is `com.tempoplugin.planner.api.event.AllocationEvent` (a Tempo Planner allocation change) records `CoreIdentities.issue(planItemId)` when the allocation's plan item type value is `issue`. For other plan item types, or when reading the allocation by reflection fails (a warning is logged), nothing is recorded.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle",
+    "com.almworks.structure.commons.tempo.TempoIntegration#getIssueIdFromAllocationEvent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/issue-type-and-priority-events",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "Any issue type event (`AbstractIssueTypeEvent`) with a non-null issue type records `CoreIdentities.issueType(issueType)`. A `PriorityDeletedEvent` records `CoreIdentities.priority(priority)` of the deleted priority. A `PriorityEditedEvent` records `CoreIdentities.priority(...)` of the original (pre-edit) priority. A null priority records nothing, and other priority events (e.g. created) are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/permission-events",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "A `GlobalPermissionAddedEvent` records `AuxiliaryIdentities.globalPermission(key)` with its global permission type's key. A `PermissionAddedEvent` whose entity type id is a `ProjectPermissionKey` records `AuxiliaryIdentities.projectPermission(key)` with that key's `permissionKey()`; other entity types are ignored. A `SuccessfulPermissionSchemeRevokeEvent` records `AuxiliaryIdentities.projectPermission(event.getPermissionKey())`. Global permission removals are not handled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/assets-object-updated",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "An event of class `com.riadalabs.jira.plugins.insight.services.events.objects.event.InsightObjectUpdatedEvent` records `CoreIdentities.insightObject(id)` with the id of the event's object bean; a null id records nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle",
+    "com.almworks.jira.structure.integration.insight.InsightUtils#getObjectIdFromUpdatedEvent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-event-bridge/xray-test-run-updated",
+   "module": "structure-event-bridge",
+   "api": null,
+   "behaviour": "An event of class `com.xpandit.raven.event.TestRunStatusUpdatedEvent` is read by reflection (`getTestRuns()`, and on each run `getID()` (Integer) and `getTestIssueId()` (Long)). An empty list records nothing. Otherwise one `recordChanges` call records `AuxiliaryIdentities.xrayTestRun(id)` for every run, in list order, then a second call records `CoreIdentities.issue(testIssueId)` for every run. Any failure while reading (missing method, null or wrong-typed values) records nothing at all and is logged at debug level.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge#handle",
+    "com.almworks.jira.structure.event.StructureEventBridge#recordTestRunChanges"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/dark-feature-switches",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "Three dark features are read when the component is created: `structure.event.onUserUpdate.clearUserCaches` (default true), `structure.event.onManyUserInvalidationClearAllCaches` (default true) and `structure.event.boundaryFromUsersToAllCachesClear` (default 10). The component registers with Jira's `EventListenerRegistrar` on start and unregisters on stop.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge",
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#startComponent",
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#stopComponent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/single-user-update",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "A 'user update' for user key K does three things: it drops K's cached structure permissions (module `permissions-cache`), records `CoreIdentities.user(K)` with the item tracker, and, when `structure.event.onUserUpdate.clearUserCaches` is on, calls `StructureCacheHelper.clearUserStructureCachesOnAllNodes(K)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#onUserUpdate"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/many-user-update",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "A 'many-user update' does something only when `structure.event.onManyUserInvalidationClearAllCaches` is on. It then empties the whole structure permissions cache (module `permissions-cache`), and, when `structure.event.onUserUpdate.clearUserCaches` is also on, calls `StructureCacheHelper.clearAllStructureCachesOnAllNodes()`. It records no item change. With the switch off, a many-user update does nothing at all.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#onManyUserUpdate"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/project-role-updated",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "On a `ProjectRoleUpdatedEvent` the changed role actors are those in the original set but not the new one, plus those in the new set but not the original. With no changed actors nothing happens. When there are at most the boundary (default 10) changed actors and all are user actors (type `atlassian-user-role-actor`), a user update is done for each user of those actors. When there are more, or any is a group or other actor type, one many-user update is done instead.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/scheme-entity-user",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "A scheme entity event (`AbstractSchemeEntityEvent`, e.g. a permission or notification scheme entry added or removed) whose type is `user` causes a user update with the event's parameter as the user key. Scheme entity events of other types (group, role, ...) are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/user-profile-events",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "A `UserPreferencesUpdatedEvent`, `UserProfileUpdatedEvent` or `UserAvatarUpdatedEvent` looks the user up by the event's user name in Jira. When it is found, a user update is done with its key; an unknown name does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#handle",
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#onUserUpdateByUserName"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/group-membership-created",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "A crowd `GroupMembershipsCreatedEvent` first records `CoreIdentities.group(groupName)`. For user memberships (`MembershipType.GROUP_USER`) with a non-null list of names: when there are more names than the boundary (default 10), a many-user update is done, and a user update (looked up by name) is still done for every name; at or below the boundary, only the per-name user updates are done. For group-in-group memberships, a many-user update is done.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/group-membership-deleted",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "A crowd `GroupMembershipDeletedEvent` records `CoreIdentities.group(groupName)` and does a user update for the member, looked up by the entity name. A name that is not a user (e.g. a nested group) gets no user update.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/scheme-changes-many-user",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "A `SuccessfulPermissionSchemeRevokeEvent`, `SuccessfulPermissionSchemeGrantEvent`, `PermissionSchemeAddedToProjectEvent`, `PermissionSchemeRemovedFromProjectEvent`, `IssueSecuritySchemeAddedToProjectEvent` or `IssueSecuritySchemeRemovedFromProjectEvent` each causes one many-user update.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/anonymization-finished",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "A `UserAnonymizationFinishedEvent` does a user update for the old user key. When the old key is null, a warning is logged and a user update is done for the current user key, or nothing when that is null too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge#handle"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-users-event-bridge/unhandled-user-events",
+   "module": "structure-users-event-bridge",
+   "api": null,
+   "behaviour": "User creation, deletion and rename events, group creation and deletion, and project role scheme changes other than those above are not handled by this component.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.event.user.UserRelatedEventBridge"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-reindex-tracker/listeners-and-idle",
+   "module": "issue-reindex-tracker",
+   "api": null,
+   "behaviour": "The component registers with Jira's `EventPublisher` on start and unregisters on stop. Other components (`item-tracker`, and `sync-events-manager` on Data Center) register listeners. These are told about three things: a batch of reindexed issue ids, a finished project reindex (with the project id), and a finished full reindex. While no listener is registered, every report and reindex event is ignored, and nothing is collected or tracked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#runIfEnabled",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#addListener",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#removeListener",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#startComponent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-reindex-tracker/issue-batch",
+   "module": "issue-reindex-tracker",
+   "api": null,
+   "behaviour": "The indexer of the `<product> Index Monitor` field reports each issue Jira indexes, with its id and project id. The reports are collected per thread. On a `ReindexIssuesCompletedEvent`, listeners are given the ids collected on the event's thread, in reporting order (repeats kept), and the collection is then emptied. With nothing collected on that thread, no listener is called.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#reindexing",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#onReindexDone",
+    "com.almworks.structure.compat.customfield.IndexMonitorJ9#addIndex"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-reindex-tracker/full-reindex-tracking",
+   "module": "issue-reindex-tracker",
+   "api": null,
+   "behaviour": "On a `ReindexAllStartedEvent` the component asks Jira's task manager for the live full-reindex task (an `IndexTaskContext`). If there is none, or it is done, a warning is logged and nothing is tracked. Otherwise a full reindex is tracked: issue reports are no longer collected, and project reindex tracking is dropped. A task counts as done when it is missing, finished, cancelled, or its last progress event shows 100.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#onFullReindexStart",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#isDone",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#checkFullReindex"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-reindex-tracker/full-reindex-done",
+   "module": "issue-reindex-tracker",
+   "api": null,
+   "behaviour": "A tracked full reindex ends when the first of these happens: a `ReindexAllCompletedEvent` or `ReindexAllCancelledEvent`; the task's progress listener sees it done; or an issue report arrives at least the check interval after the last check (dark feature `structure.defaultIssueReindexTracker.fullReindexCheckInterval`, ms, default 60,000) and finds the task done. Listeners are then told once that the full reindex is done, and issue reports are collected again (that report included). Completed or cancelled events when no full reindex is tracked tell no one.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#finishFullReindex",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#checkFullReindex",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#onFullReindexCompleted",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#onFullReindexCancelled",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#onTaskComplete"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-reindex-tracker/indexes-restored",
+   "module": "issue-reindex-tracker",
+   "api": null,
+   "behaviour": "Every `IndexesRestoredEvent` (index restored from a snapshot, e.g. on a Data Center node) tells all listeners that a full reindex is done, whether or not one was tracked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#onIndexesRestored"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-reindex-tracker/project-reindex-detection",
+   "module": "issue-reindex-tracker",
+   "api": null,
+   "behaviour": "On each thread the component counts consecutive issue reports from the same project. A report from another project, or one without a project, restarts the count. The 21st consecutive report from a project (threshold: dark feature `structure.defaultIssueReindexTracker.projectReindexCheckThreshold`, default 20) asks Jira's task manager for a live project reindex task for that project on this cluster node (a `ProjectIndexTaskContext`). If there is no task (or no such project), collecting goes on as before. If the task is already done, listeners are told the project reindex is done, the count restarts and the issue is collected. If the task is running, project reindex mode starts.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#checkProjectReindex",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#findProjectReindexTask"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-reindex-tracker/project-reindex-mode",
+   "module": "issue-reindex-tracker",
+   "api": null,
+   "behaviour": "In project reindex mode, the issues collected on that thread are dropped (a warning is logged if their number differs from the count). Further reports for that project on that thread are not collected. Listeners are told once that the project reindex is done: when the task's progress listener sees it done, or when a report on that thread comes from a different project or none (that report is then collected normally).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#checkProjectReindex",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#projectReindexDone",
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#clearProjectReindex"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-reindex-tracker/listener-failure-isolated",
+   "module": "issue-reindex-tracker",
+   "api": null,
+   "behaviour": "A listener that throws an `Exception` or `LinkageError` is logged as a warning, and the remaining listeners are still told. The failure never reaches Jira's indexer or event publisher.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.index.DefaultIssueReindexTracker#runSafe"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/reindex-manager/ensure-existing-global",
+   "module": "reindex-manager",
+   "api": null,
+   "behaviour": "Making sure the index monitor exists (done at start by `item-tracker`, and on Data Center by the synchronizer events manager) first looks through all Jira custom fields for the first one whose type key is `com.almworks.jira.structure:index-monitor-cf-type`. If that field exists and is global, nothing changes: no lock is taken, and the field is not renamed or locked again. Further fields of the same type are left alone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.customfield.index.IndexMonitorManager#ensureIndexMonitor",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorManager#findCF",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorManager#isIndexMonitor",
+    "com.almworks.jira.structure.item.DelegatingItemTracker#startComponent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/reindex-manager/create-under-cluster-lock",
+   "module": "reindex-manager",
+   "api": null,
+   "behaviour": "Otherwise the component tries the cluster lock `com.almworks.jira.structure.indexMonitorManager` once, without waiting. If another node holds it, nothing is done and nothing is retried. Holding the lock, it checks again: with no field of the type, it creates one. With a non-global field, it removes that field and creates a new one. With a global field, it does nothing. The lock is always released.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.customfield.index.IndexMonitorManager#createOrUpdateCFLocked",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorManager#recreateCF"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/reindex-manager/created-field",
+   "module": "reindex-manager",
+   "api": null,
+   "behaviour": "The created field is named `<product> Index Monitor`, with the description 'System custom field, required for correct functioning of <product> add-on. Does not store any data.', type `com.almworks.jira.structure:index-monitor-cf-type`, searcher `com.almworks.jira.structure:index-monitor-cf-searcher`, the global issue context and all issue types. If the type or the searcher is not registered in Jira, an error is logged and no field is created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.customfield.index.IndexMonitorManager#createCF"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/reindex-manager/managed-locked",
+   "module": "reindex-manager",
+   "api": null,
+   "behaviour": "Right after creating the field, the component asks Jira's `ManagedConfigurationItemService` for the field's managed item. If it is not managed yet, the item is updated to managed with access level `LOCKED`; a failed update is logged with Jira's error messages. An existing field found global is never locked by this component.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.customfield.index.IndexMonitorManager#ensureLocked"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/reindex-manager/failures-logged",
+   "module": "reindex-manager",
+   "api": null,
+   "behaviour": "Failures are logged and never thrown: creation returning null, or throwing an `Exception` or `LinkageError`, logs an error. A `RemoveException` while removing a non-global field logs an error, and then no new field is created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.customfield.index.IndexMonitorManager#createCF",
+    "com.almworks.jira.structure.customfield.index.IndexMonitorManager#recreateCF"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-anonymize-handler/structures-considered",
+   "module": "structure-anonymize-handler",
+   "api": null,
+   "behaviour": "The handler works on the structures that the current user (the administrator running Jira's anonymization or ownership transfer) can administer (`PermissionLevel.ADMIN`), in the structure manager's order (by name). A structure belongs to user U when its owner user key equals U's key. It is private when none of its permission rules shares it: every rule is a `PermissionRule.SetLevel` with level `NONE`, or there are no rules. Otherwise it is shared.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#retainStructures",
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#retainPrivateStructures",
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#retainSharedStructures",
+    "com.almworks.structure.commons.permissions.PermissionUtils#isShared"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-anonymize-handler/list-to-delete",
+   "module": "structure-anonymize-handler",
+   "api": null,
+   "behaviour": "Listing what deleting user U's data would affect, including archived structures, gives entities in this order. First, if any structure has a `PermissionRule.SetLevel` rule whose subject is a `PermissionSubject.JiraUser` with U's key, one entity: description key `s.anonymize.permission-rules.description`, number of occurrences = the number of such structures (not rules), no link. Then, for each private structure owned by U, one entity: the translated description 'Private structure \"<name>\"' (`s.anonymize.private-structure.description`), 1 occurrence, link `StructureBoard.jspa?s=<id>` labelled with the key `s.anonymize.private-structure.link`. With nothing found, the list is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#getEntitiesToDelete",
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#getPermissionEntities",
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#getPrivateStructureEntities",
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#isUserPermission"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-anonymize-handler/delete-data",
+   "module": "structure-anonymize-handler",
+   "api": null,
+   "behaviour": "Deleting user U's data looks only at non-archived structures. It first removes from every structure all `PermissionRule.SetLevel` rules whose subject is a `PermissionSubject.JiraUser` with U's key, keeps the other rules in order, and saves the structure. Rules of other kinds (e.g. applying a permission scheme) stay. It then deletes every private structure owned by U. Archived structures listed for deletion are not handled (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#deleteData",
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#deletePermissions",
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#deletePrivateStructures"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-anonymize-handler/delete-after-rule-removal",
+   "module": "structure-anonymize-handler",
+   "api": null,
+   "behaviour": "Whether a structure is private is decided after U's rules have been removed. So a structure owned by U, shared only through rules naming U, becomes private and is deleted, even though the deletion list did not show it as a private structure.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#deleteData",
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#retainPrivateStructures"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-anonymize-handler/delete-errors",
+   "module": "structure-anonymize-handler",
+   "api": null,
+   "behaviour": "When saving a structure's rules fails (`StructureException`), the result gets the translated error 'Failed to remove permission rules for structure \"<name>\"' (`s.anonymize.permission-rules.failed`). When deleting a private structure fails, it gets 'Failed to delete private structure \"<name>\"' (`s.anonymize.private-structure.failed`). Processing goes on with the next structure. With no failures the result has no errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#deletePermissions",
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#deletePrivateStructures"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-anonymize-handler/list-to-transfer",
+   "module": "structure-anonymize-handler",
+   "api": null,
+   "behaviour": "Listing what transferring user U's ownership would affect gives one entity per shared structure owned by U, including archived ones: the translated description 'Owner of structure \"<name>\"' (`s.anonymize.structure.description`), 1 occurrence, link `StructureBoard.jspa?s=<id>` labelled with the key `s.anonymize.structure.link`. Private structures are not listed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#getEntitiesToTransfer"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-anonymize-handler/transfer-ownership",
+   "module": "structure-anonymize-handler",
+   "api": null,
+   "behaviour": "Transferring ownership from user A to user B makes B the owner of every shared structure owned by A, including archived ones, and saves each one. Private structures of A keep their owner. When saving fails (`StructureException`), the result gets the translated error 'Failed to change the owner of structure \"<name>\"' (`s.anonymize.structure.failed`) and the next structure is processed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.StructureAnonymizeHandler#transferOwnership"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/view-anonymize-handler/views-considered",
+   "module": "view-anonymize-handler",
+   "api": null,
+   "behaviour": "The handler works on the views (`StructureView`) that the current user can access at `PermissionLevel.ADMIN` (`StructureViewManager.getViews(ADMIN)`, by name) whose owner equals user U. A view is shared when `StructureView.isShared()` is true, otherwise private.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.ViewAnonymizeHandler#getUserViews",
+    "com.almworks.jira.structure.view.ViewAnonymizeHandler#getUserSharedViews",
+    "com.almworks.jira.structure.view.ViewAnonymizeHandler#getUserPrivateViews"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/view-anonymize-handler/list-and-delete-private-views",
+   "module": "view-anonymize-handler",
+   "api": null,
+   "behaviour": "Listing what deleting U's data affects gives one entity per private view of U: the translated description 'Private <product> view \"<name>\"' (`s.anonymize.private-view.description`), 1 occurrence, no link. Deleting U's data deletes each of those views. When a deletion fails (`StructureException`), the result gets the translated error 'Failed to delete private <product> view \"<name>\"' (`s.anonymize.private-view.failed`) and the next view is processed. Shared views and the views' permission rules are left untouched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.ViewAnonymizeHandler#getEntitiesToDelete",
+    "com.almworks.jira.structure.view.ViewAnonymizeHandler#deleteData"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/view-anonymize-handler/list-and-transfer-shared-views",
+   "module": "view-anonymize-handler",
+   "api": null,
+   "behaviour": "Listing what transferring U's ownership affects gives one entity per shared view of U: the translated description 'Owner of <product> view \"<name>\"' (`s.anonymize.view.description`), 1 occurrence, no link. Transferring from A to B makes B the owner of each shared view of A and saves it. When saving fails, the result gets 'Failed to change the owner of <product> view \"<name>\"' (`s.anonymize.view.failed`) and the next view is processed. Private views keep their owner.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.view.ViewAnonymizeHandler#getEntitiesToTransfer",
+    "com.almworks.jira.structure.view.ViewAnonymizeHandler#transferOwnership"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-features-statistic-source/registration-local-only",
+   "module": "structure-features-statistic-source",
+   "api": null,
+   "behaviour": "At start the component adds itself as a `StatisticSource` to `statistics-manager`; it is not removed at stop. Its counters are only computed when the statistics manager builds a usage report locally. The replacement never sends the report anywhere (SPEC.md section 1.8, and `statistics-manager`'s claims), whatever the administrator's consent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#startComponent",
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#getStatistics"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-features-statistic-source/scan-as-system",
+   "module": "structure-features-statistic-source",
+   "api": null,
+   "behaviour": "The counters are computed as the system user (`StructureAuth.sudo`, no permission checks) over all non-archived structures. They are returned as a map from counter name to a double. A counter that never applied is absent from the map, not 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#getStatistics"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-features-statistic-source/generator-counters",
+   "module": "structure-features-statistic-source",
+   "api": null,
+   "behaviour": "For each structure whose forest contains at least one generator row, `automatedStructureCount` gets +1. Each generator row whose generator's module key is known adds 1 to `generatorCount` and 1 to `generatorCount.<short key>`. The short key is the module key without a leading `com.almworks.jira.structure:` or `com.almworks.structure.pages:` (e.g. `generatorCount.inserter-jql`); other keys are kept whole. Generator rows whose module key is unknown add nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#countGenerators"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-features-statistic-source/grouper-field-detail",
+   "module": "structure-features-statistic-source",
+   "api": null,
+   "behaviour": "A `com.almworks.jira.structure:grouper-field` generator also adds 1 to `generatorCount.grouper-field.<field>`, where field is its single `fieldId` parameter, or `customfield` for any id starting with `customfield` (e.g. `generatorCount.grouper-field.assignee`, `generatorCount.grouper-field.customfield`). Without a single `fieldId`, `generatorCount.grouper-field` gets a second +1 instead (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#countGenerators"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-features-statistic-source/attribute-generator-detail",
+   "module": "structure-features-statistic-source",
+   "api": null,
+   "behaviour": "A `sorter-attribute`, `grouper-text` or `filter-attribute` generator (keys under `com.almworks.jira.structure:`) also adds 1 to `generatorCount.<short key>.<id>`, where id is the `id` entry of its `attribute` parameter map (`null` written out when the map has no id). When the `attribute` parameter is not a map, the base `generatorCount.<short key>` gets a second +1 instead (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#countGenerators"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-features-statistic-source/effector-counters",
+   "module": "structure-features-statistic-source",
+   "api": null,
+   "behaviour": "A structure with at least one effector row adds 1 to `effectors.structures`. Each effector row adds 1 to `effectors.instances.total`, and also 1 to `effectors.instances.unresolved` when its effector instance cannot be resolved, or else 1 to `effectors.instances.byModuleKey:<full module key>` (colon, full key, e.g. `effectors.instances.byModuleKey:com.almworks.jira.structure:effector-...`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#countEffectors"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-features-statistic-source/folder-memo-planning-counters",
+   "module": "structure-features-statistic-source",
+   "api": null,
+   "behaviour": "For each structure, the number of folder rows is added to `folderCount`, the number of memo rows to `memoCount`, and the number of planning-task rows to `planningTaskCount`. Each existing memo whose `iconClass` parameter is not empty also adds 1 to `memoCount.<iconClass>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#countFolders",
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#countMemos",
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#countPlanningTasks"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-features-statistic-source/synchronizer-counters",
+   "module": "structure-features-statistic-source",
+   "api": null,
+   "behaviour": "A structure with at least one installed synchronizer adds 1 to `synchronizedStructureCount` and the number of its synchronizers to `syncCount`. Each synchronizer adds 1 to `syncCount.<key>`, where key is the synchronizer module key without a leading `com.almworks.jira.structure:` (other prefixes kept). When autosync is on for it, it also adds 1 to `syncCount.enabled` and 1 to `syncCount.enabled.<key>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#addSynchronizerStats"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/structure-features-statistic-source/forest-errors-skip-content",
+   "module": "structure-features-statistic-source",
+   "api": null,
+   "behaviour": "The content counters (generators, effectors, folders, memos, planning tasks) come from the structure's forest source, read without access checks. When it cannot be read (`StructureException`), or is not one that can list rows by item type, that structure adds no content counters. Its synchronizer counters are still added.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureFeaturesStatisticSource#addContentStats"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/wf-statistics/registration-local-only",
+   "module": "wf-statistics",
+   "api": null,
+   "behaviour": "At start the component adds itself as a `StatisticSource` to `statistics-manager`. Its counters are only computed when a usage report is built locally, and the replacement never sends them anywhere (SPEC.md section 1.8).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowStatisticsSource#startComponent"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/wf-statistics/scans-active-workflows",
+   "module": "wf-statistics",
+   "api": null,
+   "behaviour": "The counters come from Jira's active workflows (`WorkflowManager.getActiveWorkflows()`). For every transition of every workflow (all actions), each validator whose `class.name` argument is `com.almworks.jira.structure.workflow.StructureWorkflowChecker` adds 1 to `wf.installed.validators`. So does each condition with that class name in the transition's restriction, nested condition groups included, adding to `wf.installed.conditions`. When the active workflows cannot be read (any exception), the result is an empty map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowStatisticsSource#getStatistics",
+    "com.almworks.jira.structure.workflow.StructureWorkflowStatisticsSource#processValidators",
+    "com.almworks.jira.structure.workflow.StructureWorkflowStatisticsSource#processConditions"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/wf-statistics/always-ten-counters",
+   "module": "wf-statistics",
+   "api": null,
+   "behaviour": "Unless the workflows cannot be read, the result always holds these ten counters, 0.0 when nothing applies: `wf.installed.validators`, `wf.installed.conditions`, `wf.installed.structureType.default`, `wf.installed.structureType.manual`, `wf.installed.structureType.containing`, `wf.installed.hasJqlInComposition`, `wf.installed.unstructured.allow`, `wf.installed.unstructured.block`, `wf.installed.runAs.lead`, `wf.installed.runAs.user`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowStatisticsSource$Stats#get"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/wf-statistics/per-checker-arguments",
+   "module": "wf-statistics",
+   "api": null,
+   "behaviour": "Each counted condition or validator also counts its string arguments; a missing or non-string argument counts as empty. `structureType` adds 1 to `.structureType.containing`, `.default` or `.manual` when it is exactly that value; any other value adds nothing. `allowUnstructured` exactly `true` adds to `wf.installed.unstructured.allow`, anything else to `.block`. `runAsLead` exactly `true` adds to `wf.installed.runAs.lead`, anything else to `.runAs.user`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowStatisticsSource#processArgs",
+    "com.almworks.jira.structure.workflow.AbstractStructureWorkflowCheckerFactory#stringParam"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/wf-statistics/jql-in-composition",
+   "module": "wf-statistics",
+   "api": null,
+   "behaviour": "A counted condition or validator also adds 1 to `wf.installed.hasJqlInComposition` when its `queryString` argument parses as an S-JQL query whose top level (looking through NOT, AND and OR) holds a relation step (`<relation> of <operand>`) whose operand is, or contains, a JQL constraint. A query that does not parse, or has no such step, adds nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.workflow.StructureWorkflowStatisticsSource#hasJqlInComposition"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/three-phases-in-order",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "Cloning a set of issues (used when a structure is copied with issue cloning) runs in three phases on one state: input validation, issue validation, then cloning. A phase may start only after the one before it succeeded. Starting it out of order throws `IllegalStateException` ('Expected step <X>, actual step <Y>'), and starting it after a failed phase throws `IllegalStateException` ('Step <X> failed'). Each phase starts by clearing the previous phase's messages and marking the result as not successful until it ends well.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$BaseProcess#beginStep",
+    "com.almworks.jira.structure.clone.IssueCloner#validateInput",
+    "com.almworks.jira.structure.clone.IssueCloner#validateIssues",
+    "com.almworks.jira.structure.clone.IssueCloner#cloneIssues"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/messages",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "Every phase reports messages with a severity (`ERROR` or `WARNING`), an optional issue (its key; its id when it has no key, or the given id), an optional field name, and a text translated in the cloning user's locale. Texts come from the i18n keys `s.issue-cloner.error.+<code>+` and `s.issue-cloner.warning.+<code>+` (the plus signs are part of the key, e.g. `s.issue-cloner.error.+no-issues+` = 'No issues to clone.'). Jira errors are passed on as their own texts. Name lists in messages are sorted with the user's locale collator.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$BaseProcess#error",
+    "com.almworks.jira.structure.clone.IssueCloner$BaseProcess#warning",
+    "com.almworks.jira.structure.clone.IssueCloner$BaseProcess#getText",
+    "com.almworks.jira.structure.clone.IssueCloner$BaseProcess#getIssueKey"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/progress-and-cancel",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "Progress is reported to the given `ProgressSink`. Input validation has 100 units and the activity key `s.issue-cloner.activity.input-validation`. Issue validation has one unit per issue and `s.issue-cloner.activity.issue-validation`. Cloning has 1000 units, 800 for creating issues and 200 for linking clones to their sources when a clone link type is set, and `s.issue-cloner.activity.clone-issues`. The sink is checked for cancellation between steps and between issues. A cancelled phase is not successful and adds the error 'Operation cancelled.' (code `cancelled`); in the cloning phase, clones already created stay.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$BaseProcess#execute",
+    "com.almworks.jira.structure.clone.IssueCloner$BaseProcess#checkNotCancelled",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#doExecute",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#doExecute",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#doExecute"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/requires-bulk-change",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "Input validation runs as the current Jira user. It needs Jira's global `BULK_CHANGE` permission; without it, the error code `no-bulk-change-permission` ('You do not have the \"Bulk Change\" permission.') is reported and the phase fails.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkPermissions",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#doExecute"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/empty-input",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With no issues to clone, the error `no-issues` is reported and the phase fails, unless the parameters ask to copy generators: then validation goes on with an empty set. With issues but no parameters, the error `no-params` is reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkInput"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/invisible-and-missing-issues",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "Issues the user cannot see (checked with the plugin helper's issue matching for that user, no extra query) each get a warning `issue-inaccessible` ('Issue does not exist.') with the issue id, and are dropped from the set. A search failure fails the phase with the exception's message as a global error. A remaining id that Jira cannot load gets the error `issue-inaccessible`, and the phase fails.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkSourceIssueVisibility",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#collectIssueObjects"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/issue-set-and-order",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "The set of issues to clone is built in input order, with each issue at most once. A non-sub-task issue is followed by its sub-tasks: all of them when sub-task cloning is asked for and Jira has sub-tasks enabled, otherwise only those also in the input. A sub-task whose parent is not in the input is cloned on its own, at its own position. When link cloning is on and Jira linking is enabled, an issue's Jira Software epic that is also in the input is moved before the issue. So epics come before their issues and parents before their sub-tasks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#collectIssueObjects",
+    "com.almworks.jira.structure.clone.IssueClonerState#putSourceIssue"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/target-project-checks",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With a target project id > 0: a missing project gives the error `no-project` ('Project with id <id> does not exist.'). Without Jira's `CREATE_ISSUES` permission there, the error is `no-create-permission`. A source issue type not available in the target gives one `no-type-in-project` error per type name. A sub-task from another project whose parent is not being cloned gives the error `must-clone-parent`. Each of these fails the phase.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkInput",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkAllSourceIssueTypesPresentIn",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkAllSubTaskParentsAreClonedTo"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/required-fields-check",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With a target project, the field layouts are compared for each source (project, issue type) pair. A field required in the target layout but missing from the source layout gives an error `required-field-missing` per field name and fails the phase. One that is required in the target but optional in the source gives the warning `required-field-not-required`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkThereAreNoExtraRequiredFieldsIn"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/in-place-create-check",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With no target project (target id <= 0), each clone goes to its source issue's project. Each source project where the user lacks `CREATE_ISSUES` gives the error `no-create-permission`, and the phase fails.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#collectSourceProjects",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkCreatePermissionForAllSourceProjects"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/clone-link-type-check",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With a clone link type id > 0: when Jira issue linking is disabled, the warning `issue-linking-disabled.link` is reported and clones will not be linked to their sources. Otherwise, an unknown link type id gives the error `no-link-type` and fails the phase.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkInput"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/mail-notifications",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "When the parameters ask to send mail, the 'issue created' notification sends mail in every project. Otherwise a Jira administrator (global `ADMINISTER`) suppresses mail everywhere. Any other user suppresses mail only in the projects they administer (`ADMINISTER_PROJECTS`); every other project concerned (the target, or the source projects) gets the warning `cannot-disable-mail` and still sends mail.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkCanDisableMailNotifications",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#sendNotifications"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/target-mapping-warnings",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With a target project, the following problems only produce warnings, one per missing name (the values are dropped later). A project the user cannot `MODIFY_REPORTER` in gives `no-modify-reporter-permission`. A custom field used by a source project/type but not available in the target for that type gives `no-custom-field-in-project`. Security levels the user cannot use in the target, by name, give `no-security-level-in-project`. Source assignees not assignable in the target give `assignee-cannot-be-assigned`. Components missing by name give `no-component-in-project`, and versions (fix, affected and version custom fields) missing by name give `no-version-in-project`. Select, multi-select and cascading-select options missing by name give `no-enum-cf-option-in-project`, or `no-enum-cf-option-in-project-type` when the field's target config differs by issue type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkModifyReporterPermissionFor",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkAllCustomFieldsPresentIn",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkAllSecurityLevelsPresentIn",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkAllSourceAssigneesCanBeAssignedIn",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkAllComponentsPresentIn",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkAllVersionsPresentIn",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkAllEnumCFOptionsPresentIn"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/in-place-warnings",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With no target project, a warning `no-modify-reporter-permission` is given per source project where the user lacks `MODIFY_REPORTER`. A warning `assignee-cannot-be-assigned` is given per (project, assignee) where the assignee is not assignable in their issue's own project.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkModifyReporterPermissionFor",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkAllSourceAssigneesCanBeAssignedInSourceProjects"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/optional-parts-checks",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "For each optional part asked for, the phase checks whether it can be cloned. Comments need `ADD_COMMENTS`. Attachments need attachments enabled (else the warning `attachments-disabled` turns them off) and `CREATE_ATTACHMENTS`. Watchers need watching enabled (else `watching-disabled`) and `MANAGE_WATCHERS`. When the target project lacks the permission, a `...-in-target` warning (e.g. `no-comment-permission-in-target`) turns that part off. With no target, a warning (e.g. `no-comment-permission`) is given per source project lacking it, and the part is then skipped for clones in those projects. Links need linking enabled (else `issue-linking-disabled.clone` turns them off). Sub-tasks need sub-tasks enabled (else `subtasks-disabled`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkCanCloneComments",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkCanCloneAttachments",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkCanCloneWatchers",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkCanCloneLinks",
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkCanCloneSubtasks"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/link-permission-check",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "When clones are to be linked to their sources, or links are to be cloned, `LINK_ISSUES` is checked. If the target project lacks it, the warning `no-link-permission-in-target.link` turns off linking clones to sources, and `no-link-permission-in-target.clone` turns off link cloning. With no target, a warning (`no-link-permission.link` / `.clone`) is given per source project lacking it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkCloneLinksPermission"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/epic-edit-warning",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With link cloning on, epic links need `EDIT_ISSUES`. With a target project the user cannot edit, the warning `gh-epic-no-edit-permission` is given, with the project object's text form (not its name) as the first argument (as the original does). With no target, the epics of the source issues are found through the Jira Software epic link type. One such warning is given per epic project the user cannot edit.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$InputValidationProcess#checkCanCloneEpicLinks"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/issue-input-basics",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "Issue validation builds a create request per issue. Defaults apply where a value is not given, the screen check is skipped, and the resolution is cleared. The project is the target, or the source's own project. Copied as-is: issue type, priority, description, environment, and the due date (formatted for Jira's date picker). Labels are the source's labels plus the labels parameter split on whitespace, without duplicates.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#validateIssue",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#copyIssueFields",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#copyLabels",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#prepareLabels"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/summary-prefix-suffix",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "The clone summary is '<prefix> <summary> <suffix>'. Prefix and suffix are trimmed, and when one is empty its space is left out. When this is longer than Jira's summary limit (255, never less than 5), the original summary is cut and ends with '...' while the prefix and suffix stay whole, as long as more than 3 summary characters would remain. Otherwise the whole text is shortened in the middle with '...' to the limit. Example: prefix 'CLONE' and a 252-character summary give 'CLONE ' + its first 246 characters + '...' (255 characters).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner#makeSummary",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#setSummary",
+    "com.almworks.jira.structure.clone.IssueClonerParams"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/reporter-assignee",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "The reporter is the source's reporter when the cloning user has `MODIFY_REPORTER` in the clone's project, otherwise the cloning user. The assignee is the source's assignee when they are assignable (`ASSIGNABLE_USER`) in the clone's project; otherwise none is given and Jira's default applies.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#setReporter",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#setAssignee"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/time-tracking",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "When Jira time tracking is on (`jira.option.timetracking`), estimates are copied as durations written in the US locale. In legacy mode (`jira.timetracking.estimates.legacy.behaviour`), the original estimate is set to the original estimate, or to the remaining estimate when there is no original. Otherwise: only an original gives an original estimate, only a remaining gives a remaining estimate, and both give both. With neither (or time tracking off), no estimate is set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#copyIssueFields",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#prepareTimeTracking"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/map-to-target",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With a target project: components are mapped by name to the target's components, and fix and affected versions by name to the target's non-archived versions. Unmatched values are dropped, and when none match, Jira's default applies. The security level is mapped by name to a level the user can use in the target; unmatched gives no level. With no target: components are copied, versions are copied without archived ones, and the security level is copied as-is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#prepareMappers",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#mapComponents",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#mapVersions",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#mapSecurityLevel",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#validateIssue"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/custom-fields",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "All custom fields of the source issue are copied, except the Jira Software Epic Link field and STAGIL asset fields. With a target project, fields not available there for the issue type are skipped. Version fields are mapped by name to non-archived target versions, and select-type options by name to the target options for that issue type. Values that do not map are dropped, and an empty result gives no value. A copy failure (`RuntimeException`) gives a warning `cf-copy-error` for that issue, with the field 'Name (id)', and the field is skipped. Table Grid fields (`tge.cloud:idalko-table-grid-custom-field-key`) are copied by value after validation.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#copyCustomFields",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#postInitCustomFields",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#valueMapper"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/jira-validation",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "Each request is checked with Jira's `IssueService.validateCreate`, or for a sub-task with `validateSubTaskCreate`. The parent passed is the source parent, or, with a target project, a placeholder id 1, because the real parent clone does not exist yet. Jira's errors become `ERROR` messages for the issue, with field errors given under the field's display name. The phase succeeds only when every issue is valid.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#validateParameters",
+    "com.almworks.jira.structure.clone.IssueCloner$BaseProcess#appendErrors",
+    "com.almworks.jira.structure.clone.IssueCloner$IssueValidationProcess#validateIssues"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/create-order-indexing",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "Cloning creates the issues in set order, as the cloning user, through Jira's `IssueService.create`. While each issue is created, Jira's import switches turn off indexing and notifications (`ImportUtils`), and they are turned back on afterwards, even on failure. The result maps each source id to its clone's id, or 0 when creating it failed. The phase succeeds only when every clone was created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#cloneIssues",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#cloneIssue",
+    "com.almworks.jira.structure.clone.IssueClonerResult#getNewIssueIds"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/subtask-parent",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "A cloned sub-task whose parent is in the set gets the parent's clone as its parent. If that parent's clone could not be created, the sub-task gets the error `parent-not-cloned` and is not created. A sub-task whose parent is not in the set keeps the original parent. After creating a sub-task, the sub-task link is created; a failure there is only logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#doCreateIssue"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/epic-link",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With link cloning on and the Jira Software Epic Link field present, a clone's Epic Link is set to the clone of its source's epic, or to the original epic when the epic is not being cloned. This happens only when the user can edit (`EDIT_ISSUES`) in the epic's project and link in the new issue's project. When the epic is in the set but has no clone, the issue gets the error `epic-not-cloned` and is not created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#doCreateIssue",
+    "com.almworks.jira.structure.clone.IssueCloner$GhIntegrationHelper#getEpic"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/comments-attachments-watchers",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "After each clone is created: comments are copied when the user can comment in the clone's project, keeping author, update author, body, group or role visibility and created/updated dates, and sending no event. Attachments are copied through Jira's `AttachmentManager.copyAttachments` when the user can attach there, and each failed copy gives the warning `attachment-copy-error` (source key, attachment id). Watchers are added when the user can manage watchers there.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#cloneIssue",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#cloneComments",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#cloneAttachments",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#cloneWatchers"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/clone-links",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "With link cloning on, the source's outward links and its inward links (except Jira Software epic links) are copied to the clone. The other end is that issue's clone when it is being cloned, otherwise the original. A link is skipped when its type is hidden from users, is the chosen clone link type, or is Jira's own clone link type (Jira property `jira.clone.linktype.name`, matched by exact name), or when the user can link in neither end's project. The links of one clone are created in one bulk transaction. Remote links are copied when the user can link in the clone's project; a failure gives the warning `remote-link-jira-error`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#cloneIssueLinks",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#canClone",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#isGhEpicLink",
+    "com.almworks.jira.structure.clone.IssueCloner#getSystemCloneLinkType"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/events-after-create",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "For each created clone, Jira's 'issue created' event (`EventType.ISSUE_CREATED_ID`, parameter `eventsource` = `workflow`) is sent as the cloning user, with mail only in projects where mail is not suppressed. Then a `LinkChangeEvent` (`JiraChangeType.LINK_CREATED`) is reported to the issue event bridge (`event-bridge`) for each copied issue link. A failure sending the event is only logged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#sendNotifications",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#cloneIssueLinks"
+   ]
+  },
+  {
+   "key": "c6-events-userdata/issue-cloner/link-clones-to-sources",
+   "module": "issue-cloner",
+   "api": null,
+   "behaviour": "When a clone link type is set, after all issues (even if some failed or creation threw), each source is linked to its clone with that type in one bulk transaction: source -> clone when the inward option is set, otherwise clone -> source. Pairs whose clone was not created, and pairs where the user can link in neither project, are skipped. A failure here is only logged. No events are reported for these links.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#linkClonesToSources",
+    "com.almworks.jira.structure.clone.IssueCloner$CloneProcess#doExecute"
+   ]
+  }
+ ]
+}

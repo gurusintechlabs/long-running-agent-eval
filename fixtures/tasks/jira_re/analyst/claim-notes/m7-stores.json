@@ -1,0 +1,803 @@
+{
+ "claims": [
+  {
+   "key": "m7-stores/generic-item-manager/create-stores-row",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "createItem(typeKey, item) inserts one AO_8BAD1B_GENERIC_ITEM row: C_NAME = the item's name, C_OWNING_STRUCTURE = its owning structure as given (null allowed; not checked to exist), C_DESCRIPTION = its description, C_PARAMETERS = the parameter map as compact JSON (null when the map is empty, never `{}`), C_TYPE_ID = the AO_8BAD1B_ITEM_TYPE id of the type key (created if the key has none yet). It returns the long identity `<typeKey>/<new row ID>`; a following getItem of that identity returns an item equal to the one given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#createItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#serializeParameters"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/create-unsupported-type",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "createItem throws a StructureException with error CREATE_ITEM_FAILED, message `Generic item type '<typeKey>' is not supported`, and stores nothing when the type key is not the complete key of an installed structure item type module whose item type is a GenericItemType (for example `com.almworks.jira.structure:type-folder` or an unknown key). The two built-in generic types `com.almworks.jira.structure:type-memo` and `com.almworks.jira.structure:type-planning-task` are accepted. No licence, app-access, anonymous-user or permission check is made.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#createItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#isItemTypeSupported"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/create-history-and-tracker",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "After a successful createItem one AO_8BAD1B_GENERIC_ITEM_HISTORY row is appended for the new item: C_CREATE true, C_OLD_NAME/C_OLD_DESCRIPTION/C_OLD_PARAMETERS null, C_NEW_* = the stored name, description and parameters, C_LONG_ID = the new ID, C_TYPE_ID = the item's type id, C_AUTHOR = the user key of the current StructureAuth user (null when there is none), C_TIMESTAMP = the current server time in epoch ms. ItemTracker is then told that the new item identity changed. A failure to write the history row is only logged; createItem still succeeds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#createItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#recordChange",
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#addRecords",
+    "com.almworks.jira.structure.generic.GenericItemHistoryManagerImpl#createItem"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/get-item",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "getItem(identity) returns the stored item (name, owning structure, description, parameters parsed from the JSON; no parameters gives an empty map) when a row with that ID exists and its type key equals the identity's type key. It returns null for a string identity, for an ID with no row, for an ID outside the 32-bit int range, and for a type mismatch (a memo's ID asked for as `com.almworks.jira.structure:type-planning-task/<id>` gives null). No permission check: items owned by structures the current user cannot see are returned too.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#getItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#loadTypedGenericItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#toGenericItem"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/get-item-cached",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "getItem results, including 'not found', are kept in a per-node cache keyed by numeric ID (expiry configured by the dark feature `structure.genericItem.cache.timeout`); createItem, updateItem and deleteItem drop the entry, so a read after a change through this manager sees the change. A load failure of the cache surfaces as an unchecked storage exception, not as null.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#getItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/load-items",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "loadItems(identities, consumer) reads the items straight from the database (not the cache), in chunks of at most 1000 IDs (dark feature `structure.genericItemManager.chunkSize`), and calls the consumer once with (identity, item) for every identity in the set whose row exists with the same type key; missing IDs and type mismatches are skipped silently and the order of calls is not defined. An empty set makes no call. A string identity in the set throws UnsupportedOperationException before anything is loaded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#loadItems",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#streamGenericItems",
+    "com.almworks.structure.commons.util.CommonUtil#forEachChunk"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/update-item",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "updateItem(identity, item) overwrites C_NAME, C_OWNING_STRUCTURE, C_DESCRIPTION and C_PARAMETERS of the existing row with the given item's values (an owning structure of null clears it; an empty parameter map stores null). It then appends an AO_8BAD1B_GENERIC_ITEM_HISTORY row with C_CREATE false, the old name/description/parameters as they were before and the new ones, C_AUTHOR = the current StructureAuth user key (or null) and the current time, drops the cache entry and tells ItemTracker the identity changed. The history row is written even when the new data equals the old.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#updateItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#recordChange"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/update-errors",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "updateItem with a string identity throws a StructureException with error INVALID_PARAMETER (message `<identity> is not a long ID`). With a long identity whose ID has no row, or whose row has another type key, it throws a StructureException with error ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE for that item (message `Cannot find item #<identity> or it is not accessible`) and changes nothing. No permission check is made.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#updateItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#checkItemId"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/delete-item",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "deleteItem(identity) hard-deletes the AO_8BAD1B_GENERIC_ITEM row when a row with that ID and the same type key exists, drops the cache entry and tells ItemTracker the identity changed. It writes no history row and leaves the item's existing AO_8BAD1B_GENERIC_ITEM_HISTORY rows and any forest rows pointing to it in place. A missing ID or a type mismatch does nothing and does not throw; a string identity throws a StructureException with error INVALID_PARAMETER.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#deleteItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#checkItemId"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/owned-item-unowned-attaches",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "getOwnedItem(identity, structureId, copyIfSame) on an existing item with no owning structure updates that item in place so its owning structure becomes structureId, keeps name, description and parameters, writes no history row (ItemTracker is still told it changed) and returns the same identity, whatever copyIfSame is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#getOwnedItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#updateItem"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/owned-item-copies",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "getOwnedItem on an existing item owned by another structure, or owned by structureId itself when copyIfSame is true, creates a new item of the same type with the same name, description and parameters and owning structure structureId (exactly as createItem does, with a create history row and an ItemTracker notification) and returns the new identity; the original item is left unchanged. Owned by structureId with copyIfSame false returns the identity unchanged and stores nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#getOwnedItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#createItem"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/owned-item-passthrough",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "getOwnedItem returns the given identity unchanged and stores nothing for a string identity and for a long identity whose item does not exist (or exists with another type key).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#getOwnedItem"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/is-visible",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "isVisible(item, user) is true for an item with a null owning structure without consulting StructureManager; otherwise it asks StructureManager.getStructurePermission(owningStructure, user) and is true exactly when that level includes PermissionLevel.VIEW (a null user is passed through as anonymous; a structure that does not exist or the user cannot see gives false).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#isVisible"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-manager/stopped",
+   "module": "generic-item-manager",
+   "api": null,
+   "behaviour": "After the plugin has stopped, createItem, getItem, loadItems, updateItem, deleteItem and getOwnedItem throw StructureStoppedException (unchecked). Before the first start they work normally. isVisible does not check the lifecycle state.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#createItem",
+    "com.almworks.jira.structure.generic.AOBasedGenericItemManager#getItem",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/get-item-no-access",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "getItem(identity) returns a failed result with a StructureException of error STRUCTURE_PLUGIN_ACCESS_DENIED (message `User has no access to <product> app`), no item and no identity, when StructurePluginHelper.isStructureAvailableToCurrentUser() is false; the manager is not asked. getItem makes no licence check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#getItem"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/get-item-missing",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "getItem returns a failed result with a StructureException of error ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE for the identity (message `<identity> is not found`) and no item when GenericItemManager.getItem gives null (missing ID, type mismatch or a string identity).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#getItem"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/get-item-invisible",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "When the item exists but GenericItemManager.isVisible(item, current StructureAuth user) is false, getItem returns a failed result whose exception has error ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE (message `<identity> is not accessible`) and which still carries the item in getGenericItem(). When visible, the result is valid, carries the item and has a null getItemId().",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#getItem"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/validate-create",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "validateCreate(typeKey, item) fails, in this order of checks: when the app may not be used by the current user (StructurePluginHelper.isStructureAvailableToCurrentUser() false) with error STRUCTURE_PLUGIN_ACCESS_DENIED; when there is no current StructureAuth user (anonymous) with error CREATE_ITEM_FAILED and message `<typeKey> item can't be created by anonymous user`. Otherwise it is valid. The licence check always passes in the replacement (no Marketplace licensing; the original would report LICENSE_PROBLEM first when unlicensed). The type key and the item's owning structure are not checked. The result returns the given type key and item unchanged and has an empty error collection.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#validateCreate"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/create",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "create(validation) with a valid validation calls GenericItemManager.createItem(type key, item) and returns a valid result whose getItemId() is the new identity (no item). A StructureException from the manager (for example CREATE_ITEM_FAILED for an unsupported type key) is returned as the result's exception instead of being thrown. With an invalid validation nothing is created and the result carries the validation's error collection and exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#create"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/validate-update-basic",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "validateUpdate(identity, newItem) fails with error STRUCTURE_PLUGIN_ACCESS_DENIED when the current user may not use the app; with error INVALID_PARAMETER (message `<identity> is not a long ID`) for a string identity; with error ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE (message `<identity> is not found or not accessible`) when GenericItemManager.getItem gives null. The licence check always passes in the replacement. Failed and valid results both return the given identity and new item.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#validateUpdate"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/validate-update-owned",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "When the existing item has an owning structure, validateUpdate also fails with error ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE when GenericItemManager.isVisible(existing, current user) is false, and with error ITEM_EDIT_DENIED for the item (i18n key `s.item.edit.error.no-edit-perm` with the structure id as argument) when StructureManager.isAccessible(owningStructure, PermissionLevel.EDIT) is false for the current user. An existing item with no owning structure passes with app access alone. The new item's owning structure is never checked, so an update may move the item to any structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#validateUpdate"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/update",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "update(validation) with a valid validation calls GenericItemManager.updateItem and returns a valid result with neither item nor identity; a StructureException from the manager (for example the item was deleted after validation, ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE) is returned as the result's exception. An invalid validation is passed on: errors and exception copied, nothing stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#update"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/validate-delete",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "validateDelete(identity) fails with error STRUCTURE_PLUGIN_ACCESS_DENIED without app access; INVALID_PARAMETER for a string identity; ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE when the item does not exist or GenericItemManager.isVisible(item, current user) is false; and ITEM_EDIT_DENIED (i18n key `s.item.edit.error.no-edit-perm`, the owning structure id as argument) when StructureManager.isAccessible(owningStructure, PermissionLevel.EDIT) is false. For an item with no owning structure that last check is made with a null structure id, which is never accessible, so deleting an unowned item through this service always fails with ITEM_EDIT_DENIED (as the original does). The licence check always passes in the replacement.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#validateDelete"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/delete",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "delete(validation) with a valid validation calls GenericItemManager.deleteItem and returns a valid result with neither item nor identity; a StructureException from the manager is returned as the result's exception. An invalid validation is passed on with its errors and exception and nothing is deleted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#delete"
+   ]
+  },
+  {
+   "key": "m7-stores/generic-item-service/no-throw",
+   "module": "generic-item-service",
+   "api": null,
+   "behaviour": "None of the service methods throws StructureException; every business failure is reported through the returned result (isValid() false with getException() set and an empty error collection). Unchecked exceptions from the manager, such as StructureStoppedException after the plugin stopped, are not caught.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#create",
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#update",
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#delete"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/is-favorite",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "isFavorite(structureId, user) is true exactly when AO_8BAD1B_FAVORITES has a row with C_USER_KEY = the user's key and C_STRUCTURE_ID = structureId. It is false for a null structure id, a null user or a user whose key is null, without reading storage. Whether the structure exists or is visible is not checked. Each user's set of favourite ids is cached (dark feature `structure.favorites.cache.timeout`) and refreshed by setFavorite.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#isFavorite",
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager$FavoritesIO#load"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/set-favorite",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "setFavorite(structureId, user, true) deletes every AO_8BAD1B_FAVORITES row for that (user key, structure id) pair and inserts exactly one new row, so repeating it leaves one row; setFavorite(..., false) deletes the pair's rows. A null structure id, null user or user with a null key stores nothing. No permission or existence check is made. Afterwards the user's cached favourites and the structure's cached popularity are refreshed, even when the storage call failed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#setFavorite"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/popularity",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "getPopularity(structureId) returns the number of AO_8BAD1B_FAVORITES rows with that C_STRUCTURE_ID (0 when there are none, for a structure that does not exist, and for a null id); setFavorite changes it immediately for that structure. If the count cannot be loaded it returns 0 and logs a warning. The count is cached per structure (same expiry setting as the favourites).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#getPopularity",
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#getPopularity0",
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager$PopularityIO#load"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/get-favorites",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "getFavorites(user, includeArchived) returns the given user's favourite structures that StructureManager.getStructure(id, PermissionLevel.VIEW) can load for the current StructureAuth user (not the given user); ids of structures that are missing or not viewable by the current user are silently skipped. Archived structures are left out unless includeArchived is true. The list is sorted with StructurePluginHelper.getStructureComparator(given user) (by name in that user's locale). A null user gives an empty list. getFavorites(user) is getFavorites(user, false).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#getFavorites"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/all-favorites",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "getAllFavorites() reads every AO_8BAD1B_FAVORITES row and returns a new map from user key to a LongArray of that user's favourite structure ids, sorted ascending with duplicates removed; the map iterates in ascending user-key order. Ids of structures that no longer exist and keys of users that no longer exist are included; no access check is made. With no rows it returns an empty map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#getAllFavorites"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/sort-by-popularity",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "sortByPopularity(structures, user) reorders the given list in place: higher popularity first; equal popularity ordered by StructurePluginHelper.getStructureComparator(user); null elements last. A null or empty list is left alone. The list must allow element replacement (an unmodifiable list throws UnsupportedOperationException).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#sortByPopularity",
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#getComparator"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/filter-by-popularity",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "filterByPopularity(structures, min, max) returns a new list with the structures, in their original order, whose popularity p satisfies min <= p <= max (min greater than max gives an empty list). A null list gives an empty list. A null element counts as popularity Integer.MIN_VALUE, so it is kept only when min is Integer.MIN_VALUE.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#filterByPopularity"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/stopped",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "After the plugin has stopped, isFavorite, setFavorite, getPopularity, getFavorites, sortByPopularity and filterByPopularity throw StructureStoppedException. getAllFavorites does not check the lifecycle state.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#isFavorite",
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#getAllFavorites",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/cleanup-nonexistent",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "The maintenance option `cleanupFavorites` deletes every AO_8BAD1B_FAVORITES row whose user key Jira's UserManager does not resolve to an existing user, or whose structure id is not among all structures (StructureManager.getAllStructures(PermissionLevel.ADMIN, true), archived included); other rows stay. When anything was deleted all cached favourites and popularity counts are dropped.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#removeNonexistentUsersAndStructures"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/anonymization",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "When Jira erases a user's personal data, the module reports favourite structures as data to delete only when getFavorites(user, true) is non-empty (count = its size, description key `s.anonymize.favorite-structures.description`), and on deletion removes every AO_8BAD1B_FAVORITES row with that user's key, drops that user's cached favourites and all popularity counts, and reports success with no errors.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#getEntitiesToDelete",
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#deleteData"
+   ]
+  },
+  {
+   "key": "m7-stores/favorite-manager/clear-user-caches",
+   "module": "favorite-manager",
+   "api": null,
+   "behaviour": "CachingComponent.clearUserCaches(user) drops the cached favourites of the current StructureAuth user, not of the given user (nothing when there is no current user) (as the original does); clearCaches() drops all cached favourites and popularity counts.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#clearUserCaches",
+    "com.almworks.jira.structure.structure.favorite.AOBasedFavoriteManager#clearCaches"
+   ]
+  },
+  {
+   "key": "m7-stores/folder-manager/create",
+   "module": "folder-manager",
+   "api": null,
+   "behaviour": "createFolder(folder) inserts one AO_8BAD1B_FOLDER row with C_NAME = the folder's name and C_OWNING_STRUCTURE = its owning structure (null allowed; not checked to exist), returns the new auto-increment ID, and tells ItemTracker that `com.almworks.jira.structure:type-folder/<id>` changed. getFolder(id) right after returns a folder with that name and owner. No permission check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.folder.AOBasedFolderManager#createFolder"
+   ]
+  },
+  {
+   "key": "m7-stores/folder-manager/get",
+   "module": "folder-manager",
+   "api": null,
+   "behaviour": "getFolder(id) returns a new Folder with the stored name and owning structure, or null when no row has that ID (including 0, negative IDs and IDs outside the 32-bit int range). Results, including 'not found', are cached per ID (dark feature `structure.folder.cache.timeout`) and refreshed by this manager's create, update and delete; a cache load failure throws an unchecked storage exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.folder.AOBasedFolderManager#getFolder",
+    "com.almworks.jira.structure.folder.AOBasedFolderManager$FolderLoader#load"
+   ]
+  },
+  {
+   "key": "m7-stores/folder-manager/update",
+   "module": "folder-manager",
+   "api": null,
+   "behaviour": "updateFolder(id, folder) overwrites C_NAME and C_OWNING_STRUCTURE of the row with the given folder's values (a null owner clears it), refreshes the cache and tells ItemTracker the folder identity changed. When no row has that ID it throws a StructureException with error ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE for item `com.almworks.jira.structure:type-folder/<id>` (message `Cannot find folder #<id> or it is not accessible`) and changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.folder.AOBasedFolderManager#updateFolder"
+   ]
+  },
+  {
+   "key": "m7-stores/folder-manager/delete",
+   "module": "folder-manager",
+   "api": null,
+   "behaviour": "deleteFolder(id) deletes the row and, only when a row was deleted, refreshes the cache and tells ItemTracker the folder identity changed. A missing ID does nothing and does not throw. Forest rows showing the folder are not touched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.folder.AOBasedFolderManager#deleteFolder"
+   ]
+  },
+  {
+   "key": "m7-stores/folder-manager/stopped",
+   "module": "folder-manager",
+   "api": null,
+   "behaviour": "After the plugin has stopped, createFolder, getFolder, updateFolder and deleteFolder throw StructureStoppedException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.folder.AOBasedFolderManager#createFolder",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/get-memo",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "getMemo(id) looks up `com.almworks.jira.structure:type-memo/<id>` through GenericItemManager.getItem and returns null when that gives null (no such ID, or the ID belongs to a planning task); otherwise a Memo snapshot of the item as loaded. No permission or app-access check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.memo.MemoManagerImpl#getMemo",
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessorManager#getFieldAccessor"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/get-memos",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "getMemos(ids) returns one Memo per ID in the order of the collection, leaving out IDs with no memo; a duplicated ID gives a duplicated entry; an empty collection gives an empty list. Each ID is looked up separately. No permission check. A null collection throws NullPointerException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.memo.MemoManagerImpl#getMemos",
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessorManager#getFieldAccessors"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/memo-values",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "A Memo's getSummary() is the item's name and getDescription() its description; getAssignee(), getDueDate(), getOriginalEstimate(), getRemainingEstimate() and getTimeSpent() come from the item parameters' `fields` map under the keys `assignee` (Jira user key), `duedate` (`yyyy-MM-dd`), `timeoriginalestimate`, `timeestimate` and `timespent` (decimal milliseconds). A missing key, a non-string value or a value that cannot be parsed reads as null.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessor#getFieldValue",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#getFieldValueWithoutValidation",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#extractFieldValue"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/memo-field-set",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "Memos allow exactly these fields: summary, description, assignee, duedate, timeoriginalestimate, timeestimate and timespent; none is required. A stored value is also checked against the field's own rules on read (for example an assignee that is not a valid option); a value that fails reads as null instead of throwing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#getConfig",
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService$SimpleFieldConfig#isFieldVisible",
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessor#getFieldValue",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeBuilder"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/builder-lazy",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "getUpdateBuilder(id) returns a new, empty builder for `com.almworks.jira.structure:type-memo/<id>` without reading or checking anything; setters only record values (setting a field twice keeps the last value) and return the same builder.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.memo.MemoManagerImpl#getUpdateBuilder",
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#setFieldValue"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/builder-summary-blank",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "MemoUpdateBuilder.setSummary throws IllegalArgumentException (message `Cannot set summary to an empty value`) for null, empty or whitespace-only text, at once and without recording anything.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#setSummary"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/update-checks",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "update() first reads the memo through GenericItemService.getItem as the current user and throws that result's StructureException: STRUCTURE_PLUGIN_ACCESS_DENIED without app access, ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE when the memo does not exist or is owned by a structure the user cannot view. It then validates the recorded values; finally it runs GenericItemService.validateUpdate and update and throws their exception, e.g. ITEM_EDIT_DENIED when the user lacks EDIT on the owning structure. A memo with no owning structure may be changed by any user with app access. Nothing is stored when any step fails.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#update",
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#getOldItem",
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#validateUpdate"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/update-validation-error",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "When a recorded value fails validation (a field not editable for memos, or a value the field rejects) update() throws a StructureException with error UPDATE_ITEM_FAILED carrying the field's localized error message, and stores nothing. This check comes before the EDIT permission check.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#getNewItem",
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#validateAndUpdate",
+    "com.almworks.jira.structure.structurefield.StructureFieldUpdate#validate"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/update-stores",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "A successful update() keeps every field not set, writes summary to the item name and description to the item description (null clears it), and puts the other fields into the parameters' `fields` map as strings (assignee as the user key, due date as `yyyy-MM-dd`, durations as the decimal number of milliseconds given); setting a field to null removes its key, and the `fields` key disappears when the map becomes empty. Other parameter keys (such as `color`, `iconClass`) are preserved. The change goes through GenericItemManager.updateItem, so a history row is written and ItemTracker notified.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#update",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#updateGenericItem",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#createFieldsMap"
+   ]
+  },
+  {
+   "key": "m7-stores/memo-manager/update-estimate-fill",
+   "module": "memo-manager",
+   "api": null,
+   "behaviour": "When the memo had neither `timeoriginalestimate` nor `timeestimate` stored and an update leaves exactly one of the two non-blank, the other is set to the same value: setOriginalEstimate(3600000) on such a memo makes getRemainingEstimate() 3600000 too. Once either estimate is stored, the two are independent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#createFieldsMap"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/get-task",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "getPlanningTask(id) looks up `com.almworks.jira.structure:type-planning-task/<id>` through GenericItemManager.getItem and returns null when that gives null (no such ID, or the ID belongs to a memo); otherwise a PlanningTask snapshot. No permission or app-access check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.planningtask.PlanningTaskManagerImpl#getPlanningTask",
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessorManager#getFieldAccessor"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/get-tasks",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "getPlanningTasks(ids) returns one PlanningTask per ID in the order of the collection, leaving out IDs with no planning task; a duplicated ID gives a duplicated entry; never null. A null collection throws NullPointerException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.planningtask.PlanningTaskManagerImpl#getPlanningTasks",
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessorManager#getFieldAccessors"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/task-values",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "PlanningTask getters return the summary from the item name, the description from the item description and every other field from the parameters' `fields` map under its Jira field id (`environment`, `assignee`, `reporter`, `priority`, `issuetype`, `project`, `duedate`, `timeoriginalestimate`, `timeestimate`, `labels`, `versions`, `fixVersions`, `components`, `customfield_<n>`). Each value is then checked against the Jira field configuration for the task's stored project and issue type as seen by the current StructureAuth user: a field hidden there, or a single value not valid there (e.g. a version of another project), reads as null; for multi-valued fields (versions, fixVersions, components, user, group and option lists) only the invalid elements are dropped and the valid ones are kept (see generic-item-field-accessor-manager). Values that cannot be parsed read as null.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessor#getFieldValue",
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#getConfig",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeBuilder"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/task-custom-field-getters",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "The custom-field getters of PlanningTask (getTextCustomFieldValue, getDateTimeCustomFieldValue, getNumberCustomFieldValue, getDateCustomFieldValue, getLabelsCustomFieldValue, getProjectCustomFieldValue, getSingleVersionCustomFieldValue, getMultiVersionCustomFieldValue, getSingleUserCustomFieldValue) throw IllegalArgumentException `Field <field name> is unsupported` when the plugin does not support that custom field for generic items, and `Field <field name> is of wrong type` when the field's kind does not match the getter (text accepts single-line and multi-line text). getSprint() returns null when Jira has no sprint custom field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessor#getCustomFieldValue",
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessor#getSprint"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/builder-lazy",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "getUpdateBuilder(id) returns a new, empty builder for `com.almworks.jira.structure:type-planning-task/<id>` without checking that the task exists; setters record values (the last value per field wins) and return the same builder; nothing is written until update().",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.planningtask.PlanningTaskManagerImpl#getUpdateBuilder",
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#setFieldValue"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/builder-summary-blank",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "PlanningTaskUpdateBuilder.setSummary throws IllegalArgumentException (message `Cannot set summary to an empty value`) for null, empty or whitespace-only text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#setSummary"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/builder-custom-field-setters",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "The custom-field setters of PlanningTaskUpdateBuilder throw IllegalArgumentException at once, `Field <field name> is unsupported` for a custom field the plugin does not support for generic items and `Field <field name> is of wrong type` when the field's kind does not match the setter; a null value is accepted and clears the field on update.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#setCustomFieldValue",
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#setTextCustomFieldValue"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/builder-sprint",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "setSprint throws StructureRuntimeException `Sprint changing is not enabled` when Jira has no sprint custom field or the agile sprint services are not available. Otherwise null records 'no sprint', and a non-null sprint is looked up by its id in the agile application; when none is found it throws IllegalArgumentException `Cannot find a sprint with id <id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#setSprint"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/update-checks",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "update() throws StructureException: STRUCTURE_PLUGIN_ACCESS_DENIED without app access; ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE when the task does not exist or its owning structure is not visible to the current user; UPDATE_ITEM_FAILED with the localized field error when a recorded value is not editable, hidden or invalid in the Jira field configuration for the task's project and issue type after the change (so changing the project re-checks the other values against the new project), or is empty for a field that configuration requires; ITEM_EDIT_DENIED when the user lacks EDIT on the owning structure. Only the fields being set are validated. Nothing is stored on failure.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#update",
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#getNewItem",
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#validateAndUpdate",
+    "com.almworks.jira.structure.structurefield.StructureFieldUpdate#validate",
+    "com.almworks.jira.structure.generic.GenericItemServiceImpl#validateUpdate"
+   ]
+  },
+  {
+   "key": "m7-stores/planning-task-manager/update-stores",
+   "module": "planning-task-manager",
+   "api": null,
+   "behaviour": "A successful update() keeps fields not set, stores summary as the item name and description as the item description, puts the other fields into the parameters' `fields` map as strings under their Jira field id (null removes the key; the `fields` key disappears when empty), applies the same estimate fill-in as memos (when neither estimate was stored and only one is now set, the other gets the same value), and stores through GenericItemManager.updateItem (history row, ItemTracker notification).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#update",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#updateGenericItem",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#createFieldsMap"
+   ]
+  },
+  {
+   "key": "m7-stores/structure-property-service/storage",
+   "module": "structure-property-service",
+   "api": null,
+   "behaviour": "Each property is one AO_8BAD1B_STRUCTURE_PROPERTY row: C_COMPOSITE_KEY = `<structureId>:<key>` (key not trimmed, e.g. `12:showDescription`), C_STRUCTURE_ID = the structure id, C_VALUE = the value. setValue with a non-blank value creates the row or overwrites its value; setValue with null, empty or whitespace-only text deletes the row (no error when there is none). The structure is not checked to exist and no permission check is made.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedStructurePropertyService$StructurePropertyIO#set",
+    "com.almworks.jira.structure.property.AOBasedStructurePropertyService$StructurePropertyIO#create"
+   ]
+  },
+  {
+   "key": "m7-stores/structure-property-service/get-string",
+   "module": "structure-property-service",
+   "api": null,
+   "behaviour": "getString(structureId, key, default) returns the stored value of `<structureId>:<key>`, or default when there is no row or its value is null; a load failure also gives default (warning logged). The value is cached per composite key with a moderate expiry (dark feature `structure.properties.cache.timeout`); setValue and removeAllProperties refresh the affected entries on this node, so a read after a write through this service sees the write.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedStructurePropertyService#getString",
+    "com.almworks.jira.structure.property.AOBasedStructurePropertyService#getValue",
+    "com.almworks.jira.structure.property.AOBasedStructurePropertyService$StructurePropertyIO#load"
+   ]
+  },
+  {
+   "key": "m7-stores/structure-property-service/key-assertions",
+   "module": "structure-property-service",
+   "api": null,
+   "behaviour": "getString and setValue check with Java assertions only that the structure id is >= 0 and the key has at most 170 characters: with assertions enabled (as the tests run) a negative id or a 171-character key throws AssertionError; with them disabled the call goes on with that composite key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedStructurePropertyService#getEntityKey"
+   ]
+  },
+  {
+   "key": "m7-stores/structure-property-service/get-all-keys",
+   "module": "structure-property-service",
+   "api": null,
+   "behaviour": "getAllKeys(structureId) reads the database directly (not the cache) and returns a new modifiable set of the plain keys (without the `<id>:` prefix) of all rows with that C_STRUCTURE_ID; empty when there are none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedStructurePropertyService#getAllKeys"
+   ]
+  },
+  {
+   "key": "m7-stores/structure-property-service/remove-all",
+   "module": "structure-property-service",
+   "api": null,
+   "behaviour": "removeAllProperties(structureId) deletes every row with that C_STRUCTURE_ID and drops their cached values, so getString afterwards returns the default; other structures' properties stay.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedStructurePropertyService#removeAllProperties"
+   ]
+  },
+  {
+   "key": "m7-stores/structure-property-service/cleanup-obsolete",
+   "module": "structure-property-service",
+   "api": null,
+   "behaviour": "The maintenance option `cleanupStructureProperties` deletes every AO_8BAD1B_STRUCTURE_PROPERTY row whose C_STRUCTURE_ID is not among all existing structures (StructureManager.getAllStructures(PermissionLevel.ADMIN, true), archived included) and then drops the whole cache.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedStructurePropertyService#cleanupObsoleteProperties"
+   ]
+  },
+  {
+   "key": "m7-stores/property-service/storage",
+   "module": "property-service",
+   "api": null,
+   "behaviour": "set(key, value) stores the value in AO_8BAD1B_PROPERTY: C_KEY = the key with leading and trailing whitespace removed, C_VALUE = the value exactly as given (whitespace-only values are stored). An existing row's value is overwritten; a new key creates a row. A null or empty value deletes the row instead (no error when there is none). remove(key) is the same as set(key, null). No permission check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedPropertyService$PropertyIO#set",
+    "com.almworks.jira.structure.property.AOBasedPropertyService#remove"
+   ]
+  },
+  {
+   "key": "m7-stores/property-service/key-blank",
+   "module": "property-service",
+   "api": null,
+   "behaviour": "set(String, String), set(String, boolean), set(String, long) and remove throw IllegalArgumentException (message `argument cannot be null or blank`) for a null, empty or whitespace-only key and store nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedPropertyService$PropertyIO#set",
+    "com.almworks.jira.structure.api.util.StructureUtil#nonBlank"
+   ]
+  },
+  {
+   "key": "m7-stores/property-service/getters-untrimmed",
+   "module": "property-service",
+   "api": null,
+   "behaviour": "The getters do not trim the key: after set(\" a\", \"x\") the value is stored under `a`, getString(\"a\", null) returns `x` and getString(\" a\", null) returns null (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedPropertyService#getString",
+    "com.almworks.jira.structure.property.AOBasedPropertyService$PropertyIO#set"
+   ]
+  },
+  {
+   "key": "m7-stores/property-service/get-string",
+   "module": "property-service",
+   "api": null,
+   "behaviour": "getString(key, default) returns the stored value, or default when there is no row or the row's value is null; a load failure returns default and logs a warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedPropertyService#getString",
+    "com.almworks.jira.structure.property.AOBasedPropertyService#getValue",
+    "com.almworks.jira.structure.property.AOBasedPropertyService$PropertyIO#load"
+   ]
+  },
+  {
+   "key": "m7-stores/property-service/get-boolean-long",
+   "module": "property-service",
+   "api": null,
+   "behaviour": "getBoolean(key, default) is true when the stored value is exactly `true`, false for any other stored value (including `TRUE` or ` true`), default when none is stored. getLong(key, default) parses the stored value as a decimal long and returns default when none is stored or it does not parse (e.g. `1.5`, ` 5`). set(key, boolean) stores `true`/`false`; set(key, long) stores the decimal text (e.g. `-7`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedPropertyService#getBoolean",
+    "com.almworks.jira.structure.property.AOBasedPropertyService#getLong",
+    "com.almworks.jira.structure.property.AOBasedPropertyService#set"
+   ]
+  },
+  {
+   "key": "m7-stores/property-service/cache",
+   "module": "property-service",
+   "api": null,
+   "behaviour": "Values are cached per key without expiry (also 'not set'); every set and remove refreshes the entry for its trimmed key, even when the storage call failed. A row changed by other means is not seen until invalidate(key) for that key or clearCaches() drops the cached value; invalidate changes no stored data.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.property.AOBasedPropertyService",
+    "com.almworks.jira.structure.property.AOBasedPropertyService#invalidate",
+    "com.almworks.jira.structure.property.AOBasedPropertyService#clearCaches",
+    "com.almworks.jira.structure.property.AOBasedPropertyService$PropertyIO#set"
+   ]
+  }
+ ]
+}

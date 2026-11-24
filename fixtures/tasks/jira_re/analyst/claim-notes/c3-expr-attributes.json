@@ -1,0 +1,1861 @@
+{
+ "claims": [
+  {
+   "key": "c3-expr-attributes/expr-parser/error-codes",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Formula error values carry a numeric code, which is what callers see (for example as `{\"error\": <code>}` in a formula value's JSON): 1 parse error, 2 unknown function, 3 invalid argument count, 4 arithmetic error, 5 attribute error, 6 function execution error, 7 value type error, 8 malformed regular expression, 9 internal error, 10 invalid value, 11 aggregation error, 12 high load (evaluation limits exceeded), 13 array size limit exceeded. Code 0 is the plain 'undefined' value, which is not an error. In the claims of this group, 'error N' means the error value with code N.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.SpecialExprValue"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/empty-formula-is-undefined",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "A null, empty or whitespace-only formula parses successfully into a formula that always evaluates to undefined (not an error); the analysis of such a formula has no parse error, no names and no problems.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.ExprParser#parse"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/parse-failure-gives-parse-error",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Preparing a formula that does not parse, or that parses but has at least one validation problem (see the validation claims), yields a prepared formula that always evaluates to error 1 (parse error), reports no variables, no functions and no aggregations, and depends on no context (current time, user, locale, time zone). Unknown function names and unknown aggregation names are not validation problems.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#prepareExecutor",
+    "com.almworks.jira.structure.expr.ConstantResult"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/whole-text-must-be-consumed",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "A formula parses only if the whole text (apart from trailing whitespace and comments) forms one expression; leftover text, e.g. `1 2` or `a = b = c` (comparisons do not chain), is a parse error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.ExprParser#parse",
+    "com.almworks.jira.structure.expr.parser.RuleComparisonExpression"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/comments",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Two comment forms are skipped wherever whitespace is allowed: `/* ... */` (may span lines) and `// ...` up to the end of the line (or of the text). An unterminated `/*` makes the formula unparseable. The analysis reports every comment's character range [from, to) covering the comment markers (for a line comment, up to but not including the newline).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.ExprLexer#trimLeft"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/number-literals",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Number literals are decimal digits with an optional fraction: `12`, `12.5` and `.5` are numbers; `5.` (dot with no digits after), exponents (`1e3`) and digits run directly into a letter or underscore (`5abc`) are not number literals. Literals have no sign (`-5` is unary minus applied to 5). Values are held as decimals rounded to 16 significant digits (`MathContext.DECIMAL64`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.ExprLexer$LiteralSearcher"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/text-literals",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Text literals are enclosed in single quotes `'...'`, double quotes `\"...\"` or typographic quotes `“...”` (opening U+201C, closing U+201D). Inside, a backslash followed by the literal's own quote character or by another backslash produces that character; a backslash followed by anything else is kept together with that character (`'a\\nb'` is the four characters a, backslash, n, b). A literal that is not closed is a parse error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.ExprLexer$LiteralSearcher"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/string-interpolation",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "A triple-quoted text `\"\"\"...\"\"\"` is a template: `$name` inserts the value of variable `name`, `${expression}` inserts the value of any expression, and a backslash makes the next character literal (`\\$` gives `$`). The template evaluates like `concat` of its literal pieces and inserted values in order, so undefined insertions contribute nothing, and a template whose pieces are all undefined evaluates to undefined. An unclosed template or a `$` not followed by a name or `{` is a parse error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.RuleStringInterpolation"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/identifiers-and-keywords",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Names (variables, functions, aggregations, parameters, modifiers) start with an ASCII letter or `_`, continue with ASCII letters, digits or `_`, and are at most 64 characters long (a longer name is a parse error). Names are case-insensitive: they are trimmed and lower-cased (US rules) before use, so `Summary`, `SUMMARY` and `summary` are the same variable and `SUM(...)` calls `sum`. The keywords `or`, `and`, `not`, `concat`, `undefined`, `with`, `if`, `else` are matched case-insensitively and cannot be used as variable names (a bare keyword where a value is expected is a parse error), although `if(...)`, `not(...)` and `concat(...)` with parentheses are ordinary function calls. A keyword is not recognised inside a longer word (`android`, `order` are plain names).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.ExprLexer#matchIdentifier",
+    "com.almworks.jira.structure.expr.parser.RuleValueExpression",
+    "com.almworks.jira.structure.expr.ExprNode",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#canonicalName"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/undefined-literal",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "The keyword `undefined` is a literal for the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.RuleValueExpression"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/operator-precedence",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Operators, from tightest to loosest binding: postfix `.name` / `.function(...)`; prefix `+`, `-`, `!` / `not` (at most one prefix operator per operand: `--5` and `- -5` are parse errors, `-(-5)` is fine); `*` and `/`; `+` and `-`; the infix word `CONCAT`; one comparison `=`, `==`, `!=`, `<>`, `<`, `<=`, `>`, `>=`; `AND` (also `&&` or `&`); `OR` (also `||` or `|`). Parentheses group. Binary operators of the same level associate to the left (`10 - 2 - 3` is 5, `8 / 2 / 2` is 2). Each operator is the matching library function: `+` sum, binary `-` minus, `*` mul, `/` div, `=` and `==` eq, `!=` and `<>` ne, `<` lt, `<=` le, `>` gt, `>=` ge, AND and, OR or, CONCAT concat, `!`/NOT not, prefix `-x` is minus(x) and prefix `+x` is sum(x); so operators behave exactly like those functions (see the function library claims).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.ExprParser",
+    "com.almworks.jira.structure.expr.parser.RuleInfixOperator",
+    "com.almworks.jira.structure.expr.parser.RuleUnaryExpression",
+    "com.almworks.jira.structure.expr.parser.RuleComparisonExpression",
+    "com.almworks.jira.structure.expr.parser.ExprFixedToken"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/function-call-syntax",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "A function call is a name followed by `(`, zero or more arguments and `)`. Arguments are separated by `,` or by `;`, but one call must use the same separator throughout (`f(1;2;3)` and `f(1,2,3)` parse, `f(1,2;3)` does not). Each argument may be any expression, including a `with` declaration, a lambda or an `if` expression.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.RuleFunctionCall"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/postfix-access-and-method-calls",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "`x.name` (a name after a dot, not followed by `(`) means `access(x, \"name\")` with the name lower-cased; `x.f(a, b)` means `f(x, a, b)`; postfix forms chain left to right (`a.b.c`, `list.filter(...).map(...).sum()`). A dot followed by something other than a name is a parse error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.RulePostfixChainExpression",
+    "com.almworks.jira.structure.expr.TransformVisitor#visitFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/with-declarations",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "`with name = value : expression` binds a local variable for the expression after the colon; `with f(a, b) = body : expression` binds a local function (a lambda with those parameters). The value part may be an `if` expression, a lambda or any operator expression (a nested `with` must be parenthesised there); the part after the colon is any expression, so declarations chain (`with a = 1 : with b = a + 1 : a * b`). The value is evaluated in the scope outside the declaration, so `with x = x + 1 : x` reads the outer `x`. Local names shadow outer variables of the same name inside their scope.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.RuleDeclarationExpression",
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl$ValueSupplierVisitor#visitVariableDeclaration"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/lambda-syntax",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "A lambda is `x -> expression` or `(x, y, ...) -> expression` (parameters separated by `,` or `;`; `() -> expression` has no parameters). When a lambda is called with fewer arguments than parameters, the missing parameters are undefined; extra arguments are ignored. A lambda captures the variables visible where it is written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.RuleLambdaExpression",
+    "com.almworks.jira.structure.expr.parser.ExecutableUtils#matchParameters",
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl$ValueSupplierVisitor#executeLambda1"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/if-expression-syntax",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "`if condition : result else : other` (the colon after `else` is optional) means `if(condition, result, other)`; without an `else` part it means `if(condition, result)`, which is undefined when the condition is falsy. The condition is an operator expression; the result and else parts are any expressions, so `else if c2 : r2 else : r3` chains.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.RuleIfExpression"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/local-function-calls",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Calling `f(...)` where `f` is a local variable or lambda parameter in scope and is not a library function name invokes the lambda stored in it with those arguments. If the local value is not a lambda, the call evaluates to error 2 (unknown function). If `f` is both a local name and a library function name, the library function is called (and declaring a local lambda under a library function name is a validation problem).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.TransformVisitor#visitFunction",
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl$ValueSupplierVisitor#visitInvocation",
+    "com.almworks.jira.structure.expr.ValidationVisitor#visitVariableDeclaration"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/implicit-lambda-dollar",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "`$` is the implicit lambda parameter: when the second argument of `map`, `filter`, `sort_by`, `reduce`, `group`, `any`, `all`, `none`, `umax_by` or `umin_by` (counting the array as the first, also in method form `arr.map(...)`) contains `$`, that argument becomes a one-parameter lambda whose parameter is `$` (so `arr.map($ * 2)` doubles every element). `$` anywhere else (outside such an argument, e.g. `$ + 1` or `ifdefined(x, $)`) is a validation problem.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.TransformVisitor#wrapInImplicitLambda",
+    "com.almworks.jira.structure.expr.ValidationVisitor#visitVariable",
+    "com.almworks.jira.structure.expr.executor.MapFunction#isConsumingImplicitLambda"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/aggregation-syntax",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "An aggregation is written `name#modifier#modifier=value{ expression }`: the aggregation name, zero or more modifiers each `#name` optionally followed by `=` and a literal (a number literal may carry a `+` or `-` sign, a text literal may not), then an expression in braces, e.g. `sum#children{ x }`, `join#separator=\"; \"{ summary }`. A modifier without a value is stored as undefined, which counts as true. `jql{ ... }` and `sjql{ ... }` (names case-insensitive) take raw query text instead of an expression: everything up to the first `}` outside single or double quotes, with backslash escaping the next character; they take no modifiers.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.parser.RuleAggregation",
+    "com.almworks.jira.structure.expr.parser.RuleExternalLanguageExpression",
+    "com.almworks.jira.structure.expr.parser.ExprNodeBuilder#addModifier"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/validation-problems",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Validation problems (each reported with a localized message at the range of the node concerned, and each making the prepared formula evaluate to error 1) are: a variable declared by `with` used inside an aggregation's braces (`s.expr.error.local-in-aggr`); a lambda parameter used inside an aggregation's braces (`s.expr.error.lambda-param-in-aggr`); `$` outside an implicit-lambda argument (`s.expr.error.undeclared-implicit-lambda`); a lambda with two parameters of the same name (`s.expr.error.same-parameter-names`, at the repeated parameter); a local lambda declared under a library function's name (`s.expr.error.illegal-lambda-name`); a modifier the aggregation does not support (`s.expr.error.unsupported-modifier`) or whose value it cannot read (`s.expr.error.unparsed-modifier`), at the modifier's range; and for `jql{}`/`sjql{}`, query text that the query parser rejects, at the query's range (or from the reported error position to the end of it).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.ValidationVisitor",
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider$AbstractFormulaAggregation#validateModifier",
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider$QueryAggregation#validateExpression"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/analysis-parse-error",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Analysing a formula that does not parse returns no names and no validation problems, the comment ranges found so far, and a parse error giving the character offset (and line and column) of the first character that could not be consumed at the furthest point reached, plus what would have been accepted there: whether a name (`identifier`) and/or a literal (`literal`) was acceptable, and the acceptable fixed tokens. If `,`, `;` or `)` is among them, only those are listed (in that order); otherwise when all four arithmetic operators are acceptable they are replaced by one localized phrase (i18n key `s.expr.expected-tokens.arithmetic`), likewise all comparison operators (`s.expr.expected-tokens.comparison`) and both `and`/`or` (`s.expr.expected-tokens.logical-bin`), and remaining tokens are listed by their canonical spelling in sorted order. This is what `POST /rest/structure/2.0/expr/validate` returns as `errorIndex` and `expectedTokens`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#analyze",
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#analyzeExpectedTokens",
+    "com.almworks.jira.structure.expr.parser.ExpectedTokens"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/analysis-names-and-ranges",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Analysing a formula that parses lists: every free variable and every local variable (with its declaration range) with the ranges of all its occurrences; every function used, with all call ranges and the library's information for it (null when the library does not know the name); every aggregation used, with ranges and its information (null when unknown); all comment ranges; and the validation problems keyed by range. Names are reported in their canonical lower-case form (so occurrences differing only in case are one entry), and each list is ordered by first occurrence. The formula is valid when it parsed and has no validation problems, and resolved when every function and aggregation used is known. A complexity number (count of syntax nodes, lambda parameters included) is also computed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#analyze",
+    "com.almworks.jira.structure.expr.NameRangesCollector",
+    "com.almworks.jira.structure.expr.StructureExprAnalysisImpl#isResolved",
+    "com.almworks.jira.structure.expr.CountingVisitor"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/canonical-name",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "The canonical form of a name is the name trimmed and lower-cased with US rules (a null name gives the empty string); it is what the parser uses to identify variables, functions and aggregations.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#getCanonicalName",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#canonicalName"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/available-functions-and-aggregations",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "The parser's lists of available functions and aggregations are exactly those of `expr-function-provider` and `expr-aggregation-provider`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#getAvailableFunctions",
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#getAvailableAggregations"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/prepared-formula-variables",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "A prepared formula reports its free variables (names used but not declared by `with` or as lambda parameters, `$` excluded only where it is an implicit lambda parameter) in sorted canonical form, the aggregations it contains (each with its text and inner formula), and the context it depends on: the union of the dependencies of the library functions it uses (current time, user, user locale, user time zone; see the function claims), which the formula attribute (`expr-attribute`) reports as `AttributeContextDependency` values.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#prepareExecutor",
+    "com.almworks.jira.structure.expr.CollectVariablesAndFunctionsVisitor",
+    "com.almworks.jira.structure.expr.StructureExprParserImpl$ExprNuanceImpl"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/lazy-arguments",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Function arguments are evaluated lazily and at most once per call: a function only evaluates the arguments it needs (so `if(1, 5, 1/0)` is 5 and `or(1, error_expression)` is 1), and an argument read several times is computed once.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl$ValueSupplierVisitor#getValueSuppliers"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/error-propagation",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "When a function reads an argument that evaluates to an error, evaluation stops and the whole formula evaluates to that same error, unless the function is one that inspects errors (`iferr`, `iserr`, and `number` with a default); `default`, `isdefined` and other functions do not catch errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ExprFunctionArgumentsImpl#get",
+    "com.almworks.jira.structure.expr.executor.ErrorValueException",
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl#execute"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/exceptions-become-errors",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "If a library function fails with an arithmetic failure (such as division by zero) the call evaluates to error 4; any other unexpected failure (runtime exception, linkage error, stack overflow) evaluates to error 6 and is logged as a warning (repeated warnings for the same function are throttled). A null result from a function is treated as undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl$ValueSupplierVisitor#visitFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/unknown-function-at-runtime",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Calling a function name that is neither a library function (or alias) nor a local lambda evaluates to error 2 when the call is reached; the formula still prepares successfully.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.CollectVariablesAndFunctionsVisitor#resolveFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/variables-from-context",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "A free variable evaluates to the value the caller binds to its canonical name; a variable the caller does not bind is undefined. An aggregation evaluates to the value the caller supplies for that aggregation's text; if none is supplied it evaluates to error 11.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl$ValueSupplierVisitor#visitVariable",
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl$ValueSupplierVisitor#visitAggregation"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/evaluation-limits",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "Evaluation is bounded: nesting deeper than `structure.expr.callStackDepthLimit` levels (default 64) or evaluating more than `structure.expr.executionStepsLimit` expression nodes in one evaluation (default 65536; lambda bodies count every time they run) makes the formula evaluate to error 12 (high load). Both limits are dark features (`DarkFeatures.getInteger`) read when the formula is prepared.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl",
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl$ValueSupplierVisitor#getValueSupplier"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/lambda-as-value",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "A lambda is a value that can be stored in variables and passed to functions; it is truthy. Using a lambda where a plain value is needed gives error 7 (value type) for text conversion and error 10 (invalid value) when a function requires its first argument to be a value; calling a non-lambda value where a lambda is required gives error 10 for library functions (`map`, `filter`, ...) or error 7 for `ifdefined`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ExprFunctionArgumentsImpl#requireLambda",
+    "com.almworks.jira.structure.expr.executor.ExprFunctionArgumentsImpl#requireValue",
+    "com.almworks.jira.structure.expr.executor.StructureExprExecutorImpl$ValueSupplierVisitor#executeLambda0"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-parser/uses-i18n-of-current-user",
+   "module": "expr-parser",
+   "api": null,
+   "behaviour": "The localized texts of analysis (expected-token group phrases) are produced in the language of the current user (Jira i18n bean for the authenticated user).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#getI18n"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-constraints/array-size-limit",
+   "module": "expr-constraints",
+   "api": null,
+   "behaviour": "Formula arrays and structs may hold at most `structure.expr.arraySizeLimit` elements (a dark feature, default 100000). Any operation that would create a larger array or struct (e.g. `sequence(1, 200000)`, `split` producing too many parts, `array(...)` with too many arguments) makes the formula evaluate to error 13.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.ExprConstraints",
+    "com.almworks.jira.structure.expr.value.ArrayExprValue",
+    "com.almworks.jira.structure.expr.value.StructExprValue"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-constraints/limit-read-once-per-lifecycle",
+   "module": "expr-constraints",
+   "api": null,
+   "behaviour": "The array size limit is read from the dark feature the first time it is needed and then kept; when the component stops (plugin disabled or restarted) the cached value is discarded so the next use after restart reads the setting again.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.ExprConstraints#stopComponent"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-services/provides-jira-services",
+   "module": "expr-function-services",
+   "api": null,
+   "behaviour": "Gives formula functions access to: Jira's `TimeZoneManager` (user time zone = `getTimeZoneforUser(current user)`, system time zone = `getDefaultTimezone()`), the Jira i18n bean factory (user locale = locale of the i18n helper for the current user, system locale = that for no user, i.e. Jira's default), the time-tracking configuration (hours per day, days per week; obtained once, when the component is created, from `StructurePluginHelper.getTimeTrackingConfiguration()`), Jira's `DateTimeFormatterFactory`, and the installed calendar providers (`structure-calendar-provider` modules). It has no behaviour of its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ExprFunctionServices",
+    "com.almworks.jira.structure.expr.executor.ExprFunctionArgumentsImpl#getUserTimeZone",
+    "com.almworks.jira.structure.expr.executor.ExprFunctionArgumentsImpl#getUserLocale",
+    "com.almworks.jira.structure.expr.executor.ExprFunctionArgumentsImpl#getSystemLocale"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/function-names",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "The library has exactly these functions (canonical names): or, and, not, eq, ne, lt, le, gt, ge, sum, mul, minus, div, round, ceiling, floor, max, min, sqr, sqrt, pow, abs, sign, mod, exp, log10, ln, log, concat, match, replace, replace_at, search, len, substring, left, right, mid, repeat, exact, lower, upper, trim, url_encode, url_decode, split, now, today, date, datetime, make_date, make_datetime, year, month, day, hour, minute, second, weekday, weeknum, truncate_time, truncate_to_hours, truncate_to_minutes, truncate_to_seconds, start_of_month, end_of_month, date_set, date_add, date_subtract, hours_between, days_between, months_between, years_between, parse_datetime, format_datetime, calendar_seconds, calendar_minutes, calendar_hours, calendar_days, jira_days, jira_weeks, duration, jira_duration, format_duration, calendar_duration, user_name, user_display_name, user_email, user_is_active, me, historical_value, user, issue, component, version, project, option, issue_link_type, status, priority, resolution, issue_type, array, map, filter, flatten, recursive_flatten, unique, reverse, compact, sort, sort_by, without, reduce, group, join, access, average, subarray, percentile, quartile, median, stdev, stdevp, get, first, last, size, is_empty, index_of, last_index_of, contains, contains_any, contains_all, any, all, none, indexes, merge_arrays, umax, umin, umax_by, umin_by, sequence, if, case, choose, number, text, ifdefined, isdefined, iferr, iserr, isarray, default, is_number, structure_icon_url, struct, __delay.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/explicit-aliases",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "These alternative names call the function shown: rept=repeat, ceil=ceiling, iferror/if_error=iferr, iserror/is_error=iserr, if_defined=ifdefined, is_defined/defined=isdefined, is_array=isarray, lowercase=lower, uppercase=upper, string=text, datevalue=date, datetimevalue=datetime, truncate_to_days=truncate_time, datetime_set/date_time_set=date_set, datetime_add/date_time_add=date_add, datetime_subtract/date_time_subtract=date_subtract, jira_hours=calendar_hours, jira_minutes=calendar_minutes, jira_seconds=calendar_seconds, date_time=datetime, make_date_time=make_datetime, parse_date_time=parse_datetime, format_date_time=format_datetime, avg=average, distinct=unique.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/underscoreless-aliases",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "In addition, every function name and every alias that contains underscores can also be written with all underscores removed, calling the same function, unless that spelling is already a function or alias name (e.g. `isempty`=is_empty, `dateadd`=date_add, `userdisplayname`=user_display_name, `datetimeadd`=date_add, `delay`=__delay; `isdefined` stays the function isdefined). Lookup is by canonical (lower-case) name, so names are case-insensitive.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider#addUnderscoreless",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider#getFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/function-info",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "For each function (looked up by canonical name or any alias) the library provides information: the canonical name, a localized description from i18n key `s.expr.fun.desc.+<name>` (null when Jira has no text for that key, i.e. the text equals the key), a documentation link (the implementer's own for that function, or null; never an address of the vendor; nothing is fetched), and a hidden flag that is true exactly for or, and, not, eq, ne, lt, le, gt, ge, sum, mul, minus, div (the operator functions). An unknown name has no information (null). The list of available functions contains one entry per canonical function (aliases are not listed), in no particular order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider#getFunctionInfo",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider#getAvailableFunctions",
+    "com.almworks.jira.structure.expr.ExprFunctionInfoBean#getDescription"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/value-kinds",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Formula values are: undefined; errors (see expr-parser error codes); numbers (decimals, 16 significant digits); texts; items (an `ItemIdentity`, such as an issue, user, version); arrays (ordered lists of values, which may be nested); structs (string-keyed maps); and lambdas. Booleans are numbers: true is 1, false is 0. Dates and date-times are numbers of milliseconds since the epoch; durations are numbers of milliseconds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.ExprValue",
+    "com.almworks.jira.structure.expr.value.NumberExprValue"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/truthiness",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Truthiness: a number is falsy only if it equals 0 (any scale); a text is falsy if it is empty or only whitespace (`' '` is falsy, `'0'` is truthy); an array or struct is falsy if it is empty; undefined and every error are falsy; items and lambdas are always truthy.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.NumberExprValue#isFalsy",
+    "com.almworks.jira.structure.expr.value.StringExprValue#isFalsy",
+    "com.almworks.jira.structure.expr.value.ArrayExprValue#isFalsy",
+    "com.almworks.jira.structure.expr.value.StructExprValue#isFalsy",
+    "com.almworks.jira.structure.expr.value.SpecialExprValue#isFalsy",
+    "com.almworks.jira.structure.expr.value.EntityExprValue#isFalsy"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/number-to-text",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "A number turns into text as a plain decimal with trailing zeros removed and never in exponent notation: 1.50 gives `1.5`, 100 gives `100`, a value rounded to 1.2E+3 gives `1200`, 0.000 gives `0`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.NumberExprValue#toStringValue"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/text-to-number",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Text converts to a number after trimming, accepting Java decimal syntax (`12`, `-3.5`, `+7`, `1e3`) and these digit-group forms, otherwise there is no number: apostrophes as group separators (`1'234'567`); single spaces as group separators (`1 234 567`; two spaces in a row reject); a single comma alone means a group separator when Jira's default locale groups with `,` (`1,234` is 1234) and a decimal comma otherwise (`1,5` is 1.5); two or more commas alone are group separators (`1,234,567`); two or more dots alone are group separators only if every group after the first has 3 digits (`1.234.567` is 1234567, `1.23.4` is no number); one dot and one comma: whichever comes last is the decimal mark (`1,234.5` and `1.234,5` are both 1234.5); one dot with several commas means comma-grouped (`1,234,567.5`), several dots with one comma means dot-grouped (`1.234.567,5`); one decimal mark plus apostrophes or spaces as groups is accepted only if the decimal mark comes after the last group separator (`1 234.5`, `1'234,5`). Text with three kinds of these symbols, with two kinds each repeated, with spaces and apostrophes together, or with repeated commas/dots together with spaces or apostrophes, is no number.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#convertStringToNumber",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#normalizeNumericString"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/number-coercion-of-values",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Where a number is needed: a number is used as is; a text is converted by the text-to-number rules; an array with exactly one element converts that element, an empty array is no number, a longer array is no number; an item converts its display text; a struct or lambda is no number. 'No number' from an undefined value or a falsy value (empty text, whitespace, empty array) is treated as a missing argument, while 'no number' from a truthy value (e.g. `'abc'`, a two-element array) is error 7 (value type).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.NumberVisitor",
+    "com.almworks.jira.structure.expr.executor.ExprFunctionArgumentsImpl#getTyped"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/text-coercion-of-values",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Functions use two text conversions. Text representation (used by concat, len, substring, replace, split, case, join separators, exact, ...): number as above, text as is, item as its display text, array as its elements' representations joined with `, ` skipping undefined elements (an empty array gives the empty text; an element that is itself an array or a struct is error 7), struct and lambda are error 7, undefined gives no text. Single text value (used by lower, upper, trim, url_encode, url_decode, date parsing, user lookups, field names, regex patterns, ...): like representation, but an array must have at most one element (empty gives no text, one element converts it, more is error 7).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.StringCoercionVisitor",
+    "com.almworks.jira.structure.expr.value.SingleStringVisitor"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/equality-rules",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Equality (used by `=`, `!=`, eq, ne, contains, contains_any, contains_all, index_of, last_index_of, without): two arrays are equal if they have the same length and equal elements in order; a text compared with an array compares the text with the array's text representation; undefined equals an array whose elements are all undefined or that is empty (recursively); otherwise a value compared with an array compares with its only element (an empty array counts as undefined; an array of two or more elements is never equal to a non-array). Two structs are equal if they have the same keys with equal values. If either side is a number, both are converted to numbers and compared numerically (`1 = '1.0'` is true, `0 = undefined` and `0 = ''` are false). Otherwise if either side is a text, both text representations are compared with a collator for Jira's default locale at primary strength, so case and accents are ignored (`'abc' = 'ABC'` is true). Otherwise values are compared exactly (two undefined values are equal; items are equal when their identities are equal). A comparison that hits a conversion error is simply false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ExprEqualityComparer",
+    "com.almworks.jira.structure.expr.executor.EqualityComparisonFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/ordering-rules",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Ordering (used by sort, sort_by, umax, umin, umax_by, umin_by): undefined sorts first, then numbers by numeric value, then texts by case-sensitive code-unit order (`'B'` before `'a'`), then items (by item type, then by the item type's own order), then arrays (compared element by element by these rules, ignoring nested arrays and undefined elements).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.OrderVisitor",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#reduceByComparing"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/elementwise-functions",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Element-wise functions (round, ceiling, floor, sqr, sqrt, pow, abs, sign, mod, exp, log10, ln, log, lower, upper, trim, url_encode, url_decode, date, datetime, year, month, day, hour, minute, second, weekday, weeknum, truncate_*, start_of_month, end_of_month, date_set, date_add, date_subtract, parse_datetime, format_datetime, calendar_seconds/minutes/hours/days, jira_days, jira_weeks, duration, jira_duration, format_duration, user_name, user_display_name, user_email, user_is_active, user, issue, component, version, project, option, issue_link_type, status, priority, resolution, issue_type): an undefined first argument gives undefined; an array first argument applies the function to every element with the same other arguments and returns an array of the results flattened completely with undefined results removed (`abs(array(-1, undefined, -2))` is [1, 2]); a scalar gives the single result (if that result is an array it is flattened and compacted the same way). A lambda as first argument is error 10. A missing first argument is error 3. Error values that the function returns for individual array elements (rather than raising), such as error 4 from `sqrt` of a negative element or error 10 from an unknown user key or unparseable date, are dropped from the result array just like undefined (`sqrt(array(4, -1))` is [2]), as the original does.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.MonadicFunction#apply"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/argument-count-errors",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Calling a function with a number of arguments outside its accepted range evaluates to error 3 (invalid argument count). Accepted counts are stated in each function's claim.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ExprFunctionArgumentsImpl#require"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/or-and",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`or(a, b, ...)` returns the first argument that is truthy, or else the last argument's value; `and(a, b, ...)` returns the first falsy argument, or else the last argument's value; with no arguments both return undefined. They return the argument value itself, not 1/0 (`'x' OR 0` is `'x'`, `0 AND 'x'` is 0). Arguments after the deciding one are not evaluated; an error in an evaluated argument propagates (an error argument encountered first is returned as the formula's error).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.FirstMatchFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/not",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`not(x)` (also `!x`, `NOT x`) takes exactly one argument and returns 1 if x is falsy, else 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.UnaryLogicalFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/eq-ne",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`eq(a, b)` and `ne(a, b)` take exactly two arguments and return 1 or 0 according to the equality rules (`ne` is the negation).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.EqualityComparisonFunction",
+    "com.almworks.jira.structure.expr.executor.BinaryExprFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/lt-le-gt-ge",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`lt`, `le`, `gt`, `ge` take exactly two arguments and compare them as numbers only (texts are converted by the text-to-number rules; non-numeric non-empty text is error 7). If either side has no number (undefined, empty text, empty array), the result is 0, except that `le` and `ge` return 1 when both sides have no number. Results are 1 or 0. Texts are never compared alphabetically (`'a' < 'b'` is error 7).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ComparisonFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/sum-max-min-varargs",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`sum`, `max` and `min` accept one or more arguments. With one argument it is taken as a list (an array's elements; a scalar alone; undefined as nothing); with two or more, each argument is one value (an argument that is an array of two or more elements is error 7, a one-element array counts as its element). Values are converted to numbers; undefined and falsy non-numbers are skipped, truthy non-numbers are error 7. The result is the sum / largest / smallest of the remaining numbers, or undefined if none remain (`undefined + undefined` is undefined, `5 + undefined` is 5, `sum(array())` is undefined). Sums are computed with 16 significant digits. In method form `arr.sum()` sums the array; `x.sum(y)` requires x to have at most one element (else error 7).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.NumberVarargsFunction",
+    "com.almworks.jira.structure.expr.executor.VarargsFunction",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#asNumberStream"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/mul",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`mul` follows the same argument rules as `sum` but multiplies, and an undefined or falsy non-numeric value counts as 0 rather than being skipped, so `5 * undefined` is 0 and `mul(5, '')` is 0; with no numbers at all the result is undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider",
+    "com.almworks.jira.structure.expr.executor.NumberVarargsFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/minus",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`minus(a, b)` (binary `-`) takes one or two arguments: with two it returns a - b, with one it returns 0 - a (unary minus); undefined or falsy non-numeric arguments count as 0 (`5 - undefined` is 5, `-undefined` is 0); truthy non-numbers are error 7. The result is always a number.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.AntiCommutativeNumberFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/div",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`div(a, b)` (`/`) takes exactly two arguments, treats undefined or falsy non-numeric arguments as 0, and divides with 16 significant digits (`1/3` is 0.3333333333333333). Dividing by zero (including `0/0` and `x/undefined`) gives error 4.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/round-ceiling-floor",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`round(x, digits)`, `ceiling(x, digits)` and `floor(x, digits)` take x and an optional integer number of decimal places (default 0; values above 16 are treated as 16; negative values round to tens, hundreds, ...). round rounds half away from zero (2.5 gives 3, -2.5 gives -3), ceiling rounds towards positive infinity, floor towards negative infinity (`floor(-1.5)` is -2). A non-integer digits value is error 7; an undefined digits value means 0. x that is not a number (but falsy) gives undefined. Element-wise over arrays.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.RoundingFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/unary-math",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Exactly one argument each, element-wise: `sqr(x)` is x squared (16 significant digits); `sqrt(x)` square root; `abs(x)` absolute value; `sign(x)` -1, 0 or 1; `exp(x)` e to the x; `log10(x)` base-10 logarithm; `ln(x)` natural logarithm. sqrt, exp, log10 and ln are computed in double precision; a result that is not a finite number (sqrt of a negative, ln of 0 or a negative, overflow) is error 4. A falsy non-number argument gives undefined; a truthy non-number is error 7.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.UnaryNumberFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/pow-mod",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`pow(x, p)` takes exactly two arguments and returns x to the power p computed in double precision (non-finite results are error 4). `mod(p, q)` takes exactly two arguments, both must be integers, and returns the remainder with the sign of p (`mod(-7, 3)` is -1); a non-integer argument or q = 0 is error 7. For both, an undefined second argument gives undefined. Element-wise over the first argument.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.NumberBinaryFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/log",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`log(x)` is the base-10 logarithm; `log(x, base)` is ln(x)/ln(base); an undefined base means base 10. More than two arguments is error 3. Non-finite results (e.g. base 1, x <= 0) are error 4. Element-wise over x.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.LogFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/average",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`average` (alias avg) follows the argument rules of `sum` (one argument = list, undefined and falsy non-numbers skipped, truthy non-numbers error 7) and returns the arithmetic mean computed in double precision, or undefined when there are no numbers.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider",
+    "com.almworks.jira.structure.expr.executor.NumberVarargsFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/number-text-conversion",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`number(x)` takes x and converts it to a number: undefined or falsy non-number gives undefined, truthy non-number is error 7. `number(x, fallback)` returns the number if x converts, otherwise fallback, including when x is an error or a truthy non-number. `text(x)` (alias string) takes exactly one argument and returns its text representation (undefined stays undefined; struct is error 7).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.NumberConversionFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/is-number",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`is_number(x)` takes exactly one argument and returns 1 if x converts to a number (numbers, numeric texts like `' 12 '`, a one-element array holding one), else 0; undefined, empty text and errors give 0 (errors are not propagated).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.IsNumberFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/concat",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`concat(a, ...)` takes one or more arguments and joins their text representations with nothing in between; undefined arguments are skipped; if every argument is undefined the result is undefined. Zero arguments is error 3. The infix word CONCAT and triple-quoted templates use it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ConcatFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/pattern-matching-rules",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Text patterns (used by match, case, replace, search, split) work as follows, after trimming the pattern: a pattern longer than one character that starts and ends with `/` is a Java regular expression (the part between the slashes), searched anywhere in the untrimmed value; a pattern containing `*` is a wildcard (each `*` matches any characters, the rest literally) that must match the whole trimmed value; any other pattern must equal the whole trimmed value literally. All three are case-insensitive (Unicode-aware). An invalid regular expression is error 8.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#getMatchStrategy",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil$StringMatchStrategy#match",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#regexFromWildcardPattern"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/match",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`match(value, pattern)` takes exactly two arguments and returns 1 if the value's text representation (undefined counts as empty) matches the pattern, else 0. An empty or blank pattern matches exactly a blank value. An undefined pattern gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#match",
+    "com.almworks.jira.structure.expr.executor.StringBinaryFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/exact",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`exact(a, b)` takes exactly two arguments and returns 1 if their text representations are identical (case-sensitive, no trimming), else 0; undefined counts as the empty text (`exact(undefined, '')` is 1).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider",
+    "com.almworks.jira.structure.expr.executor.StringBinaryFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/replace",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`replace(text, pattern, replacement)` takes two or three arguments and replaces every match of the pattern in the text's representation with the replacement (default empty). Plain and wildcard patterns are found anywhere in the text (case-insensitive) and the replacement is inserted literally; for a `/regex/` pattern the replacement may refer to groups with `$1` etc., and if it contains an invalid group reference all unescaped `$` signs are taken literally. An empty or blank pattern returns the original value unchanged; an undefined text gives undefined. The pattern is read as a single text value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ReplaceFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/replace-at",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`replace_at(text, start, count, replacement)` takes three or four arguments: it replaces `count` characters starting at the 1-based position `start` with the replacement (default empty). start below 1 counts as 1, a start beyond the end appends at the end, and count is clipped to the available characters (negative counts as 0). An undefined start or count returns the original value; an undefined text gives undefined; non-integer start or count is error 10 (non-numeric text is error 7).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ReplaceAtFunction",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#getStringRangeFromExcelKindParameters"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/search",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`search(pattern, text, start)` takes two or three arguments and returns the 1-based position of the first match of the pattern in the text representation at or after the 1-based position `start` (default 1; values below 1 count as 1), or undefined if there is none. Here a plain pattern is found anywhere (case-insensitive literal search), a wildcard pattern is turned into a regular expression and searched, and `/regex/` is searched. An empty pattern, an undefined text, or a start beyond the text's length gives undefined. Non-integer start is error 7.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.SearchFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/len",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`len(text)` takes exactly one argument and returns the number of characters (UTF-16 units) of its text representation; undefined gives undefined; an array is measured as its `, `-joined representation.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.SimpleStringFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/substring",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`substring(text, from, to)` takes two or three arguments and returns the characters from the 0-based index `from` (inclusive; negative counts as 0) to `to` (exclusive; default and undefined mean the end; clipped to the length; a `to` below `from` gives the empty text). An undefined text or from gives undefined; non-integer from/to is error 7. A `from` greater than the text's length makes the call fail with error 6 (e.g. `substring('abc', 5)`), as the original does.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.SubstringFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/left-right-repeat",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`left(text, n)` and `right(text, n)` take exactly two arguments and return the first / last n characters (whole text if shorter; empty if n is negative); an undefined n means 1. `repeat(text, n)` (alias rept) takes exactly two arguments and returns the text repeated n times (empty for n <= 0); an undefined n gives undefined. For all three, an undefined text gives undefined and a non-integer n is error 7.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.StringIntBinaryFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/mid",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`mid(text, start, count)` takes exactly three arguments and returns `count` characters starting at the 1-based position `start` (start below 1 counts as 1; positions past the end give the empty text; count is clipped, negative counts as 0). An undefined text, start or count gives undefined; a non-integer start or count is error 10.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.MidFunction",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#getStringRangeFromExcelKindParameters"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/lower-upper-trim",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`lower(text)` and `upper(text)` (aliases lowercase, uppercase) convert case using the current user's Jira locale, and make the formula depend on the user locale; `trim(text)` removes leading and trailing whitespace and control characters (Java `String.trim`). Exactly one argument each, element-wise; the argument is read as a single text value; undefined gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.UnaryTextFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/url-encode-decode",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`url_encode(text)` encodes the text exactly as `StructureUtil.encodeURIComponent` does (like JavaScript's encodeURIComponent: `a b(c)` gives `a%20b(c)`); `url_decode(text)` decodes it as `StructureUtil.decodeURL` does (form-urlencoded UTF-8, so `+` becomes a space; malformed input is returned unchanged). Exactly one argument each, element-wise; undefined gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.UnaryTextFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/split",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`split(text, separator)` takes exactly two arguments and returns an array of texts. With a plain or wildcard separator the text is split at every case-insensitive occurrence and every part is trimmed, with empty parts dropped (`split('a, b,,c', ',')` is ['a','b','c']); with a `/regex/` separator parts are kept as they are (trailing empty parts are dropped, as Java's split does). An undefined text gives an empty array; an empty or undefined separator gives error 10.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.SplitFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/now-today",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`now()` returns the current time in epoch milliseconds and makes the formula depend on the current time. `today()` returns midnight at the start of the current day in the current user's time zone (from Jira's `TimeZoneManager`) and makes the formula depend on the current time and the user time zone. Both take no arguments (otherwise error 3).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.NowFunction",
+    "com.almworks.jira.structure.expr.executor.TodayFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/date-datetime-parsing",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`date(text, locale, timezone)` and `datetime(text, locale, timezone)` (aliases datevalue, datetimevalue, date_time) take one to three arguments and parse the trimmed single text value into epoch milliseconds. The locale (a code like `en_US`; default the current user's Jira locale) and time zone (a Java zone id; default the user's time zone; an unknown id falls back to GMT as `TimeZone.getTimeZone` does) are optional. Parsing tries, in order: Jira's own date format from `DateTimeFormatterFactory` (date style for `date`, complete date-time style for `datetime`) in that locale and zone; then for `date` the patterns `yyyy-MM-dd`, then the locale's SHORT, LONG and FULL date formats; for `datetime` the patterns `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd HH:mm`, then the locale's SHORT, LONG and FULL date-time formats. The fallback formats are lenient and accept a matching prefix of the text (trailing text is ignored). No match is error 10; an invalid locale code is error 10; empty or undefined text gives undefined. The formula depends on the user time zone and user locale. Element-wise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ParseDateTimeFunction",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#getLocaleParameter",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#getTimeZoneParameter"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/make-date",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`make_date(year, month, day)` and `make_datetime(year, month, day, hour, minute, second)` take exactly three / six integer arguments and return that local date (midnight) or date-time in the current user's time zone as epoch milliseconds (alias make_date_time). Any undefined argument gives undefined; a non-integer argument is error 7; an impossible date or time (month 13, 31 February, hour 24) is error 10. Depends on the user time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DateTimeCreationFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/date-elements",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`year`, `month` (1-12), `day` (day of month), `hour` (0-23), `minute`, `second`, `weekday` (Monday 1 to Sunday 7) and `weeknum` (ISO-8601 week of week-based year) take exactly one date argument (epoch milliseconds, or text convertible to a number) and return that field of the date in the current user's time zone. Element-wise; undefined gives undefined; an element with no number (e.g. empty text inside an array) is error 7; a non-integer millisecond value or one outside the supported date range is error 10. Depends on the user time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DateTimeElementFunction",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#getLocalDateTime"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/date-truncation",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Exactly one date argument each, in the current user's time zone, element-wise: `truncate_time` (alias truncate_to_days) gives midnight of that day; `truncate_to_hours`, `truncate_to_minutes`, `truncate_to_seconds` drop the smaller fields; `start_of_month` moves to day 1 of the month keeping the time of day; `end_of_month` moves to the last day of the month keeping the time of day. A value with no number gives undefined. Depends on the user time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DateTimeConversionFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/date-set-add-subtract",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`date_set(date, value, unit)`, `date_add(date, amount, unit)` and `date_subtract(date, amount, unit)` take exactly three arguments (aliases datetime_set/add/subtract, date_time_set/add/subtract). Unit names (case-insensitive, trimmed) are second(s), minute(s), hour(s), day(s), month(s), year(s), or any Java `ChronoField` by its constant name or display name (e.g. `DAY_OF_WEEK`, `DayOfWeek`); an empty or unknown unit is error 10. date_set sets that field of the local date-time in the user's time zone (seconds/minutes/hours/day of month/month/year); date_add and date_subtract move by that many of the field's base unit (calendar-aware: adding 1 month to 31 January gives the last day of February). An undefined value/amount returns the date unchanged; a non-integer value/amount is error 7; an undefined date gives undefined; a field value out of range (e.g. setting day 31 in April) is error 10. Depends on the user time zone; element-wise over the date.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.UpdateDateTimeFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/between-functions",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`hours_between(d1, d2)`, `days_between(d1, d2)`, `months_between(d1, d2)` and `years_between(d1, d2)` take exactly two dates and return the number of whole hours / days / months / years from d1 to d2, computed on local date-times in the current user's time zone (negative when d2 is before d1; partial units are dropped towards zero). Either date undefined gives undefined. Depends on the user time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.BinaryDateTimeFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/parse-format-datetime",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`format_datetime(date, pattern, locale, timezone)` and `parse_datetime(text, pattern, locale, timezone)` (aliases format_date_time, parse_date_time) take the value plus one to three arguments: a Java `SimpleDateFormat` pattern, an optional locale code and an optional time zone id. Defaults are Jira's default locale and Jira's default time zone (not the user's), so these functions add no user dependency. format_datetime returns the formatted text (a non-integer millisecond value is error 10; a falsy non-number gives undefined, a truthy non-number is error 7); parse_datetime parses leniently, accepting a matching prefix, and returns epoch milliseconds, or error 10 if nothing could be parsed. An invalid pattern, invalid locale or undefined pattern is error 10. Element-wise over the value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.AdvancedDateTimeFunction",
+    "com.almworks.jira.structure.expr.executor.AdvancedDateTimeFunction$Format",
+    "com.almworks.jira.structure.expr.executor.AdvancedDateTimeFunction$Parse"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/calendar-units",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`calendar_seconds(ms)`, `calendar_minutes(ms)`, `calendar_hours(ms)` and `calendar_days(ms)` (aliases jira_seconds, jira_minutes, jira_hours for the first three) take exactly one argument and divide milliseconds by 1000, 60000, 3600000 and 86400000 respectively (16 significant digits). Element-wise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/jira-days-weeks",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`jira_days(ms)` returns ms / 3600000 / (Jira's hours per working day) and `jira_weeks(ms)` returns ms / 3600000 / (hours per day x days per week), using Jira's time-tracking configuration. Exactly one argument; element-wise. If the configuration does not provide hours per day (or days per week for jira_weeks) the result is error 9.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.JiraDurationFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/duration-parsing",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`duration(text)` parses a duration such as `1w 2d 3h 4m` with Atlassian's duration parser using calendar time (1 day = 24 hours, 1 week = 7 days) and returns milliseconds; `jira_duration(text)` parses with Jira's working time (hours per day and days per week from Jira's time-tracking configuration; error 9 if either is missing). Exactly one argument; element-wise; an unparseable text is error 10; undefined gives undefined.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ParseDurationFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/format-duration",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`format_duration(ms)` takes exactly one argument and formats the duration as calendar time with Atlassian's duration formatter (whole minutes and larger units such as `1d 2h 30m`); a magnitude under one minute is formatted as zero, and a negative duration gets a leading `-`. Element-wise.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/calendar-duration",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`calendar_duration(start, finish, calendar)` takes two or three arguments (epoch milliseconds; both must be integers: undefined or non-integer start/finish is error 7) and returns the working time between them in milliseconds according to a work calendar, negative when start is after finish. Without the third argument the built-in all-time-working calendar is used (result finish - start). The calendar argument is either a full id `<provider module key>/<number>` (e.g. `com.almworks.jira.structure:simple-calendar-provider/1`) or a calendar name compared ignoring case, whitespace and punctuation across all installed calendar providers, preferring an exactly matching name and then the lowest id; an unknown or blank calendar is error 10. The calendar lookup for a given argument is remembered for the rest of the evaluation run. Depends on the user locale and time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.CalendarDurationFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/user-attribute-functions",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`user_name(u)`, `user_display_name(u)`, `user_email(u)` and `user_is_active(u)` take exactly one argument read as a single text value and treated as a Jira user key (`UserManager.getUserByKey`); they return the user's username, display name, e-mail address as formatted for the current viewer by Jira's `EmailFormatter` (so hidden or masked addresses follow Jira's e-mail visibility setting), and 1/0 for active. An unknown key is error 10; undefined gives undefined; element-wise. Only user_email makes the formula depend on the current user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.UserFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/me",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`me()` takes no arguments and returns the current user as a user item (`CoreIdentities.user`), or undefined when nobody is logged in; it makes the formula depend on the current user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/user-lookup",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`user(x)` takes exactly one argument (element-wise): a user item is returned unchanged; a text or number is looked up as a user key, then as a username, then by display name via `user-display-name-searcher`; a key or username match gives that user item, display-name matches give an array of user items (even if only one), and no match or a blank value gives undefined. An item of another type is looked up by its display text. A struct, or an array nested inside the argument array, is error 7.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ResolveFunction#user",
+    "com.almworks.jira.structure.expr.executor.ResolveFunction$ResolveVisitor"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/issue-lookup",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`issue(key)` takes exactly one argument (element-wise) and returns the issue item for the Jira issue with that key (`IssueManager.getIssueObject(String)`), or undefined if there is none or the value is blank; an issue item is returned unchanged; a number is looked up by its text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ResolveFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/named-entity-lookup",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`component(name)`, `version(name)`, `project(name)`, `option(name)` and `issue_link_type(name)` take exactly one argument (element-wise) and search all project components, all versions, all projects, all custom field options and all issue link types of the Jira instance for those whose name equals the given text by a collator for Jira's default locale at primary strength (ignoring case and accents). One match gives that item, several give an array of items, none or a blank name gives undefined. An item of the requested type is returned unchanged; an item of another type is looked up by its display text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ResolveFunction#resolve",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/issue-constant-lookup",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`status(x)`, `priority(x)`, `resolution(x)` and `issue_type(x)` take exactly one argument (element-wise): the value is first looked up as the constant's id (`ConstantsManager.getConstantObject`), then by name among all constants of that kind (collator, primary strength). Results are items with string ids of item types `com.almworks.jira.structure:type-status`, `...:type-priority`, `...:type-resolution` and `...:type-issuetype`; several name matches give an array; none gives undefined. An item of that constant type is returned unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ResolveFunction#issueConstant"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/historical-value",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`historical_value(issue, field, time)` takes exactly three arguments: an issue item (or an array of items, giving an array of results flattened with undefined dropped), a field name, and a time in epoch milliseconds (must be an integer, else error 7). It returns the value the field had at that time, reconstructed from the issue's change history as exposed to formulas (the history/changes item fields): it finds the earliest change of that field made after the time and returns its old value; if no change came later it returns the issue's current value of the field. A blank field name is error 10; a first argument that is not an item (or array) is error 7; undefined gives undefined. Field names are matched case-insensitively with aliases affectedversions = versions (Affects Version), versions and fixversions = fixVersions, attachments = attachment, originalestimate = timeoriginalestimate, remainingestimate = timeestimate; other names are Jira field ids or custom field names resolved by `custom-field-resolver`. For multi-valued incremental fields (Affects Versions, Fix Versions, Components) the value is rebuilt from the current set by undoing every change made after the time. Items that are not issues are ignored.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.HistoricalValueFunction",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#convertExprFieldNameToFieldId"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/array-struct-constructors",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`array(a, b, ...)` returns an array of its arguments in order (zero arguments gives an empty array; arguments that are arrays stay nested). `struct(k1, v1, k2, v2, ...)` takes a positive even number of arguments (odd or fewer than two is error 3) and returns a struct mapping each key's single text value to the following value, in insertion order (a later duplicate key replaces the earlier value).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ArrayFunction",
+    "com.almworks.jira.structure.expr.executor.StructFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/chainable-first-argument",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Array functions (sort_by, map, filter, without, reduce, group, subarray, percentile, quartile, median, stdev, stdevp, get, first, last, size, is_empty, index_of, last_index_of, contains, contains_any, contains_all, any, all, none, merge_arrays, umax_by, umin_by) treat a non-array first argument as a one-element array and undefined as an empty array, unless their own claim says otherwise. A lambda as first argument is error 10, and a call without arguments is error 3. In method-call chains such as `a.filter(...).map(...).sum()` the intermediate results behave exactly as if each call were applied in turn.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.ExprChainableFunction",
+    "com.almworks.jira.structure.expr.executor.CallChain#execute"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/map-filter",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`map(arr, f)` returns an array of f applied to each element; `filter(arr, f)` returns the elements for which f returns a truthy value. Both take exactly two arguments; f must be a lambda (or an implicit `$` lambda), else error 10. An error from f stops evaluation with that error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.MapFunction",
+    "com.almworks.jira.structure.expr.executor.FilterFunction",
+    "com.almworks.jira.structure.expr.executor.ExprFunctionArgumentsImpl#executeLambda"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/flatten-compact-unique",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Exactly one argument each; a non-array argument is returned unchanged: `flatten(arr)` removes one level of nesting (elements that are arrays are replaced by their elements; undefined elements disappear); `recursive_flatten(arr)` removes all nesting and drops undefined elements; `compact(arr)` drops undefined elements; `unique(arr)` (alias distinct) keeps the first occurrence of each distinct value, where values must be exactly equal (number 1 and text '1' differ, and so do 1 and 1.0).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.UnaryStreamFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/reverse-sort",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`reverse(arr)` returns the elements in reverse order, `sort(arr)` returns them sorted by the ordering rules (stable). Exactly one argument each; a non-array argument is returned unchanged. `sort_by(arr, f)` takes exactly two arguments and sorts the elements by the ordering of f(element) (stable); f must be a lambda (error 10 otherwise).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ReverseFunction",
+    "com.almworks.jira.structure.expr.executor.SortByFunction",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/without",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`without(arr, v)` takes exactly two arguments and returns the elements that are not equal to v under the equality rules.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider",
+    "com.almworks.jira.structure.expr.executor.BinaryStreamFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/reduce",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`reduce(arr, f)` takes exactly two arguments and folds the array from the left with the two-parameter lambda f (accumulator, element), starting from the first element (no initial value): an empty array gives undefined, a one-element array gives that element.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ReduceFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/group",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`group(arr, f)` takes exactly two arguments and returns an array of structs, one per distinct value of f(element) in order of first appearance, each with key `group` (that value) and key `elements` (array of the elements with that value, in original order). Values are grouped by exact equality.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.GroupByFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/join",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`join(value, separator, open, close)` takes one to four arguments (defaults `, `, `(` and `)`) and turns the value into text: numbers and texts as text, items as their display text, undefined as `?`, structs, lambdas and errors as nothing; an array becomes `open` + its elements joined with `separator` + `close`, applied recursively to nested arrays. So `join(array(1, 2, array(3, 4)))` is `(1, 2, (3, 4))` and `join(5)` is `5`. If no number, text or item was written at all (e.g. an empty array or only undefined elements), the result is undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.JoinFunction",
+    "com.almworks.jira.structure.expr.executor.JoinFunction$JoiningVisitor"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/access",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`access(x, field)` (also written `x.field`) takes exactly two arguments; the field name is lower-cased when written literally. On an item it returns the item's value for that field/attribute as supplied by the formula attribute (`expr-attribute`); on a struct it returns the value stored under that key, or undefined; on an array of items (possibly nested, undefined ignored) it fetches the field for all items at once and returns the array of values; on any other array it applies itself to each (flattened) element and returns the results flattened with undefined dropped (arrays nested inside are undefined). Other values give undefined. A field value that is an array containing undefined values or arrays is flattened and compacted. An undefined field name is error 10.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DereferenceFunction",
+    "com.almworks.jira.structure.expr.executor.DereferenceFunction$GetFieldVisitor"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/access-lowercases-struct-keys",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Because a literal field name in `access(s, \"Name\")` or `s.Name` is lower-cased, a struct key containing upper-case letters cannot be read with access (`struct('Name', 1).Name` is undefined, as the original does); `get(struct, 'Name')` reads it.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.TransformVisitor#visitFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/subarray",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`subarray(arr, from, to)` takes two or three arguments and returns the elements from 0-based index `from` (negative counts as 0) to `to` exclusive (default: the end; clipped to the size; `to` below `from` gives an empty array). An undefined `from` returns the whole array; `from` at or beyond the size gives an empty array; non-integer indexes are error 7.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.SubarrayFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/get-first-last-size",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`get(arr, i)` takes exactly two arguments and returns the element at 0-based index i, or undefined if out of range (non-integer i is error 7); `get(struct, key)` returns the struct's value for the exact key, or undefined. `first(arr)`, `last(arr)` return the first / last element (undefined when empty); `size(arr)` returns the number of elements; `is_empty(arr)` returns 1 if there are none, else 0. A scalar counts as one element and undefined as none (`size(5)` is 1, `size(undefined)` is 0). Exactly one argument for first, last, size, is_empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.GetFunction",
+    "com.almworks.jira.structure.expr.executor.UnaryTerminalFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/index-of-contains",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`index_of(arr, v)` / `last_index_of(arr, v)` return the 0-based index of the first / last element equal to v (equality rules), or undefined. `contains(arr, v)` returns 1 if some element equals v; `contains_any(arr, list)` returns 1 if some element equals some member of list; `contains_all(arr, list)` returns 1 if every member of list equals some element (an empty list gives 1). Results are 1/0; each takes exactly two arguments (list as an array: scalar = one member, undefined = none).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.IndexOfFunction",
+    "com.almworks.jira.structure.expr.executor.ContainsFunction",
+    "com.almworks.jira.structure.expr.executor.ContainsAnyFunction",
+    "com.almworks.jira.structure.expr.executor.ContainsAllFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/any-all-none",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`any(arr, f)`, `all(arr, f)` and `none(arr, f)` take exactly two arguments, f a lambda, and return 1 if f gives a truthy result for at least one / every / no element (stopping as soon as the answer is known), else 0. On an empty array any is 0, all is 1, none is 1.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.BooleanTerminalFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/indexes-sequence",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`indexes(arr)` takes exactly one argument and returns [0, 1, ..., size-1] (empty for an empty array; a scalar gives [0]). `sequence(from, to)` takes exactly two integers (non-integer or undefined is error 7) and returns all integers from `from` to `to` inclusive, ascending or descending (`sequence(3, 1)` is [3, 2, 1], `sequence(2, 2)` is [2]); more than the array size limit is error 13.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.IndexesFunction",
+    "com.almworks.jira.structure.expr.executor.SequenceFunction",
+    "com.almworks.jira.structure.expr.executor.SequenceList"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/merge-arrays",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`merge_arrays(a, b, ...)` takes one or more arguments and returns the elements of a followed by the elements of each further argument (each further argument contributes its elements if it is an array, itself if it is a scalar, nothing if undefined).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.MergeArraysFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/umax-umin",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`umax` and `umin` take one or more arguments: with one argument it is taken as a list (array elements; a scalar alone; undefined as nothing), with two or more each argument is one value (an array argument is compared as an array). They accept any values: undefined values are skipped and the largest / smallest value by the ordering rules is returned unchanged (texts and items included), or undefined if none. Among equal values umax returns the last, umin the first. `umax_by(arr, f)` / `umin_by(arr, f)` take exactly two arguments and return the element whose f(element) is largest / smallest, skipping undefined elements.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.UMinMaxFunction",
+    "com.almworks.jira.structure.expr.executor.UMinMaxByFunction",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#maxBy",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#minBy"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/median-percentile-quartile",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`median(arr)`, `percentile(arr, p)` and `quartile(arr, q)` take the numbers of the array (undefined and falsy non-numbers skipped, truthy non-numbers error 7; undefined result when there are none), sort them and interpolate linearly at rank p x (n - 1) + 1 (1-based), like a spreadsheet PERCENTILE: median uses p = 0.5. percentile's p must be a number value (not text) between 0 and 100: values of 1 or more are percentages (divided by 100, so 1 means 1%), values below 1 are fractions; anything else is error 10. quartile's q must be an integer 0 to 4 (p = q/4); outside that range is error 10, non-integer is error 7. median takes exactly one argument, percentile and quartile exactly two.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.PercentileBasedFunction",
+    "com.almworks.jira.structure.expr.executor.PercentileBasedFunction$Percentile#checkPercentage",
+    "com.almworks.jira.structure.expr.executor.PercentileBasedFunction$Quartile"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/stdev",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`stdev(arr)` returns the sample standard deviation (divisor n - 1; undefined when fewer than 2 numbers) and `stdevp(arr)` the population standard deviation (divisor n; undefined when there are no numbers) of the array's numbers (same skipping rules as sum). Exactly one argument; the square root is taken in double precision.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.StandardDeviationFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/if",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`if(c1, r1, c2, r2, ..., else)` takes two or more arguments: it returns the result paired with the first truthy condition; if none is truthy it returns the final unpaired argument when the count is odd, otherwise undefined. Only the conditions up to the first truthy one and the chosen result are evaluated.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.IfFunction",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#pickPeer"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/case",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`case(value, p1, r1, p2, r2, ..., default)` takes three or more arguments: it returns the result of the first pattern that the value's text representation matches (pattern-matching rules; an undefined pattern matches a blank value), or the final unpaired default if the count after the value is odd, else undefined. If the value itself is undefined, no pattern is tried: the default is returned if present, else undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.CaseFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/choose",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`choose(i, v1, v2, ...)` takes two or more arguments and returns the i-th of the following values (1-based). An undefined i gives undefined; i out of range is error 10; a non-integer i is error 7.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.ChooseFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/defined-and-default",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`isdefined(x)` (aliases is_defined, defined) and `isarray(x)` (alias is_array) take exactly one argument and return 1/0 for 'x is not undefined' and 'x is an array'; an error argument propagates. `default(x, fallback)` takes exactly two arguments and returns fallback when x is undefined, else x (an error in x propagates). `ifdefined(x, f)` (alias if_defined) takes exactly two arguments and returns undefined when x is undefined, otherwise the result of calling the lambda f with x (a non-lambda f is error 7).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider",
+    "com.almworks.jira.structure.expr.executor.IfDefinedFunction",
+    "com.almworks.jira.structure.expr.executor.UnaryLogicalFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/iferr-iserr",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`iferr(x, fallback)` (aliases iferror, if_error) takes exactly two arguments and returns x, or fallback if x is an error. `iserr(x, code)` (aliases iserror, is_error) takes one or two arguments and returns 1 if x is an error and, when a non-zero integer code is given, that error has this code; otherwise 0 (undefined is not an error). These are the only functions that stop an error from propagating (besides `number(x, fallback)` and `is_number`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.IfErrFunction",
+    "com.almworks.jira.structure.expr.executor.IsErrFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/structure-icon-url",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`structure_icon_url(name)` takes exactly one argument and returns the absolute URL of the static resource with that name in the plugin's `formula-icons` web resource (`com.almworks.jira.structure:formula-icons`), as produced by Jira's web resource URL provider.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.StructureIconUrlFunction"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/delay",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "`__delay(ms)` (also `delay`) sleeps the evaluating thread for ms milliseconds (default 10; clipped to 0..30000) and returns undefined; an interruption ends the sleep early and keeps the thread's interrupt flag set. A non-integer argument is error 7.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-function-provider/context-dependencies",
+   "module": "expr-function-provider",
+   "api": null,
+   "behaviour": "Functions that make a formula depend on context: now (current time), today (current time, user time zone), date and datetime (user time zone, user locale), make_date, make_datetime, year, month, day, hour, minute, second, weekday, weeknum, truncate_*, start_of_month, end_of_month, date_set, date_add, date_subtract, hours_between, days_between, months_between, years_between (user time zone), lower and upper (user locale), calendar_duration (user locale, user time zone), user_email and me (current user). No other function adds a dependency.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.NowFunction#collectNuance",
+    "com.almworks.jira.structure.expr.executor.TodayFunction#collectNuance",
+    "com.almworks.jira.structure.expr.executor.ParseDateTimeFunction#collectNuance",
+    "com.almworks.jira.structure.expr.executor.CalendarDurationFunction#collectNuance",
+    "com.almworks.jira.structure.expr.executor.DefaultFunctionsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/aggregation-names",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "The available aggregations are exactly: sum, min, max, parent, join, array, count, average, values, jql, sjql, percentile, quartile, quartile1, quartile3, median; `avg` is an alias of average. Names are looked up in canonical (lower-case) form; an unknown name has no aggregation and no information. Each has a localized description from i18n key `s.expr.aggr.desc.+<name>` (null when Jira has no text for the key) and a documentation link (the implementer's own for that aggregation, or null; never an address of the vendor).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider",
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider$ExprAggregationInfoImpl"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/modifier-value-rules",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "Modifier values: a flag modifier (all, ancestors, subtree, children, leaves, strict, preceding, reverse, distinct, flatten, compact, truthy, skiptitle) is on when written without a value or with a truthy literal, off when written with a falsy literal (`#reverse=0`) or absent. Integer modifiers (baselevel, depth, level for parent, fromdepth, fromlevel, todepth, tolevel, q) need a number literal with an exact integer value. Text modifiers (separator, beforechildren, afterchildren) need a text literal. `levels` and `level` (for sum, count, average) take a number or a text of comma-separated integers (`\"1,2,3\"`). `p` takes a number between 0 and 100 (see percentile); `q` an integer 0 to 4. A value of the wrong kind is reported as a validation problem (`s.expr.error.unparsed-modifier`), and a modifier the aggregation does not allow as `s.expr.error.unsupported-modifier`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationModifier",
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider$AbstractFormulaAggregation#validateModifier"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/inner-formula-attribute",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "Each formula-based aggregation turns its braces expression into an inner attribute: `AttributeSpec` id `expr` with parameter `formula` (the expression text, rewritten as stated per aggregation) and parameter `variables` (the enclosing formula's variable bindings, unchanged), then wraps it into the aggregation's own attribute spec. Creating a spec with a modifier the aggregation does not allow fails with `IllegalArgumentException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider$AbstractFormulaAggregation#createSpec"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/modifier-spec-parameters",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "Modifiers become parameters of the aggregation's attribute spec, set only when present and different from their default: a structural flag (ancestors, subtree, children, leaves, strict, preceding) sets `type` to the modifier's name; levels and level (sum/count/average) set `levels` (list of integers); baselevel sets `baseLevel` (default 0); depth sets `depth` (default -1); level (parent) sets `level` (default -1); reverse, distinct, flatten, compact set the same-named boolean true; separator sets `separator` (default `, `); beforechildren/afterchildren set `beforechildren`/`afterchildren` (defaults `(` and `)`); fromdepth sets `fromdepth` (default 1), fromlevel `fromLevel` (default 1), todepth `todepth` (default 0), tolevel `toLevel` (default 0); skiptitle sets `withoutTitle` true. For sum, `distinct` is set to true unless `#all` is given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationModifier#setBuilderValue",
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationModifier"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/sum",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "`sum#mods{x}` is attribute spec id `sum` in number format, whose nested attribute is the inner formula `(x).filter(x->isnumber(x)).sum()` in number format (non-numeric values are ignored). Allowed modifiers: all, children, leaves, strict, subtree, preceding, levels, level, baselevel. By default each item is counted once (distinct); `#all` counts repeated items every time.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/min-max",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "`min#mods{x}` and `max#mods{x}` are attribute specs `min` and `max` in the generic (`ValueFormat.ANY`) format, with inner formula `umin(x)` / `umax(x)` evaluated in the order format, so any comparable values (numbers, texts, items) can be aggregated. Allowed modifiers: children, leaves, strict, subtree.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/parent",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "`parent#mods{x}` is attribute spec `aggregation-parent` (generic format) with inner formula `(x)`; allowed modifiers: depth, level, skiptitle.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/join",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "`join#mods{x}` is attribute spec `aggregation-join` in text format. Its inner formula is `ifdefined(x,x->x.map(y->if(isarray(y),y,y.default('?').text())).text())` (each undefined value shown as `?`), or with `#distinct` `ifdefined(x,x->x.map(y->y.text()))`. Allowed modifiers: distinct, reverse, separator, ancestors, subtree, children, leaves, strict, beforechildren, afterchildren, fromdepth, todepth, fromlevel, tolevel, skiptitle.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/array",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "`array#mods{x}` is attribute spec `aggregation-array` (generic format) with inner formula `array(x)`, or with `#flatten` `with a=x:if(isarray(a),a,array(a))`. Allowed modifiers: flatten, distinct, compact, reverse, ancestors, subtree, children, leaves, strict, fromdepth, todepth, fromlevel, tolevel, skiptitle.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/alias-aggregations",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "count, average, values, percentile, quartile, quartile1, quartile3 and median are defined in terms of other aggregations: each becomes an `expr` attribute (generic format) whose formula is the text below with `#MODS` replaced by the remaining modifiers written back in alphabetical order as `#name` or `#name=<literal>`, and whose variable `x` is bound to the inner attribute for the braces expression. count: `default(sum#MODS{if(defined(x),1)},0)`, or with `#truthy` `default(sum#MODS{if(x,1)},0)` (truthy itself is not passed on); average: `with n=sum#MODS{if(defined(x),1)}:if(n>0;sum#MODS{x}/n)`; values: `array#flatten#distinct#compact#MODS{x}`; percentile: `percentile(array#flatten#MODS{x},<p>)` (p from `#p`, default 0, not passed on); quartile: `quartile(array#flatten#MODS{x},<q>)` (q from `#q`, default 0); quartile1: `quartile#q=1#MODS{x}`; quartile3: `quartile#q=3#MODS{x}`; median: `median(array#flatten#MODS{x})`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider$AggregationAliasConstruct#createSpec",
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/alias-allowed-modifiers",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "Allowed modifiers: count: truthy, all, children, strict, leaves, subtree, preceding, levels, level, baselevel; average: all, children, strict, leaves, subtree, preceding, levels, level, baselevel; values: ancestors, subtree, children, leaves, strict, fromdepth, todepth, fromlevel, tolevel, skiptitle; percentile: p, subtree, children, strict, leaves, fromlevel, tolevel, ancestors, skiptitle; quartile: q and the same structural ones as percentile; quartile1, quartile3 and median: subtree, children, strict, leaves, fromlevel, tolevel, ancestors, skiptitle.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/expr-aggregation-provider/query-aggregations",
+   "module": "expr-aggregation-provider",
+   "api": null,
+   "behaviour": "`jql{query}` and `sjql{query}` are attribute spec `query-match` in boolean format with parameters `query` (the text in braces) and `queryType` (`jql` or `sjql`): true for rows whose item matches the query. They accept no modifiers (any modifier is `s.expr.error.unsupported-modifier`). At validation the query is parsed by the plugin's query parser; if it reports errors, the validation problem is error `INVALID_JQL` or `INVALID_SJQL` with the localized message `s.expr.error.+jql+.validation-failed` / `s.expr.error.+sjql+.validation-failed` listing the messages joined by newlines.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.DefaultAggregationsProvider$QueryAggregation"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/value-text-converter/text-of-values",
+   "module": "value-text-converter",
+   "api": null,
+   "behaviour": "Converts a Jira field value to display text: null gives no text (an undefined attribute value); a String is used as is; a collection or array gives the texts of its elements joined with `, `, leaving out elements whose text is empty (an empty collection gives the empty text, not undefined). Single objects: issue constants (priority, status, resolution, issue type) and anything with a name (`Named`: projects, versions, components, groups, ...) give their name; an `ApplicationUser` gives its user key (not the display name); a `Label` its label; Jira REST beans give: custom field option the cascading text (parent and child option values), user bean its key, group/project/version/component bean its name, issue reference its key; anything else its `toString()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.ValueTextConverter#getText",
+    "com.almworks.jira.structure.util.ValueTextConverter#getTextFromCollection"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/value-text-converter/third-party-custom-fields",
+   "module": "value-text-converter",
+   "api": null,
+   "behaviour": "When the value belongs to a custom field of type `com.atlassian.teams:rm-teams-custom-field-team` (Advanced Roadmaps team), the text is the team's title (no text if the value is not a team); for `ru.slie.jira.tree-customfield:tree-single-customfield` and `...:tree-multi-customfield` the text is the name provided by `treefield-integration`. These rules apply to each element when the value is a collection.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.ValueTextConverter#getText"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/value-text-converter/trail-of-items",
+   "module": "value-text-converter",
+   "api": null,
+   "behaviour": "While converting, each value that is a Jira entity (version, component, project, user, priority, status, resolution, issue, label, option, group, or the corresponding REST beans) is recorded as an item (`CoreIdentities`) in the attribute loading context's trail, so the text attribute is recalculated when one of those items changes. Values that cannot be converted are logged (throttled) and treated as having no special text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.ValueTextConverter#getTextValue",
+    "com.almworks.jira.structure.util.ValueTextConverter$Converters#convert"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/value-text-converter/converter-choice-cached-by-class",
+   "module": "value-text-converter",
+   "api": null,
+   "behaviour": "The conversion rule for a value is chosen by the first matching kind in the order listed (issue constant, named object, user, label, REST beans) and remembered per runtime class, so all values of one class are converted the same way.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.util.ValueTextConverter$Converters#convert",
+    "com.almworks.jira.structure.util.ValueTextConverter$Converters#findConverter"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-loader-cache/remembers-resolved-loader",
+   "module": "attribute-loader-cache",
+   "api": null,
+   "behaviour": "Remembers, per attribute specification (`AttributeSpec`, compared by equality), the loader that was resolved for it, so a later request for an equal specification reuses it without asking the attribute providers again. Asking for a specification that was never stored gives nothing (it does not resolve one itself).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AttributeLoaderCache#getIfPresent",
+    "com.almworks.jira.structure.attribute.AttributeLoaderCache#put"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-loader-cache/bounds-and-expiry",
+   "module": "attribute-loader-cache",
+   "api": null,
+   "behaviour": "The cache is local to the node (not shared in a cluster), holds at most `structure.attribute.loader.cache.maxSize` entries (dark feature, default 10000) and drops an entry not used for `structure.attribute.loader.cache.timeout` seconds (dark feature, default 3600; the JVM system property `structure.cache.expiration-override`, when set, overrides it).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AttributeLoaderCache#cacheSettings",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#slowlyExpiring"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-loader-cache/clearing",
+   "module": "attribute-loader-cache",
+   "api": null,
+   "behaviour": "Clearing the plugin's caches empties this cache completely; clearing caches for a single user does nothing here.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AttributeLoaderCache#clearCaches",
+    "com.almworks.jira.structure.attribute.AttributeLoaderCache#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-aware-process-registry/process-scopes",
+   "module": "attribute-aware-process-registry",
+   "api": null,
+   "behaviour": "Each attribute loading process and each cache clear has a scope: all, a user (by user key; anonymous is its own user), a forest (`ForestSpec`), or a user and a forest. Two scopes overlap unless both name users and the users differ, or both name forests and the forests differ; a scope naming no user overlaps any user, one naming no forest overlaps any forest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.process.AttributeProcessDimension#matches"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-aware-process-registry/clear-cancels-running-loads",
+   "module": "attribute-aware-process-registry",
+   "api": null,
+   "behaviour": "When a cache clear starts for a scope, every attribute loading process running in an overlapping scope is told to restart: its next cancellation check fails with an attribute-loading-needs-restart signal (so the caller reloads with fresh caches). Processes in non-overlapping scopes are unaffected. The clear action runs after this, and the clear is marked finished even if the action throws.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry#doWithCacheClearingProtection",
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry#onCacheClearStart",
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry$AttributeProcessImpl#checkCancelled"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-aware-process-registry/new-loads-wait-for-clear",
+   "module": "attribute-aware-process-registry",
+   "api": null,
+   "behaviour": "Starting a new loading process while a clear of an overlapping scope is in progress waits until that clear finishes (up to `structure.attribute.clearAwaitTimeout` ms, default 30000; on timeout or interruption it fails with `StructureRuntimeException`, keeping the thread's interrupt flag) and then tries again, at most `structure.attribute.cleanup.awaitIterations` times (default 10). If it still could not start, it fails with `StructureRuntimeException` (\"couldn't add attribute loading process, cache clearing stalled\"). Failed attempts and reaching the limit are counted in the attribute performance statistics.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry#addProcessAndWaitActiveClear",
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry#tryAddProcess",
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry$Synchronizer#awaitClearCompleted"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-aware-process-registry/process-lifetime",
+   "module": "attribute-aware-process-registry",
+   "api": null,
+   "behaviour": "A loading process is registered for exactly the duration of its body and removed afterwards (also when the body throws); the body's result or exception is passed through. Extra cancellation checks attached to a process are run, in order, on every cancellation check after the built-in ones.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry#runNewProcess",
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry$AttributeProcessImpl#checkCancelled",
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry$AttributeProcessImpl#attachCancellationCheck"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-aware-process-registry/plugin-stop",
+   "module": "attribute-aware-process-registry",
+   "api": null,
+   "behaviour": "When the component stops, every running process is marked stopped and waiting starters are released; a stopped process's cancellation check fails with `StructureStoppedException` (checked before the restart signal), and processes started after the stop are created already stopped (their body still runs, but its first cancellation check fails).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry#stopComponent",
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry#addProcessAndWaitActiveClear",
+    "com.almworks.jira.structure.attribute.process.AttributeProcessRegistry$AttributeProcessImpl#checkCancelled"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-service-support/owns-shared-value-cache",
+   "module": "attribute-service-support",
+   "api": null,
+   "behaviour": "Holds the single attribute value cache shared by the attribute service, created on first use and wired to the row manager, item tracker, item resolver, forest service, the attribute performance tracker and `attribute-aware-process-registry`, so cached attribute values are invalidated when items change (item tracker) or forests change (forest service). It also owns the observer of that cache and a loading protector that listens to it.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AttributeServiceSupport"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-service-support/lifecycle-and-clearing",
+   "module": "attribute-service-support",
+   "api": null,
+   "behaviour": "On start it starts the shared cache of undefined values (with the performance tracker); on stop it stops it. Clearing the plugin's caches empties only that undefined-value cache; per-user clearing does nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AttributeServiceSupport#startComponent",
+    "com.almworks.jira.structure.attribute.AttributeServiceSupport#stopComponent",
+    "com.almworks.jira.structure.attribute.AttributeServiceSupport#clearCaches"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/attribute-service-support/environment-fixed-after-init",
+   "module": "attribute-service-support",
+   "api": null,
+   "behaviour": "The cache environment can be replaced (for tests) only before the value cache has been created; afterwards the attempt throws `IllegalStateException` (\"cache already initialized\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.AttributeServiceSupport#setEnv"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/bulk-comment-reader/last-visible-comment",
+   "module": "bulk-comment-reader",
+   "api": null,
+   "behaviour": "Given a list of issues and a user, returns for every issue (by issue id) its most recent comment that the user may see according to Jira's `CommentPermissionManager.hasBrowsePermission`, or empty when the issue has no visible comment. Comments are ordered by creation time, newest first.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.comment.OfBizCommentReader#loadLastVisibleComment"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/bulk-comment-reader/reads-database-in-batches",
+   "module": "bulk-comment-reader",
+   "api": null,
+   "behaviour": "It reads Jira's `Action` table directly through the `OfBizDelegator` (columns id, issue, level, rolelevel, body; condition type = `comment` and issue in the batch), in batches of at most `structure.feature.comments.ofbizBatchSize` issue ids (dark feature; default Jira's OfBiz query batch size).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.comment.OfBizCommentReader#loadLastVisibleComment"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/bulk-comment-reader/comment-object-contents",
+   "module": "bulk-comment-reader",
+   "api": null,
+   "behaviour": "The returned comment carries only its id, issue, group level, role level id and body; every other comment property (author, creation and update dates, role object, update author) is unavailable and throws `UnsupportedOperationException` if asked for.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.comment.OfBizCommentReader$IssueComment"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/extended-value-tools/generic-value-format",
+   "module": "extended-value-tools",
+   "api": null,
+   "behaviour": "Defines the generic value format: `ValueFormat` with id `value` and value class Object. Values in this format are null, a `Number`, a `String`, a `Boolean`, an `ItemIdentity`, a `List` of such values or a `Map` with String keys and such values; any other value is rejected with `IllegalArgumentException` (\"Type of ... is not supported\"), and a map with a non-String key with `IllegalArgumentException` (\"Not a string key in map\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.ExtendedValueTools",
+    "com.almworks.jira.structure.util.ExtendedValueTools#accept",
+    "com.almworks.jira.structure.util.ExtendedValueTools$ExtendedValueVisitor#visitMapValues"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/extended-value-tools/spec-rewrite-epic-link",
+   "module": "extended-value-tools",
+   "api": null,
+   "behaviour": "To read an attribute generically, the attribute spec is converted to the generic format; a spec for a custom field (`customfield` with parameter `fieldId`) whose field exists and has type `com.pyxis.greenhopper.jira:gh-epic-link` is first replaced by the spec `epicIssue`, so the epic is returned as an item. Specs for missing fields or fieldId 0 are just converted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.ExtendedValueTools#transformAttributeSpec",
+    "com.almworks.jira.structure.util.ExtendedValueTools#isEpicLinkSpec"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/custom-field-resolver/name-matching",
+   "module": "custom-field-resolver",
+   "api": null,
+   "behaviour": "Finds a custom field id by name: names are compared after removing all whitespace, ASCII punctuation and control characters and lower-casing (so `Story Points`, `story-points` and `StoryPoints` match). Among matching fields, one whose name equals the given name exactly (case-sensitive) wins; otherwise, or among several exact matches, the lowest field id. No match gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.CustomFieldResolver#loadCustomFieldId",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#normalizeName"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/custom-field-resolver/issue-scope",
+   "module": "custom-field-resolver",
+   "api": null,
+   "behaviour": "When asked for a field in the context of an issue, only fields in scope for searching in the issue's project and issue type (Jira's `isInScopeForSearch`, with the issue type expanded by `ConstantsManager.expandIssueTypeIds`) are considered; if the project no longer exists the result is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.CustomFieldResolver#loadCustomFieldId",
+    "com.almworks.jira.structure.extension.field.CustomFieldResolver#getCustomField"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/custom-field-resolver/result-cache",
+   "module": "custom-field-resolver",
+   "api": null,
+   "behaviour": "Results (including 'not found') are cached per (project, issue type, name) in a local cache of at most `structure.customFieldResolution.maxCacheSize` entries (default 10000); an entry is recomputed `structure.customFieldResolution.cacheExpireTime` seconds after it was computed (default 300) and dropped when unused for `structure.customFieldResolution.cacheExpireTimeUnused` seconds (default 3600). Clearing the plugin's caches empties it; per-user clearing does nothing. A failure while computing is logged (throttled) and gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.CustomFieldResolver"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/field-information-provider/supported-system-fields",
+   "module": "field-information-provider",
+   "api": null,
+   "behaviour": "Describes these system fields: assignee, reporter (single user), priority, status, resolution (single constant), description, environment (multi-line text), summary (single-line text), duedate (date), timeestimate, timeoriginalestimate, timespent (durations), creator (user, read only), issuetype and project (read only), comment (write only: adding a comment), attachment (read only, multiple), labels, components, versions (Affects Versions) and fixVersions (multiple). Fields with write support can be changed by effects (set, and for multiple-value fields also add and remove), using the corresponding `CoreEffects` operations; timespent, creator, issuetype, project and attachment have no write support.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/field-information-provider/supported-custom-field-types",
+   "module": "field-information-provider",
+   "api": null,
+   "behaviour": "Describes custom fields of these kinds: text fields (Jira text custom field types; writable unless read-only), number, single user, project picker, single version, single select, cascading select, date, date-time, single issue picker (ScriptRunner), single group, multiple versions, multi select, multiple groups, labels, multiple users, Advanced Roadmaps team, sprint (`com.pyxis.greenhopper.jira:gh-sprint`), Epic Sum Up time field `aptis.plugins.epicSumUp:epic-sum-up-custom-field-time` (read only, value in milliseconds), Epic Sum Up client-side field types (read only, always empty), Service Management request type (`com.atlassian.servicedesk:vp-origin`, read only, as request type items) and Assets/Insight object fields (read only, as object items). The first matching description in this order is used for a field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/field-information-provider/lookup-by-field-id-cached",
+   "module": "field-information-provider",
+   "api": null,
+   "behaviour": "Descriptions are looked up by Jira field id (a custom field id `customfield_<n>` when given a numeric custom field id); an unknown or unsupported field gives null. Results are cached locally per field id, at most `structure.atfe.cache.maxSize` entries (default 10000), dropped after `structure.atfe.cache.timeout` seconds unused (default 3600); clearing the plugin's caches empties the cache; a lookup failure is logged and gives null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider#getFieldInformation"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/field-information-provider/parse-values-for-writing",
+   "module": "field-information-provider",
+   "api": null,
+   "behaviour": "When a value is to be written into a field, it is interpreted per field: texts are looked up by the field's rule below, numbers are looked up by their plain decimal text (a number that finds nothing is the error `s.ext.effect.error.not-number`), items must be of the field's item type (else `s.ext.effect.error.not-item` with the item type and field name) and must exist (else the field's not-found error with the item id), booleans and maps are refused (`s.ext.effect.error.not-boolean`, `s.ext.effect.error.not-map`), and null clears the field. For a single-value field a list must have at most one element (empty clears; more is `s.ext.effect.error.not-multiple`); for a multiple-value field each list element is interpreted and the first failing one decides the error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.AttributeSupport$SingleValuedConvertingVisitor",
+    "com.almworks.jira.structure.extension.field.AttributeSupport$MultiValuedConvertingVisitor",
+    "com.almworks.jira.structure.extension.field.AttributeSupport$AbstractConvertingVisitor"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/field-information-provider/text-lookup-rules",
+   "module": "field-information-provider",
+   "api": null,
+   "behaviour": "Text lookup per field: users (assignee, reporter, user custom fields) by user key, then username, else error `s.ext.effect.error.no-user`; priority, status, resolution by exact (case-sensitive) name among all of them (`...no-priority`, `...no-status`, `...no-resolution`); components by exact name in the issue's project (`...no-component`); versions (system and custom) by name in the issue's project (`...no-version`); project picker by current project key (`...no-project`); select and multi select options by exact value among the field's options for the issue's context (`...no-option`); cascading select by exact parent value, else by child value or `<parent> - <child>` (`...no-option`); groups by group name (`...no-group`); issue picker by issue key (`...no-issue`); team by exact team title among shareable teams (`...no-team`; team items are never accepted); sprint by exact name among active sprints found for the current user (`...no-sprint`); labels are taken as given. Text, number, date and date-time fields take plain values (text; number; date shifted to the user's time zone when the attribute is a date-shifted time; epoch milliseconds).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider",
+    "com.almworks.jira.structure.extension.field.AttributeSupport"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/field-information-provider/read-values",
+   "module": "field-information-provider",
+   "api": null,
+   "behaviour": "Reading field values for effects and comparisons: durations (timeestimate, timeoriginalestimate, timespent) are returned in milliseconds (Jira's seconds x 1000); labels as label texts (no labels gives null); single version and single group custom fields read their first element; cascading select reads the deepest selected option; sprints are converted through the Jira Software integration.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider",
+    "com.almworks.jira.structure.extension.field.AccessSupport"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/field-information-provider/history-value-parsing",
+   "module": "field-information-provider",
+   "api": null,
+   "behaviour": "Old and new values in Jira's change history are interpreted per field: users by user key; priority, status, resolution, issue type by id; project, attachment, component and version entries by numeric id (attachment, components, Affects/Fix Versions are incremental: each history entry adds or removes one value); text fields use the displayed string; dates from `yyyy-MM-dd` at start of day in the user's time zone; date-time custom fields from `yyyy-MM-dd'T'HH:mm:ssZ`; durations from seconds to milliseconds; multi-value custom fields from a bracketed comma-separated id list (`[10000, 10001]`); cascading select from `Parent values: ...(id)Level 1 values: ...(id)` taking the child option id; labels split at spaces; sprints from a comma-separated id list.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider",
+    "com.almworks.jira.structure.extension.field.HistorySupport"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/field-information-provider/sprint-writing",
+   "module": "field-information-provider",
+   "api": null,
+   "behaviour": "Writing a sprint value sets the issue's sprint to the chosen sprint id, where the id to set is taken from the given sprints' first one in sprint-state order that is not closed (none if all are closed); when the issue currently has sprints, the effect also records the currently settable sprint id as parameter `from`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider#setSprint",
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider#settableSprintId"
+   ]
+  },
+  {
+   "key": "c3-expr-attributes/field-information-provider/item-display-text",
+   "module": "field-information-provider",
+   "api": null,
+   "behaviour": "For multiple-value label fields an item given as value is turned into text via its item type: the item type's display text when it supports formulas, otherwise the `value-text-converter` text of the item; unknown item types or missing items give null.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider#itemToString"
+   ]
+  }
+ ]
+}

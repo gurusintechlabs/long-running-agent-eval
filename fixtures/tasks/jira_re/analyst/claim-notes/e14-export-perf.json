@@ -1,0 +1,1125 @@
+{
+ "claims": [
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/descriptor-and-scope",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `export-format` `ms-excel` and one `column-key` `field`. Asked for any format other than `ExportFormat.MS_EXCEL` it returns null; asked for a column whose key is neither `field` nor `timeAggregate` it returns null (a `timeAggregate` column is handled like `field` when the provider is asked directly, although the descriptor only registers `field`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider",
+    "com.almworks.jira.structure.extension.export.AbstractFieldExportRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/field-param-required",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "The column parameter `field` (a single value; the first element when it is a list) names the Jira field. When it is missing or empty the provider throws `StructureProviderException` with message `field parameter is required`, so the column is skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.AbstractFieldExportRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/field-lookup",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "The field is looked up by exact id among the fields Jira's `FieldManager.getAvailableNavigableFields(user)` returns for the export context's user. That set is read once per export request context and reused for every column of the export; a `FieldException` while reading it is logged as a warning and treated as no fields. A field id that is not in the set (unknown, hidden or not navigable for the user) makes the provider return null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.AbstractFieldExportRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.util.JiraFieldUtils#getNavigableField",
+    "com.almworks.structure.commons.util.JiraFieldUtils#getNavigableFields"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/field-attribute-mapping",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "The field's value is requested as an attribute built from the field id: `issuekey` becomes attribute `key`; `customfield_<n>` with a numeric n becomes attribute `customfield` with parameter `fieldId` = n (an integer); any other id (including `customfield_x` with a non-numeric suffix) is used as the attribute id. The format is `html`, with no further parameters in the Excel export.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.util.AttributeUtil#convertIssueFieldIdToAttributeSpec",
+    "com.almworks.jira.structure.extension.export.AbstractFieldExportRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/aggregate-sum",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "Column parameter `aggregate`: absent means the field's own value. `sum` means the sub-tree sum: attribute `sum` (format `html`) with parameter `attribute` = the field's attribute (format `duration` when the field is one of Jira's time-tracking duration fields, an `AbstractDurationSystemField`, otherwise `number`) and parameter `distinct` = the column's boolean `distinct` (false when absent). Any other `aggregate` value throws `StructureProviderException` `aggregate type <value> is not supported` (column skipped). The typed cell rules below then read this `sum` attribute in the number, time or duration format they need.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.AbstractFieldExportRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/header",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "Header text: the column's name when it is non-empty; otherwise the Jira field's name (its id when the name is empty). For an `aggregate`=`sum` column without a name the header is i18n `sw.column.opt.aggr.sum.colname` (`Σ {0}`) with the field's name, e.g. `Σ Time Spent`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.AbstractFieldExportRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$General#name"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/rich-text-fallback",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "Every Excel field column ends with a rich-text rule: it requests the field's attribute in `html` format with the extra parameter `excel` = true and, when that value is non-null, sets it with `ExcelCell.setRichTextFromHtml`. Typed rules (below) come first; when their typed value is null the rich-text value is used; when that is null too the cell stays empty. Fields without a typed rule get only the rich text, with the column left in the `DEFAULT` style. (General rule for this group's renderers: a renderer requests, in `prepare`, every attribute any of its cell rules reads, whatever the export format; on `renderCell` it tries its cell rules in order and the first one that finds a non-null value sets the cell; if none does, the cell stays empty.)",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider#createRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$Excel#richText",
+    "com.almworks.structure.commons.export.FeatureBasedRenderer#renderCell"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/issue-key",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "For field `issuekey` the column's default style is `ExcelStyle.HYPERLINK_UNDECORATED` and the cell, when the attribute `key` (text) is non-empty, is `setHyperlink(key, url)` with attribute `url` (text) as the URL, or `setText(key)` when the URL is null. An empty or missing key falls back to the rich text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider",
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider#createRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/numeric-custom-fields",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "A custom field is numeric when its type key is `com.atlassian.jira.plugin.system.customfieldtypes:float`, or its JSON schema type is `number` and it is neither an Agile rank field nor of type `com.atlassian.jira.plugin.system.customfieldtypes:importid`. Numeric fields and Agile rank fields (type keys `com.pyxis.greenhopper.jira:gh-global-rank`, `com.pyxis.greenhopper.jira:greenhopper-ranking`) get the header style `HEADER_RIGHT_ALIGNED` and the cell `setNumber` of the attribute read in `number` format.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider#createRenderer",
+    "com.almworks.structure.commons.util.JiraFieldUtils#isNumericCustomField",
+    "com.almworks.structure.commons.util.JiraFieldUtils#isAgileRankField"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/date-custom-fields",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "A custom field whose type is a Jira `DateTimeCFType` gets column style `DATETIME`, a right-aligned header and `setDatetime(new Date(v))` with v the attribute read in `time` format (epoch ms). Otherwise, a custom field whose type implements Jira's `DateField` gets style `DATE`, a right-aligned header and `setDate(new Date(v))`. The date-time check comes first.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider#createRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$DateTimeCellFeature#render0"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/url-custom-field",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "A custom field whose type is Jira's `URLCFType` gets column style `HYPERLINK` (the header keeps the left-aligned style). The cell reads the field's `html` value (without the `excel` parameter), trims it and, when it is non-empty and `new java.net.URL(value)` accepts it, sets `setHyperlink(value, value)`; otherwise (empty, malformed, or HTML markup) it falls back to the rich text.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider#hyperlink",
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider#createRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/system-date-fields",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "A non-custom field implementing Jira's `DateField` (such as created, updated, due date, resolution date) gets column style `DATE`, a right-aligned header and `setDate` of the attribute in `time` format: only the date is exported, also for created and updated, which carry a time of day.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider#createRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/duration-fields",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "Jira's time-tracking duration fields (`AbstractDurationSystemField`: original estimate, remaining estimate, time spent and their aggregate forms) get column style `DURATION`, a right-aligned header and `setDuration(ms / 1000)` (integer division) of the attribute in `duration` format (milliseconds).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider#createRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$DurationCellFeature#render0",
+    "com.almworks.structure.commons.export.RendererFeature$GeneralCellFeature#setDurationMillis"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-field/votes-watches-thumbnail",
+   "module": "exportrenderer-excel-field",
+   "api": null,
+   "behaviour": "The votes and watches system fields (`VotesSystemField`, `WatchesSystemField`) get a right-aligned header and `setNumber` of the attribute in `number` format. For the thumbnail system field (`ThumbnailSystemField`) the provider returns null, so the column is not exported. Every other system field gets only the rich text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelFieldRendererProvider#createRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-joined/descriptor-and-scope",
+   "module": "exportrenderer-excel-joined",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `export-format` `ms-excel` and `column-key`s `joined` and `icons`. For any other format or column key it returns null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelJoinedRendererProvider",
+    "com.almworks.jira.structure.extension.export.AbstractJoinedRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-joined/fields-param-required",
+   "module": "exportrenderer-excel-joined",
+   "api": null,
+   "behaviour": "The column's multi-value parameter `fields` lists Jira field ids. When it is missing or empty the provider throws `StructureProviderException` `fields parameter is required` (column skipped). Ids not among the user's available navigable fields (looked up as for `exportrenderer-excel-field`) are skipped silently; a field listed twice is used once, at its first position.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.AbstractJoinedRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-joined/split-into-columns",
+   "module": "exportrenderer-excel-joined",
+   "api": null,
+   "behaviour": "The provider does not return a renderer (it returns null). Instead it hands the exporter, through the export request context, a list of renderers, one per listed available field in list order, and the exporter exports each of them as a separate spreadsheet column in place of the joined (or icons) column. Each field column is rendered exactly as `exportrenderer-excel-field` renders a non-aggregated `field` column for that field (attribute in `html` format without parameters, same typed cells, styles and rich-text fallback). An `icons` column therefore exports the fields' values, not icons. When none of the listed fields is available the list is empty and the column counts as not handled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelJoinedRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.util.JiraFieldUtils#putMultipleRenderers",
+    "com.almworks.jira.structure.export.ForestExporter#getRenderers"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-joined/split-column-headers",
+   "module": "exportrenderer-excel-joined",
+   "api": null,
+   "behaviour": "The header of each split column ignores the joined column's own name: it is the i18n text of the field's Jira column heading key (`NavigableField.getColumnHeadingKey()`) with the field's name as argument {0}; when the heading key is empty it is the field's name (its id when the name is empty).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelJoinedRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$General#name"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-excel-joined/thumbnail-in-list",
+   "module": "exportrenderer-excel-joined",
+   "api": null,
+   "behaviour": "A listed thumbnail field produces no column: its slot in the list is empty, the exporter logs a warning for it and exports the other fields' columns normally.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ExcelJoinedRendererProvider#getColumnRenderer",
+    "com.almworks.jira.structure.export.ForestExporter"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-field/descriptor-and-scope",
+   "module": "exportrenderer-print-field",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `export-format` `printable` and `column-key` `field`. It returns null for any format other than `ExportFormat.PRINTABLE`. Column keys, the required `field` parameter and its error, the field lookup, the field-to-attribute mapping, `aggregate`=`sum` (and its error) and the header text are exactly as for `exportrenderer-excel-field`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableFieldRendererProvider",
+    "com.almworks.jira.structure.extension.export.AbstractFieldExportRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-field/html-cell",
+   "module": "exportrenderer-print-field",
+   "api": null,
+   "behaviour": "Every row's cell is `PrintableCell.setHtml` of the field's attribute in `html` format (for `sum`, the `sum` attribute in `html`); a null value leaves the cell empty. There are no typed cells: numbers, dates and durations appear as the attribute's HTML.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableFieldRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$Printable#html"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-field/multiline",
+   "module": "exportrenderer-print-field",
+   "api": null,
+   "behaviour": "The column is multiline (`setMultiline(true)`) exactly when the requested attribute id is `issuelinks`, `labels`, `environment`, `description` or `customfield` (so every `customfield_<n>` field wraps); otherwise, including the issue key and every `sum` column, it is single-line.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableFieldRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-field/user-field-view",
+   "module": "exportrenderer-print-field",
+   "api": null,
+   "behaviour": "For a user field (system fields `assignee`, `creator`, `reporter`, or a custom field whose JSON schema type is `user`) whose column parameters contain the key `view`, the value of `view` is passed unchanged as attribute parameter `view` (for a custom field next to `fieldId`). Other fields never get it, and `sum` columns do not pass it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableFieldRendererProvider#buildAttributeParams",
+    "com.almworks.structure.commons.util.JiraFieldUtils#isUserField",
+    "com.almworks.jira.structure.extension.export.AbstractFieldExportRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-joined/descriptor-and-scope",
+   "module": "exportrenderer-print-joined",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `export-format` `printable` and `column-key` `joined` (printable `icons` columns go to `exportrenderer-print-icons`). It returns null for other formats or keys. The `fields` parameter, its `fields parameter is required` error and the field lookup are as for `exportrenderer-excel-joined`; each available field is requested as its attribute in `html` format without parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableJoinedRendererProvider",
+    "com.almworks.jira.structure.extension.export.AbstractJoinedRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-joined/header",
+   "module": "exportrenderer-print-joined",
+   "api": null,
+   "behaviour": "Header text: the column's name; when the name starts with `{` and ends with `}` the text between them is used as an i18n key and translated with the export context's i18n helper. When the name is null or empty the header is i18n `sw.column.type.joined` (`Multiple Fields`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableJoinedRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-joined/joined-cell",
+   "module": "exportrenderer-print-joined",
+   "api": null,
+   "behaviour": "Each cell is one `setHtml` with the non-empty HTML values of the listed fields concatenated in list order with no separator; it is set even when every value is empty (an empty string), and no CSS class is added. The column is single-line.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableJoinedRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$Printable#htmlConcat"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-icons/descriptor-and-scope",
+   "module": "exportrenderer-print-icons",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `export-format` `printable` and `column-key` `icons`. It returns null unless the format is `ExportFormat.PRINTABLE` and the column key is `icons`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableIconsRendererProvider",
+    "com.almworks.jira.structure.extension.export.PrintableIconsRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-icons/icon-attributes",
+   "module": "exportrenderer-print-icons",
+   "api": null,
+   "behaviour": "Each id in the multi-value parameter `fields` maps to an icon attribute in `html` format: `issuetype` to `issuetype.icon`, `priority` to `priority.icon`, `status` to `status.icon`, `assignee` to `assignee.icon` with parameter `print` = true, `reporter` to `reporter.icon` with `print` = true, `project` to `project.icon`. Ids are kept in list order, a repeated id gives its icon twice.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableIconsRendererProvider",
+    "com.almworks.jira.structure.extension.attribute.IconProvider"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-icons/errors",
+   "module": "exportrenderer-print-icons",
+   "api": null,
+   "behaviour": "A missing or empty `fields` throws `StructureProviderException` `fields parameter is required`; any id not in the six supported ones throws `field <id> is not supported`. Either way the whole column is skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableIconsRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-print-icons/header-and-cell",
+   "module": "exportrenderer-print-icons",
+   "api": null,
+   "behaviour": "Header text: the column's name, or i18n `sw.column.type.icons` (`Icons`) when it is empty. Each cell is `setHtml` of the non-empty icon HTML values concatenated in order without separator (empty string when none) and gets the CSS class `s-icons`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.PrintableIconsRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$Printable#htmlConcat"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-main/descriptor-and-scope",
+   "module": "exportrenderer-main",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `main` and no export format, so it serves both formats. It returns null for any other column key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.MainRendererProvider",
+    "com.almworks.jira.structure.extension.export.MainRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-main/header",
+   "module": "exportrenderer-main",
+   "api": null,
+   "behaviour": "Header text: the column's name when non-empty; otherwise the name of the Jira field `summary` (`FieldManager.getField(\"summary\")`), or its id when that name is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.MainRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$General#name"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-main/summary-value",
+   "module": "exportrenderer-main",
+   "api": null,
+   "behaviour": "Cells show attribute `summary` (format `text`) with parameter `aggregate` = true. When the value is null (item missing, failed or not visible) the cell shows i18n `s.w.item-loading-failed` (`Unavailable item`) instead; the cell is never left empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.MainRendererProvider",
+    "com.almworks.jira.structure.extension.attribute.InternalAttributeSpecs"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-main/printable",
+   "module": "exportrenderer-main",
+   "api": null,
+   "behaviour": "In the printable export the column is multiline, its header cell gets CSS class `s-mn`, and each cell is `setText` (HTML-escaped by the cell) with CSS class `pad` added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.MainRendererProvider",
+    "com.almworks.jira.structure.extension.export.MainRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-main/excel",
+   "module": "exportrenderer-main",
+   "api": null,
+   "behaviour": "In the Excel export each cell is `setText` of the summary and `ExcelCell.setIndention(row depth)` (0 for top-level rows; the cell clamps it to 15). The column keeps the default style and left-aligned header.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.MainRendererProvider"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-progress/descriptor-and-scope",
+   "module": "exportrenderer-progress",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `progress` and no export format (both formats). Returns null for other column keys.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ProgressRendererProvider",
+    "com.almworks.jira.structure.extension.export.ProgressRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-progress/attribute-params",
+   "module": "exportrenderer-progress",
+   "api": null,
+   "behaviour": "It requests attribute `progress` (format `number`) with parameters `basedOn` (the column's single value, omitted when absent), `resolvedComplete` and `includeSelf` (booleans, false when absent), `weightBy` when the column has it, and `weightByField` only when both `weightBy` and `weightByField` are present.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ProgressRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-progress/basedon-params",
+   "module": "exportrenderer-progress",
+   "api": null,
+   "behaviour": "Depending on `basedOn` it adds: `status` - `statuses` (list of strings) and `percents` (list of longs); `category` - `categories` (list of strings) and `categoryPercents` (list of longs); `percentfield` - `percentField` (single value). For other values (including absent) none of these. Other column parameters are not passed on.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ProgressRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-progress/header-and-cell",
+   "module": "exportrenderer-progress",
+   "api": null,
+   "behaviour": "Header text: the column's name, or i18n `s.columns.progress.name` (`Progress`). Excel: column style `PERCENTAGE`, header `HEADER_RIGHT_ALIGNED`. Printable: percentage style `PERCENT_TEXT` when the boolean column parameter `displayPercents` is true, else `PROGRESS_BAR`. Each cell is `setPercentage(value as double)` (a fraction, 1.0 = 100 %); null leaves it empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ProgressRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$General#percentage"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-worklogged/descriptor-and-scope",
+   "module": "exportrenderer-worklogged",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `worklogged` and no export format (both formats). Returns null for other column keys.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.WorkLoggedRendererProvider",
+    "com.almworks.jira.structure.extension.export.WorkLoggedRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-worklogged/attribute-params",
+   "module": "exportrenderer-worklogged",
+   "api": null,
+   "behaviour": "It requests attribute `worklogged` (format `duration`) with `timeZone` when the column has it, and at most one user filter: `author` when present, else `group` when present, else `role` when present (the others are dropped).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.WorkLoggedRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-worklogged/period",
+   "module": "exportrenderer-worklogged",
+   "api": null,
+   "behaviour": "When the column's `period` is one of `today`, `this_week`, `this_month`, `this_year`, `yesterday`, `last_week`, `last_month`, `last_year`, it is passed as parameter `period`. Otherwise both `dateFrom` and `dateTo` must be present and are passed unchanged as parameters `dateFrom` and `dateTo` (no `period`); when either is missing the provider returns null and the column is not exported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.WorkLoggedRendererProvider#getColumnRenderer",
+    "com.almworks.jira.structure.extension.attribute.Preset#forName"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-worklogged/aggregate-sum",
+   "module": "exportrenderer-worklogged",
+   "api": null,
+   "behaviour": "With `aggregate` = `sum` the attribute becomes `sum` (format `duration`) with `attribute` = the worklogged attribute and `distinct` = the column's boolean `distinct` (false when absent). Any other `aggregate` value is ignored (no sum, no error).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.WorkLoggedRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-worklogged/header",
+   "module": "exportrenderer-worklogged",
+   "api": null,
+   "behaviour": "Header text: the column's name, otherwise i18n `sw.column.worklogged.period.+<period>+.colname` (with the literal plus signs), e.g. `Work Today`, `Work This Week`, `Work Last Month`, and for `date_range` `Work Logged`; for a sum column that text is wrapped in `sw.column.opt.aggr.sum.colname` (`Σ {0}`). A date-range column without a `period` value asks for the key with `null` in place of the period, which the bundle does not have (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.WorkLoggedRendererProvider#getDefaultName"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-worklogged/cell",
+   "module": "exportrenderer-worklogged",
+   "api": null,
+   "behaviour": "In both formats the column style is `DURATION` (Excel), the header right-aligned, and each cell `setDuration(ms / 1000)` of the attribute; null leaves the cell empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.WorkLoggedRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.export.RendererFeature$DurationCellFeature#render0"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-attribute/descriptor-and-scope",
+   "module": "exportrenderer-attribute",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `attribute` and no export format (both formats). Returns null for other column keys.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.AttributeColumnExportProvider",
+    "com.almworks.jira.structure.extension.export.AttributeColumnExportProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-attribute/attribute-param",
+   "module": "exportrenderer-attribute",
+   "api": null,
+   "behaviour": "The attribute comes from the column parameter `attribute`, an object with `id`, `format` and optional `params` (object). The `format` must be one of the standard `ValueFormat` ids (`html`, `text`, `id`, `number`, `boolean`, `time`, `duration`, `json`, `jsonArray`, `any`, `order`). When `attribute` is missing, not an object, has an unknown or missing format, or an invalid id or params, the provider throws `StructureProviderException` `invalid column spec: no attribute` (column skipped).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.AttributeColumnExportProvider#getColumnRenderer",
+    "com.almworks.jira.structure.api.util.SpecParams#getAttributeParameter"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-attribute/header",
+   "module": "exportrenderer-attribute",
+   "api": null,
+   "behaviour": "Header text: the column's name when non-empty, otherwise the attribute id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.AttributeColumnExportProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-attribute/html-or-text",
+   "module": "exportrenderer-attribute",
+   "api": null,
+   "behaviour": "When the attribute's format is `html`, or one the plugin converts to HTML (`text`, `number`, `duration`, `time`, `boolean`), the printable cell is `setHtml` of the attribute in `html` format and the Excel cell is rich text (`setRichTextFromHtml`) of the attribute in `html` format with extra parameter `excel` = true. For any other format (`id`, `json`, `jsonArray`, `any`, `order`) both formats get `setText` of the attribute requested in `text` format. Null values leave the cell empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.AttributeColumnExportProvider#getColumnRenderer",
+    "com.almworks.jira.structure.attribute.AttributeFormatConversion#isConvertible"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-seq/descriptor-and-cell",
+   "module": "exportrenderer-seq",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `seq` and no export format (both formats); null for other keys. Header: the column's name, or i18n `sw.column.seq.title` (`Index`). Each cell is `setText` of attribute `seq` (format `text`, the row's outline number such as `1.2.3`); null leaves it empty. No styles.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.SequenceRendererProvider#getColumnRenderer",
+    "com.almworks.jira.structure.extension.attribute.SequenceProvider"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-itemid/descriptor-and-header",
+   "module": "exportrenderer-itemid",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `itemid` and no export format (both formats); null for other keys. Header: the column's name, or i18n `sw.column.type.itemid` (`Item ID`). It requests no attributes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ItemIdRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-itemid/cell",
+   "module": "exportrenderer-itemid",
+   "api": null,
+   "behaviour": "Each cell is `setText` of the row's item identity: for an issue the decimal issue id (e.g. `10001`); for any other item the identity text (`<type>/<long id>` or `<type>//<string id>`) with a leading `com.almworks.jira.structure:type-` removed, e.g. `folder/12`, `generator/3`; third-party type keys stay complete. It is set for every row, also rows the user cannot see.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.ItemIdRendererProvider#itemIdFeature",
+    "com.almworks.jira.structure.api.item.CoreItemTypes#simplifyType"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-rowid/descriptor-and-cell",
+   "module": "exportrenderer-rowid",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `rowid` and no export format (both formats); null for other keys. Header: the column's name, or i18n `sw.column.type.rowid` (`Row ID`). Each cell is `setText` of the row's forest row id in decimal, for every row (no attributes are requested).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.RowIdRendererProvider#getColumnRenderer",
+    "com.almworks.jira.structure.extension.export.RowIdRendererProvider#rowIdFeature"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/descriptor-and-scope",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `formula` and no export format (both formats). It returns null for other column keys, and also when the column's `formula` parameter is missing or empty (the column is then not exported by it).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider",
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getColumnRenderer",
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getFormula"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/display-format",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "The display format is the column's object parameter `displayFormat`, or, when that is absent, the legacy object `numberFormat`. Its `type` selects the cell kind: `number`, `percentage`, `datetime`, `duration`, `wiki`; a missing display format, a missing type or any other type means plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/expr-attribute",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "Without a sum the value is attribute `expr` with parameters `formula` (the column's formula unchanged) and `variables` (a copy of the column's `variables` object; an empty object when absent or not an object). For type `wiki` it is wrapped as attribute `wiki-render` (format `html`) with `attribute` = that `expr` in `text` format.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/aggregate-sum",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "With `aggregate` = `sum` the formula is rewritten to `WITH summable = (<formula>): IF summable.IS_ARRAY(): SUM(summable) ELSE summable` (arrays are summed first) and the value is attribute `sum` with `attribute` = that `expr`, and `distinct` = the column's boolean `distinct`, both in format `duration` when the type is `duration` and `number` otherwise (also for `wiki`, which then shows the sum's HTML). For type `datetime` a warning `cannot export or calculate a sum of date/time values` is logged and the sum is exported anyway.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/header",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "Header text: the column's name when non-empty; otherwise the formula trimmed and cut to its first 15 characters; when the trimmed formula is empty (whitespace only) i18n `s.w.formula.column-type.name` (`Formula`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getDefaultName"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/number-type",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "Type `number`: Excel column style `DEFAULT`, header right-aligned; when the display format has `rounding`, the column gets `setRounding(rounding clamped to 0..9)`. The value is read in `any` format: a `Number` is `setNumber`, a list with exactly one element that is a `Number` is `setNumber` of that element, anything else is shown as text (see the text rule).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getColumnRenderer",
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#configureRounding",
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider$FormulaFeature#render0"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/percentage-type",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "Type `percentage`: Excel column style `PERCENTAGE`, printable percentage style `PERCENT_TEXT`, rounding as for `number`, header right-aligned; a number (or single-number list) is `setPercentage(value as double)` (a fraction).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/datetime-type",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "Type `datetime`: the display format's `style` decides the cell. When `format-helper` reports that style as including the time of day, the Excel column style is `DATETIME` and a number is `setDatetime(new Date(value))`; otherwise style `DATE` and `setDate(new Date(value))` (value in epoch ms). The header is right-aligned; no rounding is applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getColumnRenderer",
+    "com.almworks.jira.structure.util.FormatHelper#isTimeIncludedInStyle"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/duration-type",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "Type `duration`: Excel column style `DURATION`, header right-aligned, a number is `setDuration(ms / 1000)`. In the printable export durations are shown as calendar time (`setDurationAsCalendarTime(true)`) unless the display format's boolean `workTime` is true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/typed-text-fallback",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "For the four typed kinds, a value that is not a number is shown with `setText` of the display format's rendering: `number` - the user locale's number format, `percentage` - its percent format, both with exactly `rounding` decimals (clamped 0..9, 0 when absent), half-up, no grouping; `datetime` - `format-helper`'s date format for the current user and `style`; `duration` - the current user's work-time duration text when `workTime` is true, else calendar-time text. A string is first parsed (as a double for number and percentage, as a long for datetime and duration) and formatted, or shown unchanged when it does not parse. A list is shown as its non-null elements formatted the same way and joined with `, `, but shows nothing if any element is not a number or string. Booleans, item identities and maps show nothing; null shows nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider$FormulaFeature#render0",
+    "com.almworks.jira.structure.expr.value.FormattedNumberVisitor"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-formula/wiki-and-text",
+   "module": "exportrenderer-formula",
+   "api": null,
+   "behaviour": "Type `wiki`: Excel column style `DEFAULT`; printable `setHtml` of the attribute in `html` format and a multiline column; Excel rich text of the attribute in `html` with parameter `excel` = true. Plain text (no or unknown type): Excel style `DEFAULT`, `setText` of the attribute in `text` format, printable multiline. Header left-aligned in both.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.FormulaColumnExportProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-notes/descriptor-and-cell",
+   "module": "exportrenderer-notes",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `notes` and no export format (both formats); null for other keys. It requests attribute `itemProperty` (format `text`) with parameter `name` = the column's `note` parameter, `notes` when absent. Each cell is `setText` of that value (null leaves it empty); the printable column is multiline.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.NotesRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-notes/header",
+   "module": "exportrenderer-notes",
+   "api": null,
+   "behaviour": "Header text: the column's name when non-empty, otherwise i18n `s.w.notes.column-type.name` (`Notes`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.NotesRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-timeinstatus/descriptor-and-scope",
+   "module": "exportrenderer-timeinstatus",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `timeinstatus` and no export format (both formats); null for other keys.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TimeInStatusRendererProvider",
+    "com.almworks.jira.structure.extension.export.TimeInStatusRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-timeinstatus/attribute-params",
+   "module": "exportrenderer-timeinstatus",
+   "api": null,
+   "behaviour": "It requests attribute `timeinstatus` (format `duration`) whose parameters are exactly the column parameters with keys `statuses`, `useCurrentStatus`, `reopen`, `targetEnabled`, `targetStatuses` and `calendar`, values copied unchanged; every other column parameter is left out. With `aggregate` = `sum` it becomes attribute `sum` (format `duration`) with `attribute` = that and `distinct` = the column's boolean `distinct`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TimeInStatusRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-timeinstatus/header",
+   "module": "exportrenderer-timeinstatus",
+   "api": null,
+   "behaviour": "Header text: the column's name, else i18n `s.w.time-in-status.column-type.name` (`Time in Status`), or for a sum `Σ Time in Status` (`sw.column.opt.aggr.sum.colname`). The header is right-aligned in Excel.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TimeInStatusRendererProvider#getDefaultName",
+    "com.almworks.jira.structure.extension.export.TimeInStatusRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-timeinstatus/cell-by-display-format",
+   "module": "exportrenderer-timeinstatus",
+   "api": null,
+   "behaviour": "When the column's object parameter `displayFormat` has `type` = `duration`, the Excel column style is `DURATION` and cells are `setDuration(ms / 1000)`; the printable column shows calendar time unless the column's own top-level boolean parameter `workTime` is true. Otherwise (no display format or another type) the column style is `DEFAULT` and cells are `setNumber` of the attribute read in `number` format (the duration in milliseconds). Null leaves the cell empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TimeInStatusRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-querymatch/descriptor-and-attribute",
+   "module": "exportrenderer-querymatch",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `query-match` and no export format (both formats); null for other keys. It uses attribute `query-match` with parameters `query` and `queryType` (each only when the column has it, values unchanged).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.QueryMatchRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-querymatch/cells",
+   "module": "exportrenderer-querymatch",
+   "api": null,
+   "behaviour": "Without a sum: the printable cell is `setHtml` of `query-match` in `html` format; the Excel cell is `setNumber` of `query-match` in `number` format (1 for a match, 0 for no match). With `aggregate` = `sum`, both formats show `setNumber` of attribute `sum` (format `number`) with `attribute` = `query-match` in `number` format and `distinct` = the column's boolean `distinct`: the count of matching rows in the sub-tree. Excel column style `DEFAULT`, header left-aligned; null leaves the cell empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.QueryMatchRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-querymatch/header",
+   "module": "exportrenderer-querymatch",
+   "api": null,
+   "behaviour": "Header text: the column's name when non-empty; otherwise the trimmed `query` when it is 1 to 40 characters long; otherwise (empty or longer) i18n `s.w.query-match.column-type.name` (`Query match`) when there is no `queryType`, else `s.w.query-match.column.+<queryType>+.name` (`jql` gives `JQL query`, `sjql` `S-JQL query`, `text` `Text query`). For a sum column that default is wrapped as `Σ {0}` (`sw.column.opt.aggr.sum.colname`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.QueryMatchRendererProvider#getDefaultName"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-comment/descriptor-and-cell",
+   "module": "exportrenderer-comment",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `comment` and no export format (both formats); null for other keys. It shows attribute `comment` (format `html`, no parameters): printable `setHtml` in a multiline column; Excel rich text of `comment` in `html` with parameter `excel` = true. Null leaves the cell empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.CommentRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-comment/header",
+   "module": "exportrenderer-comment",
+   "api": null,
+   "behaviour": "Header text: the column's name, or i18n `s.w.lastcomment.column-type.name` (`Last Comment`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.CommentRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-tempo-worklogged/availability",
+   "module": "exportrenderer-tempo-worklogged",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `tempo-worklogged` and no export format. It handles the column only when `tempo-integration` reports Tempo Timesheets available (installed, enabled and the current user has timesheets access); otherwise, and for other column keys, it returns null and the column is not exported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TempoWorkLoggedRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.tempo.TempoIntegration#isTimesheetsPluginAvailable"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-tempo-worklogged/attribute-params",
+   "module": "exportrenderer-tempo-worklogged",
+   "api": null,
+   "behaviour": "It requests attribute `tempo-worklogged` (format `duration`) with parameters `accounts` (list of longs), `users` (list of strings), `teams` (list of longs), each an empty list when the column has none, `billable` (boolean, false when absent), and `dateFrom`, `dateTo` (unchanged). When `dateFrom` or `dateTo` is missing it returns null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TempoWorkLoggedRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-tempo-worklogged/sum-header-cell",
+   "module": "exportrenderer-tempo-worklogged",
+   "api": null,
+   "behaviour": "With `aggregate` = `sum` it uses attribute `sum` (format `duration`) over that attribute with the column's boolean `distinct`. Header: the column's name, else i18n `sw.column.tempo-worklogged.name` (`Tempo Work Logged`), for a sum `Σ Tempo Work Logged`. Cells are `setDuration(ms / 1000)`, column style `DURATION`, header right-aligned, in both formats.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TempoWorkLoggedRendererProvider#getColumnRenderer",
+    "com.almworks.jira.structure.extension.export.TempoWorkLoggedRendererProvider#getDefaultName"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-tempo-timeplanned/availability",
+   "module": "exportrenderer-tempo-timeplanned",
+   "api": null,
+   "behaviour": "Declared as a `structure-export-renderer-provider` with `column-key` `tempo-timeplanned` and no export format. It handles the column only when `tempo-integration` reports the Tempo planning API available (plugin installed, enabled and the current user has planner access); otherwise, and for other keys, it returns null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TempoTimePlannedRendererProvider#getColumnRenderer",
+    "com.almworks.structure.commons.tempo.TempoIntegration#isPlanningAPIPluginAvailable"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-tempo-timeplanned/attribute-params",
+   "module": "exportrenderer-tempo-timeplanned",
+   "api": null,
+   "behaviour": "It requests attribute `tempo-timeplanned` (format `duration`) with parameters `users` (list of strings), `teams` and `roles` (lists of longs), each an empty list when absent, and `dateFrom`, `dateTo` (unchanged). When `dateFrom` or `dateTo` is missing it returns null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TempoTimePlannedRendererProvider#getColumnRenderer"
+   ]
+  },
+  {
+   "key": "e14-export-perf/exportrenderer-tempo-timeplanned/sum-header-cell",
+   "module": "exportrenderer-tempo-timeplanned",
+   "api": null,
+   "behaviour": "With `aggregate` = `sum` it uses attribute `sum` (format `duration`) over that attribute with the column's boolean `distinct`. Header: the column's name, else i18n `sw.column.tempo-timeplanned.name` (`Tempo Planned Time`), for a sum `Σ Tempo Planned Time`. Cells are `setDuration(ms / 1000)`, column style `DURATION`, header right-aligned, in both formats.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.export.TempoTimePlannedRendererProvider#getColumnRenderer",
+    "com.almworks.jira.structure.extension.export.TempoTimePlannedRendererProvider#getDefaultName"
+   ]
+  },
+  {
+   "key": "e14-export-perf/version-info-performance-log-provider/section",
+   "module": "version-info-performance-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. Each time the log is built it returns a branch `Jira instance information` with exactly four leaves in this order: the <product> plugin's version (the plugin `com.almworks.jira.structure`'s `PluginInformation.getVersion()`, read once and then reused), `JIRA: <version>` (Jira's `BuildUtilsInfo.getVersion()`), the cluster line, and the current server-local time as `yyyy-MM-dd HH:mm:ss`. No other child is ever added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.VersionLogProvider#getLogs",
+    "com.almworks.jira.structure.util.Util#getStructureVersion"
+   ]
+  },
+  {
+   "key": "e14-export-perf/version-info-performance-log-provider/cluster-line",
+   "module": "version-info-performance-log-provider",
+   "api": null,
+   "behaviour": "The cluster line is `cluster: on, node: <node id>` when Jira's `ClusterInfo.isClustered()` is true (node id from `ClusterInfo.getNodeId()`), otherwise `cluster: off`. Both answers are read once per plugin start and reused.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.VersionLogProvider#getClusterInfo",
+    "com.almworks.structure.commons.util.CommonUtil#isDataCenter"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/structures-branch",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. It returns a branch `Structures` with one node per structure the current user may administer, as `structure-manager` lists all structures at `PermissionLevel.ADMIN` (non-archived, in its name order); with no such structure the result is null. Each node is titled `<name>[<id>] (owner:<owner user key>)` and is present even when it has no children.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#getLogs",
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#toNode"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/structure-children",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "Under each structure, in this order and each only when non-empty: `Synchronizers`, `Generators`, `Effectors`, and the manual-adjustments node.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#toNode"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/synchronizer-node",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "`Synchronizers` lists the structure's installed synchronizers as `sync-observer` reports them, each titled `<sync id> ; <module key> ; <parameters as text> ; <user key>; enabled` or `...; disabled` (note: no space before the last semicolon) according to `sync-observer`'s enabled answer.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#synchronizerNode"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/filter-sync-saved-filters",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "For a synchronizer with module key `com.almworks.jira.structure:sync-filter` whose parameters are a map: when `filterId` > 0, the saved filter with that id and every saved filter it references are listed under the synchronizer's node; otherwise when `jql` is non-blank, the saved filters that JQL references. The node is then a branch of those filter leaves; without any it stays a leaf.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#synchronizerNode",
+    "com.almworks.jira.structure.perfstats.providers.SavedFiltersContainer#leaves"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/saved-filter-resolution",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "Saved filters referenced by a JQL are found by parsing it with Jira's `JqlQueryParser` and following `filter` clauses through AND, OR and NOT (not WAS or CHANGED clauses, not function operands). A string operand is trimmed, lower-cased and looked up with `SearchRequestManager.findByNameIgnoreCase`; a number operand with `getSearchRequestById`. Each found filter is included and its own query is followed the same way (each filter is fetched at most once per log build). Each leaf is `<id> ; <name> ; <query string>`; their order is not defined. Missing filters are skipped; unparsable JQL gives no leaves and logs `Unable to parse query: <jql>` at INFO.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.SavedFiltersContainer",
+    "com.almworks.jira.structure.perfstats.providers.SavedFiltersContainer#leaves",
+    "com.almworks.jira.structure.perfstats.providers.SavedFiltersContainer#parseJql"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/generator-node",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "`Generators` lists the generator rows of the structure's own forest, in forest order (depth-first): each is `<generator id> ; <module key> ; <parameters map as text> ; ancestorRows=[<ancestor row ids from the top down, comma-space separated>]` (`[]` for a top-level generator). When the generator's parameters have a non-blank `jql`, the node becomes a branch of the saved filters that JQL references.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#automationNode",
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#getAutomationInfos",
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#createGeneratorInfo"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/effector-node",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "`Effectors` lists the rows of item type `com.almworks.jira.structure:type-effector` the same way, with the effector instance's id, module key and parameters (and the saved filters of a non-blank `jql` parameter).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#createEffectorInfo",
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#automationNode"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/automation-errors",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "When a generator or effector row cannot be read or its generator or effector is not found (`MissingRowException` or `StructureException`), its entry is the leaf `0 ; error=<exception text>` (the id shown is 0). When the structure's forest cannot be read (`StructureException`) no generators or effectors are listed. When the ancestor path cannot be determined it is shown as `[-1]`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#createGeneratorInfo",
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#getAutomationInfos",
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#getParentPath"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/manual-adjustments",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "The manual-adjustments node is titled `Manual adjustments [ON]` or `Manual adjustments [OFF]` (the per-structure setting) when manual adjustments are enabled globally, otherwise `Manual adjustments [OFF] (structure: [ON|OFF], dark feature: [OFF])`. Its leaves are the structure's adjustments, each as the compact JSON of its stored form; with no adjustments the node is omitted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#manualAdjustmentsNode",
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#manualAdjustmentNode"
+   ]
+  },
+  {
+   "key": "e14-export-perf/structure-info-performance-log-provider/per-entry-failure",
+   "module": "structure-info-performance-log-provider",
+   "api": null,
+   "behaviour": "If building one synchronizer, generator, effector or adjustment entry throws an `Exception` or `LinkageError`, that entry becomes the leaf `Unexpected exception occurred. See logs for more information.` (logged at error level) and the other entries are still listed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.StructureBasicInfoProvider#toNode",
+    "com.almworks.jira.structure.perfstats.PerformanceObserversManager#logException"
+   ]
+  },
+  {
+   "key": "e14-export-perf/saved-structure-filters-log-provider/section",
+   "module": "saved-structure-filters-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. It visits every saved Jira filter (`SearchRequestManager.visitAll`, no permission filtering) and returns a branch `Saved filters with structure()` with one leaf `<id> ; <name> ; <jql>` per filter whose JQL text uses the structure function, in visiting order; with none the result is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.SavedStructureFiltersLogProvider#getLogs"
+   ]
+  },
+  {
+   "key": "e14-export-perf/saved-structure-filters-log-provider/structure-function-match",
+   "module": "saved-structure-filters-log-provider",
+   "api": null,
+   "behaviour": "A JQL uses the structure function when its text, ignoring case, contains the word `structure` starting at a word boundary, followed by optional whitespace and `(`: `issue in structure(1)` and `issue in STRUCTURE (\"a\")` match; `mystructure(` and `structures(` do not; a null query does not. It is a text match, so the pattern inside a quoted string also matches.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.SavedStructureFiltersLogProvider#containsStructureFunction"
+   ]
+  },
+  {
+   "key": "e14-export-perf/forest-performance-log-provider/section",
+   "module": "forest-performance-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. Its log is exactly the `Forest caches` tree that `forest-stats-container` reports (null when that is null), built fresh on every call.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.ForestPerformanceLogProvider#getLogs"
+   ]
+  },
+  {
+   "key": "e14-export-perf/sync-performance-log-provider/section",
+   "module": "sync-performance-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. Its log is exactly the `Syncs` branch of recent synchronizer runs that `sync-observer` keeps (null when it has no entries).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.SyncPerformanceLogProvider#getLogs"
+   ]
+  },
+  {
+   "key": "e14-export-perf/forest-update-performance-log-provider/section",
+   "module": "forest-update-performance-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. Its log is exactly the `Forest changes updates` branch that `forest-update-observer` keeps (null when it has no entries).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.ForestUpdatePerformanceLogProvider#getLogs"
+   ]
+  },
+  {
+   "key": "e14-export-perf/effect-application-performance-log-provider/section",
+   "module": "effect-application-performance-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. Its log is exactly `effect-observer`'s `Effect applications` branch (null when it has no entries).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.EffectApplicationLogProvider#getLogs"
+   ]
+  },
+  {
+   "key": "e14-export-perf/effect-preparation-performance-log-provider/section",
+   "module": "effect-preparation-performance-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. Its log is exactly `effect-observer`'s `Effect preparations` branch (null when it has no entries).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.perfstats.providers.EffectPreparationLogProvider#getLogs"
+   ]
+  },
+  {
+   "key": "e14-export-perf/attribute-service-performance-log-provider/section",
+   "module": "attribute-service-performance-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. It returns a branch `Attribute System` whose children are, in order, the last cache-cleanup record of `attribute-performance-tracker` (when there is one) and then its slow requests oldest first. With neither, the result is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceLogProvider#getLogs"
+   ]
+  },
+  {
+   "key": "e14-export-perf/attribute-service-performance-log-provider/request-node",
+   "module": "attribute-service-performance-log-provider",
+   "api": null,
+   "behaviour": "Each record is a branch titled `<total time>ms; <start>; <name>` (total time in whole ms, start formatted `yyyy-MM-dd HH:mm:ss,SSS` in the record's own time zone, e.g. `812ms; 2026-10-29 10:15:02,123; cacheCleanup`). Its children are first one leaf `<counter>: <value>` per counter, the value printed as a Java double (e.g. `removed: 12.0`), then the nested steps (the up-to-5 slowest the tracker kept) as nodes of the same form, recursively.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceLogProvider#buildNode"
+   ]
+  },
+  {
+   "key": "e14-export-perf/attribute-service-performance-log-provider/empty-record-dropped",
+   "module": "attribute-service-performance-log-provider",
+   "api": null,
+   "behaviour": "A record (or nested step) with no counters and no nested steps yields no node and is silently left out. If every record is like that, the `Attribute System` branch is still returned but has no children (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceLogProvider#buildNode",
+    "com.almworks.jira.structure.attribute.statistics.AttributePerformanceLogProvider#getLogs"
+   ]
+  },
+  {
+   "key": "e14-export-perf/item-tracker-performance-log-provider/section",
+   "module": "item-tracker-performance-log-provider",
+   "api": null,
+   "behaviour": "Declared as a `structure-performance-log-provider`. It reports the state of the item change tracker that `item-tracker` uses, chosen once when this provider is created. On a single-node server, or on Data Center with dark feature `structure.delegatingItemTracker.enableAsyncEventsQueue` set to false, that tracker has nothing to report and the log is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.item.ItemTrackerPerformanceLogProvider#getLogs",
+    "com.almworks.jira.structure.item.DelegatingItemTracker"
+   ]
+  },
+  {
+   "key": "e14-export-perf/item-tracker-performance-log-provider/threaded-tracker-state",
+   "module": "item-tracker-performance-log-provider",
+   "api": null,
+   "behaviour": "On Data Center with the asynchronous event queue (the default), the log is a branch with a fixed title naming that tracker with four leaves in order: `node: <cluster node id>` (`?` while the node id has not been read yet), `signature: <node signature in octal>` (0 before one is assigned), `threadCount: <number of event-writer threads started so far>`, `queueSize: <events received but not yet written>` (-1 when the two versions are not comparable).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.item.AOBasedThreadedItemTracker#getLogs",
+    "com.almworks.jira.structure.item.AOBasedThreadedItemTracker#getQueueSize"
+   ]
+  }
+ ]
+}

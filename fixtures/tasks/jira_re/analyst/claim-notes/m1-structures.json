@@ -1,0 +1,671 @@
+{
+ "claims": [
+  {
+   "key": "m1-structures/structure-manager/stopped-throws",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Once the plugin has stopped the component, every `StructureManager` lookup, permission, create, copy and delete method throws the unchecked `StructureStoppedException`; so does `saveChanges()` on a structure obtained earlier (after its blank-name check). Before the component has been started the methods work normally. `addListener` and `removeListener` never throw for this reason.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#addListener",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#saveChanges"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/start-registers-cleanup-job",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "On start the component registers a scheduled job with the `ScheduledJobManager` under the key `forestChanges.lastCleanTime` and adds a statistics source; on stop it removes that job and stops receiving history batches, so registered `StructureListener`s are no longer called for later batches.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#startComponent",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#stopComponent"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/statistics-source",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "The statistics source added on start reports four values computed over all stored structures: `structureCount` (all structures, archived included), `editRequiresParentPermCount` (structures with the edit-requires-parent-issue-permission flag, not counting the structure with ID 1), `archivedCount`, and `structuresWithApplyRule` (structures with at least one `PermissionRule.ApplyStructure` rule). It is collected locally only (SPEC.md 1.8).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$MyStatisticSource#getStatistics"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/get-structure-errors",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`getStructure(id, level)` throws `StructureException` with `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` when the ID is null, when no row with that ID exists in `AO_8BAD1B_STRUCTURE` (this includes IDs that are zero, negative or outside the 32-bit int range), and when the current user's level on an existing structure does not include `level`. A null `level` accepts any existing structure, even one on which the user's level is `NONE` (as long as it exists). When security is overridden (`StructureAuth`) no level is checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructureBean",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#isBeanAccessibleToCurrentUser",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$StructureLoader#load"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/get-structure-snapshot",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Each `getStructure` call (and each element of every list returned by the manager) is a new, independent `Structure` object holding a snapshot of the stored values: setters on one object are not seen by another object for the same ID, and a stored change becomes visible only in objects obtained after `saveChanges()` returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/get-structure-archived",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`getStructure` returns archived structures as well; `isArchived()` on the result reflects `AO_8BAD1B_STRUCTURE.C_ARCHIVED`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructure",
+    "com.almworks.jira.structure.structure.ImmutableStructureBean"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/loaded-values",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "A structure read from the store reports: `getName()` from `C_NAME`; `getDescription()` from `C_DESCRIPTION` (empty string when NULL); `getOwnerUserKey()` from `C_OWNER` (null when NULL); `getPermissions()` and `isEditRequiresParentIssuePermission()` decoded from `C_PERMISSONS` as described in SPEC.md 1.5, with the stored level `EDIT_GENERATORS` returned as `PermissionLevel.AUTOMATE`; a NULL `C_PERMISSONS` gives an empty rule list and flag false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.ImmutableStructureBean",
+    "com.almworks.jira.structure.structure.V2StructurePermissions#decodePermissionsPre60"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/listing-availability",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`getAllStructures`, `getArchivedStructures`, `getStructuresOwnedBy`, `getStructuresByName` and `hasNonArchivedStructuresForUser` first ask `StructurePluginHelper.isStructureAvailableToUser` for the current user (null when anonymous); when it answers false they return an empty list (false) without reading structures. When security is overridden this question is not asked and no per-structure permission filter is applied, so all stored structures matching the other criteria are returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructureBeansIterable"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/listing-level-filter",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "In the listing methods each structure is kept only when the current user's permission level on it (as `getStructurePermission(id, user)` computes it) includes the requested level; a null requested level keeps every structure, including those where the level is `NONE`, provided the plugin is available to the user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AccessibleByUser#la",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructureBeansIterable"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/listing-sort",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Lists from `getAllStructures`, `getArchivedStructures`, `getStructuresOwnedBy` and `getStructuresByName` are new lists sorted ascending by `java.text.Collator` collation keys of the structure names, using the collator `StructurePluginHelper.getCollator` returns for the current user. The order of structures whose names collate equal is not defined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getAllStructures"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/get-all-archived-flag",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`getAllStructures(level)` and `getAllStructures(level, false)` leave out archived structures; `getAllStructures(level, true)` includes them; `getArchivedStructures(level)` returns only archived structures. All three apply the same availability and level rules.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getAllStructures",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getArchivedStructures"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/owned-by",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`getStructuresOwnedBy(user)` returns the non-archived structures whose stored owner key equals `user.getKey()` and on which the current user has at least `VIEW` (no level check when security is overridden). A null user returns an empty list, since stored owners always have a key. Structures without an owner are never returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructuresOwnedBy"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/by-name",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`getStructuresByName(name, level, searchArchived)` returns an empty list for a null name or one that is empty after trimming. Otherwise it compares the trimmed argument with each stored name trimmed, using `String.equalsIgnoreCase`, so \" Plan \" finds \"plan\"; archived structures are only considered when `searchArchived` is true; the two-argument form uses false. Availability and level filtering and sorting are as for the other listings.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructuresByName"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/has-non-archived",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`hasNonArchivedStructuresForUser()` is true when at least one non-archived structure exists on which the current user has `VIEW` (any non-archived structure when security is overridden), and false when the plugin is not available to the user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#hasNonArchivedStructuresForUser"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/single-viewable",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`getSingleViewableStructureId()` returns null when `StructurePluginHelper.isStructureAvailableToCurrentUser()` is false (this is checked even when security is overridden). Otherwise it returns the ID of the only non-archived structure the current user can view, or null when there are none or several. The answer is cached per user key (anonymous shares one entry) for up to 5 minutes, and is dropped earlier whenever a structure is created, saved or deleted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getSingleViewableStructureId",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#calculateSingleViewableStructureId",
+    "com.almworks.jira.structure.permissions.PermissionsCache#getSingleViewableStructureId",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getSingleViewableStructureId"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/issue-in-structure",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`isIssueInStructureNoAccessCheck(issueId, structureId)` returns false when either argument is null, zero or negative. Otherwise it is true exactly when `AO_8BAD1B_ISSUE_INDEX` has a row for that issue and structure with `C_OCCURRENCES` > 0 (answers are cached per issue). No permission or archived check is made, and only the stored forest counts.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#isIssueInStructureNoAccessCheck",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#isIssueInStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex$IssueIndexIO#load"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/viewable-with-issue",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`getViewableStructuresWithIssue(issueId)` returns an empty list for a null issue ID. Otherwise it takes the structures listed in `AO_8BAD1B_ISSUE_INDEX` for the issue with a positive count, drops those that no longer exist or are archived, keeps those on which the current user has `VIEW` (all of them when security is overridden), and sorts the result with `StructurePluginHelper.getStructureComparator(current user)`. It does not call the plugin-availability check itself; a user without access gets level `NONE` and so an empty list unless a Jira administrator.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getViewableStructuresWithIssue"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/issue-index-maintenance",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Each forest change of a stored structure adjusts `AO_8BAD1B_ISSUE_INDEX` by the net number of issue rows added and removed per issue (a row is created when missing, updated, or deleted when its count reaches 0; duplicate rows for one pair are deleted, keeping the first). The update runs as a one-shot background job; when the job cannot be scheduled it runs synchronously. So `isIssueInStructureNoAccessCheck` and `getViewableStructuresWithIssue` may lag briefly behind a forest change. Rows for issues under generators are never written, since only stored rows are counted.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#scheduleIndexUpdate",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex#updateIndex",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex$IssueIndexIO#updateIndexCount",
+    "com.almworks.jira.structure.structure.AOBasedStructureIssueIndex$IssueIndexIO#getEntry"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/permission-null-or-missing",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`getStructurePermission(id)` and `getStructurePermission(id, user)` return `PermissionLevel.NONE` when the ID is null or no such structure exists; they never throw for a missing structure. Neither takes security override into account; the one-argument form uses `StructureAuth.getUser()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructurePermission",
+    "com.almworks.jira.structure.permissions.PermissionsCache#getPermissionLevel"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/permission-jira-admin",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "A user who holds Jira's global `ADMINISTER` permission (asked through `GlobalPermissionManager`; never true for anonymous) gets `ADMIN` on every existing structure, even when the plugin is not available to that user and regardless of rules and owner. This can be turned off with the dark feature `structure.permissions.jiraAdminHasAllPermissions` set to false (read once at start).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isAdmin",
+    "com.almworks.jira.structure.util.Util#jiraAdminHasAllPermissions"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/permission-unavailable",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "For a user who is not a Jira administrator and to whom the plugin is not available (`StructureConfiguration.isStructureAvailable(user)` false), the level on every structure is `NONE`, whatever the rules say.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getPermission",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#isStructureAvailable"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/permission-owner",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "The owner of a structure (stored owner key equal to the user's key) gets `ADMIN` on it; the structure's rules are not consulted then. An anonymous caller is never the owner.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#getPermission0",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#userMatches"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/permission-rules",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "For other users the level starts at `NONE` and the structure's rules are applied in list order: a `PermissionRule.SetLevel` whose subject matches the user replaces the current level with the rule's level (a later matching rule overrides an earlier one, including lowering it); a non-matching rule leaves it. A `PermissionRule.ApplyStructure` applies the rules (not the owner) of the referenced structure at that point, recursively, continuing from the current level; a reference to a missing structure or to the structure itself is skipped. Each reference among the structure's own rules starts with nothing remembered; below it, every structure that has itself applied another structure is remembered for the rest of that reference and never forgotten, and a nested reference to a remembered structure is skipped as if it closed a cycle, even when it is only a repeat in a later branch (as the original does). Example: S1=[apply S2], S2=[apply S3, set NONE for anyone, apply S3], S3=[apply S4], S4=[set VIEW for anyone]: S1 gives NONE, while S2 alone gives VIEW. A null rule is skipped; a null resulting level is reported as `NONE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermissions",
+    "com.almworks.jira.structure.permissions.PermissionCalculator#applyPermission"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/permission-subjects",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Subject matching when computing levels: `Anyone` matches every user including anonymous; `JiraUser` matches the user with the same key; `JiraGroup` asks Jira's `GroupManager.isUserInGroup(user, groupName)`; `ProjectRole` matches only when both its project ID and role ID are non-zero, the project and role exist in Jira (`ProjectManager`, `ProjectRoleManager`), and `ProjectRoleManager.isUserInProjectRole` is true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionCalculator#userMatches"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/permission-cache",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Computed levels are cached per structure ID and user key for up to 5 minutes. The whole permission cache (levels, app-permission answers, the single-viewable-structure answer) is cleared, on every cluster node, when a structure is created, saved or deleted; changes outside the plugin (Jira group membership, project roles, Jira administrator rights, plugin availability) may take up to 5 minutes to affect the computed levels.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.PermissionsCache#getPermissionLevel",
+    "com.almworks.jira.structure.permissions.PermissionsCache#clearPermissions",
+    "com.almworks.jira.structure.cache.AbstractShortTermCache#maybeClear"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/is-accessible",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`isAccessible(id, level)` is false for a null ID or a structure that does not exist, also when security is overridden; for an existing structure it is true when security is overridden, otherwise it is true when the current user's level includes `level` (a null level is always included).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#isAccessible",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#isBeanAccessibleToCurrentUser"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/automation-checks",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`isGeneratorConfigurationAllowed(id, user)` and `isEffectorConfigurationAllowed(id, user)` are true only when the given user's level on the structure (as `getStructurePermission(id, user)`) includes `AUTOMATE` and `StructurePluginHelper.isAllowed` grants that user `CoreAppPermissions.CONFIGURE_GENERATORS` (respectively `CONFIGURE_EFFECTORS`). `isEffectorExecutionAllowed(id, user)` needs at least `VIEW` and `CoreAppPermissions.EXECUTE_EFFECTORS`. All three are false for a null or missing structure ID, ignore security override, and treat a null user as anonymous.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#checkPermissions",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#isGeneratorConfigurationAllowed",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#isEffectorConfigurationAllowed",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#isEffectorExecutionAllowed"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/create-structure-unsaved",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`createStructure()` returns a new structure with ID 0, empty name and description, no owner, no rules, both flags false; it writes nothing and makes no permission check. Nothing about it is visible to other calls until `saveChanges()`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#createStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/save-new-permission",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`saveChanges()` on a new structure (after the blank-name check), unless security is overridden: throws `StructureException` with `NOT_ALLOWED_TO_CREATE_STRUCTURE` when `StructurePluginHelper.isCreateStructureAllowed(current user)` is false; then validates its permission rules (see the rule-validation claims) and, when an owner is set, the owner (see the owner claim). Nothing is stored when a check fails.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#insertStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#checkPermissions"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/save-new-storage",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Saving a new structure inserts one `AO_8BAD1B_STRUCTURE` row (C_NAME, C_DESCRIPTION with empty stored as NULL, C_OWNER, C_ARCHIVED, C_PERMISSONS encoded as in SPEC.md 1.5 with `AUTOMATE` written as `EDIT_GENERATORS`, NULL when there are no rules and the flag is off) and gives the structure its generated ID (`getId()` then returns it). It then removes any leftover `AO_8BAD1B_FOREST` and `AO_8BAD1B_FOREST_CHANGE` rows, history and issue index rows for that ID, and inserts an `AO_8BAD1B_FOREST` row with the empty forest and version 0. The new structure appears in listings immediately.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#insertStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$StructureIO#insert",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestIO#insert"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/save-default-owner",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "When a new structure is saved without an owner, the current user (`StructureAuth.getUser()`) becomes its owner; when there is no current user (anonymous, e.g. under security override with no user) it is stored with no owner (C_OWNER NULL).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#setDefaultOwnerIfAbsent"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/save-existing-permission",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`saveChanges()` on an existing structure whose values differ from the values it was loaded with, unless security is overridden: throws `StructureException` with `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` when the current user's level is `NONE`, and with `STRUCTURE_ADMIN_DENIED` when it is below `ADMIN` (so renaming, describing, archiving or un-archiving all need `ADMIN`). When the rule list changed it validates the new rules for that structure; when the owner changed it validates the owner. If the row was deleted meanwhile it throws `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#updateStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$StructureIO#update"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/save-existing-columns",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Updating an existing structure writes only the `AO_8BAD1B_STRUCTURE` columns whose values changed: C_NAME, C_DESCRIPTION (empty as NULL), C_OWNER (NULL for no owner), C_ARCHIVED, and C_PERMISSONS when either the rules or the edit-requires-parent-issue-permission flag changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$StructureIO#update"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/save-no-op",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`saveChanges()` writes nothing and checks no permission when no setter was called on the object since it was obtained or last saved, or when setters were called but every value ends up equal to the loaded one (for example `setName` with the same name): it then succeeds even for a user without `ADMIN` (as the original does). In the second case (a setter was called) caches are still refreshed and the item-changed notification below is still sent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#saveChanges"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/save-after-effects",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "After a successful insert or update, `saveChanges()` clears the permission caches on all nodes, makes the new values visible to later `getStructure` and listing calls, records an item change for `CoreIdentities.structure(id)` with the `ItemTracker`, and returns the same instance, which can be modified and saved again.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#saveChanges"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/owner-change-rule",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Owner validation (only when security is not overridden): a Jira administrator (`StructurePluginHelper.isAdmin`) may set any owner. On an existing structure a user who holds Jira's `USER_PICKER` global permission and has `ADMIN` on the structure (or is its previous owner) may also set any owner, including none. In every other case the only allowed new owner is the current user; anything else (another user, or no owner) throws `StructureException` with `STRUCTURE_OWNER_EDIT_DENIED`. For a new structure this means a non-administrator can only name himself as owner.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#validateOwner"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/rules-validate-setlevel",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Rule validation on save (only when security is not overridden), in list order, first failure wins: a `SetLevel` with a null subject throws `StructureException` with `INVALID_PARAMETER`; a `JiraUser` subject fails with error code 6013 (category NOT_FOUND) when the current user lacks Jira's `USER_PICKER` global permission or the user key does not resolve to a Jira user; a `JiraGroup` fails with code 6010 when the group is not in `StructurePluginHelper.getAvailableGroupsForCurrentUser()`; a `ProjectRole` with project ID 0 fails with `INVALID_PARAMETER`, one whose project is not in `getStructureProjectsForCurrentUser()` with code 6011, one whose role is not in `getAvailableRoles()` with code 6012. `Anyone` always passes; the level is not checked; null list entries are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.permissions.BasicPermissionsValidator#validate",
+    "com.almworks.jira.structure.permissions.BasicPermissionsValidator#checkSetLevelRule"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/rules-validate-apply",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Rule validation of `ApplyStructure` rules on save: a rule referring to the structure being saved fails with error code 6006 (category INVALID_INPUT); a rule whose structure ID is null, does not exist or on which the current user lacks `ADMIN` fails with `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`; a rule that would make the chain of applied structures (followed through their own apply rules regardless of the user's access) loop back to a structure already on the path fails with code 6006.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.StructurePermissionsValidator#checkApplicationRule",
+    "com.almworks.jira.structure.structure.StructurePermissionsValidator#checkForInheritanceCycle"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/copy-without-forest-checks",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`copyStructureWithoutForest(id, newOwner, copyPermissions)`, unless security is overridden, first throws `StructureException` with `NOT_ALLOWED_TO_CREATE_STRUCTURE` when the current user may not create structures (`StructurePluginHelper.isCreateStructureAllowed`), even if the source does not exist; then throws `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` when the source is missing, the ID null, or the user lacks `VIEW` on it; then, when `copyPermissions` is true, throws `STRUCTURE_ADMIN_DENIED` when the user lacks `ADMIN` on the source. Under security override only the existence check remains.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#copyStructureWithoutForest"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/copy-without-forest-values",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "The unsaved copy has ID 0, the source's description, archived false, and as owner `newOwner` when non-null, else the source owner resolved to a Jira user (no owner when that user no longer exists). With `copyPermissions` true it gets a copy of the source's rules and its edit-requires-parent-issue-permission flag; with false it has no rules and the flag off. Its name is the localized text for key `s.structure.copyof` with arguments (source name, the current `java.util.Date`); the English text is `Copy of <name> (<short date> <short time>)`. The source is not changed and nothing is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#copyStructureWithoutForest"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/copy-owner-denied",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Because saving a new structure only lets a non-administrator name himself as owner, `copyStructure(id, null, …)` by a user who is not a Jira administrator, on a structure owned by someone else, fails with `StructureException` `STRUCTURE_OWNER_EDIT_DENIED` when the copy is saved, and nothing is created (as the original does). Copying with `copyPermissions` true also fails at save when a copied rule does not pass rule validation for the current user (for example a group he is not in).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#copyStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#validateOwner",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#checkPermissions"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/copy-with-forest",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`copyStructure(id, newOwner, copyPermissions)` performs the same checks, saves the copy (as `saveChanges()` would, with the same permission and owner checks) and then adds the source's current stored forest (its stored rows, generators not run) at the top level of the copy's empty forest, acting as the current user and subject to the same checks and limits as any forest change of that structure. Each copied row gets a new row ID; rows of structure-owned items (generators, effectors, folders) refer to new item copies owned by the new structure. The returned structure is the saved copy. If copying the forest fails, the copy remains stored with an empty forest and the exception is thrown (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#copyStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestUpdatePrepare#createNewRow"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/delete-checks",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`deleteStructure(null)` does nothing. For a non-null ID, unless security is overridden, it throws `StructureException` with `STRUCTURE_ADMIN_DENIED` (no message) when the current user lacks `ADMIN` on the structure, including when the structure does not exist.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#deleteStructure"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/delete-effects",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`deleteStructure(id)` deletes, in this order, the `AO_8BAD1B_STRUCTURE` row, the `AO_8BAD1B_FOREST` row, all `AO_8BAD1B_FOREST_CHANGE` rows of the structure, its history, and its `AO_8BAD1B_ISSUE_INDEX` rows, and then publishes a `StructureDeletedEvent` with that ID on the Jira `EventPublisher`. It does not touch generators, synchronizers, favourites or views, and records no item change. Afterwards `getStructure(id, …)` throws `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`, and permission caches are cleared.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#deleteStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#invalidateStructure"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/delete-missing-override",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Under security override, `deleteStructure` of an ID that does not exist succeeds: it deletes nothing and still publishes a `StructureDeletedEvent` for that ID (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#deleteStructure"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/no-license-failures",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "The replacement does no licence checking (SPEC.md §1.1): creating, saving, copying or deleting structures and changing stored forests never fail, and are never restricted or made read-only, on licence grounds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#deleteStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#copyStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedStructure#saveChanges",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#updateForest"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/listeners",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "`addListener` registers the listener; adding the same instance twice makes it be called twice per batch, and `removeListener` removes one registration (nothing when not registered). Listeners are called synchronously, in registration order, on the thread that finishes the outermost history batch, with a map from structure ID to the `HistoryEntry` recorded for each structure changed in the batch. An exception or `LinkageError` thrown by one listener is logged and the next listeners are still called.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#addListener",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#removeListener",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$HistoryBatchListener#onEndBatch"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/listeners-empty-batch",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Every `apply` on a stored structure forest opens and closes a history batch, so listeners are called after it even when nothing was recorded (dry run, an action that changes nothing, or a failed action); the map is then empty (as the original does). When the call happens inside an enclosing batch, the call comes only at the end of the outermost batch.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedForestSource#apply",
+    "com.almworks.jira.structure.structure.history.HistoryRecorderImpl#endBatch"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-apply-checks",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Applying a `ForestAction` to a structure's stored forest (the source `ForestService` returns for `ForestSpec.skeleton(id)`, which reads without checks) still checks the current user, in this order: unless security is overridden, `STRUCTURE_PLUGIN_ACCESS_DENIED` when the plugin is not available to the user; `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` when the structure does not exist (also under override) or the user lacks `VIEW`; then, unless overridden, `ARCHIVED_STRUCTURE_EDIT_DENIED` for an archived structure and `STRUCTURE_EDIT_DENIED` when the user lacks `EDIT`. Under security override archived structures can be changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#updateForest"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-apply-automation",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "A user whose level includes `EDIT` but not `AUTOMATE` (and only when security is not overridden) gets `StructureException` `STRUCTURE_AUTOMATION_EDIT_DENIED` when an add or copy action's fragment contains a generator or effector row, or when a move or remove action touches a row whose subtree contains a generator or effector row. Nothing is changed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestIO#updateForest",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestUpdater#visit",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$HasAddedAutomations"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-apply-parent-permission",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "On a structure with edit-requires-parent-issue-permission on (and security not overridden), inserting rows under, or removing or moving rows from under, a parent row fails with `StructureException` `FOREST_CHANGE_PROHIBITED_BY_PARENT_PERMISSIONS` when the parent's item exists but is not visible to the user, or is a Jira issue that `StructurePluginHelper.isIssueEditable(issue, user)` reports as not editable; with `UNAVAILABLE_MODULE` when the parent's item type is not available. Changes at the top level, and parents whose item no longer exists, are not checked.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestUpdater#checkParent",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestUpdater#checkItem",
+    "com.almworks.jira.structure.extension.item.issue.IssueItemType#isStructurableByItemPermissions"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-size-limit",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "An add or copy action that would make the stored forest larger than 100000 rows (current size plus fragment size) fails with `StructureException` `FOREST_SOURCE_ACTION_FAILED` and the localized message for `s.error.forest.size-limit-exceeded` with the limit, unless the action parameters set `ignoreSizeLimit` to true. The limit is an internal tuning setting, not part of the contract.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestUpdater#checkForestSizeViolation",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$Env"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-new-rows",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Rows of an added or copied fragment are stored as new persistent rows (new row IDs from the row manager) for the same item and semantics, and `ActionResult.getRowIdReplacements()` maps each fragment row ID that changed to its new ID; it returns an empty map, not null, when nothing was replaced. Items of a structure-owned item type (generators, effectors, folders) are bound to this structure through their item type; for a stored generator this means: a generator owned by no structure is reassigned to this structure, and one already owned by any structure (even this one) is duplicated as a new generator owned by this structure, whose ID the new row refers to. A loop-marker row pointing at a transient row is replaced by that row's item; one pointing at a missing row becomes a folder titled by the i18n key `s.ext.it.folder.missing`. With the parameter `reuseRows` true the fragment's row IDs are kept as they are, unless one of them is already in the forest, in which case new rows are created as usual.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestUpdatePrepare#createNewRow",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestUpdatePrepare#createInsForest",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#updateForest0",
+    "com.almworks.jira.structure.extension.item.GeneratorItemType#getOwnedItem"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-dry-run",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "With the action parameter `dryRun` true the checks and the action are carried out on a copy only: nothing is stored, no row is created (fragment rows get temporary negative IDs), no history or forest change row is written and the version stays the same; the result is a success with an empty row ID replacement map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestIO#updateForest",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestUpdatePrepare#createNewRow"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-store-version",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "A successful change rewrites the structure's `AO_8BAD1B_FOREST` row (C_FOREST and C_VERSION) only if the stored version is still the one the change started from; the new version is the old one plus the number of elementary changes, and one `AO_8BAD1B_FOREST_CHANGE` row per elementary change is inserted with versions old+1 … new. An action that leaves the forest unchanged writes nothing and keeps the version. `getLatest()` reflects the change right after `apply` returns.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestIO#updateForest",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#updateForest0",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestChangeIO#insert"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-concurrent-retry",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "When the stored version changed concurrently, the change is re-applied to a freshly loaded forest, up to 5 attempts in total with pauses of 0, 100, 200, 400 ms (internal tuning settings, not part of the contract); after the last attempt it throws a `StructureException` with error code 6014 (category INTERNAL) and the message \"Could not save changes to structure #<id>: too many concurrent changes to this structure. Please try again later.\"",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestIO#updateForest",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$Env#getForestUpdateRetryDelays"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-history",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "Each successful, non-dry-run change records history (one entry per structure per outermost batch, with ADD, COPY, MOVE and REMOVE changes) by the current user, readable through `HistoryService`; changes that are cancelled, dry-run or empty record nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestUpdater#visit",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestIO#updateForest"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-read-missing",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "The stored-forest source of a structure that does not exist (or has no `AO_8BAD1B_FOREST` row) returns `VersionedForest.EMPTY` from `getLatest()`; obtaining the source never fails for a missing structure, only `apply` does.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedForestSource#getLatest",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getForestSourceNoAccessCheck"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-updates",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "The stored-forest source reports versions as `DataVersion(signature, C_VERSION)` with a signature chosen at random when the source object is created on this node. `getUpdate(from)` returns a full update when `from` has another signature or is newer than the current version, an empty incremental update when it equals the current version, and otherwise an incremental update with the elementary changes from the journal (`AO_8BAD1B_FOREST_CHANGE`); when the needed changes are no longer in the journal (or locks cannot be obtained in 65 s) it falls back to a full update.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedForestSource#getUpdate",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedForestSource#getOrLoadChanges",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$AOBasedForestSource#loadAndGetChanges"
+   ]
+  },
+  {
+   "key": "m1-structures/structure-manager/forest-journal-trim",
+   "module": "structure-manager",
+   "api": null,
+   "behaviour": "The `forestChanges.lastCleanTime` job runs when at least 12 hours (an internal tuning setting, not part of the contract) have passed since its last run and the plugin is not stopped. For each structure it reads the lowest and highest version in `AO_8BAD1B_FOREST_CHANGE` and deletes the rows with a version below highest − 500 (also tunable internally), so the latest 501 changes stay (one more than the limit, as the original does). Nothing is deleted when the highest equals the lowest.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestChangeIO#cleanUp",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager$ForestChangeIO#getPersistedVersionsInfo",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#startComponent"
+   ]
+  }
+ ]
+}

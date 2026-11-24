@@ -1,0 +1,819 @@
+{
+ "claims": [
+  {
+   "key": "e2-loaders-a/item-provider/answers-item-id",
+   "module": "item-provider",
+   "api": null,
+   "behaviour": "`item-provider` answers only attribute id `item` and reads no params (a request with extra params is still served, following the `SimpleAttributeProvider` matching rules, C-0194/C-0195). It registers two loaders: one in the generic value format (`ValueFormat` id `value`) and one in format `any`. A request for `item:any` gets the raw-object loader, a request for `item:value` the extended-value loader; for any other requested format the extended-value loader (registered first) is chosen.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ItemProvider#<init>",
+    "com.almworks.jira.structure.api.attribute.loader.basic.SimpleAttributeProvider"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/item-provider/extended-value",
+   "module": "item-provider",
+   "api": null,
+   "behaviour": "For `item` in the `value` format, the value of every row is the row's own `ItemIdentity` (the identity itself, not the resolved object), for every item type, including items that do not exist or the user cannot see; the loader resolves nothing. Its caching strategy is `MAY`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ItemProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/item-provider/raw-object",
+   "module": "item-provider",
+   "api": null,
+   "behaviour": "For `item:any`, the value is the object the item resolves to for the attribute context (`ItemAttributeContext.getItem(Object.class)`): for example the Jira `Issue` for an issue, the `Project`, `ApplicationUser`, `Folder`, `GenericItem` and so on. An item that does not resolve (missing, invisible, or of a type whose app is absent) gives the undefined value. This loader supports every item type and its caching strategy is `SHOULD_NOT` (values are never kept in the value cache).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ItemProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/displayable-provider/answers-displayable",
+   "module": "displayable-provider",
+   "api": null,
+   "behaviour": "`displayable-provider` answers only attribute id `displayable` (format text) and reads no params. Every value is a localized text built with the attribute context's i18n helper (`AttributeContext.getI18n()`), so every part declares the `USER_LOCALE` context dependency. Items of types not listed in the following claims get the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider#<init>",
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$AbstractDisplayableLoader#getContextDependencies"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/displayable-provider/issue-text",
+   "module": "displayable-provider",
+   "api": null,
+   "behaviour": "For an issue row with a key the value is `s.ext.it.issue.displayable` (`issue {0} ({1})`) with the issue key and the summary shortened to at most 30 characters the way Commons Lang `StringUtils.abbreviate(s, 30)` does (a longer summary becomes its first 27 characters plus `...`). For an issue without a key (a new issue being created) it is `s.ext.it.new-issue.displayable` (`a new issue ({0})`) with the shortened summary. The issue comes from the row's `item` attribute; for the new-issue row (`CoreIdentities.NEW_ISSUE`) whose `item` is not an `Issue`, the issue object carried by the row itself is used. An issue row whose issue cannot be obtained gets the undefined value. The value depends on the `item` attribute.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$IssueDisplayableLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$NewItemSupportingDisplayableLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$NewItemSupportingDisplayableLoader#getItem"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/displayable-provider/issue-null-summary",
+   "module": "displayable-provider",
+   "api": null,
+   "behaviour": "An issue whose summary is null gives the text with the summary argument null, which Jira's i18n formatting shows as the text `null` (e.g. `issue ABC-1 (null)`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$IssueDisplayableLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/displayable-provider/folder-text",
+   "module": "displayable-provider",
+   "api": null,
+   "behaviour": "For a folder row the value is `s.ext.it.folder.displayable` (`folder {0}`). For a folder with a string item id (a generated folder) the argument is the folder name translated as an i18n key with the context's i18n helper (an unknown key comes back as is); for a folder with a long id it is the folder name unchanged. The folder comes from the row's `item` attribute, or for the new-folder row (`CoreIdentities.NEW_FOLDER`) from the row itself; otherwise the value is undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$FolderDisplayableLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$NewItemSupportingDisplayableLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/displayable-provider/generator-effector-text",
+   "module": "displayable-provider",
+   "api": null,
+   "behaviour": "Every generator item gets `s.ext.it.generator.displayable` (`a generator`) and every effector item `s.ext.it.effector.displayable` (`an effector`), whether or not the generator or effector exists.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$GeneratorDisplayableLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$EffectorDisplayableLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/displayable-provider/generic-item-text",
+   "module": "displayable-provider",
+   "api": null,
+   "behaviour": "For a row whose item type is a generic item type (memos, planning tasks and any other item type registered as a generic item type in `extension-service`) the value is the item type module's `displayable` text (its descriptor's configured displayable i18n text) formatted with the generic item's name. If the item type has no descriptor, or the generic item cannot be obtained (from the `item` attribute, or for long id `Long.MAX_VALUE` from the row itself), the value is undefined. A null text gives the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$GenericItemDisplayableLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$GenericItemDisplayableLoader#getItem"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/displayable-provider/named-items-text",
+   "module": "displayable-provider",
+   "api": null,
+   "behaviour": "For resolved items of the following types the value is the i18n key (whose literal name contains the `+` signs) with one argument: project `s.ext.it.+project+.displayable` (`project {0}`, the project name); component `s.ext.it.+component+.displayable` (`component {0}`, its name); version `s.ext.it.+version+.displayable` (`version {0}`, its name); issue type `s.ext.it.+issuetype+.displayable` (`issue type {0}`, the translated name); status, resolution and priority `s.ext.it.+status+.displayable`, `s.ext.it.+resolution+.displayable`, `s.ext.it.+priority+.displayable` (`status {0}`, `resolution {0}`, `priority {0}`, the raw untranslated name); user `s.ext.it.+user+.displayable` (`user {0}`, the display name); group `s.ext.it.+group+.displayable` (`group {0}`); label `s.ext.it.+label+.displayable` (`label {0}`); custom field option `s.ext.it.+cfoption+.displayable` (`option {0}`, the option value, or `Parent - Child` for a child option as `JiraFunc.OPTION_NAME`, C-0879); structure `s.ext.it.+structure+.displayable` (`structure {0}`); sprint `s.ext.it.+sprint+.displayable` (`sprint {0}`, the raw sprint name); Tempo account `s.ext.it.+tempo-account+.displayable` (`account {0}`, its name); version name `s.ext.it.+version-name+.displayable` (`version name {0}`); loop marker `s.ext.it.+loopmarker+.displayable` (`a loop marker`, no argument used). An item of these types that does not resolve gets the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider#<init>",
+    "com.almworks.jira.structure.extension.attribute.DisplayableProvider$LaI18nLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/number-sum-provider/answers-sum",
+   "module": "number-sum-provider",
+   "api": null,
+   "behaviour": "`number-sum-provider` answers only attribute id `sum`. Params read: `attribute` (the summed attribute, a nested spec object `{id, format, params}` read as `SpecParams.getAttributeParameter`, C-0961), `distinct` (boolean, default false), `type` (string: `preceding` selects a running total; any other value, or none, is the reduction strategy type of `ReductionStrategy`, default `subtree`), and with `distinct` also `rowBased` (boolean, default false). Any other param (for example `levels` and `baseLevel`) is passed along unchanged in the spec to the sum loaders and the duplicate-counting attribute.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SumProvider#createAttributeLoader",
+    "com.almworks.jira.structure.attribute.distinct.AbstractDistinctSumLoader#<init>",
+    "com.almworks.jira.structure.attribute.distinct.DistinctAttributes"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/number-sum-provider/format-choice",
+   "module": "number-sum-provider",
+   "api": null,
+   "behaviour": "The sum's value format is chosen in this order: (1) if the requested format is `number` or `duration`, that format is used and `attribute` is read expecting it (its stored `format` must be absent, the same, or `any`); (2) otherwise, if `attribute` carries a stored standard format that is `number` or `duration`, that format is used; (3) otherwise a `number` sum is tried, reading `attribute` as `number`, which succeeds only when its stored format is `any` (or absent/`number`). Example: `sum:text` over `{id: votes, format: number}` is served as a number sum; over `{id: x, format: duration}` as a duration sum.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SumProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.SumProvider#tryCastToNumeric"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/number-sum-provider/declines",
+   "module": "number-sum-provider",
+   "api": null,
+   "behaviour": "The provider declines (returns no loader) when the id is not `sum`, when `attribute` is missing or not an object, when its stored format conflicts with the format chosen above, or, for a requested format other than `number`/`duration`, when `attribute` has no stored format or a stored format other than `number`, `duration` or `any`. So a dependent stored as `text` (e.g. `{id: x, format: text}`) is not summed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SumProvider#createAttributeLoader",
+    "com.almworks.jira.structure.api.util.SpecParams#getAttributeParameter"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/number-sum-provider/plain-sum",
+   "module": "number-sum-provider",
+   "api": null,
+   "behaviour": "Without `distinct` and with a `type` other than `preceding`, a duration sum totals the summed attribute's `Long` values as `LongSumLoader` does (C-0180/C-0181) and a number sum as `NumberSumLoader` does (C-0189 to C-0191), aggregating over the forest with the reduction strategy named by `type` (`subtree` default: the row's own value plus its sub-rows; `children`, `leaves`, `strict` as in C-0267 to C-0270). Undefined values are skipped; a sum with no defined contribution is undefined. The sum depends only on the summed attribute.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SumProvider#createLongAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.SumProvider#createNumberAttributeLoader"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/number-sum-provider/preceding-sum",
+   "module": "number-sum-provider",
+   "api": null,
+   "behaviour": "With `type` = `preceding` (and no `distinct`) the value of each row is a running total of the summed attribute over the rows that precede it in forest order plus the row itself, as `ScanningLongSumLoader` (duration, C-0192) or `ScanningNumberSumLoader` (number, C-0193) computes it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SumProvider#createLongAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.SumProvider#createNumberAttributeLoader"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/number-sum-provider/distinct-sum",
+   "module": "number-sum-provider",
+   "api": null,
+   "behaviour": "With `distinct` = true each item is counted once within what a row totals: the value is the non-distinct sum (the same spec without `distinct` and `rowBased`) minus, for every item that occurs k > 1 times among the counted rows, (k - 1) times that item's value. Only items that occur more than once in the whole forest are considered. Example: row A (own 5) with children B (3), C (2) and B again gives 13 without distinct and 10 with distinct. With `type` = `strict` the row's own item is counted one time fewer (strict sums exclude the row itself). Duration and number variants behave alike (numbers keep their accumulated `Number` type).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.AbstractDistinctSumLoader#loadValue",
+    "com.almworks.jira.structure.attribute.distinct.DistinctLongSumLoader",
+    "com.almworks.jira.structure.attribute.distinct.DistinctNumberSumLoader"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/number-sum-provider/distinct-dependencies",
+   "module": "number-sum-provider",
+   "api": null,
+   "behaviour": "A distinct sum depends on the non-distinct sum spec (same id, format and params minus `distinct` and `rowBased`) and on the `-non-unique-items` attribute (format `counts`) carrying the traversal params `type`, `levels` and `baseLevel` of the request (a `type` of `strict` or `subtree` is dropped), which `non-unique-items-provider` serves. The duplicated items' values are, by default, each item's own value of the summed attribute loaded separately for that item; when `rowBased` is true, or when the summed attribute is not an item-based attribute, they are taken instead from an extra `-non-unique-items` dependency in format `values` with the summed attribute as its `attribute` param (the values shown in the rows). The second case also logs at INFO `attempt to use SUM with a row-based attribute - forcing rowBased=true for the sum of <spec>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.AbstractDistinctSumLoader#<init>",
+    "com.almworks.jira.structure.attribute.distinct.AbstractDistinctSumLoader#getDuplicateValues",
+    "com.almworks.jira.structure.attribute.distinct.DistinctAttributes",
+    "com.almworks.jira.structure.extension.attribute.SumProvider#isRowBased"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/number-sum-provider/distinct-errors",
+   "module": "number-sum-provider",
+   "api": null,
+   "behaviour": "For a distinct sum, when the non-distinct total is an error or undefined that same value is returned unchanged; when loading the duplicated items' values fails, the value is the error value and a warning `-- item loader failed, there may be missing values` is logged (throttled per spec). An item whose value is undefined is not subtracted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.attribute.distinct.AbstractDistinctSumLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/error-provider/answers-value-expand",
+   "module": "error-provider",
+   "api": null,
+   "behaviour": "`error-provider` answers only attribute id `value-expand`, in format `json` (a JSON object), and needs param `attribute`: a nested spec `{id, format, params}` whose `format` names a standard value format (read as `SpecParams.getAttributeParameter` with no expected format, C-0961). Without `attribute`, or when it has no format or a non-standard one, the spec is declined. The value depends only on that inner attribute.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ValueExpandProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.ValueExpandProvider$ValueExpandLoader#getAttributeDependencies"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/error-provider/expand-shapes",
+   "module": "error-provider",
+   "api": null,
+   "behaviour": "For each row the value is a one-key JSON object built from the inner attribute's value: an error value gives `{\"error\": <code>}` where code is the formula error code carried by the value (see `expr-attribute`), or -1 when the error carries none; any other undefined value (plain undefined, absent, inaccessible) gives `{\"undefined\": true}`; a defined value v gives `{\"value\": v}`. The result itself is always defined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ValueExpandProvider$ValueExpandLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/answers",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`main-provider` answers attribute ids `summary` (text), `description` (html, and a separate text variant when `description` is requested in format `text`), `extended-summary` (html) and `url` (text). It reads no params. Item types not listed below get the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MainProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/summary-simple",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`summary` per item type: issue: its summary; project: its name; version: its name; label: the label; status: its name translated for the context locale; issue type: its translated name; resolution and priority: the raw (untranslated) name; component: its name; custom field option: the option value (or `Parent - Child`, C-0879); group: its name; structure: its name; version name: the name. An item that does not resolve gets the undefined value, and a null name gives the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MainProvider#createSummaryLoader",
+    "com.almworks.jira.structure.extension.attribute.MainProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/summary-folder",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`summary` of a folder: for a folder with a string item id (generated folder), a name starting with `/` is returned without that first character, and any other name is treated as an i18n key and translated for the Jira logged-in user; for a folder with a long id the name is returned unchanged; an unresolved folder gives the undefined value. This part declares `USER_LOCALE` and caching strategy `MAY`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MainProvider$FolderSummaryLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/summary-user",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`summary` of a user is the user's display name; for an inactive user it is `s.ext.it.user.summary.inactive` (`{0} (Inactive)`) with the display name, translated for the Jira logged-in user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MainProvider$UserSummaryLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/summary-sprint-account",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`summary` of a sprint is the sprint name formatted for the current Structure user by `gh-integration` (board name and state decoration, C-2246); with Jira Software absent sprint items do not resolve and get the undefined value. `summary` of a Tempo account is `s.ext.gen.grouper.tempo.accounts.account.summary` (`{0} {1}`) with the account name and, for an account that is not open, `(` + the translated status (`s.tempo.accounts.status.closed` `Closed` or `s.tempo.accounts.status.archived` `Archived`) + `)`; an open account gives the name followed by one space (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MainProvider$SprintSummaryLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.MainProvider$AccountSummaryLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/summary-other-items",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`summary` of a Service Management request type is its name, only while the Service Management app is accessible (C-2316; otherwise undefined); of a generic item (any generic item type, memos and planning tasks included) its name; of an Assets (Insight) object its label (undefined when Assets is absent and the object does not resolve).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MainProvider$ServiceDeskRequestTypeSummaryLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.MainProvider$GenericItemSummaryLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.MainProvider$InsightObjectSummaryLoader#getValue",
+    "com.almworks.jira.structure.integration.servicedesk.RequestTypeAttributeLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/description-html",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`description` (html): for a project or version, its description HTML-escaped; an empty or null description gives the undefined value. For a sprint, its goal HTML-escaped (undefined when null). For a generic item of a generic item type other than memo and planning task (whose descriptions come from other providers), its description rendered by Jira's renderer `atlassian-wiki-renderer` (looked up from `RendererManager` once when the provider is created, rendered with no issue context) or, if Jira has no such renderer, HTML-escaped; an empty result gives the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MainProvider$1#getValue",
+    "com.almworks.jira.structure.extension.attribute.MainProvider$GenericItemDescriptionHtmlLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.MainProvider$GenericItemDescriptionHtmlLoader#isItemTypeSupported",
+    "com.almworks.jira.structure.extension.attribute.SprintParametersProvider"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/description-text",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`description` in format `text`: a sprint's goal and a version's description as plain text (as `sprint-parameters-provider` and `version-parameters-provider` serve them), and for a generic item of a type other than memo and planning task its raw description (empty or null gives the undefined value). Projects have no text description from this provider.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MainProvider$GenericItemDescriptionTextLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.SprintParametersProvider",
+    "com.almworks.jira.structure.extension.attribute.VersionParametersProvider"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/extended-summary-wrapper",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`extended-summary` (html) is served for generator and effector items: the value is always defined, `<span class=\"generator-summary automation-summary\">CONTENT</span>` for generators and `<span class=\"effector-summary automation-summary\">CONTENT</span>` for effectors, with CONTENT `?` when nothing could be produced. The loader declares the `TRAIL` context dependency; for a sub-structure inserter generator it adds the inserted structure to the trail, so a change of that structure invalidates the value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AutomationSummaryLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.AutomationSummaryLoader#summarySpan"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/extended-summary-content",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "For a resolved generator with a module descriptor, or an effector instance whose module (descriptor and effector) is installed, CONTENT is the module's `summary` Velocity resource rendered with the module's summary parameters and trimmed (leading and trailing whitespace and `&nbsp;`/`&#160;`/`&#xA0;` removed). Each string parameter is shown as `<span class=\"automation-parameter\">VALUE</span>` (HTML-escaped), a collection as such spans joined by `, `, a blank string or empty collection as `<span class=\"automation-parameter invalid\">none specified</span>` (`s.ext.aut.none-specified`); the template also gets `i18n`, `rawParameters` and `noneSpecified`. If the rendered summary is blank, the module label is used, else its key (with a warning). Exceptions while the module adds its parameters are logged and ignored. An effector instance with a non-blank `effectorName` parameter shows that name HTML-escaped instead.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AutomationSummaryLoader#getAutomationSummary",
+    "com.almworks.jira.structure.extension.attribute.EffectorSummaryLoader#getEffectorSummary0",
+    "com.almworks.jira.structure.extension.attribute.GeneratorSummaryLoader#getSummary"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/extended-summary-unknown",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "An unresolvable generator, or one without a descriptor, gets `s.ext.gen.summary.unknown` (`Unknown generator {0}`) with `<span class=\"automation-parameter\">MODULEKEY</span>`, the module key the generator manager records for that generator id (`?` if none), in the current user's locale. An effector whose module is not installed gets `s.ext.eff.summary.unknown` (`Unknown effector {0}`) with the instance's module key in that span; when the effector instance itself does not resolve, the item id's simplified text is shown in place of the module key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GeneratorSummaryLoader#getUnknownAutomationSummary",
+    "com.almworks.jira.structure.extension.attribute.EffectorSummaryLoader#getUnknownAutomationSummary"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/main-provider/url",
+   "module": "main-provider",
+   "api": null,
+   "behaviour": "`url` (text): issue and project: `<base URL>/browse/<KEY>`; user: `<base URL>/secure/ViewProfile.jspa?name=<username>`; memo and planning task: the board link of `generic-item-type-helper` (C-2687); Assets (Insight) object: `<base URL>/secure/insight/assets/<object key>`. The base URL is the attribute context's base URL. Keys and usernames are HTML-escaped (not URL-encoded); the Assets key is inserted as is. Other item types get the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MainProvider#<init>",
+    "com.almworks.jira.structure.extension.attribute.MainProvider$2#getValue",
+    "com.almworks.jira.structure.extension.attribute.MainProvider$3#getValue",
+    "com.almworks.jira.structure.extension.attribute.MainProvider$4#getValue",
+    "com.almworks.jira.structure.extension.attribute.MainProvider$5#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/key-provider/answers-key",
+   "module": "key-provider",
+   "api": null,
+   "behaviour": "`key-provider` answers only attribute id `key` (format text) and reads no params. Values: issue and project: the Jira key; user: the username (login name, not the key); memo: `MEMO:<id>` and planning task: `PT:<id>` (C-2687); Assets (Insight) object: its object key. Items that do not resolve, and all other item types, get the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.KeyProvider#<init>",
+    "com.almworks.jira.structure.extension.attribute.KeyProvider$1#getValue",
+    "com.almworks.jira.structure.extension.attribute.KeyProvider$2#getValue",
+    "com.almworks.jira.structure.extension.attribute.KeyProvider$3#getValue",
+    "com.almworks.jira.structure.extension.attribute.KeyProvider$4#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/key-provider/null-key",
+   "module": "key-provider",
+   "api": null,
+   "behaviour": "An issue whose key is null (a new issue not yet created) gives a key value created from null: with Java assertions enabled (as the tests run) this throws `AssertionError`; with them disabled the value is the plain undefined value.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.KeyProvider$1#getValue",
+    "com.almworks.jira.structure.api.attribute.AttributeValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/done-provider/answers-done",
+   "module": "done-provider",
+   "api": null,
+   "behaviour": "`done-provider` answers only attribute id `done` (format boolean) and reads no params. Only issues get a value; other item types get the undefined value, and an issue that does not resolve is undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DoneProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/done-provider/by-status-category",
+   "module": "done-provider",
+   "api": null,
+   "behaviour": "By default an issue is done (true) exactly when its status's status category key is `done`; an issue with no status, or a status without a category, is not done (false).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DoneProvider$ResolvedByStatusCategoryLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/done-provider/by-resolution",
+   "module": "done-provider",
+   "api": null,
+   "behaviour": "When the dark feature `structure.doneAttribute.byResolution` is true (read once, when the provider is created; default false), an issue is done exactly when it has a resolution, whatever its status.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DoneProvider#<init>",
+    "com.almworks.jira.structure.extension.attribute.DoneProvider$ResolvedByResolutionLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/editable-provider/answers-editable",
+   "module": "editable-provider",
+   "api": null,
+   "behaviour": "`editable-provider` answers only attribute id `editable` (format boolean), reads no params, and gives true or false for issues, folders, generators, effectors and generic items; other item types get the undefined value. Every part depends on the viewing user (`USER`), and the folder, generator, effector and generic-item parts also declare `TRAIL`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EditableProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/editable-provider/issue",
+   "module": "editable-provider",
+   "api": null,
+   "behaviour": "An issue is editable when Jira's `IssueManager.isEditable(issue, user)` says so for the attribute context's user; an issue that does not resolve gets the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EditableProvider$1#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/editable-provider/folder",
+   "module": "editable-provider",
+   "api": null,
+   "behaviour": "A folder with a long id is editable when the folder exists in `folder-manager` and the current user has `EDIT` on its owning structure (`StructureManager.isAccessible(structureId, PermissionLevel.EDIT)`, false for a folder with no owning structure, C-1025); the owning structure is added to the trail, so permission changes on it invalidate the value. A folder with a string id (generated) or that does not exist gives false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EditableProvider$2#loadValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/editable-provider/generator",
+   "module": "editable-provider",
+   "api": null,
+   "behaviour": "A generator is editable when its item id is a positive even long (a persistent generator; odd transient ids and ids of 0 or less give false), it resolves through the generator manager, the generator module is configurable (the duplicate-removing filter `filter-inserter-extender-duplicates` is not), and `StructureManager.isGeneratorConfigurationAllowed(owningStructure, user)` is true (C-1026). The owning structure is added to the trail. A resolution failure gives false and is logged at debug level.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EditableProvider$3#loadValue",
+    "com.almworks.jira.structure.row.IdPartitioning#isPersistentId"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/editable-provider/effector",
+   "module": "editable-provider",
+   "api": null,
+   "behaviour": "An effector item with a long id is editable when the effector instance can be read and `StructureManager.isEffectorConfigurationAllowed(owningStructure, user)` is true; the owning structure is added to the trail. A missing instance or any error reading it gives false (logged at debug level); a string id gives false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EditableProvider$4#loadValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/editable-provider/generic-item",
+   "module": "editable-provider",
+   "api": null,
+   "behaviour": "A generic item (any generic item type, e.g. memo or planning task) is editable when the current user has `EDIT` on its owning structure (`StructureManager.isAccessible(owner, EDIT)`; no owner gives false); the owning structure is added to the trail. A generic item that does not resolve gets the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EditableProvider$5#getValue",
+    "com.almworks.jira.structure.extension.attribute.GenericItemAttributeLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/icon-provider/answers",
+   "module": "icon-provider",
+   "api": null,
+   "behaviour": "`icon-provider` answers attribute id `icon` (html) and the per-field icon attributes `project.icon`, `assignee.icon`, `reporter.icon`, `issuetype.icon`, `priority.icon`, `status.icon` and `run-as-user.icon` (all html). `assignee.icon` and `reporter.icon` also read param `print` (boolean): with `print` = true the printable variant is served, otherwise the normal one. No other params are read.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IconProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/icon-provider/icon-issue",
+   "module": "icon-provider",
+   "api": null,
+   "behaviour": "`icon` of an issue is the HTML of `issue-constant-icon-cache` for the issue's type (C-1690 to C-1693; the empty string when the issue has no type). The issue type is added to the trail, so a change of that type invalidates the value; the value declares `USER_LOCALE`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IconProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/icon-provider/icon-project",
+   "module": "icon-provider",
+   "api": null,
+   "behaviour": "`icon` of a project, and `project.icon` of an issue (from the issue's `project` attribute), is `<img src=\"<base URL>/secure/projectavatar?pid=<project id>&size=small\" alt=\"<KEY>\" title=\"<NAME>\">` with the key and name HTML-escaped and the attribute context's base URL. `project.icon` declares no context dependencies; an issue without a project gives the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IconProvider#getProjectIcon"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/icon-provider/icon-user-constants",
+   "module": "icon-provider",
+   "api": null,
+   "behaviour": "`icon` of a user is the HTML of `user-icon-cache` (C-1694 to C-1696). `icon` of a status, issue type or priority item is the HTML of `issue-constant-icon-cache` and declares `USER_LOCALE`; resolutions get no icon (undefined).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IconProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/icon-provider/icon-version",
+   "module": "icon-provider",
+   "api": null,
+   "behaviour": "`icon` of a version is an empty span with classes chosen by state: unreleased `<span class=\"aui-icon aui-icon-small aui-iconfont-version-unreleased\"></span>`, released `... aui-iconfont-version`, archived and unreleased `... aui-iconfont-version-unreleased s-version-icon-archived`, archived and released `... aui-iconfont-version s-version-icon-archived`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IconProvider$VersionIconLoader#getVersionIconCSS"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/icon-provider/icon-automation",
+   "module": "icon-provider",
+   "api": null,
+   "behaviour": "`icon` of a generator is its module's icon: when the generator module declares an icon class (for a sorter whose `desc` parameter is true, the class declared for key `desc` if any), `<span class=\"s-generator-icon <class>\"></span>`; otherwise its `icon` Velocity resource rendered and trimmed; otherwise the undefined value. `icon` of an effector is `<span class=\"s-effector-icon <icon class>\"></span>` from the descriptor of the instance's effector module; an uninstalled module gives the undefined value.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IconProvider$GeneratorIconLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.IconProvider$EffectorIconLoader#getValue",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#getIconHtmlOrNull"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/icon-provider/icon-generic-item",
+   "module": "icon-provider",
+   "api": null,
+   "behaviour": "`icon` of a generic item: when its parameters hold both `iconClass` and `color` (single values), `<span class=\"alm alm-fw <iconClass> s-item-color-<color>\"></span>` with both values HTML-escaped; otherwise `<span class=\"<class>\"></span>` with the item type module's icon class; the undefined value when the type declares none or has no descriptor.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IconProvider$GenericItemIconLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/icon-provider/icon-sd-insight",
+   "module": "icon-provider",
+   "api": null,
+   "behaviour": "`icon` of a Service Management request type is the request-type icon HTML (C-2325), only while the Service Management app is accessible (otherwise undefined). `icon` of an Assets (Insight) object is `<img src=\"<base URL>/rest/insight/1.0/objecttype/<object type id>/icon.png?size=16\">`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IconProvider$ServiceDeskRequestTypeIconLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.IconProvider$InsightObjectIconLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/icon-provider/field-icons",
+   "module": "icon-provider",
+   "api": null,
+   "behaviour": "Per-field icons are derived from the issue's attributes: `assignee.icon` from `assignee` and `reporter.icon` from `reporter` (normal: `user-icon-cache`; with `print` = true: `user-printable-icon-cache`, C-1697), `run-as-user.icon` from `run-as-user` (`run-as-user-provider`) via `user-icon-cache`, all declaring no context dependencies; `status.icon`, `issuetype.icon` and `priority.icon` from `status`, `type` and `priority` via `issue-constant-icon-cache`, declaring `USER_LOCALE`. When the source attribute is undefined (e.g. unassigned) the icon is undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IconProvider#userAttributeIconLoader",
+    "com.almworks.jira.structure.extension.attribute.IconProvider#issueConstantIconLoader"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-provider/native-objects",
+   "module": "issue-field-provider",
+   "api": null,
+   "behaviour": "`issue-field-provider` serves, for issues only and with no params read, Jira objects: `type` (format `issuetype`: the `IssueType`), `priority` (`Priority`), `project` (`Project`), `status` (`Status`), `assignee`, `reporter` and `creator` (format `user`: the `ApplicationUser` of that user key). A null field gives the undefined value. Each defined value adds the object's identity to the trail (`CoreIdentities.issueType`, `priority`, `project`, `status`, `user`), so a change of that object invalidates the value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldProvider#<init>",
+    "com.almworks.jira.structure.extension.attribute.IssueFieldProvider#issueAttributeLoader"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-provider/counts-and-ids",
+   "module": "issue-field-provider",
+   "api": null,
+   "behaviour": "It also serves `votes` and `watches` (format number: the issue's vote and watcher counts as `Long`), `id` (format id: the issue id as decimal text), and, derived from the object attributes, `project` in format id (the project id as text, from `project`), `issuetype` in format id (the issue type id, from `type`) and `status` in format id (the status id, from `status`). A request for id `project` or `status` gets the object or the id variant according to the requested format (object variant for any other format). Non-issue items get the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-provider/null-issue-id",
+   "module": "issue-field-provider",
+   "api": null,
+   "behaviour": "An issue whose id is null (a new issue) gets `id` = the text `null` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldProvider#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/field-id",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "`issue-field-rendering-provider` turns the requested spec into a Jira field id: id `key` becomes `issuekey`; id `customfield` with param `fieldId` (a number or numeric text) becomes `customfield_<fieldId>` (a missing or non-numeric `fieldId` leaves `customfield`); any other id is the field id itself. The value is always HTML (the spec is served in format html whatever format was requested).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider#createAttributeLoader",
+    "com.almworks.structure.commons.util.AttributeUtil#convertAttributeSpecToIssueFieldId"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/declines",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "It declines field ids that are not `timespent`, `timeestimate` or `timeoriginalestimate` and are not among Jira's available navigable fields as `jira-configuration-cache` lists them (C-2492). Only issues get values; other item types get the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/durations",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "`timespent`, `timeestimate`, `timeoriginalestimate`, and custom fields of the Epic Sum Up time type (`aptis.plugins.epicSumUp:epic-sum-up-custom-field-time`, value converted as `spic-sum-up-integration` does, C-2302), render as Jira's short formatted duration (`JiraDurationUtils.getShortFormattedDuration(seconds, user locale)`), HTML-escaped and trimmed; a null or zero duration gives the empty string. These declare `USER_LOCALE`; the `excel` param has no effect on them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider#createAttributeLoader",
+    "com.almworks.structure.commons.util.JiraFieldUtils#formatDurationHtmlMillis"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/user-fields",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "User fields (system `assignee`, `reporter`, `creator`, and custom fields whose JSON schema type is `user`) are derived from the same spec in format `user` (same id and params) and rendered by `user-field-renderer` with param `view` as the view mode (C-1701, C-1702); they declare `USER`. An empty user field, or a user the renderer gives nothing for, gives the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider#createAttributeLoader",
+    "com.almworks.structure.commons.util.JiraFieldUtils#isUserField"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/navigator-html",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "Any other field renders as Jira's issue navigator column does (`ColumnLayoutItem.getHtml` for that field at position 0), trimmed of leading and trailing whitespace and `&nbsp;`/`&#160;`/`&#xA0;`. With param `excel` = true the display params `textOnly`, `readOnly` and `nolink` (all true) are passed, giving plain text without links for spreadsheet export; otherwise no display params. The field is looked up in Jira's `FieldManager` once per attribute context; a field that is not navigable gives no value. A custom field not relevant for the issue (not in its field configuration context) gives the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider$FieldLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/render-errors",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "When Jira's rendering throws (any exception or linkage error), the value is the empty string; a warning `error rendering field <name>(<id>) for issue <key>` is logged only the first time per field within an attribute context.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.Util#getHtmlSafe",
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider$FieldLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/request-type-field",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "The Service Management request type field (when the app is present and the field is its request type field) renders as `<span class=\"sd-request-type\">ICON NAME</span>` with the request-type icon HTML (C-2325) and the HTML-escaped name of the issue's request type (loaded by issue id, C-2319); an issue without a request type gives the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider$FieldLoader#renderJSDRequestType"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/context-dependencies",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "Navigator-rendered fields declare context dependencies by field: system fields depend on the user (`USER`) when the field is `assignee`, `reporter`, `creator`, `voter`, `watcher` or `lastViewed`, otherwise only on `USER_LOCALE`; they are time-dependent (`USER_TIMEZONE` and `CURRENT_TIME`) when the field is `duedate`, `lastViewed`, `timetracking`, `created`, `updated`, `resolutiondate` or `worklog`. Custom fields whose type key starts with `com.atlassian` depend on `USER` when their type's class name contains `User` or `Group` and are time-dependent when it contains `Date` or `Time`; all other custom fields depend on `USER` and are time-dependent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider#getContextDependencies"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/empty-time-expiry",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "For a time-dependent navigator-rendered field whose rendered HTML is empty, the value expires after 1 day (`valueExpires(1, DAYS)`), so it is recomputed at least daily.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider$FieldLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-rendering-provider/non-navigable-npe",
+   "module": "issue-field-rendering-provider",
+   "api": null,
+   "behaviour": "If a field id is listed among the available navigable fields but Jira's `FieldManager` then returns no navigable field for it (and it is not a user field), creating the loader fails with a NullPointerException instead of declining (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.IssueFieldRenderingProvider$FieldLoader#<init>"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-order-provider/answers",
+   "module": "issue-field-order-provider",
+   "api": null,
+   "behaviour": "`issue-field-order-provider` serves sort values (format `order`, a `Comparable`) for issues. The field id comes from the spec as in `issue-field-rendering-provider` (`key` becomes `issuekey`; `customfield` with `fieldId` becomes `customfield_<n>`, which it never answers). It answers exactly the field ids listed in the next claims and declines every other id; only `issuetype` declares a context dependency (`USER_LOCALE`). A null value gives the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldOrderProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-order-provider/key-and-constants",
+   "module": "issue-field-order-provider",
+   "api": null,
+   "behaviour": "`issuekey`: the tuple (project key, issue number) as a `ComparableTuple`, so ABC-9 sorts before ABC-10; a key Jira cannot parse gives the empty tuple `ComparableTuple.NIL` (sorts first). `issuetype`: the issue type name translated for the user's locale. `status`: the status's sequence. `resolution`: the resolution's sequence, `Long.MIN_VALUE` for an unresolved issue (so unresolved sorts first). `priority`: the negated priority sequence (so the highest priority sorts first in ascending order).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldOrderProvider"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-order-provider/plain-values",
+   "module": "issue-field-order-provider",
+   "api": null,
+   "behaviour": "`votes`, `watches`: the counts; `description`, `environment`: the raw text; `duedate`, `resolutiondate`, `created`, `updated`: the Jira timestamps; `timespent`, `timeoriginalestimate`, `timeestimate`: the raw values in seconds (not milliseconds); `workratio`: Jira's work ratio of the issue (`WorkRatio.getWorkRatio`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldOrderProvider"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-field-order-provider/names-and-lists",
+   "module": "issue-field-order-provider",
+   "api": null,
+   "behaviour": "`assignee`, `creator`, `reporter`: the user's display name (C-0876); `project`: the project name; `components`: a `ComparableTuple` of the component names in the issue's order; `labels`: a tuple of the label texts; `fixVersions` and `versions` (affects versions): a tuple of the versions' sequences. An issue with no components, labels or versions gets the empty tuple (defined, sorting first).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldOrderProvider#stringsTuple",
+    "com.almworks.jira.structure.extension.attribute.IssueFieldOrderProvider#longsTuple"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/issue-time-field-provider/durations",
+   "module": "issue-time-field-provider",
+   "api": null,
+   "behaviour": "`issue-time-field-provider` answers attribute ids `timespent` (time spent), `timeestimate` (remaining estimate) and `timeoriginalestimate` (original estimate) for issues, served in format `duration` whatever format was requested, with any params. The value is Jira's value in seconds multiplied by 1000 (milliseconds), e.g. 3600 s gives 3600000; a null value gives the undefined value. Every other id is declined; non-issue items get the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueDurationFieldProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.IssueDurationFieldProvider"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/date-field-provider/datetimes",
+   "module": "date-field-provider",
+   "api": null,
+   "behaviour": "`date-field-provider` answers `created`, `updated` and `resolutiondate` for issues in format `time` (whatever format was requested): the Jira timestamp in epoch milliseconds, no correction; a null date (e.g. unresolved) gives the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DateFieldProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.DateFieldProvider#getTimestampExtractingLoader"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/date-field-provider/duedate",
+   "module": "date-field-provider",
+   "api": null,
+   "behaviour": "`duedate` is a date-only field. With param `disableDateShift` = true the value is the due date's stored timestamp in epoch milliseconds, unchanged. Otherwise (param absent or false) the due date is corrected to the viewing user's time zone as `structure-datetime-formatter` does (C-1669: the calendar date in the JVM time zone, at 00:00 in the context's time zone), and the loader declares `USER_TIMEZONE`. No due date gives the undefined value. Every other id is declined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.DateFieldProvider#createAttributeLoader",
+    "com.almworks.structure.commons.util.AttributeUtil#isDateShiftDisabled",
+    "com.almworks.jira.structure.StructureDateTimeService"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/enum-customfield-order-provider/answers",
+   "module": "enum-customfield-order-provider",
+   "api": null,
+   "behaviour": "`enum-customfield-order-provider` answers only attribute id `customfield` in format `order`, with param `fieldId` (long). It declines other ids, other formats, a missing or 0 `fieldId`, a field id Jira's `CustomFieldManager` does not know, and custom field types not listed in the next claim. Values are for issues only; an issue for which the field is not relevant (outside its configuration context) and an empty field give the undefined value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EnumCustomFieldOrderProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldAttributeLoader#getValue"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/enum-customfield-order-provider/by-type",
+   "module": "enum-customfield-order-provider",
+   "api": null,
+   "behaviour": "Sort values by the Jira custom field type (checked in this order): single select: the option's sequence; multi select: the first selected option's sequence; cascading select: (parent sequence, child sequence) as a `ComparableTuple` when a child is chosen, (parent sequence, `Long.MIN_VALUE`) when only a parent is; labels: the first label's text; project picker: the project's name (looked up by id in `ProjectManager`); version picker: the first version as the tuple (project key, version sequence, version name); single user: the user's display name; ScriptRunner user-aware script field (type class `com.onresolve.scriptrunner.customfield.UserAwareScriptField`, only when ScriptRunner is installed): its user's display name; multi user: the first user's display name; multi group: the first group's name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EnumCustomFieldOrderProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.EnumCustomFieldOrderProvider",
+    "com.almworks.jira.structure.util.CustomFieldAccessors"
+   ]
+  },
+  {
+   "key": "e2-loaders-a/enum-customfield-order-provider/secure-fields",
+   "module": "enum-customfield-order-provider",
+   "api": null,
+   "behaviour": "For a field whose type key starts with `com.coresoftlabs.secure-fields.secure-fields` (the Secure Fields app), the loader adds the `USER` context dependency, so values are computed per viewing user; other fields add none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.integration.SecureFieldsIntegration#getAddedContextDependencies",
+    "com.almworks.jira.structure.extension.attribute.CustomFieldAttributeLoader#getContextDependencies"
+   ]
+  }
+ ]
+}

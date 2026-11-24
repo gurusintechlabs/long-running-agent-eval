@@ -84,6 +84,23 @@ FIELD_UI: dict[str, dict] = {
     "task.counterparts.ops.policy_file": _f("Ops policy file", "ops_policy.yaml for the ops counterpart.", **_PATH),
     "task.counterparts.embed": _f("Embedding counterpart", "Simulated embedding service.", advanced=True),
     "task.counterparts.embed.dims": _f("Embedding dimensions", "Vector size.", unit="dims"),
+    # J1 (jira-re): an external MCP server the harness registers but does not run; paths outside the repo
+    "task.counterparts.rea": _f("REA counterpart", "External reverse-engineering MCP server (REA), registered in "
+                                "the run's MCP config.", advanced=True),
+    "task.counterparts.rea.command": _f("REA command", "The MCP server launcher; ~ is your home.", widget="text",
+                                        placeholder="~/lrae-tools/re/bin/rea-mcp"),
+    "task.counterparts.rea.args": _f("REA arguments", "Extra arguments for the launcher.", widget="string_list",
+                                     advanced=True),
+    "task.counterparts.rea.env_file": _f("REA env file", "KEY=VALUE lines passed to the server.", widget="text",
+                                         placeholder="~/lrae-tools/re/rea.env"),
+    "task.toolchain": _f("Toolchain", "Tools installed outside the repo (decompilers, Maven, REA); pre-flight "
+                         "checks the pinned manifests.", advanced=True),
+    "task.toolchain.dir": _f("Toolchain directory", "Where the install script put the tools; ~ is your home.",
+                             widget="text", placeholder="~/lrae-tools/re"),
+    "task.toolchain.manifest_sha256": _f("Tools manifest SHA-256", "Printed by install_re_tools.sh. Unset: not "
+                                         "checked.", advanced=True, pattern=r"^[0-9a-f]{64}$"),
+    "task.toolchain.m2_manifest_sha256": _f("Maven repo manifest SHA-256", "Printed by prime_maven_repo.py. Unset: "
+                                            "not checked.", advanced=True, pattern=r"^[0-9a-f]{64}$"),
     "task.exploit_tests": _f("Exploit tests", "Hidden black-box exploit tests (each asserts an attack fails).",
                              advanced=True, **_DIR),
 
@@ -155,6 +172,8 @@ FIELD_UI: dict[str, dict] = {
                                                 section="security", advanced=True, pattern=r"^[0-9a-f]{40}$"),
     "scoring.security.semgrep_rulesets": _f("Semgrep rulesets", "Subdirectories of the rules repo.",
                                             section="security", advanced=True),
+    "scoring.security.languages": _f("SAST languages", "Product files scanned: python, java. Bandit reads only "
+                                     "Python.", section="security", advanced=True),
     "scoring.security.semgrep_pro_configs": _f("Semgrep Pro configs", "Local --pro runs; needs a pinned version; "
                                                "not reproducible.", section="security", advanced=True),
     "scoring.security.ignore": _f("Suppressions", "List of {rule, paths} suppressions owned by the scorer.",
@@ -174,6 +193,24 @@ FIELD_UI: dict[str, dict] = {
     "scoring.behavior.enabled": _f("Enable behaviour scoring", section="behavior", advanced=True),
     "scoring.behavior.agent_suite": _f("Rerun the agent's own tests", section="behavior", advanced=True),
     "scoring.behavior.agent_suite_timeout_s": _f("Agent suite timeout", unit="seconds", section="behavior", advanced=True),
+    "scoring.behavior.agent_suite_runner": _f("Agent suite runner", "pytest, or maven (`sh build.sh test`, surefire "
+                                              "reports; needs a toolchain).", section="behavior", advanced=True),
+    "scoring.clean_room": _f("Clean-room similarity", "How much a rewrite copies the scorer's own decompilation of "
+                             "the original jar. Off unless enabled; needs a toolchain.", advanced=True),
+    "scoring.clean_room.enabled": _f("Enable clean-room similarity", advanced=True),
+    "scoring.clean_room.decompiler": _f("Reference decompiler", "Run by the scorer, outside the agent's work dir.",
+                                        advanced=True),
+    "scoring.clean_room.jar_glob": _f("Original jar", "Glob in the seed checkout; exactly one match.", widget="text",
+                                      advanced=True),
+    "scoring.clean_room.jar": _f("Original jar (path)", "Outside the seed, relative to the spec file; replaces the "
+                                 "seed glob when set.", widget="text", advanced=True),
+    "scoring.clean_room.extra_jars": _f("More reference jars", "A jar or a dir of jars (e.g. a bundled public API), "
+                                        "or a JSON list of them, decompiled into the reference too; relative to the "
+                                        "spec file.", widget="json", advanced=True),
+    "scoring.clean_room.src": _f("Rewrite sources", "Workspace dirs holding the rewrite's Java.", widget="string_list",
+                                 advanced=True),
+    "scoring.clean_room.k": _f("k-gram length", "Tokens per fingerprinted k-gram.", unit="tokens", advanced=True),
+    "scoring.clean_room.window": _f("Winnowing window", unit="k-grams", advanced=True),
     "scoring.behavior.eval_paths": _f("Eval paths", "Eval files the agent must not edit (globs).", section="behavior",
                                       advanced=True, **_WS_GLOB),
     "scoring.behavior.data_paths": _f("Data paths", "Protected data (globs).", section="behavior", advanced=True,

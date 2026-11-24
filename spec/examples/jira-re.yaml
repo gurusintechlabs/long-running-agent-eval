@@ -1,0 +1,93 @@
+# Staged long-horizon task: clean-room rewrite of a Jira Data Center plugin (docs/jira-re-design.md).
+# The agent under test is the IMPLEMENTER (design §7.2): its workspace holds the analyst's behavioural
+# spec in spec/ (written by Claude in a development session, outside any run), pom.xml, build.sh and
+# src/. It has no jar, no decompilers and no REA. It builds a clean-room replacement: a real Jira plugin
+# (AMPS, same Jira version as the original) built offline by build.sh. The hidden suite and the
+# copy-similarity metric read the jar harness-side, from fixtures/tasks/jira_re/vendor/.
+#
+# Before the first run:
+#   1. bash fixtures/tasks/jira_re/tools/install_re_tools.sh      (toolchain, outside the repo)
+#   2. put the jar in fixtures/tasks/jira_re/vendor/ and its name in fixtures/tasks/jira_re/target.yaml
+#   3. .venv/bin/python fixtures/tasks/jira_re/tools/prepare_seed.py   (pins pom.xml, fills in seed_commit)
+#   4. .venv/bin/python fixtures/tasks/jira_re/tools/prime_maven_repo.py   (offline Maven repo; network)
+#   5. .venv/bin/python fixtures/tasks/jira_re/analyst/check_spec.py   (the analyst's spec is complete)
+# Model and CLI version are set ONLY here. Scope: the whole spec, 608 modules (owner, 2026-11-02: the full
+# run replaces the 86-module pilot of JR1). Budget: $1000 agent hard cap (owner, 2026-11-02); every real run
+# still needs approval of the estimated spend.
+spec_version: 1
+experiment_id: jira-re-full
+task:
+  id: jira-re
+  class: L3
+  prompt_file: ../../fixtures/tasks/jira_re/stage0.md
+  stages_file: ../../fixtures/tasks/jira_re/stages.yaml
+  seed_repo: ../../fixtures/seed_jira_re
+  seed_commit: "eacc87b0f0038c6a1ccc89c088eeafe27737e601"   # written by prepare_seed.py (zeros: not prepared)
+  seed_requirements_lock: ../../fixtures/tasks/jira_re/requirements.lock   # harness side: agent + scorer venvs
+  constraints_file: ../../fixtures/tasks/jira_re/constraints.yaml
+  hidden_tests: ../../fixtures/tasks/jira_re/hidden
+  workspace_memory: ../../fixtures/tasks/jira_re/CLAUDE.md
+  permissions:   # spec/ is the analyst's; the stage-5 change request adds to it as a harness commit
+    deny: ["Edit(spec/**)", "Write(spec/**)", "Edit(CLAUDE.md)", "Write(CLAUDE.md)", "Bash(git push:*)"]
+  protected_paths: ["spec/**"]
+  # J1: tools outside the repo. Paste the two hashes the install and priming scripts print; pre-flight
+  # refuses a run whose toolchain or offline Maven repository differs (rule 4). Unset = not checked.
+  toolchain:
+    dir: ~/lrae-tools/re
+    manifest_sha256: dea7d1fc92a7a5727504629638aaff9901d590f6f27f09c7615a1f367aac6467   # install_re_tools.sh, 2026-10-26
+    m2_manifest_sha256: 92915b729c8cd29e0e7b9fe57152a9dad645e18cb677baf75906b22c8f87c966   # prime_maven_repo.py, 2026-10-30 (+ UI test tools and pinned Chromium, JC6)
+agent:
+  runtime: claude_code
+  claude_bin: claude
+  claude_code_version: "2.1.301"       # must equal `claude --version` at run start
+  model: claude-opus-5-5               # <- CHANGE AGENT MODEL HERE
+  auto_memory: cli_default
+run:
+  duration_min: 1800                   # upper bound (30 h); the $1000 cap ends it first at JR1's $45-75/h
+  checkpoint_interval_min: 30         # up to 60 checkpoints, each with a Maven build
+  repeats: 5                           # owner, 2026-11-05: r00 + 4 more, each launched manually (--repeat N)
+  configs: [A]
+  seed: 1234
+  parallelism: 1
+budget:                                # subscription login: $ = API-equivalent estimate (D-16)
+  per_run_usd: 1500.00                 # owner, 2026-11-12: raised from $1000 (r01, r02 stopped at the cap in stage 3-4); judges uncapped
+  experiment_usd: 3000.00              # owner, 2026-11-12: r03-r04 at $1500 each; counts agent spend only (per spec hash)
+isolation:
+  mode: local
+  work_dir: ~/lrae-work
+  keep_work_dir: false
+telemetry:
+  protocol: http/json
+  export_interval_ms: 1000
+guardrails:
+  policy_file: ../../guardrails/rules/default.yaml
+scoring:
+  judge_model: claude-opus-5-5         # <- CHANGE JUDGE MODEL HERE
+  judge_samples: 3
+  judge_runtime: claude_code
+  max_commit_scoring_s: 600
+  checkpoint_timeout_s: 1800
+  thresholds:
+    repeat_work_ratio: 0.30
+    cost_per_commit_multiplier: 2.0
+    cost_baseline_checkpoints: 2
+  security:                              # SAST on the Java rewrite: semgrep CE, pinned rules (local, no spend);
+    enabled: true                        # bandit reads only Python. No exploit suite: hidden t10 holds the
+    languages: [java]                    # original's static security contract instead.
+    semgrep_version: "1.181.0"           # Homebrew; must equal `semgrep --version`
+    semgrep_rules_commit: 311ca4e9ba59d700624539bf658e3d29b134ee77   # tools/semgrep-rules-311ca4e9ba (B4)
+    semgrep_rulesets: [java]
+    ai_review: true                      # one judge-model review per completed stage: est. $3-8 each (uncapped)
+    context_file: ../../fixtures/tasks/jira_re/security_context.yaml
+  behavior:
+    enabled: true
+    agent_suite_runner: maven            # J1: `sh build.sh test`, surefire XML
+    agent_suite_timeout_s: 900           # an AMPS build plus tests takes minutes
+    eval_paths: []
+    data_paths: ["spec/**"]              # ED: the analyst's spec is protected data
+  clean_room:                            # J1: copy similarity against the scorer's own decompilation
+    enabled: true
+    decompiler: vineflower
+    jar: ../../fixtures/tasks/jira_re/vendor   # harness-side, exactly one jar; the seed has none (§7.2)
+    extra_jars: [../../fixtures/tasks/jira_re/vendor/api,   # JA1: the bundled public API, and (JS1)
+                 ../../fixtures/tasks/jira_re/vendor/lib]   # the internal libraries; prepare_seed.py extracts both

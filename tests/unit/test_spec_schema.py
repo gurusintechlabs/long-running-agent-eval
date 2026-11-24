@@ -294,6 +294,22 @@ def test_security_scoring_fields_hashed_only_when_used(tmp_path):
                                 task__exploit_tests="exploit"), repo_root=Path("/x")).spec_hash != loaded.spec_hash
 
 
+def test_security_languages(tmp_path):
+    """``languages`` picks the product files SAST scans; the default (python) leaves the spec hash unchanged."""
+    def load(**sec):
+        return load_spec(write_spec(tmp_path, scoring={"judge_model": "claude-opus-5-5",
+                                                       "security": {"enabled": True, **sec}}), repo_root=Path("/x"))
+    base = load()
+    assert base.spec.scoring.security.languages == ["python"]
+    assert load(languages=["python"]).spec_hash == base.spec_hash
+    java = load(languages=["java"], semgrep_rulesets=["java"])
+    assert java.spec.scoring.security.languages == ["java"] and java.spec_hash != base.spec_hash
+    with pytest.raises(SpecError):
+        load(languages=["cobol"])
+    with pytest.raises(SpecError):
+        load(languages=[])
+
+
 @pytest.mark.parametrize("bad", [
     {"enabled": True, "semgrep_rules_commit": "short"},
     {"enabled": True, "ai_review": True},                              # ai review needs a context file
@@ -335,3 +351,110 @@ def test_checkpoint_scoring_timeout_defaults_to_30_minutes_and_is_settable(tmp_p
     assert loaded.spec.scoring.checkpoint_timeout_s == 3600
     with pytest.raises(SpecError):
         load_spec(write_spec(tmp_path, scoring__checkpoint_timeout_s=0), repo_root=Path("/x"))
+
+
+# --- J1: toolchain, REA counterpart, Maven agent suite, clean-room similarity ---------------------
+
+def test_j1_fields_absent_leave_the_hash_unchanged(tmp_path):
+    """Specs written before J1 keep their hash (and run ids): unset J1 fields are not hashed."""
+    sc = {"judge_model": "claude-opus-5-5"}
+    h0 = load_spec(write_spec(tmp_path), repo_root=Path("/x")).spec_hash
+    assert load_spec(write_spec(tmp_path, task__toolchain=None), repo_root=Path("/x")).spec_hash == h0
+    assert load_spec(write_spec(tmp_path, scoring={**sc, "clean_room": {}}), repo_root=Path("/x")).spec_hash == h0
+    (tmp_path / "ops.yaml").write_text("requests: []\n")
+    ops = load_spec(write_spec(tmp_path, task__counterparts={"ops": {"policy_file": "ops.yaml"}}), repo_root=Path("/x"))
+    assert "rea" not in json_of(ops)["task"]["counterparts"]
+    beh = load_spec(write_spec(tmp_path, scoring={**sc, "behavior": {"enabled": True}}), repo_root=Path("/x"))
+    assert "agent_suite_runner" not in json_of(beh)["scoring"]["behavior"]
+
+
+def json_of(loaded) -> dict:
+    """The hashed view of a loaded spec (what compute_spec_hash canonicalises)."""
+    import json as _json
+
+    from spec import loader
+    captured = {}
+    real = loader.sha256_bytes
+
+    def grab(data: bytes) -> str:
+        try:  # file contents are hashed through here too; the canonical spec document is the JSON one
+            captured["doc"] = _json.loads(data)
+        except ValueError:
+            pass
+        return real(data)
+    loader.sha256_bytes = grab
+    try:
+        loader.compute_spec_hash(loaded.spec)
+    finally:
+        loader.sha256_bytes = real
+    return captured["doc"]
+
+
+def test_toolchain_and_rea_load_and_are_hashed(tmp_path):
+    h0 = load_spec(write_spec(tmp_path), repo_root=Path("/x")).spec_hash
+    tc = {"dir": "~/lrae-tools/re", "manifest_sha256": "b" * 64, "m2_manifest_sha256": "c" * 64}
+    rea = {"command": "~/lrae-tools/re/bin/rea-mcp", "env_file": "~/lrae-tools/re/rea.env"}
+    loaded = load_spec(write_spec(tmp_path, task__toolchain=tc, task__counterparts={"rea": rea}), repo_root=Path("/x"))
+    t = loaded.spec.task
+    assert t.toolchain.dir == "~/lrae-tools/re" and t.toolchain.manifest_sha256 == "b" * 64
+    assert t.counterparts.rea.command.endswith("rea-mcp") and t.counterparts.rea.args == []
+    assert loaded.spec_hash != h0
+
+
+@pytest.mark.parametrize("bad", [
+    {"task__toolchain": {"dir": "~/t", "manifest_sha256": "short"}},
+    {"task__toolchain": {"dir": ""}},
+    {"task__counterparts": {"rea": {"command": ""}}},
+    {"scoring": {"judge_model": "claude-opus-5-5", "behavior": {"enabled": True, "agent_suite_runner": "maven"}}},
+    {"scoring": {"judge_model": "claude-opus-5-5", "clean_room": {"enabled": True}}},
+    {"scoring": {"judge_model": "claude-opus-5-5", "behavior": {"agent_suite_runner": "gradle"}}},
+])
+def test_bad_j1_fields_rejected(tmp_path, bad):
+    """Maven and clean-room scoring need the toolchain; hashes are full SHA-256; commands non-empty."""
+    with pytest.raises((SpecError, ValueError)):
+        load_spec(write_spec(tmp_path, **bad), repo_root=Path("/x"))
+
+
+def test_maven_suite_and_clean_room_with_a_toolchain(tmp_path):
+    sc = {"judge_model": "claude-opus-5-5", "behavior": {"enabled": True, "agent_suite_runner": "maven"},
+          "clean_room": {"enabled": True, "decompiler": "vineflower", "k": 20}}
+    loaded = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    s = loaded.spec.scoring
+    assert s.behavior.agent_suite_runner == "maven"
+    assert s.clean_room.enabled and s.clean_room.k == 20 and s.clean_room.src == ["src/main/java"]
+
+
+def test_clean_room_jar_path_is_resolved_and_hashed_by_content(tmp_path):
+    """JA: the original jar lives harness-side (not in the seed); its path resolves against the spec file
+    and its content, not its location, is part of the hash."""
+    (tmp_path / "orig.jar").write_bytes(b"PK one")
+    sc = {"judge_model": "claude-opus-5-5", "clean_room": {"enabled": True}}
+    base = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert base.spec.scoring.clean_room.jar is None and "jar" not in json_of(base)["scoring"]["clean_room"]
+    sc["clean_room"]["jar"] = "orig.jar"
+    loaded = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert loaded.spec.scoring.clean_room.jar == str((tmp_path / "orig.jar").resolve())
+    (tmp_path / "orig.jar").write_bytes(b"PK two")
+    changed = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert len({base.spec_hash, loaded.spec_hash, changed.spec_hash}) == 3
+    (tmp_path / "orig.jar").unlink()
+    with pytest.raises(SpecError, match="clean_room.jar"):
+        load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+
+
+def test_clean_room_extra_jars_may_be_a_list(tmp_path):
+    """JS1: the reference can take jars from several dirs (the public API and the vendor's internal libraries);
+    each path resolves against the spec file and is hashed by content; a missing one is an error."""
+    for d in ("api", "lib"):
+        (tmp_path / d).mkdir()
+        (tmp_path / d / f"{d}.jar").write_bytes(b"PK " + d.encode())
+    sc = {"judge_model": "claude-opus-5-5", "clean_room": {"enabled": True, "extra_jars": ["api", "lib"]}}
+    loaded = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert loaded.spec.scoring.clean_room.extra_jars == [str((tmp_path / d).resolve()) for d in ("api", "lib")]
+    assert len(json_of(loaded)["scoring"]["clean_room"]["extra_jars"]) == 2
+    (tmp_path / "lib" / "lib.jar").write_bytes(b"PK changed")
+    changed = load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))
+    assert changed.spec_hash != loaded.spec_hash
+    sc["clean_room"]["extra_jars"] = ["api", "gone"]
+    with pytest.raises(SpecError, match="extra_jars"):
+        load_spec(write_spec(tmp_path, task__toolchain={"dir": "~/t"}, scoring=sc), repo_root=Path("/x"))

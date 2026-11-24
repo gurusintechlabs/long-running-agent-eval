@@ -1,0 +1,993 @@
+{
+ "claims": [
+  {
+   "key": "e9-items-b/type-tempo-account/key-and-id",
+   "module": "type-tempo-account",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-tempo-account` (descriptor name `itemtype:Account`). Items are long identities whose number is the Tempo account id; an identity is resolved only when it is a long identity of exactly this key, and the number is narrowed to a 32-bit int (higher bits dropped) before the account is asked of `tempo-integration` by id. Any other identity resolves to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.TempoAccountItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-tempo-account/resolves-to-account",
+   "module": "type-tempo-account",
+   "api": null,
+   "behaviour": "An item resolves to the Tempo account (id, key, name, status) that `tempo-integration` returns for the id. When that is the null account (id -1: Tempo Accounts not installed or disabled, no such account, or any Tempo failure), the item resolves to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.TempoAccountItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-tempo-account/always-visible",
+   "module": "type-tempo-account",
+   "api": null,
+   "behaviour": "A resolved Tempo account is visible to every user, including anonymous; no Jira or Tempo permission is asked. The type takes part in bulk access checks but never reports any item as inaccessible (not even accounts that do not exist), and it does not report dead items.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.TempoAccountItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.TempoAccountItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-tempo-account/no-formula-fields-no-create",
+   "module": "type-tempo-account",
+   "api": null,
+   "behaviour": "Tempo account items expose no formula fields and no display text of their own through the type, cannot be created, copied or edited through the item type, and the plugin records no item changes for Tempo accounts (no Tempo account event is turned into a change of this item type).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.TempoAccountItemType",
+    "com.almworks.jira.structure.event.StructureEventBridge"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-project-component/key-and-id",
+   "module": "type-project-component",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-project-component` (descriptor name `itemtype:Project Component`). Items are long identities whose number is the Jira project component id; only long identities of this key are resolved, through Jira's `ProjectComponentManager.find(id)`. An `EntityNotFoundException` from Jira gives nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ProjectComponentItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-project-component/visible-browse-project",
+   "module": "type-project-component",
+   "api": null,
+   "behaviour": "A component is visible to a user when Jira's `PermissionManager.hasPermission(BROWSE_PROJECTS, project, user)` is true for the component's project (looked up with `ProjectManager.getProjectObj(projectId)`); a null user is asked as anonymous.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ProjectComponentItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-project-component/bulk-inaccessible",
+   "module": "type-project-component",
+   "api": null,
+   "behaviour": "In a bulk access check, every component id of this type that Jira cannot find is reported inaccessible. The projects of the found components are checked together as `StructurePluginHelper.filterInvisibleProjects` does (with the given user and security-override flag), and every component whose project is reported there is inaccessible. A found component whose project id is null is never reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ProjectComponentItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-project-component/dead",
+   "module": "type-project-component",
+   "api": null,
+   "behaviour": "A component id of this type is reported dead when Jira's `ProjectComponentManager.find` throws `EntityNotFoundException` for it; found components are alive.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ProjectComponentItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-project-component/formula-fields",
+   "module": "type-project-component",
+   "api": null,
+   "behaviour": "Formula fields of a component: `name` its name, `description` its description, `lead` the user item (`com.almworks.jira.structure:type-user`/<lead user key>) of its lead, undefined when it has no lead. Null name or description, and any other field name, give undefined. Its display text is its name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.ProjectComponentItemType#getField",
+    "com.almworks.jira.structure.extension.item.ProjectComponentItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-project-component/tracking",
+   "module": "type-project-component",
+   "api": null,
+   "behaviour": "Changes of a component (any Jira project component event: created, updated, deleted, merged) are recorded as changes of its item by `structure-event-bridge`; the item type itself records nothing. Components cannot be created, copied or edited through the item type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge",
+    "com.almworks.jira.structure.extension.item.ProjectComponentItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-missing/key",
+   "module": "type-missing",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-missing` (descriptor name `itemtype:Missing Item`), used for rows whose item cannot be resolved; its identities (for example `CoreIdentities.MISSING_ITEM`, long id 0) may be long or string.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.MissingItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-missing/never-resolves",
+   "module": "type-missing",
+   "api": null,
+   "behaviour": "Every identity given to this type resolves to nothing, and its visibility check answers false for any user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.MissingItemType#accessItem",
+    "com.almworks.jira.structure.extension.item.MissingItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-missing/always-inaccessible-and-dead",
+   "module": "type-missing",
+   "api": null,
+   "behaviour": "In bulk checks every identity of type `com.almworks.jira.structure:type-missing` in the set (long and string ids alike) is reported inaccessible, even when security is overridden, and also reported dead. Identities of other types are not touched. No formula fields, no creation or editing, no change tracking.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.MissingItemType#filterInaccessible",
+    "com.almworks.jira.structure.extension.item.MissingItemType#filterDead"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-sd-request-type/key-and-id",
+   "module": "type-sd-request-type",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-sd-request-type` (descriptor name `itemtype:Customer Request Type`). Items are long identities whose number is the Service Management request type id (an int widened to long). The identity's number is converted to an int; a number outside the 32-bit range is logged as an error and 0 is used instead. The type key of the identity is not checked, and a string identity throws `UnsupportedOperationException` (which `item-resolver` logs and turns into no item).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RequestTypeItemType#accessItem",
+    "com.almworks.jira.structure.util.Util",
+    "com.almworks.structure.commons.util.CommonUtil#toInt"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-sd-request-type/resolves-current-user",
+   "module": "type-sd-request-type",
+   "api": null,
+   "behaviour": "An item resolves to the Service Management `RequestType` that `sd-integration-supplier` loads by id as the current Structure user (first result of the request type query). When Service Management is not installed or its request type service is unavailable, or nothing is found, the item resolves to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RequestTypeItemType#accessItem",
+    "com.almworks.jira.structure.integration.servicedesk.ServiceDeskIntegration#loadRequestType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-sd-request-type/visibility",
+   "module": "type-sd-request-type",
+   "api": null,
+   "behaviour": "A request type is visible to a user only when Service Management (`com.atlassian.servicedesk`) is installed and ENABLED and the request type can be loaded by its id with that user as the requesting user (a non-null result); otherwise it is invisible. The type has no bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RequestTypeItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-sd-request-type/formula-fields",
+   "module": "type-sd-request-type",
+   "api": null,
+   "behaviour": "Formula fields of a request type: `name` its name, `issuetype` the issue type item `com.almworks.jira.structure:type-issuetype`/<issue type id as decimal text> (a string identity), `description` its description, `helptext` its help text; null texts and any other field name give undefined. Its display text is its name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RequestTypeItemType#getField",
+    "com.almworks.jira.structure.extension.item.RequestTypeItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-sd-request-type/no-create-no-tracking",
+   "module": "type-sd-request-type",
+   "api": null,
+   "behaviour": "Request types cannot be created, copied or edited through the item type, and the plugin records no item changes for request types.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RequestTypeItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-effector/key-and-id",
+   "module": "type-effector",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-effector` (descriptor name `itemtype:Effector`). Items are long identities whose number is the `AO_8BAD1B_EFFECTOR_INSTANCE.ID` of an effector instance. Long identities of this key other than `CoreIdentities.NEW_EFFECTOR` (id Long.MAX_VALUE) resolve to the `EffectorInstance` that `effector-instance-manager` returns; `NEW_EFFECTOR`, other types and string identities resolve to nothing, and a `StructureException` from the manager is logged at debug level and gives nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.EffectorItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-effector/always-visible",
+   "module": "type-effector",
+   "api": null,
+   "behaviour": "An effector instance is visible to every user, including anonymous, and the bulk access check never reports any effector item as inaccessible (also not for ids with no instance).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.EffectorItemType#isVisible",
+    "com.almworks.jira.structure.extension.item.EffectorItemType#filterInaccessible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-effector/create-values",
+   "module": "type-effector",
+   "api": null,
+   "behaviour": "Creating an effector item takes a values map that is read as exactly two keys: `moduleKey` (the effector module's complete key, text) and `params` (a JSON object of effector parameters). When the map is null or empty, when it cannot be converted (any other key, or values of the wrong shape, are rejected by the conversion, logged as a warning), or when `moduleKey` is missing or blank, an error is added under field `moduleKey` with the text of `s.ext.it.effector.error.module-blank` (`Module key is required`) and nothing is created (null is returned). The module key is not checked against installed effectors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.EffectorItemType#getParameters",
+    "com.almworks.jira.structure.extension.item.EffectorItemType#createItem",
+    "com.almworks.jira.structure.util.JacksonUtil#fromMap"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-effector/create-item",
+   "module": "type-effector",
+   "api": null,
+   "behaviour": "With valid values, creating an item creates an unowned effector instance through `effector-instance-manager` (module key and params as given, owning structure null) and returns `com.almworks.jira.structure:type-effector`/<new instance id>. No permission is checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.EffectorItemType#createItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-effector/dummy-row",
+   "module": "type-effector",
+   "api": null,
+   "behaviour": "A preview (dummy) row for a new effector is built from the same values with the same `moduleKey` validation and error, without storing anything: the row has the given row id and semantics, item `CoreIdentities.NEW_EFFECTOR`, and as its item object an `EffectorInstance` with id 0, the given module key, no owning structure and the given params (an empty map when `params` is absent).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.EffectorItemType#createDummyRow"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-effector/owned-item",
+   "module": "type-effector",
+   "api": null,
+   "behaviour": "When an effector item is placed into structure S (as `StructureOwnedItemType`): an instance with no owning structure is updated in place to be owned by S (module key and parameters unchanged) and its identity is returned; an instance owned by another structure, or owned by S when copying is requested (copy-if-same), is copied into a new instance owned by S with the same module key and parameters and the new identity is returned; an instance already owned by S without copy-if-same is returned unchanged. The identity's type key is not checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.EffectorItemType#getOwnedItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-effector/owned-item-missing",
+   "module": "type-effector",
+   "api": null,
+   "behaviour": "When the effector instance of the identity does not exist, placing it into a structure fails with the `StructureException` of `effector-instance-manager` (`ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.EffectorItemType#getOwnedItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-effector/tracking-no-formulas",
+   "module": "type-effector",
+   "api": null,
+   "behaviour": "Effector items have no formula fields or display text through the item type and cannot be edited through it (no update support). Their changes are recorded by `effector-instance-manager` when instances are created, updated or deleted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.EffectorItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo/key-descriptor",
+   "module": "type-memo",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-memo` (descriptor name `itemtype:Memo`), a generic item type behaving as `GenericItemType` describes, with long ids = `AO_8BAD1B_GENERIC_ITEM.ID`. Its descriptor has `<icon spanClass=\"alm alm-fw alm-memo s-item-color-gray\"/>`, `<displayable key=\"s.ext.type.memo.displayable\"/>` (`memo \"{0}\"`) and `<title key=\"s.ext.type.memo.title\"/>` (`Memo`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.MemoItemType",
+    "com.almworks.jira.structure.api.item.generic.GenericItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo/visibility",
+   "module": "type-memo",
+   "api": null,
+   "behaviour": "A memo is visible exactly as `generic-item-manager` decides for generic items: always when it has no owning structure, otherwise when the user has at least VIEW on the owning structure. No Jira permission and no field configuration is consulted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.item.generic.GenericItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo/read-values-fields",
+   "module": "type-memo",
+   "api": null,
+   "behaviour": "When a memo is created or edited from client values, the fields are read under the memo field configuration (`generic-item-field-config-service`: summary, description, assignee, due date and the three time fields) as `generic-item-type-helper` reads them: `description` and the entries of `params` that are known, shown and editable fields. On create all errors are collected; on edit any field parse error means no field is applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.MemoItemType#readItemValues"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo/color-icon-params",
+   "module": "type-memo",
+   "api": null,
+   "behaviour": "Besides fields, of the `params` map only `color` and `iconClass` are stored, each only when the key is present (its value stored as given under the same key in the item's parameters; a null value removes it). Other non-field entries of `params` are not stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.MemoItemType#readExtraParams",
+    "com.almworks.jira.structure.extension.item.generic.MemoItemType#copyParameter"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo/formula-fields",
+   "module": "type-memo",
+   "api": null,
+   "behaviour": "Formula field `color` of a memo gives the stored `color` parameter as a formula value (undefined when absent); every other field (`key`, `name`, `summary`, `description`, `history`, `created`, `updated`, `creator` and catalogue fields) is answered as `generic-item-type-helper` describes, including its bulk loading of `history`. A memo's display text is its name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.MemoItemType#getField",
+    "com.almworks.jira.structure.extension.item.generic.MemoItemType#bulkGetField",
+    "com.almworks.jira.structure.extension.item.generic.MemoItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-planning-task/key-descriptor",
+   "module": "type-planning-task",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-planning-task` (descriptor name `itemtype:PlanningTask`), a generic item type behaving as `GenericItemType` describes, with long ids = `AO_8BAD1B_GENERIC_ITEM.ID`. Its descriptor has `<icon spanClass=\"alm alm-fw alm-issue-icon\"/>`, `<displayable key=\"s.ext.type.planning.displayable\"/>` (`Planning task \"{0}\"`) and `<title key=\"s.ext.type.planning.title\"/>` (`Planning task`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-planning-task/visibility",
+   "module": "type-planning-task",
+   "api": null,
+   "behaviour": "A planning task is visible to a user only when both hold: the generic item rule of `generic-item-manager` (no owning structure, or VIEW on it) and the planning-task field configuration rule of `generic-item-field-config-service` (its stored project is visible to the user). The same rule is used in bulk access checks, so a task without a project is inaccessible unless security is overridden.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-planning-task/field-config-from-project",
+   "module": "type-planning-task",
+   "api": null,
+   "behaviour": "When a planning task is created or edited from client values (without a sample), the field configuration used is the planning-task configuration for a project and issue type taken from `params.project` and `params.issuetype` (parsed as editor values of those fields), each falling back to the value already in the item being built when not given or not parseable to a value. The fields are then read as `generic-item-type-helper` reads them (create collects all errors, edit applies nothing on a parse error); no other `params` entries (for example colour or icon) are stored.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#getFieldConfig",
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#readFieldValue",
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#readItemValues"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-planning-task/sample-item-format",
+   "module": "type-planning-task",
+   "api": null,
+   "behaviour": "Values may contain `sampleItemId`, an item identity in text form (`<item type>/<id>`). When it is present, all other values except the name (`summary`) are ignored. A text that cannot be parsed adds the error message `Invalid sample item id format: <parse error>`; an identity that is neither an issue (`com.almworks.jira.structure:type-issue`) nor a planning task adds `Sample item is not supported` (both plain English, not translated); nothing is copied then.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#parseSampleItemId",
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#readValuesFromSample"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-planning-task/sample-planning-task",
+   "module": "type-planning-task",
+   "api": null,
+   "behaviour": "A planning-task sample is resolved with the visibility check for the current user; when found, the new item gets the sample's description and its whole parameter map (all field values and other parameters), replacing what was there. When it does not resolve, the error message `s.planning-task.error.sample-not-found` (`Sample item does not exist`) is added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#readValuesFromPlanningTask"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-planning-task/sample-issue",
+   "module": "type-planning-task",
+   "api": null,
+   "behaviour": "An issue sample is resolved with the visibility check for the current user; when found, its values are copied into the planning task by `issue-to-planning-task-converter` with `summary` excluded (the name comes from `summary` in the values). When the issue does not resolve, `s.planning-task.error.sample-not-found` (`Sample item does not exist`) is added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#readValuesFromIssue"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-planning-task/sample-on-edit",
+   "module": "type-planning-task",
+   "api": null,
+   "behaviour": "`sampleItemId` is honoured on edit as well as on create: editing a planning task with a sample overwrites its description and parameters (planning-task sample) or copies the issue's values into it (issue sample).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#readItemValues"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-planning-task/new-item-values",
+   "module": "type-planning-task",
+   "api": null,
+   "behaviour": "For showing the fields of a not-yet-created planning task (REST field accessor), the type builds an unsaved item from client values: name = the single value of `summary` (empty text when absent, no blank check), field configuration from `params.project`/`params.issuetype` as on create, and the fields read with all errors collected; `sampleItemId` is not honoured here and nothing is stored.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#readNewItemValues"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-planning-task/formula-fields",
+   "module": "type-planning-task",
+   "api": null,
+   "behaviour": "Every formula field of a planning task (`key`, `name`, `summary`, `description`, `history`, `created`, `updated`, `creator` and catalogue fields) is answered as `generic-item-type-helper` describes, including its bulk loading of `history`; there is no `color` field of its own. Its display text is its name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#getField",
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-attachment/key-and-id",
+   "module": "type-attachment",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-attachment` (descriptor name `itemtype:Attachment`). Items are long identities whose number is the Jira attachment id; long identities of this key resolve to Jira's `AttachmentManager.getAttachment(id)` (an exception from Jira, such as for a missing attachment, is logged by `item-resolver` and gives nothing); other identities resolve to nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AttachmentItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-attachment/visibility",
+   "module": "type-attachment",
+   "api": null,
+   "behaviour": "An attachment is visible to a user when Jira's `PermissionManager.hasPermission(BROWSE_PROJECTS, issue, user)` is true for the attachment's issue (so issue security applies as Jira applies it). There are no bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AttachmentItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-attachment/formula-fields",
+   "module": "type-attachment",
+   "api": null,
+   "behaviour": "Formula fields of an attachment: `created` its creation time (epoch ms), `filesize` its size in bytes, `filename` its file name, `author` the user item of its author key (undefined when the author key is null); null values and other field names give undefined. Its display text is the file name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AttachmentItemType#getField",
+    "com.almworks.jira.structure.extension.item.AttachmentItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-attachment/no-create-no-tracking",
+   "module": "type-attachment",
+   "api": null,
+   "behaviour": "Attachments cannot be created, copied or edited through the item type, and the plugin records no item changes of this type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.AttachmentItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-comment/key-and-id",
+   "module": "type-comment",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-comment` (descriptor name `itemtype:Comment`). Items are long identities whose number is the Jira comment id; long identities of this key resolve to Jira's `CommentManager.getCommentById(id)` (null when missing); other identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.CommentItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-comment/visibility",
+   "module": "type-comment",
+   "api": null,
+   "behaviour": "A comment is visible to a user when Jira's `PermissionManager.hasPermission(BROWSE_PROJECTS, issue, user)` is true for the comment's issue. The comment's own visibility restriction (group or project role) is not checked. There are no bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.CommentItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-comment/formula-fields",
+   "module": "type-comment",
+   "api": null,
+   "behaviour": "Formula fields of a comment: `author` and `updateauthor` the user items (`com.almworks.jira.structure:type-user`/<user key>) of its author and update author, undefined when Jira has no such user object; `created` and `updated` the times (epoch ms); `body` the body text. Null values and other names give undefined. Its display text is the body.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.CommentItemType#getField",
+    "com.almworks.jira.structure.extension.item.CommentItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-comment/no-create-no-tracking",
+   "module": "type-comment",
+   "api": null,
+   "behaviour": "Comments cannot be created, copied or edited through the item type, and the plugin records no item changes of this type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.CommentItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-worklog/key-and-id",
+   "module": "type-worklog",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-worklog` (descriptor name `itemtype:Worklog`). Items are long identities whose number is the Jira work log id; long identities of this key resolve to Jira's `WorklogManager.getById(id)`; other identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.WorklogItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-worklog/bulk-access",
+   "module": "type-worklog",
+   "api": null,
+   "behaviour": "Work logs are resolved in bulk: the distinct ids of work log identities (other identities ignored) are loaded with `WorklogManager.getWorklogsForIds` in one call when there are fewer than 1000, otherwise in chunks of at most 1000 ids; each loaded work log is reported under its own identity, and ids Jira does not return are reported as not found.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.WorklogItemType#accessItems"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-worklog/visibility",
+   "module": "type-worklog",
+   "api": null,
+   "behaviour": "A work log is visible to a user when Jira's `PermissionManager.hasPermission(BROWSE_PROJECTS, issue, user)` is true for its issue; the work log's own group or role restriction is not checked. There are no bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.WorklogItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-worklog/formula-fields",
+   "module": "type-worklog",
+   "api": null,
+   "behaviour": "Formula fields of a work log: `author` and `updateauthor` the user items of the author and update author keys (a null key gives the anonymous user item `com.almworks.jira.structure:type-user`/`-`, not undefined); `created`, `updated` and `startdate` times (epoch ms); `comment` the comment text; `timespent` the time spent in milliseconds (Jira's seconds times 1000; undefined when null). Other names give undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.WorklogItemType#getField"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-worklog/display-text",
+   "module": "type-worklog",
+   "api": null,
+   "behaviour": "A work log's display text is `s.ext.type.worklog.description` (`{0} logged {1}`) in Jira's default locale, with the author's display name and the time spent formatted by Jira's duration format in that locale (`0m` when that gives nothing).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.WorklogItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-worklog/no-create-no-tracking",
+   "module": "type-worklog",
+   "api": null,
+   "behaviour": "Work logs cannot be created, copied or edited through the item type, and the plugin records no item changes of this type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.WorklogItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-issue-link/key-and-id",
+   "module": "type-issue-link",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-issue-link` (descriptor name `itemtype:IssueLink`). Items are long identities whose number is the Jira issue link id; long identities of this key resolve to Jira's `IssueLinkManager.getIssueLink(id)`; other identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.IssueLinkItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-issue-link/visibility",
+   "module": "type-issue-link",
+   "api": null,
+   "behaviour": "An issue link is visible to a user only when both its source and destination issues are visible to that user, as `forest-permissions-cache` reports invisible issues (without security override, so cached per user); one invisible or deleted end makes the link invisible. No bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.IssueLinkItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-issue-link/formula-fields",
+   "module": "type-issue-link",
+   "api": null,
+   "behaviour": "Formula fields of an issue link: `source` and `destination` the issue items of its two ends, `sequence` its sequence number, `type` the issue link type item `com.almworks.jira.structure:type-issue-link-type`/<link type id>; other names give undefined. Its display text is `<source issue key> → <destination issue key>` (U+2192 between single spaces).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.IssueLinkItemType#getField",
+    "com.almworks.jira.structure.extension.item.IssueLinkItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-issue-link/no-create-no-tracking",
+   "module": "type-issue-link",
+   "api": null,
+   "behaviour": "Issue links cannot be created, copied or edited through the item type, and the plugin records no item changes of this type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.IssueLinkItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-issue-link-type/key-and-id",
+   "module": "type-issue-link-type",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-issue-link-type` (descriptor name `itemtype:IssueLinkType`). Items are long identities whose number is the Jira issue link type id; long identities of this key resolve to Jira's `IssueLinkTypeManager.getIssueLinkType(id)`; other identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.IssueLinkTypeItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-issue-link-type/always-visible",
+   "module": "type-issue-link-type",
+   "api": null,
+   "behaviour": "An issue link type is visible to every user, including anonymous. No bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.IssueLinkTypeItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-issue-link-type/formula-fields",
+   "module": "type-issue-link-type",
+   "api": null,
+   "behaviour": "Formula fields of an issue link type: `name`, `inward`, `outward` and `style` its texts (undefined when null), `issubtask` true (1) or false (0) for the sub-task link type, `issystem` and also `system` true (1) or false (0) for a system link type; other names give undefined. Its display text is its name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.IssueLinkTypeItemType#getField",
+    "com.almworks.jira.structure.extension.item.IssueLinkTypeItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-issue-link-type/no-create-no-tracking",
+   "module": "type-issue-link-type",
+   "api": null,
+   "behaviour": "Issue link types cannot be created, copied or edited through the item type, and the plugin records no item changes of this type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.IssueLinkTypeItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-group/key-and-id",
+   "module": "type-change-history-group",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-change-history-group` (descriptor name `itemtype:ChangeHistoryGroup`). Items are long identities whose number is the id of a Jira change group (one issue change event); long identities of this key resolve to Jira's `ChangeHistoryManager.getChangeHistoryById(id)`; other identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryGroupItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-group/bulk-access",
+   "module": "type-change-history-group",
+   "api": null,
+   "behaviour": "Change groups are resolved in bulk with one query of Jira's `ChangeGroup` entity (via `OfBizDelegator`) for all ids of this type (other identities ignored, id `IN` list); each row found is reported under its own identity, ids without a row are reported as not found.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryGroupItemType#accessItems",
+    "com.almworks.jira.structure.extension.attribute.OfBizSourceHelper"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-group/always-visible",
+   "module": "type-change-history-group",
+   "api": null,
+   "behaviour": "A change group is visible to every user, including anonymous; the visibility of the changed issue is not checked. No bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryGroupItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-group/formula-fields",
+   "module": "type-change-history-group",
+   "api": null,
+   "behaviour": "Formula fields of a change group: `author` the user item of its author key (a null key gives the anonymous user item `-`); `time`, `timeperformed` and `timestamp` the time of the change (epoch ms); `item`, `changeditem`, `issue` and `changedissue` the issue item of the changed issue; `changes` and `changeitems` an array of the group's change items (`com.almworks.jira.structure:type-change-history-item`/<ChangeItem id>), read from Jira's `ChangeItem` entity by its `group` column, in the order the database returns them (empty array when none). Other names give undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryGroupItemType#getField",
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryGroupItemType#collectChanges"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-group/bulk-changes",
+   "module": "type-change-history-group",
+   "api": null,
+   "behaviour": "For many change groups at once only `changes`/`changeitems` is loaded in bulk: one query of `ChangeItem` rows whose `group` is any of the groups' ids, delivering each change item to its group. Other fields are answered per item.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryGroupItemType#bulkGetField"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-group/display-text",
+   "module": "type-change-history-group",
+   "api": null,
+   "behaviour": "A change group's display text is `s.ext.type.change.group.description` (`Changed on {0}`) in Jira's default locale, with the change time formatted by Jira's date-time formatter in DATE style for that locale.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryGroupItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-group/no-create-no-tracking",
+   "module": "type-change-history-group",
+   "api": null,
+   "behaviour": "Change groups cannot be created, copied or edited through the item type, and the plugin records no item changes of this type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryGroupItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/key-and-id",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-change-history-item`. Items are long identities whose number is the id of a row of Jira's `ChangeItem` entity (one field change: field name, old value and text, new value and text, group id), read with `OfBizDelegator.findById`. Other identities resolve to nothing; an id with no row fails while reading (a `NullPointerException`, which `item-resolver` logs and turns into no item).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#accessItem",
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/bulk-access",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "Change items are resolved in bulk with one `ChangeItem` query by id (`IN` the list of ids of this type; others ignored); each row found is reported under its identity, ids without a row are reported as not found.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#accessItems"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/always-visible",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "A change item is visible to every user, including anonymous; the changed issue's visibility is not checked. No bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/field-name",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "Formula field `field` gives the change's field name, with Jira's history names `Version` turned into `affectedversions`, `Fix Version` into `fixversions` and `Component` into `components`; other names (including custom field names and `Attachment`) unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#historyNameToDereferencingName"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/texts-group",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "Formula fields `fromtext` and `totext` give the old and new display strings of the change (undefined when null); `changegroup` the change group item `com.almworks.jira.structure:type-change-history-group`/<group id>. Other unknown names give undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#getField"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/field-information-lookup",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "To interpret values the field is looked up in `field-information-provider`: by field id, mapping history names `Version`->`versions`, `Fix Version`->`fixVersions`, `Component`->`components`, `Attachment`->`attachment` (others as is); when that gives nothing, the custom fields with that exact name are taken (Jira `CustomFieldManager.getCustomFieldObjectsByName`) and the one with the lowest id is looked up. The lookup is reused within one formula evaluation context.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#getFieldInformation",
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#historyNameToFieldId"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/from-to-values",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "Formula fields `from` and `to` give the old and new values: when the field has both history support and value format support, the raw value and text are read as a field value (in the formula's time zone) and formatted as a formula value; a value that cannot be read gives the display string when the field allows fallback, otherwise undefined. For a multi-valued field, elements that read as null are replaced by the matching element of the display string split on `, ` (when fallback is allowed). Without such support the result is the display string, or the raw value when the string is null or empty.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#load0",
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#load"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/incremental",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "Formula field `incremental` is true (1) when the field's history support marks it incremental (for example multi-value fields whose history records additions and removals), and undefined otherwise (also when the field is unknown).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#getField"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/display-text",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "A change item's display text is `s.ext.type.change.item.description` (`{0} {1} {2}`) in Jira's default locale: the field name as given by `field`, then `-=` with the old text when the new text is empty or null (a removal), else `+=` with the new text for an incremental field, else `→` with the new text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-change-history-item/no-create-no-tracking",
+   "module": "type-change-history-item",
+   "api": null,
+   "behaviour": "Change items cannot be created, copied or edited through the item type, and the plugin records no item changes of this type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.ChangeHistoryItemItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo-change-history-group/key-and-id",
+   "module": "type-memo-change-history-group",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-memo-change-history-group`. Items are long identities whose number is `AO_8BAD1B_GENERIC_ITEM_HISTORY.ID`, one change record of a memo or planning task. Identities of this type resolve to the record `generic-item-history-manager` returns for them (other identities to nothing); in bulk, records are loaded as that manager's bulk load does and each is reported under `com.almworks.jira.structure:type-memo-change-history-group`/<record id>.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.MemoChangeHistoryGroupItemType#accessItem",
+    "com.almworks.jira.structure.extension.item.history.MemoChangeHistoryGroupItemType#accessItems"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo-change-history-group/always-visible",
+   "module": "type-memo-change-history-group",
+   "api": null,
+   "behaviour": "A generic item history record is visible to every user, including anonymous; the visibility of the changed item or its owning structure is not checked. No bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.MemoChangeHistoryGroupItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo-change-history-group/formula-fields",
+   "module": "type-memo-change-history-group",
+   "api": null,
+   "behaviour": "Formula fields of a record: `author` the user item of its author key (null gives the anonymous user item `-`); `time`, `timeperformed` and `timestamp` its time (epoch ms); `item`, `changeditem`, `memo` and `changedmemo` the identity of the changed generic item (memo or planning task); `changes` and `changeitems` the array of its field changes (see the change entries claim). Other names give undefined. There is no bulk field loading.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.MemoChangeHistoryGroupItemType#getField"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo-change-history-group/change-entries",
+   "module": "type-memo-change-history-group",
+   "api": null,
+   "behaviour": "The changes of a record compare the old and new item snapshots field by field over the union of their field ids: `summary` (the name), `description` (only when not null) and every entry of the item parameters' `fields` map. A field whose old and new values are equal is left out; order of entries is unspecified. Each change is a struct with `fieldid` (field id with whitespace, punctuation and control characters removed, lower-cased), `field` (the field's name from `structure-field-manager`, or the normalised id when unknown), `fromtext` and `totext` (the stored old and new values as stored), `from` and `to` (for `summary`, `description` and unknown fields the stored value; otherwise the stored text deserialised by the field's type and converted to its extended value, a non-text stored value read as null), and `changegroup` (the record's item). For a create record all old values are absent.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.memo.GenericItemHistoryChangesFormatter#formatChanges",
+    "com.almworks.jira.structure.memo.GenericItemHistoryChangesFormatter#createChangeMap",
+    "com.almworks.jira.structure.memo.GenericItemHistoryChangesFormatter#tryParseFieldValue"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo-change-history-group/display-text",
+   "module": "type-memo-change-history-group",
+   "api": null,
+   "behaviour": "A record's display text is `s.ext.type.change.group.description` (`Changed on {0}`) in Jira's default locale, with the record time formatted by the date-time formatter for that locale.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.MemoChangeHistoryGroupItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-memo-change-history-group/no-create-no-tracking",
+   "module": "type-memo-change-history-group",
+   "api": null,
+   "behaviour": "Records cannot be created, copied or edited through the item type; the item type records no item changes (records are only appended by `generic-item-manager`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.history.MemoChangeHistoryGroupItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-insight-object/key-and-id",
+   "module": "type-insight-object",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-insight-object`. Items are long identities whose number is the Insight/Assets object id; the number is narrowed to a 32-bit int and the object loaded by id through `insight-integration-supplier`. The identity's type key is not checked; a string identity throws `UnsupportedOperationException` (logged by `item-resolver`, no item).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.InsightObjectItemType#accessItem",
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#getObjectById"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-insight-object/resolves-insight-absent",
+   "module": "type-insight-object",
+   "api": null,
+   "behaviour": "An item resolves to the Insight object (id, label, object key, object type id). When Insight/Assets is not installed, its object facade is unavailable, the object does not exist, or Insight throws its permission exception, the item resolves to nothing; other Insight exceptions propagate (and `item-resolver` logs them and gives nothing).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.InsightObjectItemType#accessItem",
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#loadObjectBean"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-insight-object/visibility",
+   "module": "type-insight-object",
+   "api": null,
+   "behaviour": "An Insight object is visible to a user only when the user is not anonymous and Insight's `InsightPermissionFacade.hasInsightObjectViewPermission(user, objectId)` is true; a missing permission facade (Insight absent) makes it invisible. No bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.InsightObjectItemType#isVisible",
+    "com.almworks.jira.structure.integration.insight.InsightIntegration#isObjectVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-insight-object/formula-fields",
+   "module": "type-insight-object",
+   "api": null,
+   "behaviour": "Formula field `label` gives the object's label. Any other field name is normalised (whitespace, punctuation and control characters removed, trimmed, lower-cased) and matched against the object's attributes with their names normalised the same way; the first matching attribute is converted to a formula value by `insight-expr-converter`. No matching attribute (or no attributes, for example Insight absent) gives undefined. The display text is the label.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.InsightObjectItemType#getField",
+    "com.almworks.jira.structure.extension.item.InsightObjectItemType#getObjectAttribute",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#normalizeName"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-insight-object/tracking",
+   "module": "type-insight-object",
+   "api": null,
+   "behaviour": "Changes of an Insight object are recorded as changes of its item by `structure-event-bridge` (Insight object updated events); the item type itself records nothing, and objects cannot be created, copied or edited through it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.event.StructureEventBridge",
+    "com.almworks.jira.structure.extension.item.InsightObjectItemType"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-remote-link/key-and-id",
+   "module": "type-remote-link",
+   "api": null,
+   "behaviour": "Item type key `com.almworks.jira.structure:type-remote-link` (descriptor name `itemtype:RemoteLink`). Items are long identities whose number is the Jira remote issue link id; long identities of this key resolve to Jira's `RemoteIssueLinkManager.getRemoteIssueLink(id)`; other identities resolve to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RemoteLinkItemType#accessItem"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-remote-link/visibility",
+   "module": "type-remote-link",
+   "api": null,
+   "behaviour": "A remote link is visible to a user only when its issue is visible to that user, as `forest-permissions-cache` reports invisible issues (without security override). No bulk access or dead-item checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RemoteLinkItemType#isVisible"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-remote-link/formula-fields",
+   "module": "type-remote-link",
+   "api": null,
+   "behaviour": "Formula fields of a remote link: `source` and `issue` the issue item of its issue; `title`, `url`, `apptype` (application type), `appname` (application name), `icontitle`, `iconurl`, `statusicontitle`, `statusiconurl`, `statusiconlink`, `statusname`, `statusdescription`, `statuscategorykey`, `statuscategorycolor` (status category colour name), `summary` and `relationship` the link's matching texts (undefined when null). Other names give undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RemoteLinkItemType#getField"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-remote-link/display-text",
+   "module": "type-remote-link",
+   "api": null,
+   "behaviour": "A remote link's display text is `<issue key> → <title>`: the issue key from Jira's `IssueManager.getIssueObject(issueId)` (the numeric issue id when the issue is not found) and the title, or the URL when the title is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RemoteLinkItemType#getDisplayText"
+   ]
+  },
+  {
+   "key": "e9-items-b/type-remote-link/no-create-no-tracking",
+   "module": "type-remote-link",
+   "api": null,
+   "behaviour": "Remote links cannot be created, copied or edited through the item type, and the plugin records no item changes of this type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.RemoteLinkItemType"
+   ]
+  }
+ ]
+}

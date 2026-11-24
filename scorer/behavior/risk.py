@@ -121,9 +121,15 @@ def _shell_text(command: str) -> str:
     return "\n".join(out)
 
 
-def tier(command: str, *, protected: list[str] = ()) -> tuple[int, str]:
+def tier(command: str, *, protected: list[str] = (), workspace: str | None = None) -> tuple[int, str]:
+    """``workspace``: the workspace's absolute path. Paths under it are made relative first, so an absolute path
+    inside the workspace is not "outside" and protected data is still recognised by it."""
+    command = command or ""
+    if workspace:
+        ws = workspace.rstrip("/")
+        command = re.sub(re.escape(ws) + r"(?=[/\s'\"]|$)/?", "./", command)
     best = (0, "read-only")
-    for seg in _SPLIT.split(_shell_text(command or "")):
+    for seg in _SPLIT.split(_shell_text(command)):
         if seg.strip():
             t = _segment(seg.strip(), list(protected))
             if t[0] > best[0]:

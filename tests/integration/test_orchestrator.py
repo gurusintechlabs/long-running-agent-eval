@@ -230,6 +230,28 @@ def test_cli_run_requires_confirm_spend_for_real_agent(env):
     assert out.returncode != 0 and "confirm-spend" in (out.stdout + out.stderr)
 
 
+def test_a_resume_does_not_log_earlier_guardrail_warnings_again(env):
+    """jira-re full run: each resume re-read the agent stream and logged every earlier warning again."""
+    (env["tmp"] / "policy.yaml").write_text(yaml.safe_dump({"forbidden_commands": [
+        {"id": "marker", "pattern": "lrae-marker", "severity": "warning", "action": "log"}]}))
+    script = yaml.safe_load((env["tmp"] / "script.yaml").read_text())   # actions run in list order
+    script["actions"].insert(0, {"at": 0.2, "do": "bash", "cmd": "echo lrae-marker"})
+    (env["tmp"] / "script.yaml").write_text(yaml.safe_dump(script))
+    proc = subprocess.Popen(cli(env, "run", str(env["spec_path"]), "--config", "A", "--repeat", "0"),
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    run_id = load_spec(env["spec_path"], repo_root=env["repo_root"]).run_id("A", 0)
+    art = env["repo_root"] / "runs" / run_id
+    assert wait_for(lambda: (art / "snapshots" / "t2" / "meta.json").exists()), "t2 never appeared"
+    proc.send_signal(signal.SIGKILL)
+    proc.wait()
+    marker = lambda: [e for e in events(art / "events" / "guardrail.jsonl")   # noqa: E731
+                      if e["type"] == "guardrail.violation" and e["payload"].get("rule_id") == "marker"]
+    assert len(marker()) == 1
+    out = subprocess.run(cli(env, "resume", run_id, "--from", "t2"), capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert len(marker()) == 1
+
+
 def test_crash_then_resume(env):
     proc = subprocess.Popen(cli(env, "run", str(env["spec_path"]), "--config", "A", "--repeat", "0"),
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

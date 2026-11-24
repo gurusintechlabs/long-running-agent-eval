@@ -1,0 +1,717 @@
+{
+  "packages": {
+    "com.almworks.jira.structure.api.forest.item": "Forests whose rows carry item data. An item forest pairs a raw `Forest` (row ids and depths) with a way to look up the `StructureRow` for each row id. The package also holds the builder interfaces that generators use to emit rows, and a ready builder implementation.",
+    "com.almworks.jira.structure.api.forest.raw": "The raw forest model: an ordered list of row ids, each with a depth, which together encode a set of trees. Contains the `Forest` interface, its array-backed implementation `ArrayForest` with all editing operations, and the callback and control interfaces used to walk a forest top-down or bottom-up.",
+    "com.almworks.jira.structure.api.generator": "The generator extension point. Generators are plugin modules (inserters, extenders, groupers, sorters, filters) that build or transform part of a forest automatically, and may optionally react to user edits of the generated rows. The package holds the service provider interfaces that generator authors implement, the context objects the plugin passes to them, the `GeneratorManager` service that stores generator instances, and constants naming built-in generators and common parameters.",
+    "com.almworks.jira.structure.api.generator.util": "Helpers for generator authors: abstract base classes with sensible defaults for each generator kind, ready-made item change filters and update checkers, an issue-only applicability checker, and a helper that loads attribute values for the rows a generator is working on while arranging re-generation when those values change.",
+    "com.almworks.jira.structure.api.i18n": "A minimal localisation abstraction: an `I18n` object resolves message keys to text in one locale, and an `I18nProvider` gives one for the current user. The Jira-backed implementations delegate to Jira's own i18n helper."
+  },
+  "types": {
+    "com.almworks.jira.structure.api.forest.item.ImmutableItemForest": {
+      "summary": "An `ItemForest` that holds its own copy of every `StructureRow` it contains, so it does not depend on any row service. Instances are created only through the static factory methods. The class is final and marked immutable; the row map is an unmodifiable copy. Caveat: the forest passed to `rearrangeItemForest`, `copySubtree` and `of(StructureRow)` is stored as given, not copied or frozen, so immutability of `getForest()` is only guaranteed for instances made by `of(Forest, Map)` and `copy`. Safe to share between threads when built from immutable inputs.",
+      "members": {
+        "EMPTY": "Shared empty item forest: an immutable empty forest and no rows.",
+        "of(com.almworks.jira.structure.api.forest.raw.Forest, java.util.Map)": "Creates an item forest from a raw forest and a map from row id to row. Every row id in the forest must have a non-null entry in the map, otherwise `IllegalArgumentException` is thrown listing the missing ids. The forest is copied into a new immutable forest and the map is copied into an unmodifiable map (extra map entries are kept but unused). Neither argument may be null.",
+        "of(com.almworks.jira.structure.api.row.StructureRow)": "Creates an item forest with a single root row: the forest contains just `row.getRowId()` at depth 0 and the row map contains that row. The row must not be null.",
+        "copy(com.almworks.jira.structure.api.forest.item.ItemForest)": "Returns an immutable snapshot of the given item forest. If the argument already is an `ImmutableItemForest` it is returned unchanged. Otherwise the forest is copied and frozen, and every row in it is fetched from the source with normal access; if the source cannot supply a row, `MissingRowException` propagates.",
+        "copySubtree(com.almworks.jira.structure.api.forest.item.ItemForest, long)": "Returns an item forest holding the subtree rooted at `rootId` in the source (the row and all its descendants, re-based so the row is at depth 0), with row data fetched from the source. If `rootId` is not in the source forest the result is empty. `MissingRowException` propagates if the source lacks data for a row.",
+        "rearrangeItemForest(com.almworks.jira.structure.api.forest.item.ItemForest, com.almworks.jira.structure.api.forest.raw.Forest)": "Builds an item forest whose structure is `newForest` and whose row data comes from `source`. Every row id in `newForest` is looked up in `source` with normal access; a missing row raises `MissingRowException`. `newForest` is used as is (not copied), so callers should pass an immutable forest if they need a truly immutable result.",
+        "getForest()": "Returns the raw forest (row ids and depths). Never null.",
+        "getRow(long, com.almworks.jira.structure.api.row.ItemAccessMode)": "Returns the stored row for `rowId`. Throws `MissingRowException` if the row id is not in this item forest. With `ItemAccessMode.SKIP_ACCESS_CHECK` the returned row is a variant whose item access is not checked against the current user; with any other mode the stored row is returned as is."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.item.ItemForest": {
+      "summary": "A raw `Forest` together with a `RowRetriever` that can supply the `StructureRow` for each of its rows. This is the unit of data that generators produce and that action handlers receive as fragments. Implemented by `ImmutableItemForest`, `ManagerBackedItemForest` and by the plugin internally.",
+      "members": {
+        "getForest()": "Returns the structure of this item forest: the row ids and their depths. Never null.",
+        "collectItemIds(com.almworks.integers.LongIterable)": "Returns the set of distinct item identities referenced by the given row ids, resolved through this item forest without loading the items themselves. Row ids that this forest cannot resolve are skipped silently. A null argument yields an empty set (it does not mean all rows)."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilder": {
+      "summary": "Builder for a small item forest, passed by the plugin to inserters (`StructureGenerator.Inserter.createFragment`) and extenders (`StructureGenerator.Extender.ExtenderFunction.extend`). Rows are added in display order; `nextLevel`/`prevLevel` move the insertion point down and up the hierarchy. All methods return the builder itself for chaining. Generators only call it; they do not implement it.",
+      "members": {
+        "nextLevel()": "Moves the insertion point one level down: rows added afterwards become children of the row added most recently. Requires that a row was added at the current level since the last level change, otherwise `IllegalStateException` (in the provided implementation).",
+        "prevLevel()": "Moves the insertion point one level up: the parent of the current level becomes the current row, so the next added row becomes its next sibling. Throws `IllegalStateException` (in the provided implementation) if already at the top level or if no row has been added at the current level yet.",
+        "nextFragment(com.almworks.jira.structure.api.forest.item.ItemForest)": "Appends a whole item forest at the current insertion point: its roots become siblings following the current row (at the current level) and its hierarchy is kept. Only each row's item identity and semantics are copied; new row ids are assigned. An empty fragment is ignored. After the call the current row is the last root of the fragment."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.item.ItemForestBuilderImpl": {
+      "summary": "The standard `ItemForestBuilder` implementation, also used by the plugin when it calls generators. Each added row gets a fresh temporary negative row id (starting at -100 and decreasing) and a simple row record holding the item identity and semantics. The constructor looks up the plugin's item resolver as an OSGi service, so the class only works inside a running Jira with the plugin enabled. Not thread-safe.",
+      "members": {
+        "<init>()": "Creates an empty builder positioned at the top level with no current row. Obtains the item resolver service from the OSGi container at construction time.",
+        "nextRow(com.almworks.jira.structure.api.item.ItemIdentity)": "Same as `nextRow(itemId, 0)`: adds a row with default (zero) semantics.",
+        "nextRow(com.almworks.jira.structure.api.item.ItemIdentity, long)": "Adds a row for `itemId` with the given row semantics at the current level, immediately after the current row (or as the first row of the level if none), and makes it the current row. Semantics 0 means default; when the plugin consumes the result it replaces 0 with the default semantics for the generator kind. `itemId` must not be null.",
+        "nextLevel()": "Makes the current row the parent for subsequent rows and clears the current row. Throws `IllegalStateException` if there is no current row.",
+        "prevLevel()": "Returns to the parent level: the current row becomes the parent of the row just added and the level goes up by one. Throws `IllegalStateException` if there is no current row (for example right after `nextLevel()`) or if already at the top level.",
+        "nextFragment(com.almworks.jira.structure.api.forest.item.ItemForest)": "Copies the fragment's rows (item id and semantics, with new temporary ids) and appends them after the current row at the current level, preserving the fragment's hierarchy. Rows are read from the fragment with normal access, so `MissingRowException` may propagate. Empty fragments are ignored. Afterwards the current row is the last row at the current level. Not determined: behaviour when the current row already has children is flagged as wrong in the original (only an assertion guards it).",
+        "build()": "Returns an `ImmutableItemForest` with everything added so far. The builder stays usable; a later `build()` includes later additions.",
+        "getCurrentRowId()": "Returns the temporary id of the current row (the row most recently added at the current level, or the parent after `prevLevel()`). Throws `IllegalStateException` if there is no current row."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.item.ItemListBuilder": {
+      "summary": "Builder for a flat list of rows; the base of `ItemForestBuilder`. Passed by the plugin to groupers (`GrouperFunction.createGroupRows`) to create group rows. Methods return the builder for chaining.",
+      "members": {
+        "nextRow(com.almworks.jira.structure.api.item.ItemIdentity)": "Adds the next row, showing the item `itemId`, with default semantics (0). The item identity must not be null.",
+        "nextRow(com.almworks.jira.structure.api.item.ItemIdentity, long)": "Adds the next row, showing the item `itemId`, with the given row semantics value; 0 means let the plugin pick the default for the generator kind."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.item.ManagerBackedItemForest": {
+      "summary": "An `ItemForest` that keeps only a raw forest and asks a `RowManager` for row data on demand. It does not copy the forest; it is as mutable and thread-safe as the forest and row manager given to it. Row access mode can be overridden with a default mode fixed at construction.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.forest.raw.Forest, com.almworks.jira.structure.api.row.RowManager)": "Creates an item forest over `forest` using `rowManager` for rows, with `ItemAccessMode.NORMAL_ACCESS` as the default access mode. Neither argument may be null.",
+        "<init>(com.almworks.jira.structure.api.forest.raw.Forest, com.almworks.jira.structure.api.row.RowManager, com.almworks.jira.structure.api.row.ItemAccessMode)": "Creates an item forest with an explicit default access mode. Whenever a caller asks for `NORMAL_ACCESS`, this default is used instead; other modes pass through unchanged. If the default is null, a null mode is passed to the row manager for normal-access requests (behaviour then depends on the row manager; not determined).",
+        "getForest()": "Returns the forest given to the constructor (same instance, not a copy).",
+        "getRow(long, com.almworks.jira.structure.api.row.ItemAccessMode)": "Delegates to the row manager's `getRow`, with the access mode substituted as described for the constructor. Throws `MissingRowException` if the row manager does not know the row. The row does not have to be in the forest.",
+        "scanRows(com.almworks.integers.LongIterable, boolean, com.almworks.jira.structure.api.row.ItemAccessMode, com.almworks.integers.LongCollector, java.util.function.Predicate)": "Delegates to the row manager's `scanRows` with the same arguments, except the access mode substituted as described for the constructor.",
+        "toString()": "Returns the full text form of the forest (`Forest.toFullString()`), without row data."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.ArrayForest": {
+      "summary": "The standard `Forest` implementation, backed by a list of row ids and a parallel list of depths. It is mutable until `makeImmutable()` is called and provides editing operations (merge, move, remove, reorder, replace) that keep the forest invariants as long as inputs are valid. Row ids 0 and -1 are rejected; the other invariants are checked only when JVM assertions are enabled, and `getDiagnostics` can be used to validate explicitly. Clients create it with constructors; it is not thread-safe, and read methods return live views where noted.",
+      "members": {
+        "<init>()": "Creates an empty mutable forest.",
+        "<init>(long)": "Creates a mutable forest with the single root `row` at depth 0. Throws `IllegalArgumentException` if `row` is 0 or -1.",
+        "<init>(com.almworks.integers.WritableLongList, com.almworks.integers.WritableIntList, boolean)": "Creates a mutable forest from parallel lists of row ids and depths. If `reuseLists` is true the given lists become the backing storage (later changes through either side are shared); if false they are copied. Throws `IllegalArgumentException` if any row id is 0 or -1. Other invariants (equal sizes, depth rules, uniqueness) are only checked when JVM assertions are enabled; otherwise invalid input is accepted silently and later behaviour is undefined.",
+        "<init>(com.almworks.integers.LongList, com.almworks.integers.IntList)": "Creates a mutable forest from copies of the given row and depth lists. Same validation as the three-argument constructor.",
+        "<init>(com.almworks.jira.structure.api.forest.raw.Forest)": "Creates a mutable forest with copies of another forest's rows and depths. The immutability of the source is not carried over.",
+        "set(com.almworks.integers.WritableLongList, com.almworks.integers.WritableIntList, boolean)": "Replaces the whole content with the given rows and depths, either adopting the lists (`reuseLists` true) or copying them. Returns this. Throws `IllegalArgumentException` for row id 0 or -1 (message includes the offending position). Structural invariants are checked only with JVM assertions on. Oddity: this method does not check immutability, so it also changes forests marked immutable.",
+        "set(com.almworks.integers.LongList, com.almworks.integers.IntList)": "Replaces the content with copies of the given lists; otherwise as the three-argument `set` (including the missing immutability check). Returns this.",
+        "getDiagnostics()": "Checks this forest's invariants and returns null if they hold, or a short English description of the first problem found. See the static `getDiagnostics(Forest)`.",
+        "getDiagnostics(com.almworks.jira.structure.api.forest.raw.Forest)": "Checks the invariants of any forest and returns null if valid, otherwise a description of the first problem: row and depth lists of different size, first row not at depth 0, a duplicate row id, a negative depth, or a depth more than one greater than the previous row's. Row ids 0 and -1 are not checked here. Never throws for a well-formed `Forest` object.",
+        "containsRow(long)": "True if `row` occurs in the forest.",
+        "mergeForest(com.almworks.jira.structure.api.forest.raw.Forest, long, long)": "Same as `mergeForest(forest, under, after, null)`.",
+        "addForest(long, long, com.almworks.jira.structure.api.forest.raw.Forest)": "Same as `mergeForest(forest, under, after)` but any `StructureException` is swallowed silently, leaving the forest unchanged in that case. Note the argument order differs from `mergeForest`.",
+        "clear()": "Removes all rows. Throws `UnsupportedOperationException` if the forest is immutable.",
+        "mergeForest(com.almworks.jira.structure.api.forest.raw.Forest, long, long, com.almworks.jira.structure.api.forest.raw.ForestChangeEventHandler)": "Inserts `forest` under row `under` (0 for the top level), right after the sibling `after` (0 to insert as the first child). If the two forests share no rows the whole forest is inserted in one step. Otherwise rows already present here are moved (with their existing subtrees) to the position they have in `forest`, and new rows are inserted; in each parent the merged children come first, in `forest` order, followed by children that were there before. Null or empty `forest` does nothing. `after` that is not found or is not a child of `under` (after resolving it to its ancestor at the target level) is ignored with an info log, giving first-child position. Throws `ForestMergeStructureException` if `under` or one of its ancestors occurs in `forest` (the merge would create a cycle), `StructureException` with code `INVALID_FOREST_OPERATION` if `under` is not in this forest, `UnsupportedOperationException` if immutable. The event handler, if not null, is told about every removal and insertion.",
+        "addRow(long, long, long)": "Places a single row under `under` after `after` (same position rules as `mergeForest`). If the row already exists it is moved there with its subtree; otherwise it is inserted as a leaf. Returns false (doing nothing) if `row` is 0, true otherwise. Throws `IllegalArgumentException` for row -1, `StructureException` if `under` is not found or is the row itself or one of its descendants, `UnsupportedOperationException` if immutable.",
+        "addForestMutuallyExclusive(com.almworks.jira.structure.api.forest.raw.Forest, long, long)": "Inserts `forest` as is under `under` after `after`, without checking for rows that already exist here; the caller guarantees the forests share no rows (otherwise the result has duplicates and is invalid). Depths are shifted to fit below `under`. Null or empty forest does nothing. Throws `StructureException` if `under` is not found, `UnsupportedOperationException` if immutable. Invalid `after` is ignored as in `mergeForest`.",
+        "removeSubtree(long, com.almworks.jira.structure.api.forest.raw.ForestChangeEventHandler)": "Removes `row` and all its descendants and returns them as a new forest re-based to depth 0. If the row is not found returns an empty forest and changes nothing (no immutability check in that case). Throws `UnsupportedOperationException` if immutable and the row exists. The handler, if not null, gets `beforeSubtreeRemoved` before the rows go.",
+        "removeSubtreeAtIndex(int, com.almworks.jira.structure.api.forest.raw.ForestChangeEventHandler)": "Removes the row at `index` and its descendants and returns them as a new forest re-based to depth 0. The handler, if not null, is called before removal. Throws `UnsupportedOperationException` if immutable; an invalid index causes an index-out-of-bounds error.",
+        "subtree(long)": "New mutable forest with `row` as the single root followed by all its descendants, depths re-based so the row has depth 0. Empty forest if the row is not found.",
+        "subtreeAtIndex(int)": "Same as `subtree` for the row at `index`; empty forest for a negative index.",
+        "getSubtreeEnd(int)": "Returns the index just past the subtree of the row at `index`, that is the index of the first following row whose depth is not greater (or `size()`). The subtree occupies `[index, result)`. A negative index returns 0; an index greater than `size()` returns `size()`. In `ArrayForest` an index exactly equal to `size()` throws index-out-of-bounds (apparent off-by-one in the original).",
+        "copySubforest(long)": "New mutable forest with the descendants of `row` (the row itself excluded), re-based so its children become roots. With `row` 0 returns a copy of the whole forest. Returns an empty forest if the row has no children and null if the row is not in the forest.",
+        "copySubforestAtIndex(int)": "Same as `copySubforest` for the row at index `k`: null for a negative index, empty for a leaf, otherwise the descendants with its children as roots.",
+        "getRows()": "The row ids in forest order (pre-order: each row is followed by its whole subtree). In `ArrayForest` this is the live backing list, not a copy: it reflects later changes and must not be modified by the caller.",
+        "getDepths()": "The depth of each row, index-aligned with `getRows()`. Roots have depth 0; a row's depth is at most one more than the previous row's depth. In `ArrayForest` this is the live backing list.",
+        "getRow(int)": "Row id at position `index` (0-based). An index outside 0..size-1 causes an index-out-of-bounds exception from the underlying list.",
+        "getDepth(int)": "Depth of the row at position `index`. Out-of-range indexes cause an index-out-of-bounds exception.",
+        "getParent(long)": "Row id of the parent of `row`; 0 if the row is a root, is not in the forest, or `row` is 0.",
+        "getParentIndex(int)": "Index of the parent of the row at `index`, or -1 if that row is a root or `index` is negative. Index past the end throws index-out-of-bounds.",
+        "getPathIndexAtDepth(int, int)": "Index of the ancestor of the row at `index` that sits at `depth` (the row itself if its depth equals `depth`). Returns -1 if `index` or `depth` is negative or if `depth` is greater than the row's depth.",
+        "getPrecedingSiblingIndex(int)": "Index of the closest earlier sibling of the row at `index`, or -1 if none or if `index` is 0 or negative.",
+        "getPrecedingSiblingForIndex(int)": "Row id of the closest earlier sibling of the row at `index`, or 0 if there is none.",
+        "getPrecedingSibling(long)": "Row id of the closest earlier sibling of `row` (same parent), or 0 if it is the first child, is not found, or `row` is 0.",
+        "getPrecedingSiblings(long)": "All earlier siblings of `row`, in forest order (the nearest one last). Empty if the row is the first child or is not found. Returns a new list.",
+        "getPrecedingSiblingsForIndex(int)": "All earlier siblings of the row at `index`, in forest order (nearest last). Empty for index 0 or negative. Returns a new list.",
+        "getNextSiblingIndex(int)": "Index of the next sibling of the row at `index` (first later row at the same depth before any shallower row), or -1 if none or if `index` is negative or is the last index.",
+        "getNextSiblingForIndex(int)": "Row id of the next sibling of the row at `index`, or 0 if none.",
+        "getNextSibling(long)": "Row id of the next sibling of `row`, or 0 if none, not found, or `row` is 0.",
+        "getChildren(long)": "Direct children of `row` in order; with `row` 0, the roots. Empty if the row is not found or has no children. Returns a new list.",
+        "getChildrenAtIndex(int)": "Direct children of the row at `index`, in order. Empty for a negative index. Returns a new list.",
+        "getChildrenIndicesIterator(int)": "Iterator over the indexes of the direct children of the row at `index`, in order. Index -1 iterates over the roots; any other negative index gives an iterator that throws when first advanced. The iterator reads the forest lazily, so the forest must not change while it is used.",
+        "getRoots()": "All rows of depth 0, in order. Returns a new list.",
+        "filter(com.almworks.jira.structure.api.util.La)": "Returns a forest containing only rows accepted by `filter`. A rejected row is dropped but its descendants are still tested; accepted descendants move up and take the place of the dropped row (they attach to the nearest accepted ancestor, or become roots). Order is preserved. A null filter, or one that accepts every row, returns this same instance rather than a copy; otherwise a new mutable forest is returned. The filter is called once per row at most.",
+        "filterSoft(com.almworks.jira.structure.api.util.La)": "Returns a forest with every row accepted by `filter` plus all ancestors of accepted rows, so the hierarchy of matching rows is preserved. Rejected rows with no accepted descendant are dropped. A null filter, or one accepting every row, returns this same instance; otherwise a new mutable forest.",
+        "filterHardest(com.almworks.jira.structure.api.util.La)": "Returns a forest from which every rejected row is removed together with its whole subtree; descendants of rejected rows are not tested. Depths of kept rows are unchanged. A null filter, or one accepting every row, returns this same instance; otherwise a new mutable forest.",
+        "makeImmutable()": "Marks this forest read-only (cannot be undone) and returns this same instance. Afterwards editing methods throw `UnsupportedOperationException`, except the `set` and `replaceSubtrees...` methods, which in the original do not check the flag.",
+        "isImmutable()": "True if the forest has been made read-only; mutating operations then throw `UnsupportedOperationException`.",
+        "ensureImmutability(com.almworks.jira.structure.api.forest.raw.Forest)": "Returns `forest` itself if it reports immutable, otherwise a new immutable `ArrayForest` copy of it. The argument must not be null.",
+        "size()": "Number of rows in the forest.",
+        "copy()": "Returns a new mutable `ArrayForest` with its own copies of the row and depth lists. The copy is never immutable.",
+        "moveSubtree(long, long, long)": "Same as `moveSubtree(row, under, after, null)`.",
+        "moveSubtree(long, long, long, com.almworks.jira.structure.api.forest.raw.ForestChangeEventHandler)": "Moves `row` with its subtree to be a child of `under` (0 for top level) right after sibling `after` (0 for first). Returns false if the row is not in the forest, true otherwise, including when it is already in that position (then nothing changes). `after` equal to `row` with an unchanged parent means no move. Throws `StructureException` if `under` is not found or is the row or one of its descendants, `UnsupportedOperationException` if immutable. Invalid `after` is ignored as in `mergeForest`.",
+        "moveSubtreeAtIndex(int, long, long, com.almworks.jira.structure.api.forest.raw.ForestChangeEventHandler)": "Moves the subtree of the row at `index` as in `moveSubtree`. Returns the new index of the row, or -1 if `index` is negative or no move was needed. Same exceptions as `moveSubtree`.",
+        "indexOf(long)": "Position of `row` in the forest, or -1 if the row is not present. Row id 0 always gives -1. Linear search.",
+        "isEmpty()": "True if the forest has no rows.",
+        "equals(Object)": "True if the other object is of exactly the same class (`ArrayForest`, not a subclass or other `Forest`) and has equal row and depth lists. The immutability flag is ignored.",
+        "hashCode()": "Hash derived from the row and depth lists, consistent with `equals`.",
+        "toString()": "Same format as `toFullString()` but lists at most the first 20 rows; when longer, it ends with ` ... [N]` where N is the total row count, before the closing parenthesis.",
+        "toFullString()": "Text form listing every row as `row:depth`, without truncation. In `ArrayForest` the format is `forest(` then `ro,` if immutable, then comma-separated `row:depth` pairs, then `)`.",
+        "clone()": "Returns a copy with its own row and depth lists. Unlike `copy()`, the clone keeps the immutability flag of the original.",
+        "getLastChild(long)": "Row id of the last direct child of `parent`; with `parent` 0, the last root. Returns 0 if the parent has no children or is not in the forest.",
+        "getLastChildByIndex(int)": "Row id of the last direct child of the row at `parentIndex`; a negative index means the last root. Returns 0 if there are no children or if `parentIndex` is not less than `size()`.",
+        "foldUpwards(com.almworks.jira.structure.api.forest.raw.ForestParentChildrenClosure)": "Bottom-up fold. For each row, once all its children have been processed, calls `closure.visitRow(control, row, children, carry)` where `carry` is the accumulation of its children's results (null for leaves). Each result is then folded into its siblings' accumulation with `closure.combine(control, result, carry)`; siblings are combined from the last to the first. Returns the accumulation of the roots' results, or null if the forest is empty or the walk was cancelled through `control.cancel()`.",
+        "scanDownwards(com.almworks.jira.structure.api.forest.raw.ForestScanner)": "Top-down scan: calls `scanner.acceptRow(control, row)` for each row in forest order. Through the `ForestScanControl` the scanner can read the position, skip the current subtree or the rest of an ancestor's subtree, or cancel the scan. Does nothing on an empty forest.",
+        "visitParentChildrenUpwards(com.almworks.jira.structure.api.forest.raw.ForestParentChildrenVisitor)": "Walks the forest bottom-up and calls the visitor once for every row, after all of that row's descendants have been visited, passing the forest, the row id and the ids of its direct children (in order; empty for leaves). Rows are processed from the end of the forest towards the start. The visitor is not called for the invisible top level (the list of roots). If the visitor returns false the walk stops.",
+        "getPath(long)": "Path from the root down to `row`, inclusive (root first). Empty if the row is not found. Returns a new list.",
+        "getPathForIndex(int)": "Path from the root down to the row at `index`, inclusive. Empty for a negative index.",
+        "getParentPathForIndex(int)": "Path from the root down to the parent of the row at `index` (the row itself excluded). Empty for roots and for a negative index.",
+        "removeSubtree(long)": "Same as `removeSubtree(row, null)`.",
+        "reorder(long, com.almworks.integers.LongList)": "Rearranges the direct children of `parent` (0 for the roots) into the order given by `children`, each moving with its subtree. If `parent` is not found or has no children nothing happens. `children` must list exactly the current children: a row that is not a child throws a plain `RuntimeException`; omitting children or listing one twice is only caught by an assertion and otherwise corrupts the forest. Throws `UnsupportedOperationException` if immutable.",
+        "append(com.almworks.jira.structure.api.forest.raw.Forest)": "Adds the rows of `forest` at the end, unchanged in depth, so its roots become new last roots. Throws `IllegalArgumentException` if the two forests share any row, `UnsupportedOperationException` if immutable.",
+        "iterator()": "Iterator over (row id, depth) pairs in forest order, reading the live lists.",
+        "replaceSubtrees(long, com.almworks.jira.structure.api.forest.raw.Forest)": "Replaces all descendants of `rowId` with `forest`, whose roots become the row's children; with `rowId` 0 the whole content is replaced. If some rows of `forest` already exist elsewhere in this forest, the replacement is done by merging (those rows are moved, and any merge error is swallowed). Throws `IllegalArgumentException` if `rowId` is not found. Does not check immutability when no merge is needed; when merging is needed on an immutable forest, the old descendants are already removed when the merge throws `UnsupportedOperationException`, which propagates and leaves the forest half changed (as the original does).",
+        "replaceSubtreesMutuallyExclusive(long, com.almworks.jira.structure.api.forest.raw.Forest)": "Like `replaceSubtrees`, but the caller guarantees that `forest` has no rows in common with the part of this forest that stays; no check is made and duplicates would corrupt the forest. Faster. Throws `IllegalArgumentException` if `rowId` (non-zero) is not found. Does not check immutability.",
+        "replaceSubtreesMutuallyExclusiveAtIndex(int, com.almworks.jira.structure.api.forest.raw.Forest)": "Like `replaceSubtreesMutuallyExclusive` for the row at `index`; index -1 replaces the whole content. Throws `IllegalArgumentException` if `index` is below -1 or not less than `size()`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.Forest": {
+      "summary": "Read-only view of a forest: a sequence of row ids with a depth for each, in pre-order, that encodes an ordered set of trees. Invariants: row ids are unique and non-zero (and not -1, which is reserved for the super-root); the first row has depth 0; each depth is at most one more than the previous one. Positions are 0-based indexes; row id 0 is used in arguments and results to mean no row or the top level. `ArrayForest` is the standard implementation; implementations may be mutable unless `isImmutable()` is true.",
+      "members": {
+        "EMPTY": "Shared empty forest that has been made immutable. Note: in the original it is an `ArrayForest` whose `set` methods do not check immutability, so it could in principle be altered; callers must never do so.",
+        "size()": "Number of rows in the forest.",
+        "isEmpty()": "True if the forest has no rows.",
+        "getRows()": "The row ids in forest order (pre-order: each row is followed by its whole subtree). In `ArrayForest` this is the live backing list, not a copy: it reflects later changes and must not be modified by the caller.",
+        "getDepths()": "The depth of each row, index-aligned with `getRows()`. Roots have depth 0; a row's depth is at most one more than the previous row's depth. In `ArrayForest` this is the live backing list.",
+        "getRow(int)": "Row id at position `index` (0-based). An index outside 0..size-1 causes an index-out-of-bounds exception from the underlying list.",
+        "getDepth(int)": "Depth of the row at position `index`. Out-of-range indexes cause an index-out-of-bounds exception.",
+        "isImmutable()": "True if the forest has been made read-only; mutating operations then throw `UnsupportedOperationException`.",
+        "indexOf(long)": "Position of `row` in the forest, or -1 if the row is not present. Row id 0 always gives -1. Linear search.",
+        "containsRow(long)": "True if `row` occurs in the forest.",
+        "getSubtreeEnd(int)": "Returns the index just past the subtree of the row at `index`, that is the index of the first following row whose depth is not greater (or `size()`). The subtree occupies `[index, result)`. A negative index returns 0; an index greater than `size()` returns `size()`. In `ArrayForest` an index exactly equal to `size()` throws index-out-of-bounds (apparent off-by-one in the original).",
+        "getParentIndex(int)": "Index of the parent of the row at `index`, or -1 if that row is a root or `index` is negative. Index past the end throws index-out-of-bounds.",
+        "getParent(long)": "Row id of the parent of `row`; 0 if the row is a root, is not in the forest, or `row` is 0.",
+        "getPrecedingSibling(long)": "Row id of the closest earlier sibling of `row` (same parent), or 0 if it is the first child, is not found, or `row` is 0.",
+        "getPrecedingSiblingIndex(int)": "Index of the closest earlier sibling of the row at `index`, or -1 if none or if `index` is 0 or negative.",
+        "getPrecedingSiblingForIndex(int)": "Row id of the closest earlier sibling of the row at `index`, or 0 if there is none.",
+        "getPrecedingSiblings(long)": "All earlier siblings of `row`, in forest order (the nearest one last). Empty if the row is the first child or is not found. Returns a new list.",
+        "getPrecedingSiblingsForIndex(int)": "All earlier siblings of the row at `index`, in forest order (nearest last). Empty for index 0 or negative. Returns a new list.",
+        "getNextSiblingIndex(int)": "Index of the next sibling of the row at `index` (first later row at the same depth before any shallower row), or -1 if none or if `index` is negative or is the last index.",
+        "getNextSiblingForIndex(int)": "Row id of the next sibling of the row at `index`, or 0 if none.",
+        "getNextSibling(long)": "Row id of the next sibling of `row`, or 0 if none, not found, or `row` is 0.",
+        "getPathIndexAtDepth(int, int)": "Index of the ancestor of the row at `index` that sits at `depth` (the row itself if its depth equals `depth`). Returns -1 if `index` or `depth` is negative or if `depth` is greater than the row's depth.",
+        "getLastChild(long)": "Row id of the last direct child of `parent`; with `parent` 0, the last root. Returns 0 if the parent has no children or is not in the forest.",
+        "getLastChildByIndex(int)": "Row id of the last direct child of the row at `parentIndex`; a negative index means the last root. Returns 0 if there are no children or if `parentIndex` is not less than `size()`.",
+        "getChildrenIndicesIterator(int)": "Iterator over the indexes of the direct children of the row at `index`, in order. A negative index iterates over the roots. The iterator reads the forest lazily, so the forest must not change while it is used.",
+        "getChildren(long)": "Direct children of `row` in order; with `row` 0, the roots. Empty if the row is not found or has no children. Returns a new list.",
+        "getChildrenAtIndex(int)": "Direct children of the row at `index`, in order. Empty for a negative index. Returns a new list.",
+        "getRoots()": "All rows of depth 0, in order. Returns a new list.",
+        "getPath(long)": "Path from the root down to `row`, inclusive (root first). Empty if the row is not found. Returns a new list.",
+        "getPathForIndex(int)": "Path from the root down to the row at `index`, inclusive. Empty for a negative index.",
+        "getParentPathForIndex(int)": "Path from the root down to the parent of the row at `index` (the row itself excluded). Empty for roots and for a negative index.",
+        "filter(com.almworks.jira.structure.api.util.La)": "Returns a forest containing only rows accepted by `filter`. A rejected row is dropped but its descendants are still tested; accepted descendants move up and take the place of the dropped row (they attach to the nearest accepted ancestor, or become roots). Order is preserved. A null filter, or one that accepts every row, returns this same instance rather than a copy; otherwise a new mutable forest is returned. The filter is called once per row at most.",
+        "filterSoft(com.almworks.jira.structure.api.util.La)": "Returns a forest with every row accepted by `filter` plus all ancestors of accepted rows, so the hierarchy of matching rows is preserved. Rejected rows with no accepted descendant are dropped. A null filter, or one accepting every row, returns this same instance; otherwise a new mutable forest.",
+        "filterHardest(com.almworks.jira.structure.api.util.La)": "Returns a forest from which every rejected row is removed together with its whole subtree; descendants of rejected rows are not tested. Depths of kept rows are unchanged. A null filter, or one accepting every row, returns this same instance; otherwise a new mutable forest.",
+        "subtree(long)": "New mutable forest with `row` as the single root followed by all its descendants, depths re-based so the row has depth 0. Empty forest if the row is not found.",
+        "subtreeAtIndex(int)": "Same as `subtree` for the row at `index`; empty forest for a negative index.",
+        "copySubforest(long)": "New mutable forest with the descendants of `row` (the row itself excluded), re-based so its children become roots. With `row` 0 returns a copy of the whole forest. Returns an empty forest if the row has no children and null if the row is not in the forest.",
+        "copySubforestAtIndex(int)": "Same as `copySubforest` for the row at index `k`: null for a negative index, empty for a leaf, otherwise the descendants with its children as roots.",
+        "copy()": "Returns an independent mutable `ArrayForest` with the same rows and depths. The copy is not immutable even if this forest is.",
+        "visitParentChildrenUpwards(com.almworks.jira.structure.api.forest.raw.ForestParentChildrenVisitor)": "Walks the forest bottom-up and calls the visitor once for every row, after all of that row's descendants have been visited, passing the forest, the row id and the ids of its direct children (in order; empty for leaves). Rows are processed from the end of the forest towards the start. The visitor is not called for the invisible top level (the list of roots). If the visitor returns false the walk stops.",
+        "foldUpwards(com.almworks.jira.structure.api.forest.raw.ForestParentChildrenClosure)": "Bottom-up fold. For each row, once all its children have been processed, calls `closure.visitRow(control, row, children, carry)` where `carry` is the accumulation of its children's results (null for leaves). Each result is then folded into its siblings' accumulation with `closure.combine(control, result, carry)`; siblings are combined from the last to the first. Returns the accumulation of the roots' results, or null if the forest is empty or the walk was cancelled through `control.cancel()`.",
+        "scanDownwards(com.almworks.jira.structure.api.forest.raw.ForestScanner)": "Top-down scan: calls `scanner.acceptRow(control, row)` for each row in forest order. Through the `ForestScanControl` the scanner can read the position, skip the current subtree or the rest of an ancestor's subtree, or cancel the scan. Does nothing on an empty forest.",
+        "toFullString()": "Text form listing every row as `row:depth`, without truncation. In `ArrayForest` the format is `forest(` then `ro,` if immutable, then comma-separated `row:depth` pairs, then `)`."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.ForestChangeEventHandler": {
+      "summary": "Optional listener passed to `ArrayForest` editing methods (merge, move, remove) to be told about each structural change, for example to keep side data in sync. Implemented by callers; the forest calls it synchronously during the operation. A move is reported as a removal followed by an insertion.",
+      "members": {
+        "beforeSubtreeRemoved(com.almworks.jira.structure.api.forest.raw.Forest, int, int, com.almworks.jira.structure.api.forest.raw.Forest)": "Called just before rows are removed. Arguments: the forest being changed, the start index (inclusive) and end index (exclusive) of the rows about to be removed, and a copy of the removed subtree re-based to depth 0.",
+        "afterForestInserted(com.almworks.jira.structure.api.forest.raw.Forest, int, int, com.almworks.jira.structure.api.forest.raw.Forest)": "Called right after rows are inserted. Arguments: the forest being changed, the start index (inclusive) and end index (exclusive) of the inserted rows in it, and the inserted forest as passed in (with its own depths, before shifting)."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.ForestIterationControl": {
+      "summary": "Position and control object handed to callbacks during a forest walk (`foldUpwards`, `scanDownwards`). It reports the current index and depth and, through `IterationControl.cancel()`, lets the callback stop the walk. Created by the forest; valid only during the callback.",
+      "members": {
+        "getForest()": "The forest being walked.",
+        "getIndex()": "Index of the row currently being visited. In `combine` calls of a fold, the index of the child whose result is being combined.",
+        "getDepth()": "Depth of the row currently being visited (0 for roots)."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.ForestMergeStructureException": {
+      "summary": "Thrown by `ArrayForest.mergeForest` when the merge point (`under`) or one of its ancestors also appears in the forest being merged, so merging would make a row its own ancestor. A `StructureException` with error code `INVALID_FOREST_OPERATION` reported for the merge point row.",
+      "members": {
+        "<init>(long, long, com.almworks.jira.structure.api.forest.raw.Forest, com.almworks.jira.structure.api.forest.raw.Forest)": "Creates the exception. Arguments: the merge point row, the row on the merge point's path that also occurs in the source forest, the source forest (being merged), and the target forest. The second row must be present in the source forest (otherwise an index error occurs while computing its root). The full text of both forests is captured only when trace logging is enabled for this class; otherwise placeholders are stored.",
+        "getMergePoint()": "Row id under which the merge was attempted.",
+        "getMergePointFatherFromForest()": "Row id from the merge point's ancestor path (possibly the merge point itself) that was found in the source forest.",
+        "getMergePointFatherRoot()": "Root row of the source forest under which that conflicting row sits.",
+        "getSourceForestString()": "Full text form of the source forest, or the placeholder `(n/a)` when trace logging was off.",
+        "getTargetForestString()": "Full text form of the target forest, or `(n/a)` when trace logging was off."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.ForestParentChildrenClosure": {
+      "summary": "Callback for `Forest.foldUpwards`, a bottom-up fold where each row is visited after its children. Type `T` is the per-row result, `C` the accumulation of sibling results. Implemented by callers.",
+      "members": {
+        "combine(com.almworks.jira.structure.api.forest.raw.ForestIterationControl, Object, Object)": "Folds one child's result into the accumulation for its siblings and returns the new accumulation. Arguments: the control (positioned at that child), the child's result, and the accumulation so far (null for the first call at a level). Siblings are combined from the last one to the first.",
+        "visitRow(com.almworks.jira.structure.api.forest.raw.ForestIterationControl, long, com.almworks.integers.LongList, Object)": "Visits one row after all its children and returns its result (may be null). Arguments: the control (positioned at the row), the row id, the ids of its direct children in forest order (empty for leaves; the list is reused and valid only during the call), and the accumulation of the children's results (null for leaves). Call `control.cancel()` to abort the fold."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.ForestParentChildrenListClosure": {
+      "summary": "Convenience base for `ForestParentChildrenClosure` whose accumulation is simply a list of the children's results. Subclasses implement only `visitRow`. Not thread-safe; one instance per fold.",
+      "members": {
+        "<init>()": "Creates the closure with an empty internal pool of lists.",
+        "combine(com.almworks.jira.structure.api.forest.raw.ForestIterationControl, Object, java.util.List)": "Adds `value` to the list for the current level and returns it, starting a fresh (cleared) list when `carry` is null. Because children are combined from last to first, the list holds the children's results in reverse forest order. The list objects are reused per depth, so a `visitRow` implementation must not keep a reference to the list it receives after it returns."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.ForestParentChildrenVisitor": {
+      "summary": "Callback for `Forest.visitParentChildrenUpwards`: receives each row with its direct children, bottom-up. Implemented by callers.",
+      "members": {
+        "visit(com.almworks.jira.structure.api.forest.raw.Forest, long, com.almworks.integers.LongList)": "Called for one row after all its descendants. Arguments: the forest, the row id, and its direct children in order (empty for leaves; valid only during the call). Return true to continue, false to stop the walk."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.ForestScanControl": {
+      "summary": "Control object for `Forest.scanDownwards`. Besides the position given by `ForestIterationControl`, it exposes the current row's ancestry and lets the scanner skip parts of the forest. Valid only during the `acceptRow` call.",
+      "members": {
+        "getParent()": "Row id of the current row's parent, 0 for a root.",
+        "getParentIndex()": "Index of the current row's parent, -1 for a root.",
+        "skipSubtree()": "Requests that the scan skip the descendants of the current row and continue with the next row after its subtree. Returns that index (which equals `size()` if nothing follows).",
+        "skipParentSubtree(int)": "Requests that the scan skip all following rows deeper than `depth`, continuing at the next row whose depth is `depth` or less. With `depth` equal to the current depth this is the same as `skipSubtree`; with a smaller depth it also skips the rest of the ancestor's subtree; -1 ends the scan. Returns the index where the scan will continue. Throws `IllegalArgumentException` if `depth` is below -1 or greater than the current depth.",
+        "getSubtreeRows()": "Row ids of the current row and all its descendants, as a view of the forest's row list.",
+        "getParentPathIndexes()": "Indexes of the current row's ancestors from the root down to the parent (size equals the current depth; empty for roots). A view valid only during the callback."
+      }
+    },
+    "com.almworks.jira.structure.api.forest.raw.ForestScanner": {
+      "summary": "Callback for `Forest.scanDownwards`, receiving rows top-down in forest order. Implemented by callers.",
+      "members": {
+        "acceptRow(com.almworks.jira.structure.api.forest.raw.ForestScanControl, long)": "Called for each row visited. Arguments: the scan control (position, ancestry, skip and cancel operations) and the row id."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.ActionEffect": {
+      "summary": "A deferred change produced by a generator's action handler, registered through `HandlingContext.effect(effect, inverse)`. Implemented by generator authors. The plugin calls `apply` while it evaluates a user's edit; `apply` checks feasibility and either blocks or registers the actual work through `EffectContext.effect`. The inverse effect, if given, is kept so the change can be undone later.",
+      "members": {
+        "apply(com.almworks.jira.structure.api.generator.StructureGenerator.EffectContext)": "Prepares the change. Should call `context.effect(explanation, runnable)` to register the code that really performs it (run later when the action is carried out), or `context.block`/`context.yield` to refuse. If it neither blocks nor registers anything, the action counts as handled with no work to do. Exceptions thrown here are caught by the plugin, logged, and turn into a block with a generic error message."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandler": {
+      "summary": "Marker base for the objects through which a generator reacts to user edits (add, move, reorder, remove) of rows it produced or controls. A generator that wants to handle edits implements one of the `ActionHandlingGenerator` sub-interfaces and returns a handler of the matching nested type from `createActionHandler`. Handler methods do not change data directly: they inspect the request and call `block`, `yield` or `effect` on the `HandlingContext`. Any exception from a handler method is caught by the plugin, logged, and the action is blocked with a generic error message.",
+      "members": {}
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandler.ExtenderActionHandler": {
+      "summary": "Action handler for an extender. Called when the user adds, moves, reorders or removes rows directly under rows the extender works on, so that the extender can change the underlying relation (for example a link or parent field).",
+      "members": {
+        "moveExtension(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructureGenerator.HandlingContext)": "Requests that `row` be placed under a different parent in the extender's relation. Arguments: the row (or new row) concerned; the old position, null when the row is being added; the new position, null when the row is being removed; the context for blocking or registering effects. Also called once per row when a fragment is added (each with `from` null). In positions, absent neighbours are the zero row, not null.",
+        "reorderExtension(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructureGenerator.HandlingContext)": "Requests a change of order of `row` among siblings produced by this extender, under the same parent. Arguments: the row, its old position, its new position (both non-null; `after`/`before` are adjusted to neighbours produced by this extender, or the zero row), and the context.",
+        "getAddOptionDescription()": "Short user-facing text describing what an add will do, shown when the user chooses how the edit should be applied. Must not be null.",
+        "getMoveOptionDescription()": "Short user-facing text describing what a move will do. Must not be null.",
+        "getReorderOptionDescription()": "Short user-facing text describing what a reorder will do. Must not be null."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandler.GrouperActionHandler": {
+      "summary": "Action handler for a grouper. Called when the user moves rows between groups (which should change the grouped attribute of the item), adds or removes rows in a group, or reorders the group rows themselves.",
+      "members": {
+        "moveGroupedItem(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.generator.StructureGenerator.HandlingContext)": "Requests that the item of `row` move from one group to another. Arguments: the row being moved; the group row it is leaving, null when the row is being added into a group; the group row it is entering, null when it is being removed from its group; the context. When a fragment is added, called once per root of the fragment.",
+        "reorderGroup(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructureGenerator.HandlingContext)": "Requests a change of order of a group row created by this grouper. Arguments: the group row, its old position, its new position (both non-null), and the context. Groupers that order groups by value will normally block."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandler.InserterActionHandler": {
+      "summary": "Action handler for an inserter. Called when the user adds rows to, moves rows within, or removes rows from the part of the forest the inserter generated.",
+      "members": {
+        "addFragment(com.almworks.jira.structure.api.forest.item.ItemForest, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructureGenerator.HandlingContext)": "Requests that the given rows be added at `to` among the inserter's rows. Arguments: the fragment being added, the target position, and the context.",
+        "moveRow(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructureGenerator.HandlingContext)": "Requests that `row`, produced by this inserter, be moved to `to`. Arguments: the row, the target position, and the context.",
+        "removeRow(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.generator.StructureGenerator.HandlingContext)": "Requests that `row`, produced by this inserter, be removed. Arguments: the row and the context.",
+        "getAddOptionDescription()": "Short user-facing text describing what an add will do. Must not be null.",
+        "getMoveOptionDescription()": "Short user-facing text describing what a move will do. Must not be null."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandler.SorterActionHandler": {
+      "summary": "Action handler for a sorter. Called when the user drags a row to a new place among siblings sorted by this sorter, so the sorter can change the sort key (for example the rank) to match.",
+      "members": {
+        "reorderItem(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructurePosition, com.almworks.jira.structure.api.generator.StructureGenerator.HandlingContext)": "Requests that `row` take a new place in the sort order. Arguments: the row; its old position among the sorted siblings, null when the row is newly added; its new position; and the context. Positions are always expressed in ascending order: when the sorter is in descending mode the plugin swaps `after` and `before` for the handler. The `under` of a position given for an added row is the zero row."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandlingAlwaysAllowed": {
+      "summary": "Runtime annotation placed on a generator class. It means the generator's action handling cannot be switched off by the user: the plugin does not offer the allow-updates option in its configuration form and ignores the `disableActions` parameter for it.",
+      "members": {}
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandlingGenerator": {
+      "summary": "A generator that can react to user edits of the rows it affects. Type `T` is the handler type matching the generator kind. Implemented by generator authors (usually via the `AbstractGenerator` subclasses). The plugin asks for a handler when it evaluates an edit; if the handler is null, edits that need this generator are blocked with a message.",
+      "members": {
+        "createActionHandler(java.util.Map)": "Returns a handler for edits, given the generator instance's stored parameters, or null if this configuration cannot handle edits. Called whenever the plugin evaluates an edit, so it should be cheap. Exceptions are caught, logged, and treated as null."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandlingGenerator.Extender": {
+      "summary": "Combines `StructureGenerator.Extender` with `ActionHandlingGenerator` whose handler type is `ActionHandler.ExtenderActionHandler`: an extender that can also react to user edits. Implemented by generator authors.",
+      "members": {}
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandlingGenerator.Grouper": {
+      "summary": "Combines `StructureGenerator.Grouper` with `ActionHandlingGenerator` whose handler type is `ActionHandler.GrouperActionHandler`: an grouper that can also react to user edits. Implemented by generator authors.",
+      "members": {}
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandlingGenerator.Inserter": {
+      "summary": "Combines `StructureGenerator.Inserter` with `ActionHandlingGenerator` whose handler type is `ActionHandler.InserterActionHandler`: an inserter that can also react to user edits. Implemented by generator authors.",
+      "members": {}
+    },
+    "com.almworks.jira.structure.api.generator.ActionHandlingGenerator.Sorter": {
+      "summary": "Combines `StructureGenerator.Sorter` with `ActionHandlingGenerator` whose handler type is `ActionHandler.SorterActionHandler`: an sorter that can also react to user edits. Implemented by generator authors.",
+      "members": {}
+    },
+    "com.almworks.jira.structure.api.generator.ConfigurableGenerator": {
+      "summary": "A generator that offers ready-made configurations (presets) to users. Implemented by generator authors; `AbstractGenerator` implements it with no presets. The plugin lists presets alongside the generator when it describes available generators to the UI.",
+      "members": {
+        "getPresets()": "Returns the presets to offer for this generator, in display order, or null (or empty) for none. When a site-wide switch makes generators read-only by default, the plugin adds `disableActions` = true to each preset's parameters."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.CoreGeneratorParameters": {
+      "summary": "Names of generator parameters that the plugin itself interprets for all generators of a kind, in addition to each generator's own parameters. Parameters are stored in the generator's parameter map under these keys. Only constants; the class is not meant to be instantiated.",
+      "members": {
+        "DISABLE_ACTIONS": "Key `disableActions`, boolean. When true, the generator does not handle user edits (they are blocked or left to other generators), unless the generator class carries `ActionHandlingAlwaysAllowed`.",
+        "LEVEL_FROM": "Key `from`, positive integer: first level (1 = the level right below the generator's position) at which an extender or sorter applies. Absent means from the first level.",
+        "LEVEL_TO": "Key `to`, positive integer: last level at which an extender or sorter applies. Absent means no limit. The configuration form defaults extenders to 10.",
+        "LEVEL": "Key `level`, positive integer: the single level at which a grouper groups (default 1) or a filter tests rows (when set, the filter keeps shallower rows, tests rows at that level and keeps or drops each with its whole subtree).",
+        "FILTER_HARD": "Key `hard`, boolean. When true, a filter drops non-matching rows even if they have matching descendants (those descendants move up); when false, ancestors of matching rows are kept so the hierarchy stays.",
+        "FILTER_SHOW_SUBITEMS": "Key `showSubItems`, boolean. When true, a row that matches the filter is kept with its whole subtree, without testing the descendants.",
+        "GROUPER_LEVEL_INCLUDE_GROUPS": "Key `includeGroups`, boolean. When false (default), group rows made by other groupers do not count as a level and the grouper looks through them; when true they count as ordinary rows.",
+        "SORT_DESCENDING": "Key `desc`, boolean. When true, a sorter reverses the order given by its compare function.",
+        "INSERTER_LIMIT": "Key `limit`: maximum number of items an inserter adds (used by the query-based inserters).",
+        "JQL": "Key `jql`: a JQL query string, used by the JQL inserter and the JQL filter.",
+        "FIELD_ID": "Key `fieldId`: the Jira field id used by the field grouper.",
+        "<init>()": "Default constructor; the class has only constants and there is no reason to instantiate it."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.CoreStructureGenerators": {
+      "summary": "Complete module keys (plugin key, colon, module key) of the generators shipped with the plugin and its companion add-ons. Use them as the `moduleKey` argument of `GeneratorManager.createGenerator` and similar. Only constants.",
+      "members": {
+        "INSERTER_JQL": "Complete module key `com.almworks.jira.structure:inserter-jql` of the built-in inserter that adds the issues returned by a JQL query.",
+        "INSERTER_TEXT": "Complete module key `com.almworks.jira.structure:inserter-text` of the built-in inserter that adds issues found by a text search.",
+        "INSERTER_SUBSTRUCTURE": "Complete module key `com.almworks.jira.structure:inserter-substructure` of the built-in inserter that inserts the content of another structure.",
+        "INSERTER_RECENT_ISSUES": "Complete module key `com.almworks.jira.structure:inserter-recent-issues` of the built-in inserter that adds the user's recently viewed issues.",
+        "EXTENDER_SUBTASKS": "Complete module key `com.almworks.jira.structure:extender-subtasks` of the built-in extender that adds sub-tasks under their parent issues.",
+        "EXTENDER_LINKS": "Complete module key `com.almworks.jira.structure:extender-links` of the built-in extender that adds linked issues under issues.",
+        "EXTENDER_AGILE": "Complete module key `com.almworks.jira.structure:extender-agile` of the built-in extender that adds an epic's stories under the epic (Jira Software).",
+        "EXTENDER_PORTFOLIO_CHILDREN": "Complete module key `com.almworks.jira.structure:extender-portfolio-children` of the built-in extender that adds children by the Advanced Roadmaps parent relation.",
+        "GROUPER_FIELD": "Complete module key `com.almworks.jira.structure:grouper-field` of the built-in grouper that groups by the value of a Jira field.",
+        "GROUPER_AGILE_EPIC": "Complete module key `com.almworks.jira.structure:grouper-agile-epic` of the built-in grouper that groups by epic.",
+        "GROUPER_AGILE_SPRINT": "Complete module key `com.almworks.jira.structure:grouper-sprint` of the built-in grouper that groups by sprint.",
+        "GROUPER_ATTRIBUTE": "Complete module key `com.almworks.jira.structure:grouper-text` of the built-in grouper that groups by the value of an attribute.",
+        "GROUPER_TEXT": "Complete module key `com.almworks.jira.structure:grouper-text` of the built-in attribute grouper; deprecated alias with the same value as `GROUPER_ATTRIBUTE`.",
+        "GROUPER_VERSION_NAME": "Complete module key `com.almworks.jira.structure:grouper-version-name` of the built-in grouper that groups by version name (across projects).",
+        "GROUPER_PORTFOLIO_PARENT": "Complete module key `com.almworks.jira.structure:grouper-portfolio-parent` of the built-in grouper that groups by the Advanced Roadmaps parent.",
+        "GROUPER_TEMPO_ACCOUNT": "Complete module key `com.almworks.jira.structure:grouper-tempo-account` of the built-in grouper that groups by Tempo account.",
+        "GROUPER_LINKS": "Complete module key `com.almworks.jira.structure:grouper-links` of the built-in grouper that groups by issue links.",
+        "SORTER_AGILE_RANK": "Complete module key `com.almworks.jira.structure:sorter-agile-rank` of the built-in sorter that orders by Jira Software rank.",
+        "SORTER_MANUAL": "Complete module key `com.almworks.jira.structure:sorter-manual` of the built-in sorter that keeps a manually set order.",
+        "SORTER_ATTRIBUTE": "Complete module key `com.almworks.jira.structure:sorter-attribute` of the built-in sorter that orders by an attribute value.",
+        "FILTER_JQL": "Complete module key `com.almworks.jira.structure:filter-jql` of the built-in filter that keeps issues matching a JQL query.",
+        "FILTER_SJQL": "Complete module key `com.almworks.jira.structure:filter-sjql` of the built-in filter that keeps rows matching a structure query (the plugin's own query language over the forest).",
+        "FILTER_TEXT": "Complete module key `com.almworks.jira.structure:filter-text` of the built-in filter that keeps rows matching a text search.",
+        "FILTER_ATTRIBUTE": "Complete module key `com.almworks.jira.structure:filter-attribute` of the built-in filter that compares an attribute value with a given value.",
+        "FILTER_INSERTER_EXTENDER_DUPLICATES": "Complete module key `com.almworks.jira.structure:filter-inserter-extender-duplicates` of the built-in filter that removes duplicate rows produced by inserters and extenders; it has no configuration.",
+        "FILTER_NUMBER_ATTRIBUTE": "Complete module key `com.almworks.jira.structure:filter-number-attribute` of the built-in filter that compares a numeric attribute value.",
+        "FILTER_ITEM": "Complete module key `com.almworks.jira.structure:filter-item` of the built-in filter configured with a single item (parameter `item`, an item identity string).",
+        "INSERTER_CQL": "Complete module key `com.almworks.structure.pages:inserter-confluence-pages` of the built-in inserter, supplied by a separate companion add-on for Confluence pages, that adds pages found by a CQL query. Only usable if that add-on is installed.",
+        "INSERTER_RECENT_PAGES": "Complete module key `com.almworks.structure.pages:inserter-recent-pages` of the built-in inserter, supplied by the same companion Confluence pages add-on, that adds recently viewed pages."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.GeneratorManager": {
+      "summary": "Service that stores generator instances: a generator module key plus a parameter map, identified by a long id. Rows that show a generator refer to these ids. Obtained as a public OSGi component (inject `GeneratorManager`). Persistent generators are kept in the database; transient ones live in memory on the current node only. Persistent ids are positive even numbers, transient ids positive odd numbers. Note: the implementation performs no permission checks of its own and does not verify that the module key names an installed generator; callers are responsible for both.",
+      "members": {
+        "createGenerator(String, java.util.Map, Long)": "Stores a new persistent generator and returns its id. Arguments: the complete module key (must not be blank; it is trimmed), the parameters (null means none; the map is copied, and nested maps and lists are copied too), and the id of the structure that owns the generator, or null. Throws `IllegalArgumentException` for a blank module key; database errors propagate as runtime exceptions.",
+        "createTransientGenerator(String, java.util.Map)": "Creates a generator that lives only in memory on this node until restart or deletion, with no owning structure, and returns its id. Arguments as for `createGenerator`. Ids start over after a restart.",
+        "updateGenerator(long, String, java.util.Map, Long)": "Replaces the module key, parameters and owning structure of a persistent generator (all three; a null owner clears it) and notifies change tracking so forests using it are regenerated. Throws `StructureException` with `INVALID_PARAMETER` if the id is not a persistent id (transient generators cannot be edited), or with `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE` if no such generator exists. `IllegalArgumentException` for a blank module key.",
+        "deleteGenerator(long)": "Deletes the generator with this id, persistent or transient. Deleting a missing id does nothing and raises no error. Deleting a persistent generator notifies change tracking.",
+        "getGenerator(long)": "Returns the stored definition of the generator with this id. When no generator has this id it throws `StructureException` with `ITEM_NOT_EXISTS_OR_NOT_ACCESSIBLE`. Non-positive ids are not valid; the result for them is not determined (only internal assertions guard it)."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.GeneratorPreset": {
+      "summary": "A named, ready-made set of parameters for a generator, returned by `ConfigurableGenerator.getPresets()`. A simple value holder; it stores the given map as is (no copy).",
+      "members": {
+        "<init>(String, java.util.Map)": "Creates a preset with a label and parameters and no description.",
+        "<init>(String, String, java.util.Map)": "Creates a preset with a label, an optional description (may be null) and the parameter map.",
+        "getLabel()": "The name shown to users for this preset.",
+        "getDescription()": "Optional longer text for users, or null.",
+        "getParameters()": "The generator parameters this preset applies, as given to the constructor."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.GeneratorSpec": {
+      "summary": "Immutable definition of a stored generator: module key, parameters and owning structure. Returned by `GeneratorManager.getGenerator`. Thread-safe.",
+      "members": {
+        "<init>(String, java.util.Map, Long)": "Creates a definition. The module key must not be null or blank (else `IllegalArgumentException`) and is trimmed. The parameters are deep-copied into an unmodifiable map with insertion order kept; null or empty gives an empty map. The owning structure id may be null.",
+        "getModuleKey()": "Complete module key of the generator (plugin key and module key separated by a colon).",
+        "getParameters()": "Unmodifiable parameter map; never null, possibly empty. Nested maps and lists are unmodifiable copies too.",
+        "getOwningStructure()": "Id of the structure that owns this generator, or null if it is not tied to a structure."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.GeneratorUnavailableException": {
+      "summary": "Checked exception a generator throws from its configuration-form methods when it cannot work at the moment (for example a required application is missing). The plugin logs it and shows the localized message to the user instead of the form.",
+      "members": {
+        "<init>(String)": "Creates the exception with one message used both as the technical and the user-facing message.",
+        "<init>(String, String)": "Creates the exception with a technical message and a separate user-facing, localized message.",
+        "getLocalizedMessage()": "Returns the user-facing message given at construction (which may differ from `getMessage()`)."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.ItemChangeFilter": {
+      "summary": "Registered by a generator during generation (`GenerationContext.addItemChangeFilter`) to say which item changes should make the forest regenerate. Implemented by generator authors or taken from the `generator.util` helpers. The plugin keeps the filters from the latest generation and, when items change, asks them whether the generated result may be stale. Exceptions are logged and treated as false.",
+      "members": {
+        "accept(java.util.Set, com.almworks.jira.structure.api.generator.StructureGenerator.ItemChangeFilterContext)": "Returns true if any of the changed items in `itemIds` affects this generator's output, so the forest should be regenerated. Arguments: the identities of items that changed since the last check (non-null), and a context that can resolve items. Should be fast."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.NotConfigurable": {
+      "summary": "Runtime annotation placed on a generator class that has no configuration. The plugin then offers no edit form for it and reports it as not configurable to the UI.",
+      "members": {}
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator": {
+      "summary": "Base service provider interface for generators: plugin modules that create or transform part of a forest automatically. A generator is declared as a module of one of the generator kinds in an app's plugin descriptor and implements one of the nested kind interfaces (`Inserter`, `Extender`, `Grouper`, `Sorter`, `Filter`). The plugin holds one module instance and calls it with the parameters of each stored generator instance, possibly from several threads at once, so implementations should be stateless. The methods here support the configuration form and summary; any exception other than `GeneratorUnavailableException` is caught and logged by the plugin.",
+      "members": {
+        "addDefaultFormParameters(java.util.Map)": "Fills the form map with default values for creating a new generator instance; the map is passed to the generator's form template. The plugin has already put its own entries in the map. Throws `GeneratorUnavailableException` if the generator cannot be configured now.",
+        "addParametersToForm(java.util.Map, java.util.Map)": "Converts stored parameters (first argument) into form values (second argument, to be filled) when an existing instance is edited. Throws `GeneratorUnavailableException` if the generator cannot be configured now.",
+        "buildParametersFromForm(java.util.Map, com.atlassian.jira.util.ErrorCollection)": "Converts submitted form values into the parameters to store and returns them (never null). Validation problems are reported by adding errors to the given collection, keyed by form field where possible. The plugin merges the result over its own kind-specific parameters (for example level settings and `disableActions`). Throws `GeneratorUnavailableException` if the generator cannot be configured now.",
+        "addParametersForSummary(java.util.Map, java.util.Map)": "Fills the second map with values for the generator's summary template, based on the stored parameters (first argument).",
+        "isAvailable()": "False if the generator cannot be used in this installation (for example a required application is absent). Unavailable generators are not offered to users in the list of generators."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.ApplicabilityChecker": {
+      "summary": "Tells whether a generator function applies to a given row. Used as the base of `Extender.ExtenderFunction` and returned by `Sorter.getApplicabilityChecker`. Implemented by generator authors; `IssueApplicabilityChecker` is a ready one.",
+      "members": {
+        "isApplicableTo(com.almworks.jira.structure.api.row.StructureRow)": "True if the generator should process this row. For extenders, false means the row is not extended. For sorters, rows that are not applicable are placed after all applicable siblings, keeping their relative order."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Context": {
+      "summary": "Marker base type for the context objects the plugin passes to generators (`GenerationContext`, `HandlingContext`, `EffectContext`, `ItemChangeFilterContext`). Implemented by the plugin only.",
+      "members": {}
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.EffectContext": {
+      "summary": "Context passed to `ActionEffect.apply`. Implemented by the plugin. Lets the effect refuse the action or register the code that will perform it.",
+      "members": {
+        "block(String)": "Refuses the action. The argument is a user-facing explanation (may be null). Blocking prevents the whole edit.",
+        "yield(String)": "Refuses softly: this generator steps aside if another generator can handle the action, otherwise it acts like a block. The argument is a user-facing explanation.",
+        "effect(String, com.almworks.jira.structure.api.util.RunnableE)": "Registers the code that actually performs the change, with a short user-facing description of it. The code runs later, when the edit is carried out; a `StructureException` it throws makes that part of the action fail with that error, and other exceptions are wrapped as an action failure. A later call replaces an earlier one within the same `apply`."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Extender": {
+      "summary": "Generator kind that adds child rows under existing rows (for example sub-tasks under issues). The plugin applies it repeatedly: each pass adds children to the rows at the current level, and the new rows are extended in the next pass, within the level range set by the `from`/`to` parameters. Loops are detected by the plugin and shown as loop markers. Implemented by generator authors.",
+      "members": {
+        "getExtenderFunction(java.util.Map, com.almworks.jira.structure.api.generator.StructureGenerator.GenerationContext)": "Returns the function to apply in the current pass, given the instance's parameters and the generation context, or null to add nothing. Called once per pass; exceptions are logged and the pass adds nothing."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Extender.ExtenderFunction": {
+      "summary": "Function that produces the children for one row. Implemented by generator authors and returned from `Extender.getExtenderFunction`. Its `isApplicableTo` decides which rows are extended.",
+      "members": {
+        "extend(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.forest.item.ItemForestBuilder)": "Adds the children of `row` to `builder` with `nextRow`. Only applicable rows are passed; automation rows and loop markers never are. The produced rows are added as direct children after any existing children; any nesting built with `nextLevel` is flattened. Rows with semantics 0 get the plugin's default extender semantics. Exceptions are logged and stop this pass."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Filter": {
+      "summary": "Generator kind that removes rows that do not match from the part of the forest below the generator. How non-matching rows are handled is controlled by the `hard`, `showSubItems` and `level` parameters (see `CoreGeneratorParameters`). Automation rows are always treated as matching. Implemented by generator authors.",
+      "members": {
+        "getFilterFunction(java.util.Map, com.almworks.jira.structure.api.generator.StructureGenerator.GenerationContext)": "Returns the predicate for this generation, given the instance's parameters and the generation context, or null to leave the forest unchanged. Exceptions are logged and leave the forest unchanged."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Filter.FilterFunction": {
+      "summary": "Row predicate returned from `Filter.getFilterFunction`. Implemented by generator authors.",
+      "members": {
+        "matches(com.almworks.jira.structure.api.row.StructureRow)": "True if the row should stay. An exception aborts the filter for this generation, leaving the forest unfiltered."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.GenerationContext": {
+      "summary": "Context passed to generators while they produce their functions or fragments. Implemented by the plugin; valid only during the generation call it was given to. Gives access to the forest being worked on, to change information, to per-generator storage, and lets the generator register what should trigger the next regeneration.",
+      "members": {
+        "addItemChangeFilter(com.almworks.jira.structure.api.generator.ItemChangeFilter)": "Registers a filter that decides which item changes make this generator's result stale. Filters are kept until the next generation replaces them.",
+        "addUpdateChecker(com.almworks.jira.structure.api.generator.UpdateChecker)": "Registers a checker that is polled to find out whether the result has become stale for reasons other than item changes (for example time). Kept until the next generation.",
+        "previewForest()": "The rows the generator is applied to, as an immutable item forest. For most kinds this is the part of the forest below the generator's position at this point of generation. While a grouper's function is being created, it is the flat list of rows that are about to be grouped. Never null.",
+        "inputForest()": "The whole forest the generator works on, or null. In the original only groupers get a non-null value (during `createGrouperFunction`); for other kinds it is null.",
+        "getForestSpecBeingTransformed()": "If the forest being generated is a transformed forest (its spec has transformations), the spec of the forest before the last transformation; otherwise null.",
+        "itemsUpdate()": "Description of item changes since the previous generation of this forest.",
+        "itemsUpdate(com.almworks.jira.structure.api.pull.DataVersion)": "Description of item changes since the given data version, from the plugin's change tracker.",
+        "putObject(Object, Object)": "Stores a value under a key for this generator instance, kept across later generations of the same forest. Null value removes the entry. The plugin may keep it through a soft reference, so it can disappear under memory pressure; use it only as a cache.",
+        "getObject(Object)": "Reads a value stored with `putObject` by the same generator instance, or null if absent or cleared.",
+        "putTempObject(Object, Object)": "Stores a value for this generator instance for the current generation only.",
+        "getTempObject(Object)": "Reads a value stored with `putTempObject` during the current generation, or null.",
+        "getForestSpec()": "The spec of the forest being generated. Never null.",
+        "isStopped()": "True if the generation has been cancelled; long-running generators should check it and return early."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Grouper": {
+      "summary": "Generator kind that groups rows at one level (parameter `level`, default 1) under new group rows, one per distinct group value. Implemented by generator authors. For each parent at that level the plugin creates the grouper function, asks for each row's groups, asks for the group rows, and rebuilds the level.",
+      "members": {
+        "createGrouperFunction(java.util.Map, com.almworks.jira.structure.api.generator.StructureGenerator.GenerationContext)": "Returns the grouping function for one set of sibling rows, given the instance's parameters and the context (its `previewForest()` holds those rows). Returning null or throwing makes the plugin abandon grouping for this generation.",
+        "getSemanticLabel(java.util.Map)": "Short label naming what this grouper groups by, for the given parameters, or null. Shown in generation information about rows created by this grouper. Exceptions are logged and treated as null."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Grouper.GrouperFunction": {
+      "summary": "Assigns rows to groups and creates the group rows. Implemented by generator authors. Groups are identified by `ItemIdentity` values; each group becomes a row showing that item.",
+      "members": {
+        "getGroups(com.almworks.jira.structure.api.row.StructureRow)": "Returns the groups that `row` belongs to; must be non-null and non-empty (a row in no group should be put in a dedicated group such as an empty-value group). If a row belongs to more than one group, none of those groups may be exclusive.",
+        "isExclusiveGroup(com.almworks.jira.structure.api.item.ItemIdentity)": "True if a row in this group cannot also belong to another group. Rows in exclusive groups are moved under the group row; rows in non-exclusive groups are copied (new row ids) under every group they belong to.",
+        "createGroupRows(java.util.Set, com.almworks.jira.structure.api.forest.item.ItemListBuilder)": "Adds one row per group to `builder`, in the order the groups should appear. The set is the read-only set of all groups returned for the rows. A group for which no row is created is dropped together with its rows. Rows with semantics 0 get the plugin's default group semantics."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.HandlingContext": {
+      "summary": "Context passed to action handler methods while the plugin evaluates a user edit. Implemented by the plugin. The handler must answer by calling `block`, `yield` or `effect`; calling none means the generator does not take part. The plugin may call handler methods while it evaluates alternative ways to apply an edit, before anything is carried out, so they must not change data directly; real changes go through effects.",
+      "members": {
+        "block(String)": "Refuses the edit with a user-facing explanation (may be null); the whole edit is prevented.",
+        "yield(String)": "Refuses softly: if another generator handles the edit, this refusal is dropped; if not, it acts as a block. The argument is a user-facing explanation.",
+        "effect(com.almworks.jira.structure.api.generator.ActionEffect, com.almworks.jira.structure.api.generator.ActionEffect)": "Accepts the edit and supplies the change to perform (`effect`, non-null) and optionally its undo (`inverse`, may be null). The plugin calls `effect.apply` right away; if it does not block, the edit counts as handled by this generator.",
+        "parameters()": "The extra action parameters addressed to this generator by the client, with the generator prefix removed. Read-only; empty if none.",
+        "putObject(Object, Object)": "Stores a value for this generator instance for the duration of handling this edit.",
+        "getObject(Object)": "Reads a value stored with `putObject` during this edit, or null. A request with key `AuthContext.class` returns the security context the generator should use."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Inserter": {
+      "summary": "Generator kind that adds a list or tree of rows at its own position (as siblings following the generator row). Implemented by generator authors.",
+      "members": {
+        "createFragment(java.util.Map, com.almworks.jira.structure.api.generator.StructureGenerator.GenerationContext, com.almworks.jira.structure.api.forest.item.ItemForestBuilder)": "Adds the rows to insert to `builder`, using the instance's parameters and the context. The hierarchy built is kept. Rows with semantics 0 get the plugin's default inserter semantics. If it throws, the error is logged and nothing is inserted."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.ItemChangeFilterContext": {
+      "summary": "Context passed to `ItemChangeFilter.accept`. Implemented by the plugin; lets a filter look at the changed items.",
+      "members": {
+        "resolveItem(com.almworks.jira.structure.api.item.ItemIdentity, Class)": "Returns the item object for `itemId` if it can be resolved and is an instance of `itemClass`, otherwise null. Results are cached for the duration of the check."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Sorter": {
+      "summary": "Generator kind that orders sibling rows within a range of levels (`from`/`to` parameters) below the generator, optionally descending (`desc`). Automation rows always come first; rows the applicability checker rejects come after the rest; the sort is stable. Implemented by generator authors.",
+      "members": {
+        "getApplicabilityChecker(java.util.Map, com.almworks.jira.structure.api.generator.StructureGenerator.Context)": "Returns a checker that tells which rows the compare function can handle, or null meaning all rows. If it throws, the sorter does nothing in this generation.",
+        "getCompareFunction(java.util.Map, com.almworks.jira.structure.api.generator.StructureGenerator.GenerationContext)": "Returns the comparison to sort with, or null to leave the order unchanged. Exceptions are logged and leave the order unchanged."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructureGenerator.Sorter.CompareFunction": {
+      "summary": "Comparison of two rows for a sorter. Implemented by generator authors.",
+      "members": {
+        "compare(com.almworks.jira.structure.api.row.StructureRow, com.almworks.jira.structure.api.row.StructureRow)": "Returns a negative number, zero or a positive number as the first row should come before, tie with, or come after the second in ascending order. Only applicable rows are compared. Must be consistent like a `java.util.Comparator`."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.StructurePosition": {
+      "summary": "A place in the forest, given to action handlers: the parent row and the neighbours on either side. Implemented by the plugin. Missing parts are represented by the zero row (`StructureRow.ROW_ZERO`), never null.",
+      "members": {
+        "getUnder()": "The parent row, or the zero row for the top level or when not relevant.",
+        "getAfter()": "The sibling that comes immediately before this place, or the zero row if it is first.",
+        "getBefore()": "The sibling that comes immediately after this place, or the zero row if it is last."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.UpdateChecker": {
+      "summary": "Registered by a generator during generation (`GenerationContext.addUpdateChecker`) to signal, when polled, that its output is out of date. Implemented by generator authors or taken from `generator.util`. Exceptions are logged and treated as false.",
+      "members": {
+        "hasUpdate()": "True if the forest should be regenerated. Should be fast and safe to call from any thread."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator": {
+      "summary": "Convenient base class for generators: implements `ConfigurableGenerator` with defaults that suit a generator without a configuration form. Generator authors extend one of its nested kind classes rather than this class directly. Stateless.",
+      "members": {
+        "<init>()": "Default constructor for subclasses.",
+        "addDefaultFormParameters(java.util.Map)": "Does nothing (no default form values).",
+        "addParametersToForm(java.util.Map, java.util.Map)": "Does nothing (no form values from parameters).",
+        "buildParametersFromForm(java.util.Map, com.atlassian.jira.util.ErrorCollection)": "Returns an empty, unmodifiable map and reports no errors.",
+        "addParametersForSummary(java.util.Map, java.util.Map)": "Copies every stored parameter into the summary map unchanged.",
+        "mapOf(String, Object)": "Helper for subclasses: returns a map holding the single given key and value. Not determined whether the map is modifiable; treat it as read-only.",
+        "mapOf(String, Object, String, Object)": "Helper for subclasses: returns a map holding the two given entries. Treat as read-only.",
+        "getPresets()": "Returns null: no presets.",
+        "isAvailable()": "Returns true: always available."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator.Extender": {
+      "summary": "Base class for extender generators. Extends `AbstractGenerator` and implements `ActionHandlingGenerator.Extender`, with no action handling by default; subclasses implement the kind's generation method and may override `createActionHandler`.",
+      "members": {
+        "<init>()": "Default constructor for subclasses.",
+        "createActionHandler(java.util.Map)": "Returns null: by default the generator does not handle user edits, so edits that need it are blocked."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator.Filter": {
+      "summary": "Base class for filter generators. Extends `AbstractGenerator` and implements `StructureGenerator.Filter`; subclasses implement `getFilterFunction`. Filters do not handle edits.",
+      "members": {
+        "<init>()": "Default constructor for subclasses."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator.Grouper": {
+      "summary": "Base class for grouper generators. Extends `AbstractGenerator` and implements `ActionHandlingGenerator.Grouper`, with no action handling by default; subclasses implement the kind's generation method and may override `createActionHandler`.",
+      "members": {
+        "<init>()": "Default constructor for subclasses.",
+        "createActionHandler(java.util.Map)": "Returns null: by default the generator does not handle user edits, so edits that need it are blocked."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator.Inserter": {
+      "summary": "Base class for inserter generators. Extends `AbstractGenerator` and implements `ActionHandlingGenerator.Inserter`, with no action handling by default; subclasses implement the kind's generation method and may override `createActionHandler`.",
+      "members": {
+        "<init>()": "Default constructor for subclasses.",
+        "createActionHandler(java.util.Map)": "Returns null: by default the generator does not handle user edits, so edits that need it are blocked."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator.Sorter": {
+      "summary": "Base class for sorter generators. Extends `AbstractGenerator` and implements `ActionHandlingGenerator.Sorter`; subclasses implement `getCompareFunction` and may override the other methods.",
+      "members": {
+        "<init>()": "Default constructor for subclasses.",
+        "getApplicabilityChecker(java.util.Map, com.almworks.jira.structure.api.generator.StructureGenerator.Context)": "Returns null, meaning the compare function applies to every row.",
+        "createActionHandler(java.util.Map)": "Returns null: by default the sorter does not handle reordering by the user."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter": {
+      "summary": "An `ItemChangeFilter` that accepts a change when it touches any item from a known set, held as a set of issue ids plus a set of other item identities. Created through the static factories: fixed filters (`forIssues`, `forItems`) or recording filters (`createRecording`) to which items are added while generating. Not thread-safe while recording; reading is safe once recording is finished.",
+      "members": {
+        "<init>(com.almworks.integers.WritableLongSet, java.util.Set)": "Protected constructor for subclasses: creates a recording filter that adds issues to the given issue id set and other items to the given identity set (both used directly, not copied).",
+        "forIssues(com.almworks.integers.LongSet)": "Returns a fixed (non-recording) filter that accepts a change if any changed item is an issue whose id is in `issues`. The set is used directly, not copied.",
+        "forItems(com.almworks.integers.LongSet, java.util.Set)": "Returns a fixed filter that accepts a change if any changed issue id is in `issues` or any changed non-issue item is in `nonIssues`. Sets are used directly.",
+        "createRecording()": "Returns a new empty recording filter backed by its own sets.",
+        "createRecording(com.almworks.jira.structure.api.item.ItemIdentity[])": "Returns a new recording filter with the given items already recorded.",
+        "recordItem(com.almworks.jira.structure.api.row.StructureRow)": "Records the item shown by `row`, so changes to it will be accepted. Throws `UnsupportedOperationException` on a fixed filter.",
+        "recordItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Records an item: issues go to the issue id set, others to the identity set. Throws `UnsupportedOperationException` on a fixed filter.",
+        "accept(java.util.Set, com.almworks.jira.structure.api.generator.StructureGenerator.ItemChangeFilterContext)": "True if any identity in `itemIds` is a recorded or given item (issues are matched by issue id). The context is not used."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.GenerationUtil": {
+      "summary": "Static helper for generators that need attribute values of the rows they process (for example sorters and groupers by attribute). Not instantiable.",
+      "members": {
+        "getValuesFromSubjectForest(com.almworks.jira.structure.api.generator.StructureGenerator.GenerationContext, com.almworks.jira.structure.api.attribute.AttributeSpec, com.almworks.integers.LongList, com.almworks.jira.structure.api.attribute.StructureAttributeService)": "Same as the collection variant with a single attribute spec.",
+        "getValuesFromSubjectForest(com.almworks.jira.structure.api.generator.StructureGenerator.GenerationContext, java.util.Collection, com.almworks.integers.LongList, com.almworks.jira.structure.api.attribute.StructureAttributeService)": "Loads the given attributes for the given rows through the attribute service and returns the values together with a `RecordingAttributeUpdateChecker`. If the forest being generated is a transformation, values are computed in the forest before that transformation; otherwise they are computed in the context's input forest (or preview forest if there is no input) under the current forest spec. The checker is registered with the context automatically; the generator should call `record` for each row whose value it actually used, so that a change in those values triggers regeneration. Errors from the attribute service propagate."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.IssueApplicabilityChecker": {
+      "summary": "`StructureGenerator.ApplicabilityChecker` that accepts only rows showing a Jira issue that can be loaded. Stateless; use the shared `INSTANCE`.",
+      "members": {
+        "INSTANCE": "Shared instance.",
+        "<init>()": "Creates a checker; normally `INSTANCE` is used instead.",
+        "isApplicableTo(com.almworks.jira.structure.api.row.StructureRow)": "True if the row's item is an issue and the row can supply the issue object (for example it exists and is visible); false otherwise."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.RecordingAttributeUpdateChecker": {
+      "summary": "An `UpdateChecker` that wraps an `AttributeUpdateChecker` and a list of rows recorded by the generator. When polled, it asks the wrapped checker whether attribute values of the recorded rows have changed. Usually obtained from `GenerationUtil.getValuesFromSubjectForest`. Recording must finish before the first poll.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.attribute.AttributeUpdateChecker)": "Creates a checker in recording state around the given attribute update checker.",
+        "record(com.almworks.jira.structure.api.row.StructureRow)": "Records the row's id; ignored if `row` is null or has id 0. Otherwise as `record(long)`.",
+        "record(long)": "Adds a row id to the set of rows whose values are watched. Throws `IllegalStateException` once `hasUpdate()` has been called.",
+        "hasUpdate()": "Ends recording and returns whether the wrapped checker reports changed values for the recorded rows. After this call `record` is no longer allowed.",
+        "unwrap(Class)": "Internal-use: returns the wrapped attribute checker cast to `specialization` if it is an instance of it, otherwise null."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.RecordingItemChangeFilter": {
+      "summary": "An `ItemChangeFilter` to which items can be added while generating, so that later changes to them are accepted. `BasicItemChangeFilter.createRecording()` gives a real one; `EMPTY_FILTER` ignores everything.",
+      "members": {
+        "EMPTY_FILTER": "Shared filter that records nothing and never accepts a change.",
+        "recordItem(com.almworks.jira.structure.api.row.StructureRow)": "Records the item shown by the row.",
+        "recordItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Records the item with this identity."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.RecordingItemChangeFilter.EmptyFilter": {
+      "summary": "A `RecordingItemChangeFilter` that ignores recordings and never accepts a change. Stateless; normally used through `RecordingItemChangeFilter.EMPTY_FILTER`.",
+      "members": {
+        "<init>()": "Creates the filter.",
+        "recordItem(com.almworks.jira.structure.api.row.StructureRow)": "Does nothing.",
+        "recordItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Does nothing.",
+        "accept(java.util.Set, com.almworks.jira.structure.api.generator.StructureGenerator.ItemChangeFilterContext)": "Always false."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.SingleItemChangeFilter": {
+      "summary": "An `ItemChangeFilter` that accepts a change only if it includes one specific item. Immutable.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.item.ItemIdentity)": "Creates a filter for the given item. Throws `NullPointerException` if it is null.",
+        "accept(java.util.Set, com.almworks.jira.structure.api.generator.StructureGenerator.ItemChangeFilterContext)": "True if `itemIds` contains the item given at construction (by identity equality)."
+      }
+    },
+    "com.almworks.jira.structure.api.generator.util.TimedUpdateChecker": {
+      "summary": "An `UpdateChecker` that reports an update once a fixed time has passed since it was created, giving a time-based refresh. Immutable and thread-safe.",
+      "members": {
+        "<init>(long)": "Creates a checker that starts timing now. The argument is the interval in nanoseconds; zero or negative means an update is reported immediately.",
+        "hasUpdate()": "True once at least the interval has elapsed since construction (measured with a monotonic clock), and on every call after that."
+      }
+    },
+    "com.almworks.jira.structure.api.i18n.I18n": {
+      "summary": "Localised text lookup for one locale. Marked public but internal-use. Implemented by `JiraI18n`; obtained from `I18nProvider.forCurrentUser()` or `JiraI18n.create`.",
+      "members": {
+        "getText(String, Object[])": "Returns the message for `key` in this object's locale, with the given arguments substituted into its placeholders. Behaviour for unknown keys follows the underlying implementation (the Jira-backed one typically returns the key itself).",
+        "getLocale()": "The locale this object produces text in."
+      }
+    },
+    "com.almworks.jira.structure.api.i18n.I18nProvider": {
+      "summary": "Supplies an `I18n` for the current user. `JiraI18nProvider` is the implementation. Note: in the original the plugin neither uses nor registers this provider as a component; clients instantiate the implementation themselves.",
+      "members": {
+        "forCurrentUser()": "Returns an `I18n` in the locale of the user the current request runs as (or the default locale when there is none)."
+      }
+    },
+    "com.almworks.jira.structure.api.i18n.JiraI18n": {
+      "summary": "`I18n` backed by a Jira `I18nHelper`. Internal-use. Instances wrap a helper given to the constructor, or are made by the static factories, which use Jira's i18n helper factory and fall back to a stand-in when Jira services are not available (for example in unit tests). Thread safety follows the wrapped helper.",
+      "members": {
+        "<init>(com.atlassian.jira.util.I18nHelper)": "Wraps the given Jira helper; all calls are delegated to it.",
+        "getText(String, Object[])": "Returns the helper's text for `key` with the given arguments.",
+        "getLocale()": "Returns the helper's locale.",
+        "forCurrentUser()": "Static. Same as `create(null, user)` where `user` is the user the plugin considers current for this thread (may be null for anonymous).",
+        "create(java.util.Locale, com.atlassian.jira.user.ApplicationUser)": "Static. Returns an `I18n` for `locale` if it is not null; otherwise for the preferred locale of `user` if not null; otherwise for Jira's default locale (or the root locale if that cannot be read). If Jira's i18n helper factory is unavailable, returns a stand-in whose `getText` returns the key followed by a space and the argument array in bracketed list form, and whose locale is English. Never null."
+      }
+    },
+    "com.almworks.jira.structure.api.i18n.JiraI18nProvider": {
+      "summary": "`I18nProvider` that delegates to `JiraI18n.forCurrentUser()`. Internal-use, stateless.",
+      "members": {
+        "<init>()": "Creates the provider.",
+        "forCurrentUser()": "Returns `JiraI18n.forCurrentUser()`."
+      }
+    }
+  }
+}

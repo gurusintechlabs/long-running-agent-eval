@@ -168,3 +168,14 @@ def test_real_haiku_totals_match_the_manifest_end():
     assert s["context"]["window"] == 1_000_000 and s["context"]["compactions"] == 1
     assert s["activity"]["tool_calls"] > 500
     assert first < 5 and second < 0.25, (first, second)
+
+
+def test_context_gauge_is_the_main_agent_and_helpers_are_reported_apart(fake):
+    fake.api_request(0.10, inp=1000, cache_read=39000, source="sdk")                              # 40k: 20%
+    fake.api_request(0.20, inp=1000, cache_read=159000, source="agent:builtin:general-purpose")   # 160k: 80%
+    fake.api_request(0.05, inp=1000, cache_read=19000, source="sdk")                              # 20k: 10%
+    s = snap(fake.dir)
+    assert s["cost"]["usd"] == pytest.approx(0.35) and s["cost"]["requests"] == 3   # cost counts every request
+    assert s["context"]["fill"] == pytest.approx(0.1) and s["context"]["max_fill"] == pytest.approx(0.2)
+    assert s["context"]["helper_max_fill"] == pytest.approx(0.8)
+    assert max(v for _, v in s["series"]["context_fill"]) == pytest.approx(0.2)

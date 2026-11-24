@@ -323,6 +323,59 @@ def test_api_errors_three_in_120s(rig):
     assert len(rig.log) == 1  # once
 
 
+def test_api_errors_from_before_a_resume_do_not_fire(rig):
+    # a resumed run's monitor reads otel.jsonl from the start: the burst that interrupted it is history
+    for dt in (0, 1, 2):
+        rig.write(rig.otel, "claude_code.api_error", {}, ts=iso(rig.clock.w - 7 * 3600 + dt))
+    rig.mon.poll_once()
+    assert rig.log == []
+    for dt in (0, 1, 2):
+        rig.write(rig.otel, "claude_code.api_error", {}, ts=iso(rig.clock.w + dt))
+    rig.mon.poll_once()
+    assert rig.log == [("interrupt", "api_error")]
+
+
+def resumed(rig):
+    """A second monitor over the same event files, as ``lrae resume`` starts one."""
+    return GuardrailMonitor(events_dir=rig.events, policy=rig.mon.policy, writer=rig.writer, clock=rig.clock,
+                            on_kill=lambda v: rig.log.append(("kill", v.rule_id)), workspace=rig.work,
+                            seed_files={}, resume=True)
+
+
+def test_a_resumed_monitor_does_not_log_the_old_commands_again(rig):
+    """jira-re full run: every resume re-read agent_stream.jsonl from the start and logged each earlier
+    command warning again (decompiler 1027 logged for 347 commands)."""
+    rig.call("git branch -D old")
+    rig.mon.poll_once()
+    assert [e["payload"]["rule_id"] for e in rig.guard_events()] == ["destructive-git"]
+    mon = resumed(rig)
+    mon.poll_once()
+    assert len(rig.guard_events()) == 1
+    rig.call("git branch -D new")                       # the resumed agent's own commands still count
+    mon.poll_once()
+    assert [e["payload"]["evidence"].split("'")[1] for e in rig.guard_events()] == ["git branch -D"] * 2
+
+
+def test_a_resumed_monitor_does_not_log_old_effects_again(rig):
+    hook = rig.work / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True)
+    hook.write_text("#!/bin/sh\n")
+    rig.mon.check_effects_now()
+    assert [e["payload"]["rule_id"] for e in rig.guard_events()] == ["git-hooks"]
+    mon = resumed(rig)
+    assert mon.check_effects_now() == [] and len(rig.guard_events()) == 1
+    hook.write_text("#!/bin/sh\necho changed\n")       # still the same finding: a new file under hooks
+    (rig.work / ".git" / "hooks" / "post-merge").write_text("x")
+    assert [v.evidence.split(" ")[0] for v in mon.check_effects_now()] == [".git/hooks/post-merge"]
+
+
+def test_a_resumed_monitor_still_counts_the_earlier_spend(rig):
+    rig.api(0.01)
+    mon = resumed(rig)
+    mon.poll_once()
+    assert mon.cost_usd == pytest.approx(0.01)
+
+
 def test_api_errors_spread_out_do_not_fire(rig):
     for dt in (0, 70, 140, 210):
         rig.write(rig.otel, "claude_code.api_error", {}, ts=iso(rig.clock.w + dt))

@@ -1,0 +1,2103 @@
+{
+ "claims": [
+  {
+   "key": "u3-data-sync/widget-bare/poll-defaults",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Polling uses four numbers from the widget configuration, with these defaults: normal interval 10000 ms, interval while the browser window has no focus 60000 ms, boosted interval 1000 ms, boost duration 6000 ms. A timer checks every 500 ms whether a poll is due. With a normal interval of 0 or less the timer does not exist and no periodic poll ever runs; polls asked for explicitly still go out.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller",
+    "amd:structure/widget/WidgetConfig"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-request-url",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A poll is `POST /rest/structure/2.0/poll` with a JSON body. Outside gadgets the URL carries `?loggedIn=true` for a logged-in user and `?loggedIn=false` for an anonymous one; in a gadget it carries no query string. So when the session of a logged-in user expires the server answers 401.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller",
+    "amd:structure/widget/poll/Deserializer"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-request-body",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The body of a periodic poll holds: `forests`, one `{spec, version}` per forest in active use by some panel (the key is absent when there is none); `items` `{version}` with the items version last received (starts at `{signature: 0, version: 0}`); `extensionRequests` when at least one registered core extension gives a request (absent otherwise); `subscriptions` `[{id, version}]` for attribute subscriptions (absent when none is ready).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller",
+    "amd:structure/widget/forests/ForestCache",
+    "amd:structure/widget/attributes/AttributeManager",
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-in-flight-dedupe",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A part of a poll body (one forest entry, the `items` entry, the extension requests, the subscriptions entry) is left out while an identical part (deep comparison) is already in a poll under way. Each such part is free again when its request ends, whatever the result. If nothing is left no request is sent, and the time of the last periodic poll is unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-due-rule",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On each 500 ms check nothing is sent when any holds: polling has ended (after a 401); polling is blocked (see the blocking rule); the widget is not displayed; or the user counts as inactive and polling while inactive is off (the default). Otherwise, inside a boost window, a poll goes out once 1000 ms (the boosted interval) have passed since the last periodic poll. Outside that case a poll goes out unless one of these holds: value loading started less than 2000 ms ago and is still running, and no forced poll is owed; less than 10000 ms passed since the last periodic poll; or the browser window has no focus and no embedded frame of the widget has it, and less than 60000 ms passed since the last periodic poll.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-blocking-rule",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Polling is blocked while any of these holds: a grid cell is being edited (until the editor reports that nothing is being edited any more); an edit in the details panel is under way (until it stops or the panel closes); the upload queue is not idle; a registered core extension says it blocks polling; or a Jira dialog is open and no forced poll is owed. Blocking stops periodic polls only. An explicit request for a poll or a forest becoming active still sends one.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller",
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-forced-after-details-edit",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When an edit in the details panel stops, 2 forced polls are owed: each answer or failure pays one off. While one is owed, an open Jira dialog does not block polling and running value loading does not hold a poll back.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-answer-dropped-when-blocked",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the answer of a periodic poll arrives while polling is blocked, the answer is dropped unread and does not pay off a forced poll, so no forest or value changes under an editor. The forests keep their old versions and the same changes are fetched again by a later poll. Answers of explicitly asked polls are always applied.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-boost-triggers",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A boost window of 6000 ms starts (only when the boost duration is above 0 and the boosted interval is below the normal interval) as follows: 1000 ms after the last of the events 'details edit stopped', 'upload queue became idle', or 'user became active with no poll sent at that moment'; 100 ms after the last of the events 'a Jira dialog closed' or 'an item may have changed'. Each burst of events gives one start.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-immediate-triggers",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The due check runs at once when the browser window or an embedded frame of the widget gets focus and when the user becomes active again. A poll is sent at once, without the due check, when a forest becomes active in the page or when any part of the widget asks for one. A request may name particular forests with versions; the body then has only those, and the time of the last periodic poll is not moved. A request naming nothing sends the full body and moves that time.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-inactive-control",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Whether polling continues while the user is inactive is a switch, off by default, that the widget's owner can turn on (the user counts as inactive after 300000 ms by default; the inactivity tracking itself is claimed with the widget shell).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/poll/Poller",
+    "amd:structure/widget/WidgetConfig"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-errors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A failed poll is logged and announced to the rest of the widget, and pays off a forced poll. Polling carries on at its normal pace, except for HTTP 401: then polling stops for good in this page and the notice that the user has been logged out is shown.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-delegates-long-jobs",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A poll answered with only `{jobId}` is repeated by the shared request code (claimed with it). The poller sees only the final answer, and the entry stays 'in flight' until then.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/poll/Poller",
+    "amd:structure/widget/poll/Deserializer"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-dev-mode",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In the plugin's development mode no periodic poll runs and no attribute window is uploaded, so the grid shows no values or updates by itself.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/poll/Poller",
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/poll-result-consumers",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "One poll answer drives, in one step: each forest named in `forestUpdates`, the stopped state of forests, the items version (from `itemsUpdate.version`), and each attribute subscription named in `subscriptionUpdates`; `extensionData` and `backgroundProcesses` are passed on unchanged to their owners.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Poller",
+    "amd:structure/widget/poll/Deserializer",
+    "amd:structure/widget/forests/ForestCache",
+    "amd:structure/widget/attributes/AttributeManager",
+    "amd:structure/widget/attributes/BackendSubscriptionClient",
+    "amd:structure/widget/GenerationController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/deser-forest-formula",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A full forest text is read as comma-separated rows of the form digits `:` digits `:` item, then optionally `:` digits for semantics (0 when absent). A piece that does not match is skipped without error. Example: with `itemTypes` `{\"3\": \"com.almworks.jira.structure:type-folder\"}`, the text `2:0:10010,4:1:3/12:1` gives row 2 at depth 0 with item `10010` and row 4 at depth 1 with item `com.almworks.jira.structure:type-folder/12` and semantics 1.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Deserializer",
+    "amd:structure/widget/model/ItemRow"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/deser-item-forms",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An item in forest text or in `itemsUpdate.updated` takes one of three forms. Digits only: an issue, and the item id stays those digits. `<t>/<n>`: the type key from `itemTypes[t]`, then `/<n>`. `<t>//<s>`: the type key, then `//`, then `<s>` percent-decoded. A type number missing from `itemTypes`, or any other form, gives no item: in a forest the row stays with an empty item id, and in `updated` the entry is left out.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Deserializer",
+    "amd:structure/widget/model/Items"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/deser-forest-changes",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Incremental forest text is split on `|`, and each part is read as: `a.<under>.<after>.<rows>` add; `m.<under>.<after>.<row ids>` move; `o.<under>.<row ids>` reorder; `r.<row ids>` remove. Row ids are digits and commas. A part in any other form is logged and skipped, and the rest are still applied.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Deserializer"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/deser-forest-update-kind",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A forest update counts as full when `formula` is non-empty, as incremental when `updates` is non-empty, and otherwise as empty (nothing changed). `spec`, `fromVersion`, `version`, the four `healthStatus` fields `stopped`, `generatorTimes`, `hitLimits`, `infiniteUpdateGenerators`, `error` (`code` defaulting to 0, `message`, `localizedMessage` defaulting to `message`, `error`) and `needsUpdate` are kept.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Deserializer"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/deser-empty-formula-not-full",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A full update of a forest that has become empty (`formula` = `\"\"` with no `updates`) is read as 'nothing changed', not as a full replacement. If `fromVersion` is the client's version the client takes the new version and keeps its old rows; they stay on screen until a later update touches them (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/poll/Deserializer",
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/deser-items-update",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "`itemsUpdate.updated` of `\"\"` means nothing changed, `*` means everything must be treated as changed, and anything else is a comma-separated item list read by the item rules. `fromVersion` and `version` are kept.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Deserializer"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/deser-subscription-update",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each subscription update keeps its fields as received. In each `data` entry only `attribute`, `values` and `outdated` are kept, and each row in `emptyValueRows` becomes a null value in `values`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/poll/Deserializer"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-shared",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The page keeps one client copy per forest spec (deep comparison of the spec). All panels and parts asking for the same spec share it, and the copy lives as long as the page, also when nobody uses it any more. A forest used again later resumes from the version it had.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-initial-version",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A forest not yet loaded has version `{signature: 0, version: -1}`, which is what the first poll sends. The first user of a forest (going from no users to one) makes a poll go out at once, and only forests with at least one user and no load failure are polled.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache",
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-stale-answer",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An update with the same signature as the client's version and a `version` not above it is ignored. So is an incremental update with the same signature whose `fromVersion` is older than the client's version. In these cases nothing changes and no error is raised.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-full",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A full update replaces the rows of the client forest and sets the version. A full update does not need `fromVersion` to match.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-incremental",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An incremental or empty update is applied only when `fromVersion` deep-equals the client's version. Changes are applied in order as one batch, so listeners see one change. Add inserts the rows under `under` after `after` with their depth shifted to fit. Move moves the rows and their subtrees. Reorder moves the listed rows, in the given order, to the start of `under`. Remove deletes the rows and their subtrees; ids not in the forest are skipped. The version is then set to the update's `version`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache",
+    "amd:structure/widget/model/DataForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-resync",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When an update cannot be used (no `version`, an `error`, a `fromVersion` that is not an older one of the same signature, or a failure while applying) then: if the forest was already loaded, its version becomes `{signature: 0, version: 0}`, so the next poll asks for it from version zero and gets a full copy, and the old rows stay on screen until then. Server errors and mismatches are logged.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-load-failure",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the same happens to a forest whose version has signature 0 (including one reset to `{0, 0}`), the forest is marked as failed: everyone waiting for its first load is told it failed, and it is not polled any more in this page.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-first-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Callers can wait for the first successful load of a forest. The wait ends at the first usable update, also an empty one.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-needs-update",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a used update carries `needsUpdate`, a poll for that one forest at its new version is asked for straight away.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache",
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-affected-rows",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While at least one user of a forest asked to hear of them, an incremental update first announces the rows it touches and only then lets listeners see the changed forest: added rows, moved rows with everything between the start and end of the move's range, and removed rows with their subtrees. Without such a user nothing is collected.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-lookups",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Other parts can ask, for a forest in the page: the current version; the item of a row (none when the row or forest is unknown); the ids of all rows showing an item, compared loosely so a number and a string of the same digits match (none when the forest is unknown).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-cache-layers",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each forest copy has three views: the rows as last received from the server; the set of pending local changes; and the latest local state, which is the server rows with the pending changes applied, or the server rows themselves when nothing is pending. Grids show the latest local state.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/forests/ForestCache",
+    "amd:structure/widget/model/ApplicatorForest",
+    "amd:structure/widget/model/DecoratorSwitchForest",
+    "amd:structure/widget/model/ForestDelegator",
+    "amd:structure/widget/model/ForestDecorator",
+    "amd:structure/widget/model/ForestUpdateEvent"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/generation-stopped-states",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each forest copy has a generation state: no problem, `stopped`, `resuming` or `resumed`. For each forest update with a `healthStatus`: `stopped` true sets the state to `stopped`; `stopped` false turns `resuming` or `resumed` into `resumed` and anything else into no problem.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/GenerationController",
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/generation-resume",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Resuming a forest does nothing unless its state is `stopped`. Otherwise it sends `POST /rest/structure/2.0/generation/resume` with `{forestSpecs: [<the forest's REST spec>]}`. When the answer has a `forestSpecs` list, each of those forests in `stopped` state becomes `resuming`, the list is remembered as the group of the requested forest, and a poll is asked for. A failed call changes no state.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/GenerationController",
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/generation-resume-group",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For the forests in a remembered resume group: when the update of the requested forest says `stopped` true, the group is forgotten and every member in `resuming` or `resumed` goes back to `stopped`. When it says false, those members become `resumed`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/GenerationController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/generation-acknowledge",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Acknowledging a forest does nothing unless its state is `resumed`. Otherwise it clears the state of that forest and of the other `resumed` members of every remembered group that holds it, and forgets those groups. No request is sent.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/GenerationController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/generation-stop",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Stopping sends `POST /rest/structure/2.0/generation/stop` when the stop is unconditional and `POST /rest/structure/2.0/generation/stopIfRunning` otherwise, with `{forestSpecs: [...]}`. A successful answer makes a poll be asked for; a failure does nothing further.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/GenerationController",
+    "amd:structure/widget/poll/Poller"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/generation-descriptions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Descriptions for a list of generator ids come from `POST /rest/structure/2.0/generation/generatorDescriptions` with the id array as body. An empty or missing list gives an empty result with no request, and a failed call gives an empty result rather than an error.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/GenerationController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/generation-logged-in-param",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Requests for resume, stop and descriptions are `POST` with a JSON body and carry `?loggedIn=true|false` outside gadgets, as the poll does.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/GenerationController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-groups",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A consumer of values (a grid, a details panel) states which attributes it needs, each for one of three forests: the forest displayed (the default), the 'unfiltered' forest (see its claim), or any other forest given by spec. Attributes are normalized first and duplicates merge. A required attribute that is not an object, or a forest given as neither of those nor an object, is a programming error and raises one.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/AttributeSet",
+    "amd:structure/widget/attributes/Attributes"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-well-known",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The UI asks the server for these attribute specs by `id` and `format`: `summary` text and html, `summary` text with `params` `{aggregate: true}`; `icon` html and with `{aggregate: true}`; `editable` boolean; `done` boolean; `description` html and with `{aggregate: true}`; `url` text; `key` text; `project` id and html; `issuetype` id and html; `progress` number; `run-as-user.icon` html; `original-generator-kind` text; `basic-generation-info` json; `children-automations-hint` html; `manually-adjusted` boolean; `version-start`, `version-release` text; `version-description` text and html; `sprint-start`, `sprint-end` text; `sprint-goal` text and html; `project-lead` html; `extended-summary` html. Format names in the UI are `html`, `text`, `number`, `order`, `duration`, `time`, `any`. Creating an issue requires `project` id and `issuetype` id.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Attributes"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-normalize-params",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Before any attribute spec is compared, stored or sent, its `params` are cleaned. An entry is removed when its value is null, absent, `false`, an empty array, an empty object, or a number equal to that parameter's default. The default is 0, except: id `aggregation-parent` parameters `depth` and `level` -1; ids `aggregation-join` and `aggregation-array` parameters `fromdepth` and `fromLevel` 1. When nothing is left, or `params` is not a non-empty object, `params` itself is removed. Example: `{id: \"x\", format: \"text\", params: {a: 0, b: false, c: null, d: \"y\"}}` becomes `{id: \"x\", format: \"text\", params: {d: \"y\"}}`, and `{id: \"x\", params: {a: 0}}` becomes `{id: \"x\"}`. A spec with no `params` key is left as it is.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/AttributeSpecNormalization"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-normalize-nested",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Normalization goes into a parameter value that is itself an attribute spec (an object with exactly `id` as a non-empty string, `params` as an object, and optionally `format` as a string) and into such specs inside arrays, by the same rules with that inner id. Other objects are not entered. The caller's object is never changed: a cleaned copy is made only when something must go.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/AttributeSpecNormalization"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-summary-always",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Every value consumer also gets the attribute `summary` text on the displayed forest, whatever it asked for.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription",
+    "amd:structure/widget/attributes/Attributes"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-unfiltered-forest",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The 'unfiltered' forest of a spec is the same spec with the trailing filters and sorters removed from `transforms`: walking back from the last step, everything after the last step that is neither a filter nor a sorter goes. With only filters and sorters, or no transforms, `transforms` is removed altogether. Example: sorter, grouper, filter, sorter gives sorter, grouper. Which modules are filters and sorters comes from the transformation registry. It is used for totals that must not depend on the filter.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/AttributeManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-one-subscription-per-forest",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For one consumer, values come through one server subscription per distinct forest needed: the displayed forest, the unfiltered forest when any unfiltered attribute is needed, and each other forest asked for. Two of them with an equal spec share one subscription with the merged attribute set. All subscriptions of the consumer watch the same rows, the rows it marks as in use. With no displayed forest or no attributes it has no subscriptions.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription",
+    "amd:structure/widget/attributes/AttributeManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-change-forest",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the displayed forest spec of a consumer changes (deep comparison), its rows in use are emptied and its subscriptions are rebuilt: those no longer needed are closed with their cached values, new ones are opened. Those still needed keep their values. The spec a panel uses for this has no pinned item, no pin step, and steps stripped of client-only fields (see the claim on the spec for attributes).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-window-normalize",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A subscription's window has `forestSpec`, `rows` and `attributes`. Rows are the positive ids of those in use (temporary negative ids never go to the server), sorted as text, so `10` comes before `9`. Attributes are sorted by `id`, then by their JSON text. A change that leaves the window equal to the current or pending one (deep comparison) sends nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-create",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The first valid window (a spec, at least one row and at least one attribute) sends `POST /rest/structure/2.0/attribute/subscription?valuesUpdate=true&valuesTimeout=500` with `{forestSpec, rows, attributes}`. A window that is not valid sends nothing until it becomes valid. No other upload of that subscription starts until the answer arrives.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-update",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Later windows send `PUT /rest/structure/2.0/attribute/subscription/<id>?valuesUpdate=true&valuesTimeout=500&signature=<s>&version=<v>` with the values version held, and the same three-part body. The `patch` endpoint is not used by the UI.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-delete",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When an existing subscription's window stops being valid (no rows left, no attributes left, no spec) or its consumer is closed, `DELETE /rest/structure/2.0/attribute/subscription/<id>` is sent, once and without retry, and the client forgets that id. A later valid window creates a new subscription.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-single-upload",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each subscription has at most one upload running. A window changed meanwhile waits as the only pending one, and each newer change replaces it. After an answer the pending window is uploaded at once. If an update got no answer for 31000 ms, the next one may start anyway; during a create nothing else starts until its answer. A core extension that says it blocks subscription uploads holds all uploads back. A check runs every 1000 ms for every subscription.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-answer-accept",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An answer with a non-zero `id` is good: that id is taken and its window becomes current when it was a create or the window is still the pending one. Its `valuesUpdate` is applied in any case, and retry state is cleared. An answer with no usable `id` is treated as a failed upload.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-errors-retry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A failed upload counts only when its window is still the pending one. It is tried again after a delay of 1000 ms that doubles on each further failure, up to 60000 ms, and is reset by a good answer. Failures with any status other than those in the claim on permanent errors go on being retried for at most 1 hour from the first failure.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-subscription-lost",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A failure whose JSON body has `error` and `code` 4800 means the server lost the subscription: the client forgets the id, and the window is created anew by `POST`, 1000 ms sooner than the delay would give, so the first retry goes out at once.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-permanent-errors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "HTTP 500, or HTTP 404 without code 4800, or a retry falling 1 hour or more after the first failure, ends the subscription for this page: no further upload is made, and the error centre shows 'Sorry, we are having problems downloading item values - please reload the page. (<title>)', where the title comes from the failed response.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-loading-state",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The UI knows whether any window upload is running, and tells the rest of the widget each time this changes between yes and no. The state 'loading started less than 2000 ms ago' is what the poller holds back on.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-update-versioning",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A values update is applied when it has `full` true or its `fromVersion` deep-equals the version held; missing numbers in a version count as 0. The version held then becomes the update's `version`. Any other update is logged and ignored, and the version does not move. A `full` update is merged into the cached values: rows it does not mention keep what they had (see the report of disagreements with the spec).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-update-error",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An update that carries `error` (from a poll, for instance a subscription the server no longer knows) makes the client forget the id and queue the current window again when none is pending, so a new subscription is created at the next 1000 ms check.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-attribute-errors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each entry of `attributeErrors` is reported to the error centre, also when the rest of the update is applied. The title is the entry's `error.error`, or 'attribute error' when it has none. The details name the attribute as JSON, then `itemId` and `rowId` when present, then the error.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-follow-ups",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An applied update with `stillLoading` true schedules a follow-up after a delay taken in turn from 1000, 1000, 2000, 3000, 5000, 8000, 13000, 21000, 30000, 60000 ms, the last one repeating. The follow-up is `GET /rest/structure/2.0/attribute/subscription/<id>?valuesUpdate=true&valuesTimeout=500&signature=<s>&version=<v>&skipLoading=true`. Applying an update without `stillLoading`, any window change, and each poll that includes the subscription stop the series and restart the delays. A failed follow-up stops the series and the client waits for the next poll. A follow-up does not run while a window is pending.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-poll-entries",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A poll includes a subscription only when it has a real id and no upload is running. Its entry is `{id, version}` with the version held, `{signature: 0, version: 0}` before any update.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/attr-poll-routing",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each entry of `subscriptionUpdates` in a poll answer goes to the subscription with that `id`, and one with an unknown id is ignored. A subscription's data reaches its consumer only when the update has at least one `data` entry or inaccessible row.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/BackendSubscriptionClient"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-accessor-null",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A row's values can be read only for rows in use, and only when the consumer has a displayed forest and attributes: otherwise there is nothing to read and the row counts as not yet ready. Reads take the attribute's normalized form, and each attribute can be read from the displayed row data, the unfiltered row data or any other forest's.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription",
+    "amd:structure/widget/attributes/ValueAccessor"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-ready-to-draw",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A row is ready to draw when the main column has the values it needs for it, or when the row is known to be inaccessible. Each row's readable data has a sequence number that grows with any change in any of its forests, so a cell can tell that it needs no redraw.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription",
+    "amd:structure/widget/attributes/ValueAccessor",
+    "amd:structure/widget/columns/MainColumn"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-apply-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When values arrive, for each attribute and row: an id that is not a non-zero integer is skipped; a row with unsaved local values, or one still inaccessible after the rule of the claim on inaccessible rows, keeps its state and the value is dropped; otherwise the value is stored, with `undefined` treated as null, and its outdated flag set from the entry's `outdated` list. The result lists each changed row with the level of the highest change: 2 for a changed value, 1 for a changed outdated flag only. Rows with no change are not listed, and consumers are called only when the list is not empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/ForestValueCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-inaccessible",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A row in `inaccessibleRows` becomes inaccessible and, the first time, is listed as changed (with no level). A row that is inaccessible becomes accessible again when a value arrives for it, unless the position with that row's number in the `inaccessibleRows` array holds a value: the check looks at positions in the list, not at the ids in it (as the original does). In practice a row in both lists ends up inaccessible and is reported as changed on each such update.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/attributes/ForestValueCache",
+    "amd:structure/widget/attributes/RowData"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-flash",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A value that changes from one defined value to a different defined value flashes for 10000 ms after its arrival. A first value, or a change to or from undefined, does not flash. A value marked 'do not flash' skips exactly its next flash. Records of finished flashes are cleaned 100 ms past the flash time, at most once per 120000 ms.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/ValueHolder",
+    "amd:structure/widget/attributes/ForestValueCache",
+    "amd:structure/widget/attributes/RowData"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-outdated",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A value marked outdated by the server still shows. A reader can pass a callback that is called only when the value it reads is outdated, so that the cell can mark it stale. A later update with a value for that row clears the mark when the row is no longer listed in `outdated`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/ValueHolder",
+    "amd:structure/widget/attributes/RowData"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-invalidated",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A stored value can be marked as invalidated (known to be old and awaiting a server value). The mark goes when a new value is stored, and it does not hide the value.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/ValueHolder",
+    "amd:structure/widget/attributes/RowData"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-dirty",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An edit can put an unsaved value on an attribute of a row in the displayed forest. Readers then get the unsaved value instead of the stored one, and server values for that row are ignored until the unsaved state ends. The row counts as having unsaved data. A row with no stored value for the attribute gets one that counts as invalidated.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/ValueHolder",
+    "amd:structure/widget/attributes/RowData",
+    "amd:structure/widget/attributes/ForestValueCache",
+    "amd:structure/widget/attributes/Subscription"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-clear-dirty-field",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clearing the unsaved value of a single attribute restores the stored value for readers, but the row keeps counting as having unsaved data, even if that was its last unsaved value, because the step that recomputes this is never reached. Server values for that row stay ignored until all unsaved fields of the row are cleared together (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/attributes/ValueHolder",
+    "amd:structure/widget/attributes/RowData"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-clear-all-dirty",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clearing all unsaved values of a row has two modes. With 'keep', each unsaved value becomes the stored value, is marked invalidated and will not flash on the next change. Without it the unsaved values are dropped. Either way the row no longer counts as having unsaved data.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/ValueHolder",
+    "amd:structure/widget/attributes/ForestValueCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-external-dirty",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When an item is known to be changing outside the grid, all rows showing that item in every forest of every consumer are marked. The caller gets the set of those rows, and clears the mark with the same set later. A forest with no such row, or no item id given, marks nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/AttributeManager",
+    "amd:structure/widget/attributes/Subscription",
+    "amd:structure/widget/attributes/ForestValueCache",
+    "amd:structure/widget/attributes/RowData"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-temp-row-copy",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A temporary row can start with the values of another row, possibly of another consumer: its id is added to the rows in use and all cached displayed values are copied, and the unfiltered ones too when unfiltered attributes are in use. Nothing happens if either side has no forest or attributes, or either row id is missing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription",
+    "amd:structure/widget/attributes/RowData"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-new-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A row for an issue being created starts with `summary` text set to the text given, or empty. When the project and type are known, or a sample row is given: with a sample row, each cached attribute of the sample whose `id` is in the given set is copied; otherwise each attribute already cached on the new row whose `id` is in the set is emptied, `project` id is set to the given project id as a string, or emptied when there is none, and `issuetype` id the same way.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription",
+    "amd:structure/widget/attributes/ForestValueCache",
+    "amd:structure/widget/attributes/Attributes"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-replace-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the server replaces temporary rows with real ids, every consumer whose displayed forest has an equal untransformed spec moves the data: cached values are copied to the new row and marked invalidated, the temporary data goes, and the rows in use take the new id. When a row in use changed in any consumer a poll is asked for. A temporary row with no new id just loses its data.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/AttributeManager",
+    "amd:structure/widget/attributes/Subscription",
+    "amd:structure/widget/attributes/ForestValueCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-clear-cache",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Caches of a consumer can be emptied only when it has no rows in use; the call is otherwise ignored.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-update-handlers",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Consumers register for value changes, optionally for a limited life. Handlers receive the frozen map of changed rows with their levels, and a handler that fails does not stop the others.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/value-rows-used-result",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Setting the rows in use takes a set of ids and tells the caller which ones are new, so it can ask about them. The window of every subscription follows.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/attributes/Subscription"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/row-kinds",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A forest is a flat, depth-first list of rows, each with a row id, a depth and an item id, plus a semantics number. A row's parent is the nearest earlier row one level up. By id: negative means a local temporary row, positive even a persistent row, positive odd a transient (generated) row. Temporary row ids are given out in one page-wide sequence, starting at -100 and going down, and never repeat in a page.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Rows",
+    "amd:structure/widget/model/Row",
+    "amd:structure/widget/model/ItemRow"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/row-depth-limit",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Changing a row's depth leaves its other data alone; going below depth 0 is a programming error and raises one. Rows are kept in the list as shared records and a depth change makes a copy.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Row",
+    "amd:structure/widget/model/DataForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/row-text-form",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A client row is written to the server as `<id>:<depth>`, then `:<percent-encoded item id>` when it has an item, then `:<semantics>` when that is not 0, and rows are joined by commas: row -101 at depth 0 with item `com.almworks.jira.structure:type-issue/10010` is `-101:0:com.almworks.jira.structure%3Atype-issue%2F10010`. Reading this form back needs a positive id and an item; a text that does not fit gives no row, and a missing semantics reads as 0.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ItemRow",
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/items-type-keys",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The UI recognises these item types by full key under `com.almworks.jira.structure:type-`: `issue`, `folder`, `generator`, `effector`, `structure`, `label`, `loop-marker`, `status`, `group`, `project-component`, `sprint`, `tempo-account`, `text`, `memo`, `planning-task`, `version`, `version-name`, `project`; and `com.almworks.structure.pages:type-confluence-page` for a Confluence page.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Items"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/items-id-forms",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Item ids: a text with no `/` is a bare issue id, and its full form is `com.almworks.jira.structure:type-issue/<id>`. Others are `<type>/<number>` for a numeric id and `<type>//<text>` for a text id. Item type of an id: the part before the first `/`; for digits alone the issue type; for an empty id or other text an empty string. Long id: the number after the first `/`, 0 when there is none. An item is an automation when its id starts with the generator or the effector type key; memo, planning task and loop marker are told the same way. Generator and effector ids are read from `<type>/<digits>`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Items"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/items-semantics",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Row semantics numbers: 1 title, 2 group, 3 inserted, 4 extension. Memo and planning task are the two item types that carry the plugin's own item fields.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Items"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/items-page-id",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A Confluence page row number splits into a Confluence id (number divided by 1000000000, rounded down) and a page id (the remainder). Each part must lie from 0 to below 1000000000, or an error names the bad part.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/model/PageId"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/memo-icons",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A memo's stored icon is the class list `alm alm-fw <icon>` with one more class for its colour, where `<icon>` is `alm-memo` or `alm-flag`. An icon counts as supported only with one of these two icons, a known colour, and exactly those four classes. Anything else shows as 'not supported' by a blank icon.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/MemoItems"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-nav-position",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The position `{under, after}` of an index in the row list: index 0 gives `{0, 0}`. Otherwise `under` is the row's parent (0 at top level) and `after` the preceding sibling (0 if none); the index just past the end is at top level after the last root. An index outside that range, or none, gives nothing. For A(0), B(1), C(2), D(1), E(0), with depths in brackets: index 3 gives under A after B, index 1 gives under A after 0, index 5 gives under 0 after E.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-nav-insert",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The position for inserting at an index with a wanted depth is refused when the index is out of range, at index 0 with a depth above 0, when the row now at the index is deeper than the wanted depth (it would lose its parent), or when no row above can be the parent. Otherwise `under` is the ancestor of the row above at depth minus one (0 at depth 0), and `after` is the sibling at that depth just before the index, or 0. With the forest A(0), B(1), C(2), D(1), E(0): index 3 and depth 2 gives under B after C; index 3 and depth 0 is refused; index 2 and depth 3 is refused.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-nav-paste",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The position for pasting relative to a row: as a child, `under` is the row and `after` its last child, or 0 if it has none. Otherwise `under` is its parent, 0 at top level, and `after` is the row. With no row (index below 0, not as a child) it is `{0, 0}`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-nav-before-after",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Converting between 'after' and 'before' in a parent. 'Before' for `after` = 0 is the first child of `under`, or the first row at top level, 0 if none; for a given `after` it is its next sibling, 0 if none; an unknown row gives nothing. 'After' for a `before` is the sibling just above it. A missing or 0 `before`, or a `before` not under this parent's level, gives the last child; a `before` that is the first child gives 0; an unknown `under` gives 0.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-nav-roots",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "From a set of selected row ids the client works on 'normalized roots': rows present in the forest, with any row dropped when one of its ancestors is selected too, in forest order. Unknown ids are skipped, and an entry marked false is not selected. Copying normalized roots gives their subtrees with depths reduced so each root is at depth 0.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-nav-next-focus",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After deleting given rows the focus goes to, for each row in the list with the later ones winning: the next sibling; if none, the row above when it is the parent; otherwise the preceding sibling. A row with none of these (the only row) gives nothing, and rows not in the forest are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-nav-lookups",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The forest answers: a row's parent, its path of ids from the root down, every path on which an item occurs, the rows showing an exact item id, whether it has children, first and last child, top-level rows, the preceding sibling, a row's top-level ancestor, and the end of its subtree. A top-level row has no parent. Copying a row's filtered context gives its path followed by all its descendants.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-nav-size-change",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Consumers of the row count get its new value at most 10 ms after a change, so a burst of changes gives one update.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-insert",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Inserting a fragment (its first row is taken as depth reference): the fragment's depths are shifted so it fits under `under` (top level when 0 or absent), at the place after `after`. An `after` that is deeper is taken as its ancestor at the target depth. An `after` that is not under `under`, or 0, puts the fragment first under `under`. An unknown `under`, or an empty fragment, leaves the forest as it is and reports failure.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/DataForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-move-one",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Moving one row takes its whole subtree. It fails and changes nothing when the row or `under` is unknown, or `under` lies in the row's own subtree. Moving a row to where it already stands changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/DataForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-move-many",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Moving several rows keeps them in the order given in the list, one after another at the target, each with its subtree. A listed row whose subtree holds `under` is left out and the rest move. An empty list or unknown `under` gives no move. When the list holds both a row and a descendant of it the rows are moved one at a time, each after the one before.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/DataForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-remove",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Removing rows removes their subtrees; unknown ids are skipped and a list with none known changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/DataForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-merge",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Merging a fragment into a forest: if none of its rows is present it is a plain insert. If some are, and any of them is `under` or an ancestor of `under`, nothing happens and failure is reported. Otherwise, walking the fragment, a row already present is moved to its place and a new one inserted, so the fragment's shape holds at the target. The whole merge counts as one change.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/DataForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-change-notice",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Every change to a forest tells listeners the range that changed, and one batched update gives one notice covering all of it. A notice with no change is not sent. Replacing a forest with an equal one, same ids and depths in the same order, sends nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/Forest",
+    "amd:structure/widget/model/ForestUpdateEvent",
+    "amd:structure/widget/model/DataForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/pending-changes-rebase",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Local changes not yet accepted by the server are kept as a list of changes, not as a result. Each time the server forest changes, or the list changes, the local forest is rebuilt: a fresh copy of the server rows, with all pending changes applied in order, as one change for listeners. A change that fails is logged and skipped, and the following ones still apply. A new change on top of the current list is applied directly. Between the start and end of a bulk change rebuilding waits, and happens once at the end if anything happened.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ApplicatorForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/filter-keeps-ancestors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A filtered forest shows the rows that pass and all their ancestors, which stay as context even if they fail. Rows that fail and have no passing descendant are hidden. Filtering is re-evaluated for the changed range only, and a changed row can bring back or remove its ancestors.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/FilteredForest",
+    "amd:structure/widget/model/RowFilteringForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/filter-encoding",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The client can describe the result of its filter in a short text, sent as `clientFilter` by the feature that uses it: when no more rows are visible than hidden, `+` and the sorted visible row ids; otherwise `-` and the sorted hidden ids. Ids are written as differences, with `.` between. Visible rows 10, 15, 17 of 10 rows give `+10.5.2`; a list with none gives only the sign.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/FilteredForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/collapsed-rows",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The collapsed view shows a row when all its ancestors are expanded. A collapsed row stays but its descendants are hidden. When the expansion of some rows changes, only their subtrees are re-evaluated; with no list given everything is.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/CollapsibleForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/exclusion-view",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "One derived view hides the rows also present in another forest, and is re-evaluated in full at each change of that forest. It serves the list of rows recently deleted from the primary panel: rows that are back in the panel drop out of it.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/model/ExclusionForest",
+    "amd:structure/widget/DeletedContainer"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/item-filter-always-shown",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Client-side filters never hide: temporary rows; rows pinned for the moment by the code that needs them; the row whose id equals the widget's anchor value, if set; the row being edited; rows on a path of the panel's pinned item; and rows on the old or new parent path of any change shown from history. Other rows must pass all active filters.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ItemFilteringForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/item-filter-priority",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Named client-side filters run in order of rising priority (0 by default), and equal priorities keep their order of adding. Setting a filter under a name replaces the old one, and an empty value removes it; setting the same function again does nothing. With no filter the view is skipped. The filtered state counts as user-made only when one of the filters was marked so.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ItemFilteringForest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/forest-index-items",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Asking whether a forest contains an item uses a table of item ids built on first use. It is rebuilt only by an explicit update, so a change is not seen until then.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ForestIndex"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-move-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A row may move to a target only when all hold: the panel is not read-only; when a target row is given it is present in the local forest and not a generator or effector; the case 'a new row dropped on a row that is cut in the clipboard' does not apply; it is neither the title row, nor a move to the top level while the panel has a title row. When the panel respects parent edit permission, the row's present parent and the target must also be known to be editable (top level needs no check).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-merge-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A fragment can be pasted when it has rows, and has a target row unless the panel has no title row. When the target is a positive row, the target's path must be known and hold no row of the fragment. When the panel is editable and respects parent edit permission, each fragment row must have its old and new parents known to be editable if it changes parent; a new row needs that only of its new parent, and only when that parent is in the forest. Parents inside the fragment count from the fragment's own shape.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController",
+    "amd:structure/widget/model/ForestIndexer"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-move-action",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Moving rows: nothing happens and failure is reported for an empty list, a missing row (logged), a refused row, or a target inside a moved subtree. Rows still being created are moved locally by the editor or automation menu and do not reach the server; when all are such, the result is success and nothing is queued. Otherwise a `move` action is queued with `rowIds`, `under`, `after`, and `before` read from the filtered forest (null when `after` is not in it); with `cutFrom` `{viaClipboard: true}` when it came from the clipboard.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-delete-action",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Deleting rows is refused for an empty list, a missing row, or a row that may not move (with no target). Otherwise a `remove` action is queued.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-add-issue",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Adding an issue checks the target like a move of a new row, gives the issue a new temporary row at depth 0 with item `com.almworks.jira.structure:type-issue/<id>`, and queues an `add` action with `under` and either `after` or `before`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController",
+    "amd:structure/widget/model/Items"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-merge-action",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Pasting a fragment refuses an empty fragment. It copies the rows and gives each a new temporary id; when asked, or for the clipboard, the mapping from old to new ids is filled in for the caller. Then the paste rules apply. For the clipboard forest, the attribute values of the clipboard are copied to the new rows. The action queued has `forest`, `under`, `after`, `before` from the filtered forest, and optional `cutFrom` with `viaClipboard` set when the fragment is the clipboard. In copy mode it is `copy`, with `originalRowIds`; otherwise `add`. A check for rows already at the target exists, but the fresh ids mean it never matches.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-action-json",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Actions go to the server in this form: `action` first; one row as `rowId` (a list of one is sent so too), several as `rowIds`, or a fragment as `forest` in text form; `under`, `before` and `after` only when defined; a copy of `cutFrom`; and for `copy` the list `originalRowIds` with one entry per fragment row, in order, 0 when a row has no original.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController",
+    "amd:structure/widget/model/Forest"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-upload-batch",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Queued forest actions go out together in one `POST /rest/structure/2.0/forest/update` with `{spec, version, actions}`, taking consecutive actions from the head of the queue while they are forest actions with an equal spec and version signature. A batch ends before an action that is not ready. An action is not ready when its `rowId`, `rowIds`, `under`, `after` or `before` name a temporary row or a row that an earlier action of the batch affects or that the queue reports as busy. Rows affected are a move's or remove's rows with their subtrees, and an add's rows. With no ready action nothing is sent. An upload needs an update of the forest in reply.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-upload-version",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The `version` sent is the forest's current one. If its signature differs from the one when the action was created, `{signature: <that one>, version: 0}` is sent instead, so the server can refuse actions on old transient rows.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController",
+    "amd:structure/widget/forests/ForestCache"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-cut-version",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Before upload, the `cutFrom.version` of an action with `cutFrom.spec` is replaced by the current version of the main forest when the signatures agree, although it describes the cut's source forest (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-optimistic",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each queued action shows at once in the grid. In its own forest a move, add or remove is applied to the local rows. A `move` with a clipboard origin also makes the clipboard look empty; an `add` from a cut also makes the clipboard look empty and removes the cut rows from the source forest, shown in any panel using it. A pending `add` and `remove` act the same way in any forest they are asked about.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-row-id-replacement",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the server assigns a real row id for a temporary one, all queued actions rewrite it in `rowId`, `rowIds`, `forest`, `under`, `after`, `before`, `cutFrom.rowIds` and in both sides of the original-id table, and are rebuilt.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-override",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A later `move` of exactly the same rows (lists equal in order), in the same forest spec and signature, counts as overriding an earlier queued `move`: only the last matters. What the queue does with this is claimed with the queue.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-cut-spec-guard",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A paste with `cutFrom.spec` from the same forest it is going into is a failed assertion: cuts within one forest are moves.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/edit-undo-flag",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Moves, deletes and pastes can be queued with a flag saying they are an undo step, which is passed on to the upload queue and claimed with it. The permission rules are the same for them.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ForestController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/columns-build",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Columns are built from the current view's `columns` after the widget configuration has loaded. An entry with no `csid` is skipped, and an entry with a `key` no column type is registered for is skipped with a warning. An existing column with the same `csid`, key and specification (deep comparison) is kept. Columns needing metadata load it first; one that fails is left out and the rest appear when all are done. Then all parts are told, and the horizontal scroll is restored when the view's id changed and the panel scrolls.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ColumnsModel"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/columns-sections",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In scrollable mode columns fall in three sections: left fixed, `handle` first and then the pinned columns in `pins` order; the scrollable middle in view order; right fixed, the `actions` and `blank` columns. `pins` ids that match no column are ignored. In auto-fit mode there is one section in view order.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ColumnsModel"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/columns-stretch",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The column that takes spare width is the last one in scrollable mode and the `main` column in auto-fit mode. A column scrolls horizontally only in scrollable mode, and never when it is `handle`, pinned, `actions` or `blank`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ColumnsModel"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/columns-widths-apply",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When only widths in the view data change, columns are not rebuilt. Each column takes its manual width (or none), and columns that allow auto-size take their preferred width. Listeners are told the widths changed and whether it was a manual resize.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ColumnsModel"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/columns-autosize",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Auto-sizing measures a column's rendered cells: the widest content plus 32, not below 60, and not below the header's width counted up to 90. The result is rounded up to a multiple of 10 when 90 or more, and otherwise to a multiple of 5. Examples: content 100 gives 140; content 20 with a header of 50 gives 60; content 30 with a header of 70 gives 70; content 61 gives 100. With no rendered content nothing is set.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ColumnsModel"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/columns-autosize-sticky",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On a request to try auto-size, columns already sized keep their preferred width (cleared when not above 0), and others that have rendered cells are measured. A result with any entry is stored as preferred widths on the view's local data.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ColumnsModel"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/columns-reset-widths",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Resetting widths for listed columns clears their manual width and measures them anew, the preferred width being the measured one or empty. With no list, all manual and preferred widths are cleared and every auto-size column is measured.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/model/ColumnsModel"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-valid",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A forest spec is usable only when it names something to show. With n keys, and p = 2 if `pinnedItem` is a key and otherwise 1, it is valid when n > p, or n = p and it has no `transforms`. `{}`, `{transforms: []}`, `{pinnedItem: \"x\"}` and `{pinnedItem: \"x\", transforms: []}` are invalid; `{structureId: 5}`, `{structureId: 5, transforms: []}` and `{type: \"clipboard\"}` are valid. A spec counts as a structure when `structureId` is a number, and as transformable when valid and not of type `clipboard`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-compose",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A panel keeps its base spec and its list of transformations apart. The spec in use is a copy of the base, with `transforms` added only when the list is not empty and the spec is transformable. It is frozen, and no spec with an empty list has a `transforms` key. With no base spec there is no spec in use.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-set-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Setting a spec returns false at once for an invalid one, and otherwise true. The change itself waits until the automation registry is ready, and only the last request made before that takes effect. `transforms` of the new spec never go into the base. When the new spec leaves `pinnedItem` undefined, the old base's `pinnedItem` carries over. Whether the spec changed is a deep comparison of old and new base. The rest of the widget is told either 'changed' or 'not changed'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-set-transforms-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After a base change, the transformations are decided in this order. If the new spec has `transforms` (an empty list counts), they replace the list. Otherwise, if the spec changed, the page is the board or project page, and the remembered-transformations scope differs from before, the remembered list for the new scope is restored. Otherwise the list stays as it is.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-transform-record",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A transformation in the list has `key` and `module`, both required (a missing one is a programming error), an `id` given by a page-wide counter from 1 unless it already has one, and copies of `quick`, `permanent` (only when true) and `params`; text `params` are parsed as JSON.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-set-transforms-filter",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a whole list of transformations is set, entries with no `module`, or whose module is not a known generator, are dropped silently; an entry with no `key` takes the generator's type as key.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-transform-edits",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Editing the list: adding skips an entry whose id is already there and returns copies of those added (a single add returns the one added, or nothing). Saving an entry with an `id` replaces that entry in place and raises an error when it is not there; with no `id` it adds. Updating with no `id` does nothing, and with an unknown one raises an error. Replacing by id raises an error when the id is not there. Removing takes ids or entries and ignores unknown ones. Entries can be found by `key`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-append-transforms",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Taking the transformations of another spec appends those not `permanent`, without their `quick` and `id`, to the current list.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-pin",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Pinning an item sets `pinnedItem` on the base spec, and an empty value removes it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-rest-form",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The spec sent to the server is a copy with these changes. An empty `pinnedItem` goes. With a `pinnedItem`, each filter step gets `params.pinnedItem` set to it, a step `{module: \"com.almworks.jira.structure:filter-item\", params: {item: <item>, showSubItems: true}}` goes last, and `pinnedItem` is removed. Each step loses `key`, `id`, `permanent` and `quick`, and null `params` entries. An empty `transforms` goes. `sQuery.projectQuery` goes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-for-filter",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For the client-side filter check, a spec with trailing filters and sorters is copied with `params.hard` = true on each filter among those trailing steps, walking back and stopping at the first step that is neither. When this changes nothing (no transforms, or no such filter) there is no such spec.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-for-attributes",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The spec used for attribute subscriptions is a copy with no `pinnedItem`, no step of key `pin`, and steps without `id`, `permanent` and `quick`; they keep `key`, `module` and `params`. If no steps are left `transforms` goes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-untransformed",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Two specs have the 'same untransformed forest' when they are deeply equal after removing `pinnedItem`, `transforms` and `title`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-project-page",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the widget is for a project with key K, the project page's spec is an `sQuery` of `type` `jql`, `projectQuery` true and a `query` reading `project = \"K\"`, with the double quotes. The secondary panel's search-and-add spec is the same, and `{sQuery: {type: \"jql\", query: \"\"}}` with no project.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-project-filter",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On the project page, in the primary panel, every restored list of transformations gets a first step `{key: \"filter\", module: \"com.almworks.jira.structure:filter-jql\", params: {jql: <the project query>, keepNonIssues: true}, permanent: true}`, which is not remembered.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-transforms-remembered",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The panel's transformations are remembered in the browser at each change: what is kept is the list without `permanent` steps and without `id`. Scope: per panel, per structure id, or one list for all query-based content; a clipboard or other content is not remembered. On the issue page, in a gadget and on an Agile board tab the scope also has the page's id, so those are kept apart; the board and project pages share theirs. Only the board and project pages restore by themselves.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController",
+    "amd:structure/widget/perspective/StorageManager",
+    "amd:structure/widget/perspective/StorageUtil"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-transforms-fallback",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a panel finds nothing remembered for a structure, it reads what the other panel remembered for the same structure.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController",
+    "amd:structure/widget/perspective/StorageManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-statistics",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Starting 3000 ms after the first spec was applied, a base change (other than between two queries of the same `sQuery.type`) records the statistic `forestSpec.change`, and each change of the transformation list records `forestSpec.transform`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/spec-perspective",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A perspective stores a panel's full spec at path `<panel name>.forestSpec`, with step ids removed. The remembered transformations also map to `<panel name>.forestSpec.transforms`, and are ignored when a perspective was not made for this content (see the disabled rule).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/spec/SpecController",
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/storage-write",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Remembered values go through one rule. A value with no storage scope is not kept. Serialized values are JSON, and an empty or false value is kept as empty text, which reads back as nothing. A value marked session-only, or by default any value while a perspective is active, goes only to the tab's session. Others go both to the tab's session and to the browser's lasting store. Reading tries the session first, then the lasting store. So a tab keeps its own state and new tabs get the last one saved by any tab.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/StorageManager",
+    "amd:structure/widget/Storage"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/storage-perspective-scope",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While a perspective is active, and not disabled for a value, the value is kept apart under that perspective's id. Reading then tries the kept value, then the perspective's own content, then the fallback scope, and last the value's default. Out of a perspective the order is the kept value, the fallback scope and the default.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/StorageManager",
+    "amd:structure/widget/perspective/StoredValueWrapper"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/storage-restore-waits",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Restoring a remembered value waits until the page's perspective has been loaded or has failed; afterwards the value is applied and the caller gets the result. Setting a value applies it and saves it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/StoredValueWrapper",
+    "amd:structure/widget/perspective/StorageManager",
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/storage-cell-values",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A value bound to a live setting is saved at each change. Forcing a value fixes it for the page: it is applied without being saved, later restores and sets do nothing, and it takes no part in storage or perspectives.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/CellBasedValueWrapper"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/storage-mandatory",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A value missing from a perspective is a problem only for values of the primary panel or of the page as a whole; then the error centre shows 'Could not fully restore perspective, sorry.', with the missing path in the details. Values of the secondary panel are optional.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/StoredValueWrapper",
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/storage-content-scope",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "What a panel shows gives a text scope for remembered settings: the structure id, else the `type`, else `cql` for an `sQuery` of type `cql`, else `sQuery` for any other query, else nothing. The perspective's panels are named `primary` and `secondary`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/StorageUtil"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/perspective-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On a page with a perspective id the widget sends `GET /rest/structure/1.0/perspective/<id>`. The answer is a JSON string, which the client parses again into the page state. Start-up of everything depending on perspectives waits for this to end, in success or failure.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/perspective-load-404",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A 404 shows Jira's error message 'Perspective with id <id> does not exist.' with the id HTML-escaped, closeable and with no timeout. The page goes on with no perspective.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/perspective-load-errors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Other failures report 'Could not initialize perspective, sorry. (<title>)' to the error centre, and the page goes on with no perspective. An answer with no `primary` part reports the same with the title 'No primary panel spec' and goes on with an empty primary part.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/perspective-disabled",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A perspective applies to a panel only when the panel's spec and the perspective's `<panel name>.forestSpec` have the same base: the same `structureId`, or both query-based with the same `sQuery.type`, or the same `type`. Otherwise, or when there is no perspective or no spec, that panel ignores the perspective's transformations.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/perspective-create",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A snapshot is `{spec: S}`, where S has a `primary` object; `secondary` when that panel is ready; and the parts added by the page, the layout, the toolbar, the history and the layout options, and by each registered extra panel that is ready; and `structurePageId` with the current page's id. Each panel part adds its header, footer, UI state, view and spec. Values are written at their paths: an object is merged in, and anything else is set under the last path element.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/perspective-write-error",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a part cannot be written at its path a report goes to the error centre, with no English text for its title (the key `s.p.error.write` has no entry in the plugin's messages), with the path and the snapshot in the details.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/perspective-page-id",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The page id stored in a perspective is taken when the perspective loads, and only when a perspective is loaded can it be changed. Views use it to decide which views apply.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/share-button",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The share button shows only when the widget configuration allows creating perspectives.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveDialog",
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/share-open",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clicking the share button while the dialog is closed sends `POST /rest/structure/1.0/perspective/share` with the snapshot, and shows a waiting state on the button until the answer. Clicking it while the dialog is open closes the dialog and keeps what was typed. The dialog's content is rebuilt each time it opens.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveDialog"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/share-link",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On success the dialog shows the heading 'Share a link to this perspective', a read-only field with the link, a button 'Copy' (tooltip 'Copy to clipboard'), and a short sentence saying Jira users can open a board that looks exactly like this one, with a link to the plugin's documentation on limitations. The link is the page's protocol, host and path (the URL when the page was opened, without its query) plus `?p=<id>`. The field is focused and selected on opening and on clicking it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveDialog",
+    "amd:structure/widget/perspective/templates"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/share-copy",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Copy' copies the link and closes the dialog, keeping what was typed, and shows a success flag 'Link to this perspective has been copied to clipboard', or an error flag 'Unable to copy link to this perspective to clipboard' when the browser refuses.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveDialog"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/share-error",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the share call fails or gives no id the dialog shows 'Failed to Create Link', with the message 'Sorry, an error occurred and we couldn't create a link to your perspective. Please contact your Jira administrator for help.', and a 'Close' link.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveDialog",
+    "amd:structure/widget/perspective/templates"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/share-email-form",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Under the link is the label 'Send the perspective in an email' with a multi-user picker (placeholder 'Enter username or email'), 'Include a message' with a text area (placeholder 'Take a look at this structure'), a button 'Share' and a link 'Cancel'. 'Share' is disabled while no user is chosen.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveDialog",
+    "amd:structure/widget/perspective/templates"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/share-email-send",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Submitting sends `POST /rest/structure/1.0/perspective/shareByEmail` with `{perspectiveId, recipients: [<keys>], message}`. The button shows busy until the answer. On success the dialog closes, what was typed is cleared, and a flag says 'Perspective has been successfully shared'. On failure the dialog closes, what was typed is kept, and an error flag shows the answer's `localizedMessage`, or its raw text.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveDialog"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/share-close-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The dialog closes and keeps recipients and message on: a mouse press or a focus move outside it and its user drop-down; browser back or forward; another popup opening. It closes and clears them on: 'Cancel' or 'Close'; Escape in the form (focus returns to the button); and a change of what the primary panel shows, meaning its structure id, `type` or query type. The kept text returns the next time the dialog opens in this page.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveDialog"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-special",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Three built-in views exist in every page without a request. Id -1 'No View' ('No view has been selected.'): columns `{key: handle, csid: handle}`, `{key: field, csid: \"1\", params: {field: \"issuekey\"}}`, `{key: main, csid: main}`, `{key: actions, csid: actions}`. Id -2 has the same name and text, with no `actions`. Id -3 'Agile Board View' ('View used on Agile boards'), also with no `actions`. All have `writable`, `adminable`, `shared`, `sharedWithAll` false, no permissions and no owner.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-perspective-special",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A perspective's view specification becomes a local view: id -20 for the primary panel and -21 for any other. Both are named 'Perspective', with the description 'Columns that were shown when perspective was shared', and the flags of the built-in views. With no specification none is made.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-accept",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A view from the server is kept only when it has a `spec`, a positive `id` and a `name`; others are dropped from lists. A missing `description` becomes empty. `writable` and `adminable` are kept as received. When a view replaces a different one with the same id, the panels are told the view reloaded. Callers always get their own copy.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-get",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A view asked for by id comes from the page's copy, otherwise from `GET /rest/structure/1.0/view/<id>`. Full details use `GET /rest/structure/1.0/view/<id>?withPermissions=true&withOwner=true` unless full details for it are already held. Id 0 or none gives nothing and no request. A failed call gives nothing. A later plain load of a view drops the mark that its full details are held, so the next details request goes to the server again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-get-many",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A list of ids sends one `GET /rest/structure/1.0/view?ids=<comma-separated, URL-encoded>` for those that are positive numbers not yet held; the answer is the known ones in the order asked. An empty list gives nothing, and when all are held no request is sent.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-lists",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The lists are each requested once, and kept until the next change: all views, `GET /rest/structure/1.0/view?withPermissions=true&withOwner=true`; views the user administers, `GET /rest/structure/1.0/view?withPermissions=true&withOwner=true&permission=admin`. A failed list gives an empty one, and is requested again next time.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-menu-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Views associated with a structure come from `GET /rest/structure/1.0/view/menu?forPage=<page id>&forStructure=<structure id>`, read from `views` and kept per structure and page. With no structure id, or a negative one, the result is nothing. On failure the error centre shows 'Sorry, we couldn't load views associated with this structure. (<title>)' and an empty list is kept.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-default-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The default view of a structure on a page comes from `GET /rest/structure/1.0/view/default?forPage=<page id>&forStructure=<structure id>`, and a found id is kept per structure and page. With no structure no request is sent, and the answer is 0. When the server has none, the answer is nothing and the next ask sends the request again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-search",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Searching by name compares without case. If the same term was searched its result is reused. Otherwise if an earlier term contained in this one has results (the shortest such list) they are filtered here by name. Otherwise `GET /rest/structure/1.0/view?name=<URL-encoded term>` is sent and its result kept, also when empty; a failure gives an empty result and keeps nothing. An empty term gives nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-writes",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Writes: saving a whole view is `POST /rest/structure/1.0/view/<id>/update`; saving only a specification, `POST .../view/<id>/updateSpec`; creating, `POST /rest/structure/1.0/view` with `{name, spec}`; making public, `POST .../view/<id>/makePublic` with body `{}`; making default, `POST .../view/<id>/makeDefault` with `{pageId, structureId}`; deleting, `DELETE .../view/<id>`. A request lacking its id or data sends nothing and answers nothing (false for delete). Negative ids are refused for makePublic, makeDefault and delete.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-write-errors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A failed `update` gives its raw response text to the caller. A failed `updateSpec` gives the JSON `message` of the answer, or the raw text. In every failure the caller's result is empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-cache-reset",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After any of those writes, in success or failure, the kept search results, administered list, all-views list, associated lists and default ids are forgotten; the views themselves stay. A successful delete also forgets the view and tells panels it reloaded.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-flags",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Other parts can ask whether a view is known, whether it is shared, whether the user administers it, and whether it is the known default for the panel's structure on this page: false for an unknown view, and false when the panel has no structure.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/view-associations",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Association details come from `GET /rest/structure/1.0/view/<id>/associations`, not cached. A missing or negative id gives nothing, as does a failure.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-open",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Opening the view menu (the view button in the panel header, or the action that selects a view) marks the button pressed, shows the current name, loads the lists, clears the search and moves focus to the search field. When the panel has a forced view, the action does not open it. Closing it cancels 'Save As' and returns focus, unless the Manage Views dialog is showing. Starting or stopping a cell edit closes the menu.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-current-line",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The top line shows the current view's name. Its tooltip reads 'Current view: <name>', followed by ' - <description>' when there is one. With no current view it stays as it was.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-stripes-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Under the name are up to four strips, in this order: modified, Save As form, sharing, default. Each appears only when it has content, and they update while the menu is open when the view configuration changes, is reloaded or deleted; the lists reload then too. A strip waiting for data shows a small spinner. Strips that appear or disappear while the menu is open animate one at a time, and focus moves to the Save As field after the animation.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-strip-modified",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The modified strip shows when the view counts as modified. It reads '* Modified' with these links: 'Save' (tooltip 'Save changes to the view on the server') only when the view is editable; 'Save As' (tooltip 'Create a new view based on the current view') only when creating views is allowed; 'Revert' (tooltip 'Revert to the view configuration saved on the server') always.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-save-as",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Save As' toggles a form with a text field of at most 255 characters and a button 'Save', only while the view is modified and creating views is allowed. Escape in the field closes the form only. Submitting a blank name closes the form. Otherwise the button reads 'Saving...' and is disabled, the field is read-only and the links hide, while the view is saved under the trimmed name. On success the menu closes. On failure the form stays in that state until the menu is closed or redrawn.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-strip-sharing",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The sharing strip shows only when the view is `adminable`, and it is shared or the user may share views. When `sharedWithAll`: 'Shared with everyone'; when only `shared`: 'Shared with some users'; both with a link 'Change' (tooltip 'View and change sharing details for this view'). When not shared: 'Not shared', with the links 'Make Public' (tooltip 'Share this view with everyone') and 'Share' (tooltip 'Share this view with selected groups of users'). 'Change' and 'Share' open the view's details.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-strip-default",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The default strip is left out when there is no view, the view has id -1, the panel's content is not a numbered structure, or the user does not administer the panel. When the structure's default is the current view: 'Using the default view', or 'Using the default view with modifications' when it is modified. Otherwise a link 'Make default for this structure', which sends the make-default request and closes the menu.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-lists",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Unless a search is showing, the menu lists 'Associated Views' (the structure's menu) and 'Other Recent Views' (the first 4 recent views not in the associated list, and only when both lists have loaded). A section with nothing to show is hidden. Each entry is the view's name with its description as tooltip; the current one is marked as checked, and one with unsaved adjustments is marked too. Entries with no name or id are skipped. A 'Previous View' section exists in the menu but nothing fills it, so it never shows.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-switch",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Choosing an entry closes the menu and makes that view the panel's current view as a user choice. Below the lists is 'Manage Views...', which opens the Manage Views dialog.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-search",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The search field has the hint 'Search View'. The term is trimmed; an empty term goes back to the lists. A term with local results shows them at once; otherwise the request goes 400 ms after typing stops. An answer for a term that is no longer the current one is dropped. Up to 10 results show under 'Views found:', and beyond that '<n> more views found'. With no results 'Not found' shows.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter",
+    "amd:structure/widget/ViewLoader"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-progress",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the lists or a search are loading for more than 500 ms a spinner shows. When all loading ends and no entry is highlighted, the current view's entry is highlighted, or the first entry if it is not shown or a search is showing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-keyboard",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Keys in the menu. Enter or Space follow the link in the focused entry; with no link the key is left to the browser. Tab, Shift+Tab, Up and Down move focus through the search field and entries that can take focus, wrapping around, and the highlight follows. Escape closes the menu. All handled keys are consumed.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/perspective-parse-failure",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the text inside the answer cannot be parsed as JSON the client fails on the empty result in the step that checks for the `primary` part, so no orderly report of that case is made (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/perspective/PerspectiveManager"
+   ]
+  },
+  {
+   "key": "u3-data-sync/widget-bare/menu-actions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each of these menu actions runs and then closes the menu: 'Save' (saves the current view's specification), 'Revert' (clears the adjustments), 'Make Public' (makes the view public). The action to make a view private exists but no menu entry calls it. The action to return to the previous view has no menu entry either; it is reached by the keyboard sequence claimed with the grid's shortcuts, and closes the menu when open.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ViewPresenter"
+   ]
+  }
+ ]
+}

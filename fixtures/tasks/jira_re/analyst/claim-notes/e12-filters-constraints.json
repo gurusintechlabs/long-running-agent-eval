@@ -1,0 +1,822 @@
+{
+ "claims": [
+  {
+   "key": "e12-filters-constraints/filter-by-field/stored-parameters",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "The stored parameters are a JSON object with exactly three keys: `fieldId` (string, the Jira field id, e.g. `status` or `customfield_10100`; null when the form had none), `fieldValues` (JSON array of option-id strings as used by `field-value-options`, e.g. `[\"3\",\"special:EMPTY\"]`; an empty array when none were chosen) and `keepNonIssues` (boolean; true only when the form value is true ignoring case, otherwise false). A single form value for `fieldValues` is stored as a one-element array.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-by-field/form-default-keep-non-issues",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "A new Field filter form starts with `keepNonIssues` checked (true); no field and no values are preselected.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#addDefaultFormParameters"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-by-field/form-error-inaccessible-field",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "Saving the form with a `fieldId` that is not a supported field for the current user (as `field-value-options` decides: not existing, no option source, or a custom field outside the projects in scope) reports an error on form field `fieldId` with i18n key `sw.ext.gen.filter.by-field.param.fieldid.error.inaccessible` ('Selected field is no longer accessible'). A missing `fieldId` or an empty value list is not an error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-by-field/no-filtering-when-incomplete",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "When the stored `fieldId` is missing or blank, or `fieldValues` is empty, the filter does nothing: every row stays and nothing is tracked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-by-field/matching-issues",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "Otherwise the filter builds the JQL query for the field and the chosen option ids exactly as `field-value-options` builds it (one OR-combined clause: the field's IN condition plus IS EMPTY for `special:EMPTY`) and runs it once over all issues in the forest below the generator, through the plugin helper's issue matching for the current Structure user (Jira index, permissions applied). An issue row stays only when its issue matches. If `field-value-options` gives no query for the field (unknown field), the helper is called with a null query, so every issue the user can see matches (as `helper` matching with a null query does). With a blank `fieldId` or no `fieldValues` the filter hides nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#getFilterFunction",
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager#buildQuery",
+    "com.almworks.jira.structure.extension.field.FieldOptionsManager"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-by-field/non-issue-rows",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "Rows whose item is not an issue (folders, memos, generators, groups, etc.) all stay when `keepNonIssues` is true and all fail the filter when it is false; ancestors and sub-items are then handled by the standard filter parameters (`hard`, `showSubItems`, `level`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-by-field/search-failure",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "If Jira's search throws `SearchException`, it is logged as a warning and the filter does nothing for this generation (all rows stay).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-by-field/regeneration",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "The filter registers an item-change filter for all issues that were in the forest below it when it ran: a change to any of those issues makes the generator regenerate (so an issue whose field value changes appears or disappears). Changes to issues not in the forest, or to non-issue items, do not trigger it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#getFilterFunction",
+    "com.almworks.jira.structure.api.generator.util.BasicItemChangeFilter#forIssues"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-by-field/summary-parameters",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "For the summary, the field is shown by its Jira name (the raw `fieldId` when the field is not supported any more) and the values as the labels of the chosen options, as `field-value-options` resolves them, joined with \", \"; when there is no field or no values, the values text is `sw.ext.gen.filter.by-field.any` ('All'). The summary message is `s.ext.gen.filter.by-field.summary` ('{0}: {1}').",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#addParametersForSummary"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-by-field/form-fields",
+   "module": "filter-by-field",
+   "api": null,
+   "behaviour": "The form offers the fields supported by `field-value-options`, sorted in Jira's natural field order (by name). When editing, the form receives the stored `fieldId`, `fieldValues`, `keepNonIssues`, and (when a field is set) the resolved options of the stored values as inline JSON for the value picker.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#getSupportedFields",
+    "com.almworks.jira.structure.extension.generator.filter.FieldFilter#addParametersToForm"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-jql/stored-parameters",
+   "module": "filter-jql",
+   "api": null,
+   "behaviour": "The stored parameters are a JSON object with keys `jql` (string: the form's JQL with leading and trailing horizontal whitespace, including Unicode spaces, removed; line breaks are not trimmed; null when the form had no `jql`) and `keepNonIssues` (boolean, true only for a true value ignoring case).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.JqlFilter#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.JQLUtil#sanitizeJQL"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-jql/form-default",
+   "module": "filter-jql",
+   "api": null,
+   "behaviour": "A new JQL filter form starts with `keepNonIssues` checked (true).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.JqlFilter#addDefaultFormParameters"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-jql/form-errors",
+   "module": "filter-jql",
+   "api": null,
+   "behaviour": "Saving the form: a `jql` value that is blank after trimming gives the error on field `jql` with key `s.ext.gen.jql.param.jql.error.no-jql` ('Please type in a JQL query'); a form without any `jql` value gives no error (as the original does). Text that Jira's JQL parser rejects gives Jira's localized parse error message (Jira's generic parse error when the parser gives none). A parsed query is validated with Jira's search service as the current user and only the first error message, if any, is reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.JQLUtil#getJQLParameter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-jql/no-filtering-when-blank-or-invalid",
+   "module": "filter-jql",
+   "api": null,
+   "behaviour": "At generation, a blank or missing `jql` makes the filter do nothing (all rows stay). JQL that no longer parses is logged at debug level and also leaves the forest unfiltered; a `SearchException` while matching is logged as a warning with the same result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.JqlFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-jql/matching",
+   "module": "filter-jql",
+   "api": null,
+   "behaviour": "The JQL is matched once against all issues in the forest below the generator through the plugin helper's issue matching for the current Structure user (permissions applied); an issue row stays only when its issue matches. Non-issue rows all stay when `keepNonIssues` is true and all fail when it is false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.JqlFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-jql/regeneration",
+   "module": "filter-jql",
+   "api": null,
+   "behaviour": "The filter registers an item-change filter for every issue that was in the forest below it when it ran, so any change to one of those issues makes it regenerate; other item changes do not.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.JqlFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-text/stored-parameters",
+   "module": "filter-text",
+   "api": null,
+   "behaviour": "The stored parameters are a JSON object with the single key `text` (string, stored exactly as typed, not trimmed; null when the form had none).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.TextFilter#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-text/form-errors",
+   "module": "filter-text",
+   "api": null,
+   "behaviour": "Saving the form with a `text` value that is blank (empty or whitespace) gives the error on field `text` with key `s.ext.gen.text.param.text.error.no-text` ('Please type in a text query'); a form without any `text` value gives no error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#getTextQueryParameter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-text/no-filtering",
+   "module": "filter-text",
+   "api": null,
+   "behaviour": "At generation the filter does nothing (all rows stay) when the text is missing or blank, or when it is, after trimming, exactly a pair of double quotes (`\"\"`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.TextFilter#getFilterFunction",
+    "com.almworks.structure.commons.util.TextSearchQuery#build"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-text/issue-query-keys",
+   "module": "filter-text",
+   "api": null,
+   "behaviour": "Issue rows are matched with one JQL search over all issues in the forest below the generator (plugin helper issue matching for the current Structure user). The query is built from the trimmed text: if it does not start with a double or single quote and its first part (parts split at whitespace, commas and semicolons) is a valid Jira issue key as typed or upper-cased (Locale.US), the query is `issue in (...)` over every part that is a valid key as typed or upper-cased (other parts are ignored). Example (with Jira's default key pattern): `abc-1, ABC-2 foo` gives `issue in (ABC-1, ABC-2)`, while `foo ABC-1` is not a key query. Key validity is decided by Jira's issue-key rules at run time.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.util.TextSearchQuery#buildQuery",
+    "com.almworks.structure.commons.util.TextSearchQuery#getKeysFromText"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-text/issue-query-words",
+   "module": "filter-text",
+   "api": null,
+   "behaviour": "Otherwise, for text in double quotes (at least 3 characters with the quotes) the query is `summary ~ \"<text inside the quotes>\"`. For any other text, each whitespace-separated word adds an AND-ed condition: a word ending with `*` gives `summary ~ word`, any other word gives `(summary ~ word OR summary ~ word*)`. An issue row stays when its issue is in the search result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.util.TextSearchQuery#buildQuery"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-text/non-issue-matching",
+   "module": "filter-text",
+   "api": null,
+   "behaviour": "Rows that are not issues are matched against their `key` and `summary` attribute values (`CoreAttributeSpecs.KEY` and `SUMMARY`, loaded for the forest being transformed). The text is normalised: trimmed; for unquoted text all `*` are removed; quoted text (starts and ends with `\"`, length >= 2) loses the quotes; then trimmed and lower-cased in the current user's locale and split at whitespace into words. The row stays when every word equals some whitespace-separated word of the lower-cased key, or when every word matches the lower-cased summary: unquoted, each word must be the beginning of some summary word; quoted, each word must equal a summary word, and a word ending with `*` also matches summary words starting with the rest. A blank or missing key or summary never matches. If the forest has no non-issue rows no values are loaded.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.TextFilter#createFilterFunction",
+    "com.almworks.structure.commons.util.TextSearchQuery#matches",
+    "com.almworks.structure.commons.util.TextSearchQuery#build"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-text/search-failure",
+   "module": "filter-text",
+   "api": null,
+   "behaviour": "A `SearchException` from the issue search is logged as a warning and the filter does nothing for this generation.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.TextFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-text/regeneration",
+   "module": "filter-text",
+   "api": null,
+   "behaviour": "The filter regenerates when an issue that it tested changes (it records each tested issue row in an item-change filter) and when the `key` or `summary` value of a tested non-issue row changes (through an attribute update checker on the values it read).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.TextFilter#createFilterFunction",
+    "com.almworks.jira.structure.api.generator.util.GenerationUtil#getValuesFromSubjectForest"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/stored-parameters",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "The stored parameters of a valid form are a JSON object with keys `attribute` (JSON object: the chosen attribute spec as `RestAttributeSpec` fields `id`, `format` and `params`, null members omitted, e.g. `{\"id\":\"customfield\",\"format\":\"number\",\"params\":{\"fieldId\":10100}}`), `operator` (string, an operator name listed below) and, only for operators that need a value, `value` (string, as typed). The `attribute` object is parsed from the form field `attributeJson` (unknown JSON properties ignored).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#buildParametersFromForm",
+    "com.almworks.jira.structure.util.FormParser#parse"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/operators",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "Operators (stored name, group, value needed, i18n label key `s.w.gen.filter.attribute.param.operator.+<name lower-cased>`): IS_TRUE and IS_FALSE (BOOLEAN, no value: 'is true', 'is false'); EMPTY, NOT_EMPTY (STRING, no value: 'is empty', 'is not empty'); CONTAINS, NOT_CONTAINS, START_WITH, END_WITH, EXACTLY (STRING: 'contains', 'does not contain', 'starts with', 'ends with', 'exactly'); DATE_BEFORE, DATE_AFTER, DATE_IS (DATE: 'date before', 'date after', 'date is'); DURATION_LESS, DURATION_LONGER, DURATION_IS (DURATION: 'duration less than', 'duration longer than', 'duration is'); GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, EQUAL, NOT_EQUAL (NUMERIC: 'greater than', 'greater than or equal to', 'less than', 'less than or equal to', 'is equal to', 'is not equal to').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter$Operator"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/form-operators-json",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "The form (new and edit) receives `operators`: a JSON array of every operator in the order above, each `{\"id\":<name>,\"key\":<i18n label key>,\"group\":<group name>,\"isValueRequired\":<boolean>}`. A new form has `attributeJson` = `{}`; editing gives the stored `attributeJson` text if present, else the JSON of the stored `attribute`, plus `operator` and `value`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter$OperatorSerializer"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/form-error-attribute",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "Form errors for the attribute (on form field `attributeJson`): missing, empty or exactly `{}` gives `s.ext.gen.filter.attribute.param.error.+attributeJson+.no-value` ('Please select attribute'); text that is not valid JSON for an attribute spec, JSON `null`, or a spec with an empty or missing `id` gives `s.ext.gen.filter.attribute.param.error.+attributeJson+.illegal-value` ('Invalid attribute specification, please use the Advanced tab'). With the illegal-value error the raw text is put in the returned parameters under `attributeJson` instead of `attribute`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#buildParametersFromForm",
+    "com.almworks.jira.structure.util.FormParser#parse"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/form-error-operator",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "A missing or empty `operator` gives `s.ext.gen.filter.attribute.param.error.+operator+.no-value` ('Please select operator') and no value is then checked. An operator text that is not exactly (case-sensitively) one of the operator names is not reported as a form error: building the parameters throws `IllegalArgumentException` (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/form-error-value",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "For operators that need a value: a missing or empty `value` gives `s.ext.gen.filter.attribute.param.error.+value+.no-value` ('Please define attribute value'); for DURATION operators a value that Jira's duration parser rejects in the user's locale (e.g. `abc`; `2h 30m` is accepted), and for DATE operators a value that is not an ISO local date `yyyy-MM-dd` (e.g. `2026-1-5`), give `s.ext.gen.filter.attribute.param.error.+value+.illegal-value` ('Invalid attribute value'). The value is stored as the original text. For operators that need no value the form's `value` is ignored and not stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/expression-attribute",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "At generation the filter asks the attribute service, for every row of the forest below it (values computed for the forest being transformed), for one Boolean attribute: id `expr`, format BOOLEAN, params `{\"formula\": <F>, \"variables\": {\"x\": <the stored attribute object>}}`. A row stays exactly when that value is true; a false or missing (null) value hides the row, for issues and non-issues alike.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter$FormulaAttributeSpecBuilder#build",
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#createFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/formula-text",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "The formula <F> uses `V` = the stored value written as an expression string literal (in double quotes, with `\\` and `\"` escaped by a backslash) and `A` = `USER_NAME(x)` when the attribute is a user field, else `x`: IS_TRUE and NOT_EMPTY give `x`; IS_FALSE and EMPTY give `NOT(x)`; CONTAINS `DEFINED(SEARCH(V, A))`; NOT_CONTAINS `NOT(DEFINED(SEARCH(V, A)))`; START_WITH `EQ(LEFT(A, n), V)` and END_WITH `EQ(RIGHT(A, n), V)` with n = the value's length in Java chars; EXACTLY `EXACT(A, V)`; DATE_BEFORE `LT(x, DATE(V))`; DATE_AFTER `GT(TRUNCATE_TIME(x), DATE(V))`; DATE_IS `EQ(TRUNCATE_TIME(x), DATE(V))`; DURATION_LESS `LT(x, JIRA_DURATION(V))`; DURATION_LONGER `GT(x, JIRA_DURATION(V))`; DURATION_IS `EQ(x, JIRA_DURATION(V))`; GREATER `GT(A, V)`; GREATER_EQUAL `GE(A, V)`; LESS `LT(A, V)`; LESS_EQUAL `LE(A, V)`; EQUAL `EQ(A, V)`; NOT_EQUAL `NE(A, V)`. Example: CONTAINS with value `a\"b` gives `DEFINED(SEARCH(\"a\\\"b\", x))`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter$FormulaAttributeSpecBuilder#buildFormulaExpr",
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter$FormulaAttributeSpecBuilder#buildExpectedAttributeValue",
+    "com.almworks.jira.structure.expr.ExprNode#literalValueToStringBuilder"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/user-field-detection",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "The attribute counts as a user field when it maps to a Jira field that is user-typed: the attribute id `key` maps to field `issuekey`, `customfield` with a numeric `fieldId` param N maps to `customfield_N`, any other id maps to the field of that id; the field is a user field when it is a custom field whose JSON schema type is `user`, or the system field `assignee`, `creator` or `reporter`. Unknown fields are not user fields.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter$FormulaAttributeSpecBuilder#isUserFieldAttribute",
+    "com.almworks.structure.commons.util.AttributeUtil#convertAttributeSpecToIssueFieldId",
+    "com.almworks.structure.commons.util.JiraFieldUtils#isUserField"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/invalid-stored-parameters",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "If the stored parameters lack `attribute` or `operator`, name an unknown operator, or the attribute's `format` is not one `RestAttributeSpec` recognises (html, text, json-object, json-array, number, boolean, id, time, duration, any), getting the filter throws and, per the filter rules, the error is logged and the forest stays unfiltered. A value-needing operator stored without `value`: START_WITH and END_WITH then throw likewise; the others put the word `null` in the formula in place of V (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#getFilterFunction",
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter$FormulaAttributeSpecBuilder#buildFormulaExpr",
+    "com.almworks.jira.structure.api.rest.RestAttributeSpec#fromRestNotNull"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/regeneration",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "The filter regenerates when an issue it tested changes (each tested issue row is recorded in an item-change filter) and when the expression value of a tested non-issue row changes (attribute update checker on the values it read).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#createFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-attribute/summary-parameters",
+   "module": "filter-attribute",
+   "api": null,
+   "behaviour": "For the summary (`s.ext.gen.filter.attribute.summary`, 'Filter items where attribute {0} {1} {2}') the filter provides `attributeJson` (JSON of the stored attribute), `attribute` = the literal placeholder `{attribute}`, `operator` = the operator's i18n label key and, only for value-needing operators, `value`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.AttributeFilter#addParametersForSummary"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-number-attribute/stored-parameters",
+   "module": "filter-number-attribute",
+   "api": null,
+   "behaviour": "The filter has no form; its parameters are a JSON object with keys `attribute` (an attribute spec object with `id`, `format`, `params`), `min` and `max` (numbers, each optional). Unknown keys are ignored. Missing or empty parameters, or parameters that cannot be converted to that shape, make the filter do nothing (all rows stay).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.NumberAttributeFilter#getFilterFunction",
+    "com.almworks.jira.structure.extension.generator.filter.NumberAttributeFilter$Parameters",
+    "com.almworks.jira.structure.util.JacksonUtil#fromMap"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-number-attribute/validation",
+   "module": "filter-number-attribute",
+   "api": null,
+   "behaviour": "The attribute's `format` must be exactly `number`; otherwise getting the filter throws `IllegalArgumentException` ('unsupported format: <format>'). When both `min` and `max` are missing it throws `IllegalArgumentException` ('no filtering criteria'). A missing `attribute` throws as well. Per the filter rules these are logged and the forest stays unfiltered.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.NumberAttributeFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-number-attribute/range-matching",
+   "module": "filter-number-attribute",
+   "api": null,
+   "behaviour": "The numeric attribute (the stored id and params, format NUMBER) is read for every row below the generator (values for the forest being transformed). A row stays when it has a value v with v >= min (if min is set) and v <= max (if max is set), comparing as double: both bounds are inclusive. A row without a value is hidden.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.NumberAttributeFilter$RangeFilter#matches"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-number-attribute/regeneration",
+   "module": "filter-number-attribute",
+   "api": null,
+   "behaviour": "The filter regenerates when the attribute value of a row it tested changes (attribute update checker on the values it read); it registers no item-change filter of its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.NumberAttributeFilter$RangeFilter#matches"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-number-attribute/unlisted",
+   "module": "filter-number-attribute",
+   "api": null,
+   "behaviour": "The module has no form, dialog title or summary resources: only its label `s.ext.gen.filter.number-attribute.label`; it is used with parameters supplied by the client or other code rather than configured through the generator dialog.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.NumberAttributeFilter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sjql/stored-parameters",
+   "module": "filter-sjql",
+   "api": null,
+   "behaviour": "The stored parameters are a JSON object with the single key `sjql` (string: the form text with leading and trailing horizontal whitespace removed, as for the JQL filter).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sjql/form-errors",
+   "module": "filter-sjql",
+   "api": null,
+   "behaviour": "Saving the form: a missing or blank `sjql` gives the error on field `sjql` with key `s.ext.gen.filter.sjql.param.sjql.error.no-sjql` ('Please type in an S-JQL query'). Otherwise the text is parsed as S-JQL; a parse failure adds its localized message, and every validation error message of the parsed query (for example unknown constraints or bad constraint arguments) is added on field `sjql`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sjql/no-filtering",
+   "module": "filter-sjql",
+   "api": null,
+   "behaviour": "At generation a blank `sjql`, or S-JQL that no longer parses, makes the filter do nothing (all rows stay); the parse error is logged at debug level.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sjql/matching",
+   "module": "filter-sjql",
+   "api": null,
+   "behaviour": "The S-JQL query is evaluated once over the forest below the generator (that forest is the query's whole structure, so relations such as `child of` and `root` refer to it) using all registered S-JQL constraints; a row stays exactly when the query matches it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter#getFilterFunction",
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter#execute"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sjql/automation-rows-excluded",
+   "module": "filter-sjql",
+   "api": null,
+   "behaviour": "Automation rows (generator rows and other automation, as `StructureRows.isAutomation` decides) are excluded from the rows the query evaluates over, so they never count as matching, as related rows or in the universe of the query; the filter framework still keeps them.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter$NoAutomations#matches",
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter#execute"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sjql/regeneration",
+   "module": "filter-sjql",
+   "api": null,
+   "behaviour": "When the query contains a JQL part anywhere (a JQL leaf inside any combination, complement, union or intersection; constraints alone do not count), the filter registers an item-change filter for all issues in the forest below it, so a change to any of them makes it regenerate. A query without JQL registers nothing: item changes alone (such as a summary change matched by a constraint) do not make it regenerate (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter#filterItemUpdates",
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sjql/no-presets",
+   "module": "filter-sjql",
+   "api": null,
+   "behaviour": "The S-JQL filter offers no presets.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SjqlFilter#getPresets"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-item/parameters",
+   "module": "filter-item",
+   "api": null,
+   "behaviour": "The filter has no form; its parameters are `{\"item\": <item identity in canonical string form>}`, e.g. `{\"item\":\"com.almworks.jira.structure:type-issue/10000\"}` (a bare decimal number is read as an issue id). The text is parsed with `ItemIdentity.parse`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.ItemFilter#getItemId"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-item/matching",
+   "module": "filter-item",
+   "api": null,
+   "behaviour": "Rows stay when their item identity equals the parsed item (every row showing that item, wherever it is); all other rows fail the filter, with ancestors and sub-items handled by the standard filter parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.ItemFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-item/invalid-item",
+   "module": "filter-item",
+   "api": null,
+   "behaviour": "A missing or unparseable `item` is logged as a warning and the filter does nothing (all rows stay).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.ItemFilter#getItemId"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-item/pinned-item",
+   "module": "filter-item",
+   "api": null,
+   "behaviour": "The pinned item of a forest spec is read from the first transformation of the spec whose module is `com.almworks.jira.structure:filter-item` and whose parameters give a parseable `item`; a spec without such a transformation has no pinned item. Other modules use this to recognise single-item views (see `attribute-service` and `forest-service`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.ItemFilter#getPinnedItemId"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-item/no-tracking",
+   "module": "filter-item",
+   "api": null,
+   "behaviour": "The filter registers no item-change filter or update checker: it depends only on its parameter and the forest below it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.ItemFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-inserter-extender-duplicates/not-configurable",
+   "module": "filter-inserter-extender-duplicates",
+   "api": null,
+   "behaviour": "The filter is not configurable (annotated `NotConfigurable`): it has no form and no parameters of its own beyond the standard filter parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.InserterExtenderDuplicateFilter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-inserter-extender-duplicates/preset",
+   "module": "filter-inserter-extender-duplicates",
+   "api": null,
+   "behaviour": "It offers one preset labelled with `s.ext.gen.filter.inserter-extender-duplicates.label` ('Remove Inserter/Extender Duplicates') with parameters `{\"showSubItems\": false, \"level\": 1}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.InserterExtenderDuplicateFilter#getPresets"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-inserter-extender-duplicates/matching",
+   "module": "filter-inserter-extender-duplicates",
+   "api": null,
+   "behaviour": "The filter scans the forest below it top-down. A top-level row added by an inserter generator fails the filter when the same item also appears, deeper in that forest, as a row added by an extender generator; every other row passes (top-level static rows, rows added by other generators, and all deeper rows). Extender-added rows are collected from the whole forest except the subtrees of top-level generated rows whose item had already been seen as extender-added earlier in the scan, which are not looked into.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.InserterExtenderDuplicateFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-inserter-extender-duplicates/example",
+   "module": "filter-inserter-extender-duplicates",
+   "api": null,
+   "behaviour": "Example: an inserter adds top-level A and B and an extender adds B as a child of A: with the preset (level 1) the top-level B is removed with its subtree, A and its child B stay. If B is not added below A anywhere, both stay.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.InserterExtenderDuplicateFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-inserter-extender-duplicates/summary",
+   "module": "filter-inserter-extender-duplicates",
+   "api": null,
+   "behaviour": "Its summary is `s.ext.gen.filter.inserter-extender-duplicates.summary` ('Remove Inserter/Extender Duplicates').",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.InserterExtenderDuplicateFilter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sprint/stored-parameters",
+   "module": "filter-sprint",
+   "api": null,
+   "behaviour": "The stored parameters are a JSON object with four boolean keys, in this order: `active`, `future`, `closed`, `backlog`, each true only when the form value is true ignoring case. When reading stored parameters, a missing key defaults to false for `active`, `future` and `closed` and to true for `backlog`; a present value is read as true only for the text `true` ignoring case.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter$SprintState#isSelected"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sprint/form-defaults",
+   "module": "filter-sprint",
+   "api": null,
+   "behaviour": "A new form starts with `active`, `future` and `backlog` checked and `closed` unchecked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter#addDefaultFormParameters"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sprint/form-errors",
+   "module": "filter-sprint",
+   "api": null,
+   "behaviour": "Saving with no state selected gives the error on form field `options` with key `s.ext.gen.filter.sprint.error.none` ('Please select at least one category of Sprints to show'); with all four selected it gives `s.ext.gen.filter.sprint.error.all` ('Please deselect at least one category of Sprints').",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sprint/matching",
+   "module": "filter-sprint",
+   "api": null,
+   "behaviour": "A row of item type `com.almworks.jira.structure:type-sprint` whose sprint resolves passes when its state (active, future, closed) is selected; the 'No Sprint' group row (the i18n folder `s.grouper.sprint.no-sprint` made by `grouper-sprint`) passes when `backlog` is selected. Every other row passes, including sprint rows whose sprint cannot be resolved for the user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter#getFilterFunction",
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter#getSprintState"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sprint/preset",
+   "module": "filter-sprint",
+   "api": null,
+   "behaviour": "It offers one preset 'Hide Closed Sprints' (`s.ext.gen.filter.sprint.preset.hide-closed`) with parameters `{\"active\": true, \"future\": true, \"backlog\": true, \"level\": 1}` (closed absent, so not selected).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter#getPresets"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sprint/availability",
+   "module": "filter-sprint",
+   "api": null,
+   "behaviour": "The filter is available only when Jira Software is installed (the Jira Software integration reports a version greater than 0); otherwise it is not offered.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter#isAvailable"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sprint/regeneration",
+   "module": "filter-sprint",
+   "api": null,
+   "behaviour": "Each sprint row it tests (not the 'No Sprint' row) is recorded in an item-change filter, so a change to one of those sprints (such as a state change) makes the generator regenerate.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter#getFilterFunction"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/filter-sprint/summary",
+   "module": "filter-sprint",
+   "api": null,
+   "behaviour": "The summary (`s.ext.gen.filter.sprint.summary`, 'Show Sprints: {0}') lists the selected states in the order active, future, closed, backlog as 'Active (Current)', 'Future', 'Closed', 'Backlog' (keys `s.ext.gen.filter.sprint.name.+<state>`), joined with \", \".",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.filter.SprintFilter#addParametersForSummary"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-folder/same-as-item-with-type",
+   "module": "constraint-folder",
+   "api": null,
+   "behaviour": "The S-JQL constraint `folder` behaves exactly as `item` (module `constraint-item`, claims of `item-query-constraint`) with the type `com.almworks.jira.structure:type-folder` inserted as the first argument: `folder()` is `item(com.almworks.jira.structure:type-folder)` and matches every folder row; `folder(text)` is `item(com.almworks.jira.structure:type-folder, text)` and matches folder rows whose summary matches the text search or `/regex/` rules of `item`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.FolderQueryConstraint#getItemType",
+    "com.almworks.jira.structure.extension.query.ItemTypeQueryConstraint#validate",
+    "com.almworks.jira.structure.extension.query.ItemTypeQueryConstraint#filter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-folder/argument-count",
+   "module": "constraint-folder",
+   "api": null,
+   "behaviour": "`folder` with two or more arguments is invalid: validation reports the `item` count error for one more argument than given, e.g. `folder(a, b)` gives 'cannot take 3 arguments - the maximum number of arguments is 2' (`s.jql.constraints.error.args.max`) (as the original does), and the constraint matches no rows. Zero or one argument is valid apart from the text/regex errors of `item`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemTypeQueryConstraint#validate",
+    "com.almworks.jira.structure.api.query.StructureQueryConstraints#validateArgumentCount"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-memo/same-as-item-with-type",
+   "module": "constraint-memo",
+   "api": null,
+   "behaviour": "The S-JQL constraint `memo` behaves exactly as `item` (module `constraint-item`, claims of `item-query-constraint`) with the type `com.almworks.jira.structure:type-memo` inserted as the first argument: `memo()` is `item(com.almworks.jira.structure:type-memo)` and matches every memo row; `memo(text)` is `item(com.almworks.jira.structure:type-memo, text)` and matches memo rows whose summary matches the text search or `/regex/` rules of `item`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.MemoQueryConstraint#getItemType",
+    "com.almworks.jira.structure.extension.query.ItemTypeQueryConstraint#validate",
+    "com.almworks.jira.structure.extension.query.ItemTypeQueryConstraint#filter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-memo/argument-count",
+   "module": "constraint-memo",
+   "api": null,
+   "behaviour": "`memo` with two or more arguments is invalid: validation reports the `item` count error for one more argument than given, e.g. `memo(a, b)` gives 'cannot take 3 arguments - the maximum number of arguments is 2' (`s.jql.constraints.error.args.max`) (as the original does), and the constraint matches no rows. Zero or one argument is valid apart from the text/regex errors of `item`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemTypeQueryConstraint#validate",
+    "com.almworks.jira.structure.api.query.StructureQueryConstraints#validateArgumentCount"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-planningtask/same-as-item-with-type",
+   "module": "constraint-planningtask",
+   "api": null,
+   "behaviour": "The S-JQL constraint `planningtask` behaves exactly as `item` (module `constraint-item`, claims of `item-query-constraint`) with the type `com.almworks.jira.structure:type-planning-task` inserted as the first argument: `planningtask()` is `item(com.almworks.jira.structure:type-planning-task)` and matches every planning task row; `planningtask(text)` is `item(com.almworks.jira.structure:type-planning-task, text)` and matches planning task rows whose summary matches the text search or `/regex/` rules of `item`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.PlanningTaskQueryConstraint#getItemType",
+    "com.almworks.jira.structure.extension.query.ItemTypeQueryConstraint#validate",
+    "com.almworks.jira.structure.extension.query.ItemTypeQueryConstraint#filter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-planningtask/argument-count",
+   "module": "constraint-planningtask",
+   "api": null,
+   "behaviour": "`planningtask` with two or more arguments is invalid: validation reports the `item` count error for one more argument than given, e.g. `planningtask(a, b)` gives 'cannot take 3 arguments - the maximum number of arguments is 2' (`s.jql.constraints.error.args.max`) (as the original does), and the constraint matches no rows. Zero or one argument is valid apart from the text/regex errors of `item`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemTypeQueryConstraint#validate",
+    "com.almworks.jira.structure.api.query.StructureQueryConstraints#validateArgumentCount"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-folder/summary-is-name",
+   "module": "constraint-folder",
+   "api": null,
+   "behaviour": "For folders the text or regex is matched against the folder's summary attribute, which is its name as displayed (for i18n folders, such as generator group folders, the translated text).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#filter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-memo/summary-is-text",
+   "module": "constraint-memo",
+   "api": null,
+   "behaviour": "For memos the text or regex is matched against the memo's summary attribute (its text as the memo item type reports it).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint#filter"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-item/registration",
+   "module": "constraint-item",
+   "api": null,
+   "behaviour": "The module registers the S-JQL constraint named `item` (descriptor attribute `fname=\"item\"`); its argument syntax, type resolution, text and regex matching, errors and caching are those claimed for `item-query-constraint`, which is the same constraint instance. The same instance also serves `folder`, `memo` and `planningtask`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.ItemQueryConstraint"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-rowId/name-and-arguments",
+   "module": "constraint-rowId",
+   "api": null,
+   "behaviour": "The module registers the S-JQL constraint `rowId` (matched case-insensitively, e.g. `rowid(123)`), taking exactly one argument: zero arguments give 'cannot take 0 arguments - the minimum number of arguments is 1', two or more give the `s.jql.constraints.error.args.max` message with maximum 1.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.RowIdQueryConstraint#validate"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-rowId/argument-parsing",
+   "module": "constraint-rowId",
+   "api": null,
+   "behaviour": "The argument must be a decimal long as Java's `Long.parseLong` reads it (optional sign, no spaces or decimals, e.g. `+12` and `007` are accepted): otherwise validation reports `s.jql.constraints.rowId.error.nan` ('expects a numeric row ID (got <arg>)'). A value of 0 or less reports `s.jql.constraints.rowId.error.invalid` ('error: invalid row ID <n>'), with the number formatted by Jira's i18n message formatting (so grouping separators may appear, e.g. -1,000). Messages use the plugin helper's i18n for the logged-in user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.RowIdQueryConstraint#parse",
+    "com.almworks.jira.structure.extension.query.RowIdQueryConstraint#error"
+   ]
+  },
+  {
+   "key": "e12-filters-constraints/constraint-rowId/matching",
+   "module": "constraint-rowId",
+   "api": null,
+   "behaviour": "With a valid argument the constraint matches only the row whose row id equals it (at most one row in a forest); an invalid argument matches no rows. The row's item type does not matter.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.query.RowIdQueryConstraint#filter"
+   ]
+  }
+ ]
+}

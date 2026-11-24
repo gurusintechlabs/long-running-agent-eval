@@ -1,0 +1,807 @@
+{
+  "packages": {
+    "com.almworks.jira.structure.api.item": "Item identities and item types. Every row of a forest points to an item (an issue, a project, a folder, a memo, a user and so on); an item is named by an `ItemIdentity` (an item type key plus a numeric or textual ID) whose string form is persisted. The package also holds the constants for the built-in type keys, helper factories, the bulk identity set, the resolver that turns identities into Jira objects, the change tracker, and the extension interfaces an item type module may implement.",
+    "com.almworks.jira.structure.api.item.generic": "Generic items: plugin-stored items that consist only of a name, an optional owning structure, an optional description and a map of JSON-like parameters (memos, planning tasks and items of third-party generic types are stored this way). Contains the immutable value class, the low-level storage manager, the permission-checking service and a reusable item type implementation that other plugins can register as their own item type module.",
+    "com.almworks.jira.structure.api.job": "Background job execution. A job manager runs `StructureJob` instances on a single background queue thread, on named thread pools, or periodically, and a scheduled-job manager runs cluster-wide periodic tasks whose last run time is persisted.",
+    "com.almworks.jira.structure.api.lifecycle": "Lifecycle helpers: the cache-clearing callback that plugin components implement, and the exception thrown when a plugin service is called while the plugin is not started or is being restarted.",
+    "com.almworks.jira.structure.api.memo": "Read and update access to memos, the plugin's own lightweight text items that can be placed in a structure next to issues. A memo is a generic item with a fixed set of issue-like fields.",
+    "com.almworks.jira.structure.api.perfstats": "Performance and diagnostics log. Components contribute a tree of text nodes that the plugin assembles into the performance audit log shown to (and downloadable by) system administrators. Marked internal.",
+    "com.almworks.jira.structure.api.permissions": "Structure-level and app-level permissions: the ordered permission levels, the app permission keys, permission subjects (anyone, a user, a group, a project role) and permission rules, together with their compact string encodings and JSON forms that are persisted in structure definitions."
+  },
+  "types": {
+    "com.almworks.jira.structure.api.item.AuxiliaryIdentities": {
+      "summary": "Holder of type keys and identity factories for item types that come from integrations with other apps (remote issue links, Tempo work attributes and teams, Jira global/project permissions, Xray test runs). Marked internal. All members are static; the class is never instantiated in practice. The values are persisted, so the exact strings, including a misspelling in three of them, must be kept.",
+      "members": {
+        "REMOTE_ISSUE_LINK_TYPE": "Item type key for remote issue links coming from the integration: exactly `com.almworks.jira.structure:type-remote-issue-link`. Not the same key as `CoreItemTypes.REMOTE_LINK`.",
+        "TEMPO_WORK_ATTRIBUTE": "Item type key for Tempo work attributes: exactly `com.almworks.jira.stucture:type-tempo-work-attribute` (note the misspelled plugin prefix `stucture`; it is the persisted value and must not be corrected). Used with string IDs.",
+        "TEMPO_TEAM_MEMBERSHIP": "Item type key for Tempo team memberships: exactly `com.almworks.jira.stucture:type-tempo-team-membership` (misspelled prefix kept on purpose). Used with string IDs.",
+        "TEMPO_TEAM_PERMISSIONS": "Item type key for Tempo team permissions: exactly `com.almworks.jira.stucture:type-tempo-team-permissions` (misspelled prefix kept on purpose). Used with string IDs.",
+        "GLOBAL_PERMISSION_TYPE": "Item type key for a Jira global permission: exactly `com.almworks.jira.structure:type-global-permission`. Used with string IDs (the permission key).",
+        "PROJECT_PERMISSION_TYPE": "Item type key for a Jira project permission: exactly `com.almworks.jira.structure:type-project-permission`. Used with string IDs (the permission key).",
+        "XRAY_TEST_RUN": "Item type key for an Xray test run: exactly `com.almworks.jira.structure:xray-test-run` (note: no `type-` prefix). Used with long IDs.",
+        "ALL_REMOTE_ISSUE_LINKS": "A fixed string identity of the remote-issue-link type whose ID is `*`, meaning \"all remote issue links\" as a whole; its string form is `com.almworks.jira.structure:type-remote-issue-link//*`.",
+        "<init>()": "Public no-argument constructor. The class has only static members, so creating an instance has no use.",
+        "tempoWorkAttribute(String)": "Returns the string identity of type `TEMPO_WORK_ATTRIBUTE` whose ID is the given work attribute ID, for example `com.almworks.jira.stucture:type-tempo-work-attribute//billable`. Throws `IllegalArgumentException` if the ID is null, blank or longer than 190 characters.",
+        "tempoTeamMembership(String)": "Returns the string identity of type `TEMPO_TEAM_MEMBERSHIP` for the given team ID (passed as text). Same validation as any string identity: null, blank or over 190 characters gives `IllegalArgumentException`.",
+        "tempoTeamPermissions(String)": "Returns the string identity of type `TEMPO_TEAM_PERMISSIONS` for the given team ID (passed as text). Null, blank or over-long IDs give `IllegalArgumentException`.",
+        "globalPermission(String)": "Returns the string identity of type `GLOBAL_PERMISSION_TYPE` for the given Jira global permission key, e.g. `com.almworks.jira.structure:type-global-permission//ADMINISTER`. Null, blank or over-long keys give `IllegalArgumentException`.",
+        "projectPermission(String)": "Returns the string identity of type `PROJECT_PERMISSION_TYPE` for the given Jira project permission key, e.g. `com.almworks.jira.structure:type-project-permission//BROWSE_PROJECTS`. Null, blank or over-long keys give `IllegalArgumentException`.",
+        "xrayTestRun(long)": "Returns the long identity of type `XRAY_TEST_RUN` with the given test run ID, e.g. `com.almworks.jira.structure:xray-test-run/42`. Any long value is accepted."
+      }
+    },
+    "com.almworks.jira.structure.api.item.BulkAccessCheckingItemType": {
+      "summary": "Optional extension interface that an item type module (a `StructureItemType` implementation) may also implement to check visibility of many items at once instead of one by one. When the plugin works out which rows of a forest a user may see, it groups the items by type and, for a type implementing this interface, makes one call per type; for other types it falls back to `accessItem` plus `isVisible` per item. If the call throws, the plugin treats every item of that batch as inaccessible.",
+      "members": {
+        "filterInaccessible(com.almworks.jira.structure.api.item.ItemIdentitySet, com.atlassian.jira.user.ApplicationUser, boolean, com.almworks.jira.structure.api.item.ItemIdentitySet)": "Examines the items in the first argument (the plugin passes only items of this module's type) and adds to the fourth argument (a mutable collector) every item that does not exist or that the user in the second argument (null means anonymous) may not see. When the third argument is true, security is overridden: only items that do not exist should be collected. Must not modify the first argument and must not remove anything from the collector; items not added are treated as accessible. This is the rule for other plugins' types; the built-in item types follow their own module claims, where several collect fewer items (some none at all)."
+      }
+    },
+    "com.almworks.jira.structure.api.item.BulkAccessibleItemType": {
+      "summary": "Optional extension interface for item type modules (public SPI) that can load many item objects in one go. Type parameter `T` is the item object class, the same as the module's `StructureItemType<T>`. The plugin uses it when resolving several identities of one type at once (`ItemResolver.resolveItems`, bulk attribute loading); the plugin still applies `isVisible` to each returned object afterwards.",
+      "members": {
+        "accessItems(java.util.Collection, java.util.function.BiConsumer)": "Loads the items named by the identities in the first argument (all of this module's type; the collection may be unmodifiable) and reports each one found by calling the second argument with the identity and the loaded object. Items that do not exist are simply not reported (the caller treats them as null). No permission filtering is expected here. Each identity should be reported at most once; order is free."
+      }
+    },
+    "com.almworks.jira.structure.api.item.CoreIdentities": {
+      "summary": "Static factory and test methods for the identities of the built-in item types (issues, projects, versions, users, folders, memos, links and so on). Each factory builds an `ItemIdentity` with the matching `CoreItemTypes` key and does not check that the item exists; each `isX` method checks both the type key and the ID kind (long or string). Public API; the class cannot be instantiated. Results are immutable and safe to share. The string forms shown in examples follow `ItemIdentity.toString`.",
+      "members": {
+        "ANONYMOUS_USER_ID": "The string ID `-` used for the anonymous (not logged-in) user: `user((String) null)` returns `com.almworks.jira.structure:type-user//-`.",
+        "NEW_ISSUE": "Placeholder identity for an issue that is about to be created and has no ID yet: issue type with ID `Long.MAX_VALUE`, i.e. `com.almworks.jira.structure:type-issue/9223372036854775807`.",
+        "NEW_FOLDER": "Placeholder identity for a folder not yet created: folder type with ID `Long.MAX_VALUE` (`com.almworks.jira.structure:type-folder/9223372036854775807`).",
+        "NEW_GENERATOR": "Placeholder identity for a generator not yet created: generator type with ID `Long.MAX_VALUE` (`com.almworks.jira.structure:type-generator/9223372036854775807`).",
+        "NEW_EFFECTOR": "Placeholder identity for an effector not yet created: effector type with ID `Long.MAX_VALUE` (`com.almworks.jira.structure:type-effector/9223372036854775807`).",
+        "MISSING_ITEM": "Identity used for an item that is missing (for example a row whose item cannot be found): type `com.almworks.jira.structure:type-missing` with long ID 0, i.e. `com.almworks.jira.structure:type-missing/0`.",
+        "user(com.atlassian.jira.user.ApplicationUser)": "Returns the string identity of type `com.almworks.jira.structure:type-user` whose ID is the user's key (not the user name), e.g. `com.almworks.jira.structure:type-user//jsmith`. A null user gives the anonymous identity `com.almworks.jira.structure:type-user//-`.",
+        "user(String)": "Returns the string identity of type `com.almworks.jira.structure:type-user` for the given user key, e.g. `com.almworks.jira.structure:type-user//JIRAUSER10100`. A null key gives the anonymous identity with ID `-` (`ANONYMOUS_USER_ID`). A blank or over-190-character key gives `IllegalArgumentException`.",
+        "group(String)": "Returns the string identity of type `com.almworks.jira.structure:type-group` for the given Jira group name, e.g. `com.almworks.jira.structure:type-group//jira-software-users`. Throws `IllegalArgumentException` if the resulting string ID is blank or longer than 190 characters (a null ID is also rejected).",
+        "group(com.atlassian.crowd.embedded.api.Group)": "Returns the string identity of type `com.almworks.jira.structure:type-group` whose ID is the name of the given `Group`, e.g. `com.almworks.jira.structure:type-group//jira-administrators`. A null argument gives `NullPointerException`.",
+        "project(com.atlassian.jira.project.Project)": "Returns the long identity of type `com.almworks.jira.structure:type-project` taken from the ID (`getId()`) of the given `Project`, e.g. `com.almworks.jira.structure:type-project/10000`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "project(long)": "Returns the long identity of type `com.almworks.jira.structure:type-project` for the given Jira project ID, e.g. `com.almworks.jira.structure:type-project/10000`. Any long value is accepted (no existence check).",
+        "priority(String)": "Returns the string identity of type `com.almworks.jira.structure:type-priority` for the given Jira priority ID (the ID as text, not the name), e.g. `com.almworks.jira.structure:type-priority//3`. Throws `IllegalArgumentException` if the resulting string ID is blank or longer than 190 characters (a null ID is also rejected).",
+        "priority(com.atlassian.jira.issue.priority.Priority)": "Returns the string identity of type `com.almworks.jira.structure:type-priority` whose ID is the ID of the given `Priority`, e.g. `com.almworks.jira.structure:type-priority//3`. A null argument gives `NullPointerException`.",
+        "status(String)": "Returns the string identity of type `com.almworks.jira.structure:type-status` for the given Jira status ID (as text), e.g. `com.almworks.jira.structure:type-status//10001`. Throws `IllegalArgumentException` if the resulting string ID is blank or longer than 190 characters (a null ID is also rejected).",
+        "status(com.atlassian.jira.issue.status.Status)": "Returns the string identity of type `com.almworks.jira.structure:type-status` whose ID is the ID of the given `Status`, e.g. `com.almworks.jira.structure:type-status//10001`. A null argument gives `NullPointerException`.",
+        "resolution(String)": "Returns the string identity of type `com.almworks.jira.structure:type-resolution` for the given Jira resolution ID (as text), e.g. `com.almworks.jira.structure:type-resolution//1`. Throws `IllegalArgumentException` if the resulting string ID is blank or longer than 190 characters (a null ID is also rejected).",
+        "resolution(com.atlassian.jira.issue.resolution.Resolution)": "Returns the string identity of type `com.almworks.jira.structure:type-resolution` whose ID is the ID of the given `Resolution`, e.g. `com.almworks.jira.structure:type-resolution//1`. A null argument gives `NullPointerException`.",
+        "label(String)": "Returns the string identity of type `com.almworks.jira.structure:type-label` for the given label text (used as is, case preserved), e.g. `com.almworks.jira.structure:type-label//backend`. Throws `IllegalArgumentException` if the resulting string ID is blank or longer than 190 characters (a null ID is also rejected).",
+        "label(com.atlassian.jira.issue.label.Label)": "Returns the string identity of type `com.almworks.jira.structure:type-label` whose ID is the label text of the given `Label`, e.g. `com.almworks.jira.structure:type-label//backend`. A null argument gives `NullPointerException`.",
+        "issueType(String)": "Returns the string identity of type `com.almworks.jira.structure:type-issuetype` for the given Jira issue type ID (as text), e.g. `com.almworks.jira.structure:type-issuetype//10002`. Throws `IllegalArgumentException` if the resulting string ID is blank or longer than 190 characters (a null ID is also rejected).",
+        "issueType(com.atlassian.jira.issue.issuetype.IssueType)": "Returns the string identity of type `com.almworks.jira.structure:type-issuetype` whose ID is the ID of the given `IssueType`, e.g. `com.almworks.jira.structure:type-issuetype//10002`. A null argument gives `NullPointerException`.",
+        "issue(long)": "Returns the long identity of type `com.almworks.jira.structure:type-issue` for the given Jira issue ID (the numeric database ID, not the key), e.g. `com.almworks.jira.structure:type-issue/10001`. Any long value is accepted (no existence check).",
+        "issue(com.atlassian.jira.issue.Issue)": "Returns the long identity of type `com.almworks.jira.structure:type-issue` taken from the ID (`getId()`) of the given `Issue`, e.g. `com.almworks.jira.structure:type-issue/10001`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "version(com.atlassian.jira.project.version.Version)": "Returns the long identity of type `com.almworks.jira.structure:type-version` taken from the ID (`getId()`) of the given `Version`, e.g. `com.almworks.jira.structure:type-version/10200`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "version(long)": "Returns the long identity of type `com.almworks.jira.structure:type-version` for the given Jira version ID, e.g. `com.almworks.jira.structure:type-version/10200`. Any long value is accepted (no existence check).",
+        "versionName(String)": "Returns the string identity of type `com.almworks.jira.structure:type-version-name`, which stands for all versions (across projects) that share a name. The ID is the canonical form of the given name (see `canonicalVersionName`: trimmed, lower-cased, cut to 190 characters), e.g. `versionName(\" Release 1.0 \")` gives `com.almworks.jira.structure:type-version-name//release 1.0`. A null, empty or blank name gives `IllegalArgumentException`.",
+        "versionName(com.atlassian.jira.project.version.Version)": "Same as `versionName(String)` applied to the given version's name: returns `com.almworks.jira.structure:type-version-name//<canonical name>`. A null version gives `NullPointerException`; a version whose name is blank gives `IllegalArgumentException`.",
+        "generator(long)": "Returns the long identity of type `com.almworks.jira.structure:type-generator` for the given generator instance ID (a generator row placed in a structure), e.g. `com.almworks.jira.structure:type-generator/12`. Any long value is accepted (no existence check).",
+        "effector(long)": "Returns the long identity of type `com.almworks.jira.structure:type-effector` for the given effector instance ID, e.g. `com.almworks.jira.structure:type-effector/5`. Any long value is accepted (no existence check).",
+        "loopMarker(long)": "Returns the long identity of type `com.almworks.jira.structure:type-loop-marker` that marks a cycle in a generated forest; the ID is the row ID of the row the loop points back to, e.g. `com.almworks.jira.structure:type-loop-marker/1234`.",
+        "component(com.atlassian.jira.bc.project.component.ProjectComponent)": "Returns the long identity of type `com.almworks.jira.structure:type-project-component` taken from the ID (`getId()`) of the given `ProjectComponent`, e.g. `com.almworks.jira.structure:type-project-component/10100`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "component(long)": "Returns the long identity of type `com.almworks.jira.structure:type-project-component` for the given Jira project component ID, e.g. `com.almworks.jira.structure:type-project-component/10100`. Any long value is accepted (no existence check).",
+        "option(com.atlassian.jira.issue.customfields.option.Option)": "Returns the long identity of type `com.almworks.jira.structure:type-cf-option` for the given custom field option's ID, e.g. `com.almworks.jira.structure:type-cf-option/10300`. Returns null when the option has no ID (its option ID is null). A null option gives `NullPointerException`.",
+        "option(long)": "Returns the long identity of type `com.almworks.jira.structure:type-cf-option` for the given custom field option ID, e.g. `com.almworks.jira.structure:type-cf-option/10300`. Any long value is accepted (no existence check).",
+        "structure(long)": "Returns the long identity of type `com.almworks.jira.structure:type-structure` for the given structure ID (used when a structure is itself an item, e.g. a sub-structure row), e.g. `com.almworks.jira.structure:type-structure/7`. Any long value is accepted (no existence check).",
+        "sprint(long)": "Returns the long identity of type `com.almworks.jira.structure:type-sprint` for the given Jira Software sprint ID, e.g. `com.almworks.jira.structure:type-sprint/3`. Any long value is accepted (no existence check).",
+        "board(long)": "Returns the long identity of type `com.almworks.jira.structure:type-board` for the given Jira Software board ID, e.g. `com.almworks.jira.structure:type-board/2`. Any long value is accepted (no existence check).",
+        "tempoAccount(int)": "Returns the long identity of type `com.almworks.jira.structure:type-tempo-account` for the given Tempo account ID (an int widened to long), e.g. `com.almworks.jira.structure:type-tempo-account/4`. Any long value is accepted (no existence check).",
+        "i18nFolder(String)": "Returns a string identity of type `com.almworks.jira.structure:type-folder` whose ID is an i18n message key; such a folder displays the translated text of that key in the viewer's language, e.g. `com.almworks.jira.structure:type-folder//my.plugin.folder.title`. Unlike `textFolder`, no prefix is added. Throws `IllegalArgumentException` if the resulting string ID is blank or longer than 190 characters (a null ID is also rejected).",
+        "textFolder(String)": "Returns a string identity of type `com.almworks.jira.structure:type-folder` for a transient folder that shows the given literal text. The ID is the text prefixed with a single `/`, so `textFolder(\"Backlog\")` gives `com.almworks.jira.structure:type-folder///Backlog` (three slashes in the string form: the `//` separator plus the leading `/` of the ID). A null text produces ID `/null`; text longer than 189 characters gives `IllegalArgumentException`.",
+        "folder(long)": "Returns the long identity of type `com.almworks.jira.structure:type-folder` for the given folder ID (a folder stored by the plugin), e.g. `com.almworks.jira.structure:type-folder/15`. Any long value is accepted (no existence check).",
+        "memo(long)": "Returns the long identity of type `com.almworks.jira.structure:type-memo` for the given memo ID, e.g. `com.almworks.jira.structure:type-memo/21`. Any long value is accepted (no existence check).",
+        "planningTask(long)": "Returns the long identity of type `com.almworks.jira.structure:type-planning-task` for the given planning task ID, e.g. `com.almworks.jira.structure:type-planning-task/33`. Any long value is accepted (no existence check).",
+        "artificialTask(long)": "Deprecated alias of `planningTask(long)`: returns `com.almworks.jira.structure:type-planning-task/<id>`.",
+        "sdRequestType(int)": "Returns the long identity of type `com.almworks.jira.structure:type-sd-request-type` for the given Jira Service Management request type ID (an int widened to long), e.g. `com.almworks.jira.structure:type-sd-request-type/11`. Any long value is accepted (no existence check).",
+        "insightObject(long)": "Returns the long identity of type `com.almworks.jira.structure:type-insight-object` for the given Assets (Insight) object ID, e.g. `com.almworks.jira.structure:type-insight-object/9001`. Any long value is accepted (no existence check).",
+        "projectCategory(long)": "Returns the long identity of type `com.almworks.jira.structure:type-project-category` for the given Jira project category ID, e.g. `com.almworks.jira.structure:type-project-category/10000`. Any long value is accepted (no existence check).",
+        "projectCategory(com.atlassian.jira.project.ProjectCategory)": "Returns the long identity of type `com.almworks.jira.structure:type-project-category` taken from the ID (`getId()`) of the given `ProjectCategory`, e.g. `com.almworks.jira.structure:type-project-category/10000`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "attachment(long)": "Returns the long identity of type `com.almworks.jira.structure:type-attachment` for the given Jira attachment ID, e.g. `com.almworks.jira.structure:type-attachment/10500`. Any long value is accepted (no existence check).",
+        "attachment(com.atlassian.jira.issue.attachment.Attachment)": "Returns the long identity of type `com.almworks.jira.structure:type-attachment` taken from the ID (`getId()`) of the given `Attachment`, e.g. `com.almworks.jira.structure:type-attachment/10500`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "comment(long)": "Returns the long identity of type `com.almworks.jira.structure:type-comment` for the given Jira comment ID, e.g. `com.almworks.jira.structure:type-comment/10600`. Any long value is accepted (no existence check).",
+        "comment(com.atlassian.jira.issue.comments.Comment)": "Returns the long identity of type `com.almworks.jira.structure:type-comment` taken from the ID (`getId()`) of the given `Comment`, e.g. `com.almworks.jira.structure:type-comment/10600`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "worklog(long)": "Returns the long identity of type `com.almworks.jira.structure:type-worklog` for the given Jira worklog ID, e.g. `com.almworks.jira.structure:type-worklog/10700`. Any long value is accepted (no existence check).",
+        "worklog(com.atlassian.jira.issue.worklog.Worklog)": "Returns the long identity of type `com.almworks.jira.structure:type-worklog` taken from the ID (`getId()`) of the given `Worklog`, e.g. `com.almworks.jira.structure:type-worklog/10700`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "changeHistoryGroup(long)": "Returns the long identity of type `com.almworks.jira.structure:type-change-history-group` for the given Jira change group ID (one issue history entry, possibly with several field changes), e.g. `com.almworks.jira.structure:type-change-history-group/11000`. Any long value is accepted (no existence check).",
+        "changeHistoryGroup(com.atlassian.jira.issue.changehistory.ChangeHistory)": "Returns the long identity of type `com.almworks.jira.structure:type-change-history-group` taken from the ID (`getId()`) of the given `ChangeHistory`, e.g. `com.almworks.jira.structure:type-change-history-group/11000`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "changeHistoryItem(long)": "Returns the long identity of type `com.almworks.jira.structure:type-change-history-item` for the given Jira change item ID (one field change inside a change group), e.g. `com.almworks.jira.structure:type-change-history-item/11050`. Any long value is accepted (no existence check).",
+        "memoChangeHistoryGroup(long)": "Returns the long identity of type `com.almworks.jira.structure:type-memo-change-history-group` for the given memo history record ID (one recorded change of a memo), e.g. `com.almworks.jira.structure:type-memo-change-history-group/77`. Any long value is accepted (no existence check).",
+        "issueLink(long)": "Returns the long identity of type `com.almworks.jira.structure:type-issue-link` for the given Jira issue link ID, e.g. `com.almworks.jira.structure:type-issue-link/10900`. Any long value is accepted (no existence check).",
+        "issueLink(com.atlassian.jira.issue.link.IssueLink)": "Returns the long identity of type `com.almworks.jira.structure:type-issue-link` taken from the ID (`getId()`) of the given `IssueLink`, e.g. `com.almworks.jira.structure:type-issue-link/10900`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "issueLinkType(long)": "Returns the long identity of type `com.almworks.jira.structure:type-issue-link-type` for the given Jira issue link type ID, e.g. `com.almworks.jira.structure:type-issue-link-type/10000`. Any long value is accepted (no existence check).",
+        "issueLinkType(com.atlassian.jira.issue.link.IssueLinkType)": "Returns the long identity of type `com.almworks.jira.structure:type-issue-link-type` taken from the ID (`getId()`) of the given `IssueLinkType`, e.g. `com.almworks.jira.structure:type-issue-link-type/10000`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "remoteLink(long)": "Returns the long identity of type `com.almworks.jira.structure:type-remote-link` for the given Jira remote issue link ID, e.g. `com.almworks.jira.structure:type-remote-link/10010`. Any long value is accepted (no existence check).",
+        "remoteLink(com.atlassian.jira.issue.link.RemoteIssueLink)": "Returns the long identity of type `com.almworks.jira.structure:type-remote-link` taken from the ID (`getId()`) of the given `RemoteIssueLink`, e.g. `com.almworks.jira.structure:type-remote-link/10010`. The argument must not be null (a null argument gives `NullPointerException`).",
+        "isIssue(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-issue` and it is a long identity (an issue). Null gives false.",
+        "isProject(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-project` and it is a long identity (a project). Null gives false.",
+        "isComponent(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-project-component` and it is a long identity (a project component). Null gives false.",
+        "isVersion(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-version` and it is a long identity (a single project version). Null gives false.",
+        "isGenerator(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-generator` and it is a long identity (a generator). Null gives false.",
+        "isEffector(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-effector` and it is a long identity (an effector). Null gives false.",
+        "isAutomation(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the identity is a generator or an effector (`isGenerator` or `isEffector`). Null gives false.",
+        "isStructure(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-structure` and it is a long identity (a structure). Null gives false.",
+        "isLoopMarker(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-loop-marker` and it is a long identity (a loop marker). Null gives false.",
+        "isTempoAccount(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-tempo-account` and it is a long identity (a Tempo account). Null gives false.",
+        "isVersionName(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-version-name` and it is a string identity (a version name shared across projects). Null gives false.",
+        "isAttachment(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-attachment` and it is a long identity (an attachment). Null gives false.",
+        "isComment(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-comment` and it is a long identity (a comment). Null gives false.",
+        "isWorklog(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-worklog` and it is a long identity (a worklog). Null gives false.",
+        "isChangeHistoryGroup(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-change-history-group` and it is a long identity (an issue change group). Null gives false.",
+        "isChangeHistoryItem(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-change-history-item` and it is a long identity (a single field change). Null gives false.",
+        "isMemoChangeHistoryGroup(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-memo-change-history-group` and it is a long identity (a memo history record). Null gives false.",
+        "isIssueLink(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-issue-link` and it is a long identity (an issue link). Null gives false.",
+        "isIssueLinkType(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-issue-link-type` and it is a long identity (an issue link type). Null gives false.",
+        "isFolder(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null and its item type is exactly `com.almworks.jira.structure:type-folder`, whatever the ID kind: stored folders (long IDs) and transient i18n/text folders (string IDs) both count. Null gives false.",
+        "isMemo(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-memo` and it is a long identity (a memo). Null gives false.",
+        "isArtificialTask(com.almworks.jira.structure.api.item.ItemIdentity)": "Deprecated alias of `isPlanningTask`: true for a long identity of type `com.almworks.jira.structure:type-planning-task`.",
+        "isPlanningTask(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-planning-task` and it is a long identity (a planning task). Null gives false.",
+        "isStatus(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-status` and it is a string identity (a status). Null gives false.",
+        "isUser(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-user` and it is a string identity (a user, including the anonymous user `-`). Null gives false.",
+        "isPriority(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-priority` and it is a string identity (a priority). Null gives false.",
+        "isResolution(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-resolution` and it is a string identity (a resolution). Null gives false.",
+        "isOption(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-cf-option` and it is a long identity (a custom field option). Null gives false.",
+        "isGroup(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-group` and it is a string identity (a group). Null gives false.",
+        "isSprint(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-sprint` and it is a long identity (a sprint). Null gives false.",
+        "isLabel(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-label` and it is a string identity (a label). Null gives false.",
+        "isIssueType(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-issuetype` and it is a string identity (an issue type). Null gives false.",
+        "isRemoteLink(com.almworks.jira.structure.api.item.ItemIdentity)": "True when the argument is not null, its item type is exactly `com.almworks.jira.structure:type-remote-link` and it is a long identity (a remote issue link). Null gives false.",
+        "canonicalVersionName(String)": "Normalises a version name for use as a version-name ID: removes leading and trailing whitespace, lower-cases with the root locale, and keeps at most the first 190 characters. Returns null for null; an all-blank name becomes the empty string."
+      }
+    },
+    "com.almworks.jira.structure.api.item.CoreItemTypes": {
+      "summary": "Constants for the item type keys of the built-in item types. A type key is the complete key of the item type module (`<plugin key>:<module key>`) and is the first part of every persisted item identity, so these exact strings are part of the stored data format. Public API; an interface used only for its constants and one static helper.",
+      "members": {
+        "ISSUE": "Item type key `com.almworks.jira.structure:type-issue`: Jira issues; long ID = issue ID.",
+        "PROJECT": "Item type key `com.almworks.jira.structure:type-project`: Jira projects; long ID = project ID.",
+        "VERSION": "Item type key `com.almworks.jira.structure:type-version`: a single Jira project version; long ID = version ID.",
+        "VERSION_NAME": "Item type key `com.almworks.jira.structure:type-version-name`: all versions sharing a (canonical) name across projects; string ID = canonical name.",
+        "COMPONENT": "Item type key `com.almworks.jira.structure:type-project-component`: Jira project components; long ID.",
+        "ISSUETYPE": "Item type key `com.almworks.jira.structure:type-issuetype`: Jira issue types; string ID = issue type ID.",
+        "STATUS": "Item type key `com.almworks.jira.structure:type-status`: Jira statuses; string ID = status ID.",
+        "RESOLUTION": "Item type key `com.almworks.jira.structure:type-resolution`: Jira resolutions; string ID = resolution ID.",
+        "PRIORITY": "Item type key `com.almworks.jira.structure:type-priority`: Jira priorities; string ID = priority ID.",
+        "LABEL": "Item type key `com.almworks.jira.structure:type-label`: labels; string ID = the label text.",
+        "USER": "Item type key `com.almworks.jira.structure:type-user`: Jira users; string ID = user key, `-` for anonymous.",
+        "GROUP": "Item type key `com.almworks.jira.structure:type-group`: Jira groups; string ID = group name.",
+        "DATE": "Item type key `com.almworks.jira.structure:type-date`: calendar dates used, for example, by groupers; no factory exists in this API. Not determined: the ID format of this type is not fixed by the API classes.",
+        "CF_OPTION": "Item type key `com.almworks.jira.structure:type-cf-option`: custom field options; long ID = option ID.",
+        "FOLDER": "Item type key `com.almworks.jira.structure:type-folder`: folders; long ID for stored folders, string ID for transient folders (an i18n key, or `/` + literal text).",
+        "GENERATOR": "Item type key `com.almworks.jira.structure:type-generator`: generator rows (automation); long ID = generator instance ID.",
+        "EFFECTOR": "Item type key `com.almworks.jira.structure:type-effector`: effector rows; long ID = effector instance ID.",
+        "LOOP_MARKER": "Item type key `com.almworks.jira.structure:type-loop-marker`: cycle markers in generated forests; long ID = row ID of the looped row.",
+        "STRUCTURE": "Item type key `com.almworks.jira.structure:type-structure`: structures used as items; long ID = structure ID.",
+        "STRUCTURE_VERSION": "Item type key `com.almworks.jira.structure:type-structure-version`: a structure at a point in its history. Not determined: no factory in this API fixes the ID format.",
+        "SPRINT": "Item type key `com.almworks.jira.structure:type-sprint`: Jira Software sprints; long ID.",
+        "BOARD": "Item type key `com.almworks.jira.structure:type-board`: Jira Software boards; long ID.",
+        "TEMPO_ACCOUNT": "Item type key `com.almworks.jira.structure:type-tempo-account`: Tempo accounts; long ID.",
+        "REQUEST_TYPE": "Item type key `com.almworks.jira.structure:type-sd-request-type`: Jira Service Management request types; long ID.",
+        "MISSING": "Item type key `com.almworks.jira.structure:type-missing`: the placeholder for a missing item; see `CoreIdentities.MISSING_ITEM`.",
+        "MEMO": "Item type key `com.almworks.jira.structure:type-memo`: memos; long ID.",
+        "PLANNING_TASK": "Item type key `com.almworks.jira.structure:type-planning-task`: planning tasks; long ID.",
+        "INSIGHT_OBJECT": "Item type key `com.almworks.jira.structure:type-insight-object`: Assets (Insight) objects; long ID.",
+        "ARTIFICIAL": "Deprecated alias of `PLANNING_TASK`; holds the same value `com.almworks.jira.structure:type-planning-task`.",
+        "PROJECT_CATEGORY": "Item type key `com.almworks.jira.structure:type-project-category`: Jira project categories; long ID.",
+        "ATTACHMENT": "Item type key `com.almworks.jira.structure:type-attachment`: issue attachments; long ID.",
+        "COMMENT": "Item type key `com.almworks.jira.structure:type-comment`: issue comments; long ID.",
+        "WORKLOG": "Item type key `com.almworks.jira.structure:type-worklog`: issue worklogs; long ID.",
+        "CHANGE_HISTORY_GROUP": "Item type key `com.almworks.jira.structure:type-change-history-group`: issue change groups; long ID.",
+        "CHANGE_HISTORY_ITEM": "Item type key `com.almworks.jira.structure:type-change-history-item`: single field changes of an issue; long ID.",
+        "MEMO_CHANGE_HISTORY_GROUP": "Item type key `com.almworks.jira.structure:type-memo-change-history-group`: recorded memo changes; long ID.",
+        "ISSUE_LINK": "Item type key `com.almworks.jira.structure:type-issue-link`: issue links; long ID.",
+        "ISSUE_LINK_TYPE": "Item type key `com.almworks.jira.structure:type-issue-link-type`: issue link types; long ID.",
+        "REMOTE_LINK": "Item type key `com.almworks.jira.structure:type-remote-link`: remote issue links; long ID.",
+        "STANDARD_TYPE_PREFIX": "The common prefix `com.almworks.jira.structure:type-` shared by all built-in type keys (the plugin key, a colon, then `type-`). `simplifyType` removes it.",
+        "simplifyType(String)": "Returns a short form of a type key: if the key starts with `com.almworks.jira.structure:type-` the prefix is removed (`com.almworks.jira.structure:type-issue` becomes `issue`), otherwise the key is returned unchanged (`com.almworks.jira.structure:xray-test-run` stays as is). The argument must not be null. Used by `ItemIdentity.toSimplifiedString`."
+      }
+    },
+    "com.almworks.jira.structure.api.item.CoreSemantics": {
+      "summary": "Constants for the semantics code of a forest row (a long stored with each row next to its item). The code tells how the row got into a generated forest. Marked internal. When a generator creates a row with semantics 0, the plugin replaces it with the code of that generator's kind.",
+      "members": {
+        "NONE": "0: an ordinary row with no special meaning (also the value for rows added by hand).",
+        "TITLE": "1: a title row, a heading row placed at the top of a forest (for example the name of a sub-structure or query); several features skip such rows.",
+        "GROUP": "2: a group row created by a grouper generator to collect rows sharing a value.",
+        "INSERTED": "3: a row added by an inserter generator.",
+        "EXTENSION": "4: a row added by an extender generator under an existing row."
+      }
+    },
+    "com.almworks.jira.structure.api.item.CreatableItemType": {
+      "summary": "Optional extension interface for an item type module whose items can be created from the plugin's UI or REST API (\"create new item\" in a structure). The plugin first asks for a dummy row to preview where the new item would go (running generators in a dry run), then calls `createItem`. Both receive the raw value map sent by the client (for generic items the keys are `summary`, `description` and `params`).",
+      "members": {
+        "createDummyRow(long, long, java.util.Map, com.atlassian.jira.util.ErrorCollection)": "Builds a temporary, not persisted row standing for the item that would be created. Arguments: the row ID to give the row, the row semantics code, the client's values, and an error collection to fill with field-level validation errors. Returns the row, or null when validation failed (errors must then be added; a null result with no errors is reported by the plugin as a creation failure). Throws `StructureException` for non-field errors.",
+        "createItem(java.util.Map, com.atlassian.jira.util.ErrorCollection)": "Creates and persists the item from the client's values (first argument) and returns its new identity. Field-level problems are added to the error collection (second argument) and null is returned; other failures are thrown as `StructureException`. A null result without errors is treated by the plugin as a failure."
+      }
+    },
+    "com.almworks.jira.structure.api.item.DeadItemsCheckingItemType": {
+      "summary": "Optional extension interface for an item type module that can tell which of its items no longer exist. The plugin's periodic forest cleanup collects the items used in stored forests, groups them by type and calls this once per type that implements it; rows of dead items may then be removed. Errors are logged and the type is skipped.",
+      "members": {
+        "filterDead(com.almworks.jira.structure.api.item.ItemIdentitySet, com.almworks.jira.structure.api.item.ItemIdentitySet)": "Looks at the items in the first argument (a copy containing only this module's type) and adds to the second argument (a mutable collector) every item that has been permanently deleted. Items whose existence cannot be decided should not be added. Must not remove anything from the collector."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemIdentity": {
+      "summary": "Immutable, serializable identity of an item: an item type key (see `CoreItemTypes`) plus either a long ID or a string ID. There are exactly two concrete forms, `ItemIdentity.LongIdentity` and `ItemIdentity.StringIdentity`; the constructors are private, so instances come only from `longId`, `stringId`, `parse` or the helpers in `CoreIdentities`. Equality is by kind, type key and ID. Safe to share between threads. The canonical string form, used in REST, persistence and backups, is `<type>/<long id>` for long identities and `<type>//<string id>` for string identities, e.g. `com.almworks.jira.structure:type-issue/10001` and `com.almworks.jira.structure:type-user//jsmith`. The type key must be non-empty and at most 190 characters; for round-tripping through `parse` it must not contain `/`. Java serialization version UID is 201611180000.",
+      "members": {
+        "ITEM_ZERO": "A special long identity with type key `0` and ID 0 (string form `0/0`), used as a neutral \"no item\" placeholder (for example for a row record that has no item).",
+        "getItemType()": "Returns the item type key, never null or empty, e.g. `com.almworks.jira.structure:type-issue`.",
+        "isStringId()": "True for a string identity, false for a long identity.",
+        "getStringId()": "Returns the string ID of a string identity (never null or blank). On a long identity it throws `UnsupportedOperationException`.",
+        "isLongId()": "True for a long identity, false for a string identity.",
+        "getLongId()": "Returns the long ID of a long identity. On a string identity it throws `UnsupportedOperationException`.",
+        "stringId(String, String)": "Creates a string identity from a type key (first argument) and string ID (second). The type is checked as for `longId` (`AssertionError` for a null or whitespace-only type when assertions are enabled). Throws `IllegalArgumentException` when the type is empty or longer than 190 characters, or when the ID is null, blank (empty or whitespace only) or longer than 190 characters. The ID may contain any characters, including `/`.",
+        "longId(String, long)": "Creates a long identity from a type key and a long ID (any value, including 0 and negatives). Throws `IllegalArgumentException` when the type is empty or longer than 190 characters. A null or whitespace-only type is checked only by a Java assertion: with assertions enabled it throws `AssertionError`; with assertions disabled a null type gives `IllegalArgumentException` and a whitespace-only type is accepted.",
+        "parse(String)": "Parses the canonical string form back into an identity. Rules, in order: null or empty input fails; text without any `/` must be a decimal long and is read as an issue ID (legacy form: `10001` becomes `com.almworks.jira.structure:type-issue/10001`); otherwise the type is everything before the first `/`, which must not be empty. If the first `/` is followed by a second `/`, the rest is the string ID (`type//abc`, `type//a/b` gives ID `a/b`); otherwise the rest must be a decimal long (`type/42`, `type/-1`). Failures (empty type, nothing after the separator, a non-numeric long part, an invalid ID such as an over-long or blank one) throw `java.text.ParseException`. The simplified form from `toSimplifiedString` is not understood: `issue/10001` parses as type `issue`, not as an issue.",
+        "toSimplifiedString()": "Returns a shorter human-readable form: the same as `toString` but with the type key passed through `CoreItemTypes.simplifyType`, e.g. `issue/10001` or `user//jsmith`; keys without the standard prefix stay in full. For display and logs only; it is not meant to be parsed back."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemIdentity.LongIdentity": {
+      "summary": "The long-ID form of `ItemIdentity` (public, final, immutable, serializable). Obtained from `ItemIdentity.longId` or `parse`; cannot be constructed directly.",
+      "members": {
+        "isLongId()": "Always true.",
+        "getLongId()": "Returns the numeric ID.",
+        "equals(Object)": "True only for another long identity (exact same class) with the same long ID and an equal type key. A long and a string identity are never equal, even if the text looks the same.",
+        "hashCode()": "Hash combining the long ID and the type key, consistent with `equals`: the long's standard hash multiplied by 31 plus the type key's string hash.",
+        "toString()": "Canonical form `<type>/<id>`, e.g. `com.almworks.jira.structure:type-project/10000`. Readable by `ItemIdentity.parse`.",
+        "toSimplifiedString()": "Like `toString` with the standard type prefix removed, e.g. `project/10000`."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemIdentity.StringIdentity": {
+      "summary": "The string-ID form of `ItemIdentity` (public, final, immutable, serializable). The ID is non-blank and at most 190 characters. Obtained from `ItemIdentity.stringId` or `parse`; cannot be constructed directly.",
+      "members": {
+        "isStringId()": "Always true.",
+        "getStringId()": "Returns the string ID, never null or blank.",
+        "equals(Object)": "True only for another string identity with an equal (case-sensitive) string ID and an equal type key.",
+        "hashCode()": "Hash consistent with `equals`: the string ID's hash multiplied by 31 plus the type key's hash.",
+        "toString()": "Canonical form `<type>//<id>` (two slashes), e.g. `com.almworks.jira.structure:type-status//10001`. Readable by `ItemIdentity.parse`.",
+        "toSimplifiedString()": "Like `toString` with the standard type prefix removed, e.g. `status//10001`."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemIdentitySet": {
+      "summary": "A `java.util.Set` of `ItemIdentity` optimised for many identities: IDs are kept per type key, long IDs in primitive long sets and string IDs in string sets. Marked internal but widely used in signatures. Not thread-safe for concurrent modification; can be frozen with `makeImmutable`, after which every mutating call throws `IllegalStateException`. Copies share storage with an immutable source until either side writes (copy on write). Iteration returns all long identities first (grouped by type) and then all string identities; order inside a group is not defined. Iterators are fail-fast (`ConcurrentModificationException` if the set changes) and do not support `remove`. `equals`, `hashCode` and `toString` follow the usual `AbstractSet` rules. Null elements are not allowed.",
+      "members": {
+        "<init>()": "Creates an empty, mutable set.",
+        "<init>(com.almworks.jira.structure.api.item.ItemIdentity[])": "Creates a mutable set holding the given identities (duplicates collapse). A null array gives an empty set; a null element gives `IllegalArgumentException`.",
+        "<init>(java.util.Collection)": "Creates a mutable set holding all identities of the collection. A null collection gives an empty set; a null element gives `IllegalArgumentException`.",
+        "of(String, long[])": "Creates a mutable set with one long identity of the given type (first argument) for every value in the array (second).",
+        "of(String, com.almworks.integers.LongIterable)": "Creates a mutable set with one long identity of the given type for every value of the iterable.",
+        "of(String, Iterable)": "Creates a mutable set with one string identity of the given type for every string of the iterable; each string must be a valid string ID (non-blank, at most 190 characters) or `IllegalArgumentException` is thrown.",
+        "iterator()": "Returns a fail-fast iterator over all identities: long identities first, grouped by type, then string identities. Each returned identity is a new object equal to the one added. `remove()` is not supported.",
+        "size()": "Number of identities in the set (sum over all types and both ID kinds).",
+        "contains(Object)": "True if the argument is an `ItemIdentity` held by the set (same kind, type and ID). Any other object, including null, gives false.",
+        "containsAll(java.util.Collection)": "True if every element of the argument is in this set. Returns false at once if the argument has more elements than this set. Fast per-type comparison when the argument is also an `ItemIdentitySet`.",
+        "add(com.almworks.jira.structure.api.item.ItemIdentity)": "Adds an identity; returns true if it was not already present. Throws `IllegalArgumentException` for null and `IllegalStateException` if the set is immutable.",
+        "addAll(java.util.Collection)": "Adds every identity of the argument; returns true if the set changed. Adding the set to itself does nothing and returns false. Throws `IllegalStateException` if this set is immutable, `IllegalArgumentException` on a null element.",
+        "addAll(String, Iterable)": "Adds one string identity of the given type (first argument) for every string in the second argument. No return value. Invalid IDs give `IllegalArgumentException`; an immutable set gives `IllegalStateException`.",
+        "addAll(String, com.almworks.integers.LongIterable)": "Adds one long identity of the given type for every value in the second argument. No return value. An immutable set gives `IllegalStateException`.",
+        "remove(Object)": "Removes the identity if present and returns true; returns false if absent or if the argument is not an `ItemIdentity`. When the last ID of a type is removed the type disappears from `getItemTypes`. Throws `IllegalStateException` on an immutable set, even if nothing would be removed.",
+        "removeAll(java.util.Collection)": "Removes every element of the argument that is present; returns true if anything was removed. On an immutable set it throws `IllegalStateException` as soon as it tries to remove one element (an empty argument does not throw).",
+        "retainAll(java.util.Collection)": "Removes every identity that the argument does not contain; returns true if anything was removed. On an immutable set it throws `IllegalStateException` when the first removal is attempted.",
+        "makeImmutable()": "Freezes this set permanently (there is no way back) and returns this same set for chaining. Afterwards all mutating methods throw `IllegalStateException`; reading and copying stay allowed. Use `copy()` to get a mutable set again.",
+        "isImmutable()": "True once `makeImmutable` has been called.",
+        "clear()": "Removes all identities. Throws `IllegalStateException` on an immutable set. Invalidates open iterators even if the set was already empty.",
+        "getItemTypes()": "Returns a live, read-only iterable over the distinct type keys that currently have at least one identity in the set (each type once, even if it has both long and string IDs). Order is not defined. Iterating after the set changes throws `ConcurrentModificationException`.",
+        "copyAllOfType(String)": "Returns a new mutable set holding only the identities (long and string) of the given type key; empty if there are none. The source is not changed.",
+        "copy()": "Returns a new mutable set with the same identities. Cheap when this set is immutable (storage is shared until the copy is changed).",
+        "longIds(String)": "Returns the long IDs held for the given type as a sized long iterable; an empty list when there are none. Not determined whether callers may rely on it being a snapshot: the original returns the internal storage, so it reflects later changes of the set; callers must treat it as read-only and must not keep it across modifications.",
+        "stringIds(String)": "Returns an unmodifiable view of the string IDs held for the given type (reflects later changes of the set); an empty set when there are none.",
+        "collectItemIds(com.almworks.jira.structure.api.row.RowRetriever, com.almworks.integers.LongIterable)": "Static helper: looks up each row ID of the second argument through the given `RowRetriever` (first argument) and returns the set of their item identities. Missing rows are skipped silently; item objects are not loaded. A null row list gives an empty, unmodifiable set; otherwise the result is a new mutable `ItemIdentitySet`."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemResolver": {
+      "summary": "Turns item identities into the Jira or plugin objects they stand for (an `Issue`, a `Project`, a `GenericItem` and so on), applying the current user's visibility. Public API; the plugin provides the single implementation as an OSGi component (also available from `StructureComponents`). For each identity it finds the item type module for the type key, loads the object through `StructureItemType.accessItem` (or `BulkAccessibleItemType.accessItems` for bulk calls) and checks `isVisible` for the current user unless security is overridden in the current auth context. Errors thrown by item type modules are logged and turn into null results; these methods do not throw for missing, unknown or hidden items. Thread-safe.",
+      "members": {
+        "resolveItem(com.almworks.jira.structure.api.item.ItemIdentity, Class)": "Returns the object for the identity (first argument) if it exists, the current user may see it, and it is an instance of the class in the second argument (cast to it); otherwise null. A null identity gives null; a null class gives `NullPointerException`. Example: `resolveItem(CoreIdentities.issue(10001), Issue.class)`.",
+        "resolveUnchecked(com.almworks.jira.structure.api.item.ItemIdentity)": "Marked internal. Returns the raw object for the identity with no class check and no visibility check, or null if it does not exist, its type is unknown, the identity is null, or loading fails. Callers are responsible for permission checks.",
+        "resolveItems(java.util.Collection, Class, java.util.function.BiConsumer)": "Bulk form of `resolveItem`: for each identity of the first argument calls the third argument with the identity and either the visible object of the requested class (second argument) or null. Identities are grouped by type and loaded in bulk where the type supports it. Each identity is reported once; order is not defined. A collection of two or more that holds the same identity twice (a list, say) throws `IllegalStateException`, and a null element among two or more throws `NullPointerException`. Identities whose type module is unknown, or whose type fails while loading, are skipped and not reported at all (except when the collection holds a single identity, which is always reported). An empty collection does nothing; a null class or consumer gives `NullPointerException`.",
+        "resolveItemsUnchecked(java.util.Collection, java.util.function.BiConsumer)": "Bulk form of `resolveUnchecked`: reports every identity with its raw object or null, with no class or visibility checks. Same grouping, ordering and skipping rules as `resolveItems`. A null consumer gives `NullPointerException`."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemTracker": {
+      "summary": "Records that items changed and lets clients ask which items changed since a version they saw. It is a `VersionedDataSource` of `ItemVersionUpdate`: each recorded change increments the current `DataVersion`. Provided by the plugin as an OSGi component; the plugin itself records changes of issues and of its own items, and other plugins may record changes of their items so that caches and attributes depending on them are refreshed. Only a bounded history is kept: when a client is too far behind, or the version is from another signature (another plugin start or a reset), it gets a full update. In a cluster, changes are written to the database and become visible on other nodes asynchronously. Thread-safe.",
+      "members": {
+        "getUpdate(com.almworks.jira.structure.api.pull.DataVersion)": "Returns the changes since the given version; a null version gives a full update. Result kinds: an empty update (`isEmpty()` true) when nothing changed; an incremental update listing the affected items; or a full update (`isFull()` true, no item list) when the version has a different signature, is newer than the current one, or is too far behind: by default only the last 20,000 recorded changes are kept, and an incremental answer is given only when at most 500 changes were recorded since the given version; otherwise a full update is returned. The returned update's version is the current version; pass it to the next call.",
+        "recordChange(com.almworks.jira.structure.api.item.ItemIdentity)": "Records that the given item changed (created, updated or deleted) and advances the version. A null identity is ignored. Must not be called inside a database transaction.",
+        "recordChanges(Iterable)": "Records several changed items at once; null elements are ignored. Same effect as calling `recordChange` for each.",
+        "reset()": "Forgets the change history and advances the version, so every client's next `getUpdate` call returns a full update. Used when changes cannot be tracked item by item (for example after a full reindex)."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemTypeNotFoundException": {
+      "summary": "Unchecked exception (a `StructureRuntimeException`) thrown by `ItemTypeRegistry.getTypeKey` when no type key is registered under a numeric type ID.",
+      "members": {
+        "<init>(int)": "Creates the exception for the given numeric type ID; the message states that the item type with that ID was not found."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemTypeRegistry": {
+      "summary": "Persistent two-way mapping between item type keys (strings) and compact numeric type IDs used in database tables. Not annotated as public API, but exported by the plugin as an OSGi component. Mappings are stored in the plugin's database table, created on demand, never removed, shared across cluster nodes and cached in memory. Thread-safe.",
+      "members": {
+        "getTypeKey(int)": "Returns the type key registered under the numeric ID. Throws `ItemTypeNotFoundException` if there is no such ID, or another `StructureRuntimeException` on storage problems; when the plugin is not running it throws `IllegalStateException`. Must not be called inside a database transaction when the key is not yet cached.",
+        "getOrCreateTypeId(String)": "Returns the numeric ID for a type key, registering the key first if it is new. The key is trimmed; a null or blank key gives `IllegalArgumentException`. Concurrent registration of the same key from several threads or nodes yields one ID. Throws a `StructureRuntimeException` if the key cannot be stored after several retries, and `IllegalStateException` when the plugin is not running. Must not be called inside a database transaction."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemVersionUpdate": {
+      "summary": "Answer of `ItemTracker.getUpdate`: which items changed between `getFromVersion()` and `getVersion()`. Extends `VersionedDataUpdate`. Two public final kinds are provided, `Empty` and `Total` (full); the plugin also returns an incremental kind whose `getAffectedItems` lists the changed items. Immutable.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.pull.DataVersion)": "Protected constructor for subclasses; the argument is the version this update brings the client to. Null gives `IllegalArgumentException`.",
+        "getFromVersion()": "Returns the version the update starts from (the version the client had); never null.",
+        "getAffectedItems()": "Returns the identities of the items changed between the two versions; never null. Empty for empty and full updates (for a full update the client must assume everything may have changed)."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemVersionUpdate.Empty": {
+      "summary": "An update meaning \"nothing changed\": the client is already at the current version. Public final class; immutable.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.pull.DataVersion)": "Creates an empty update at the given version (not null, or `IllegalArgumentException`).",
+        "getFromVersion()": "Returns the same version as `getVersion()`.",
+        "isEmpty()": "Always true.",
+        "getAffectedItems()": "Always an empty set.",
+        "toString()": "Returns `empty[<version>]`, with the version's own text form inside the brackets."
+      }
+    },
+    "com.almworks.jira.structure.api.item.ItemVersionUpdate.Total": {
+      "summary": "A full update: the tracker cannot say exactly what changed, so the client must drop everything derived from items and reload. Public final class; immutable.",
+      "members": {
+        "<init>(com.almworks.jira.structure.api.pull.DataVersion)": "Creates a full update bringing the client to the given version (not null, or `IllegalArgumentException`).",
+        "getFromVersion()": "Always `DataVersion.ZERO`.",
+        "isFull()": "Always true.",
+        "getAffectedItems()": "Always an empty set (no detail is available for a full update).",
+        "toString()": "Returns `FULL[<version>]`."
+      }
+    },
+    "com.almworks.jira.structure.api.item.StructureItemType": {
+      "summary": "The main extension interface (public SPI) of an item type: implemented by the class of a `structure-item-type` plugin module, in the plugin itself for the built-in types and in other plugins for their own types. The module's complete key (`<plugin key>:<module key>`) is the item type key used in identities. Type parameter `T` is the class of the item objects. The plugin calls it whenever it needs an item object or a visibility decision for one item: resolving items, checking which rows a user may see (unless the type implements `BulkAccessCheckingItemType`), loading attributes. The same instance is called from many threads, so it must be thread-safe. Optional capabilities are added by also implementing `BulkAccessibleItemType`, `BulkAccessCheckingItemType`, `CreatableItemType`, `UpdatableItemType`, `StructureOwnedItemType` or `DeadItemsCheckingItemType`.",
+      "members": {
+        "accessItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Returns the object for the given identity (always of this module's type, never null), or null when the item does not exist or the identity is not valid for this type. Must not check permissions; may be called without a user context.",
+        "isVisible(Object, com.atlassian.jira.user.ApplicationUser)": "Says whether the user (second argument; null means anonymous) may see the item object (first argument, previously returned by `accessItem`, never null). Hidden items are shown as inaccessible rows or left out."
+      }
+    },
+    "com.almworks.jira.structure.api.item.StructureOwnedItemType": {
+      "summary": "Optional extension interface for item types whose items belong to one structure (for example memos and other generic items). When rows are added to a structure (by hand, by a generator's fragment, during restore or migration), the plugin calls it for each long-ID item of the type so that the item is owned by, or copied into, the target structure; the row then points to the returned identity.",
+      "members": {
+        "getOwnedItem(com.almworks.jira.structure.api.item.ItemIdentity, long, boolean)": "Returns the identity to use for the item (first argument) inside the structure whose ID is the second argument. The reference behaviour for generic items: an item with no owner is assigned to the structure in place and the same identity is returned; an item already owned by this structure keeps its identity unless the third argument (copy even if same owner, used when the item already occurs in the same operation) is true, in which case a new copy owned by the structure is created; an item owned by another structure is always copied, and the copy's new identity is returned. Unknown or non-matching identities are returned unchanged. Throws `StructureException` if the change cannot be stored."
+      }
+    },
+    "com.almworks.jira.structure.api.item.UpdatableItemType": {
+      "summary": "Optional extension interface for item types whose items can be edited through the plugin's REST API (inline editing in the grid). When a client sends new values for an item, the plugin first applies any item property editors and then, if values remain, calls this method; if the type does not implement it, the update is rejected.",
+      "members": {
+        "updateItem(com.almworks.jira.structure.api.item.ItemIdentity, java.util.Map, com.atlassian.jira.util.ErrorCollection)": "Applies the values (second argument, raw client values keyed by field name; only keys present are changed) to the item (first argument) as the current user. Field-level problems go into the error collection (third argument); other failures, such as a missing or inaccessible item or a wrong item type, are thrown as `StructureException`."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItem": {
+      "summary": "Immutable value object holding the stored data of a generic item: a name, an optional owning structure ID, an optional description and a map of parameters. Public API, final. Instances are made with the builder from `named` or `copy`. Contains no identity or type; those live in the `ItemIdentity` that refers to it. Safe to share between threads.",
+      "members": {
+        "named(String)": "Starts a builder for a new item with the given name. The name must not be null or blank (`IllegalArgumentException`); a name longer than 190 characters is shortened to 190 characters ending in `...`. Other fields start empty.",
+        "copy(com.almworks.jira.structure.api.item.generic.GenericItem)": "Starts a builder pre-filled with all fields of the given item (name, owning structure, description, a mutable copy of the parameters), for making a modified copy. A null argument gives `NullPointerException`.",
+        "getName()": "The item name (shown as its summary), never null or blank; leading and trailing whitespace has been removed.",
+        "getOwningStructure()": "The ID of the structure that owns the item, or null if it has no owner. Visibility of an owned item follows the user's permission on that structure; an unowned item is visible to everyone who can use the app.",
+        "getDescription()": "The free-text description, or null if none. Stored as given (no trimming).",
+        "getParameters()": "The parameters as an unmodifiable, insertion-ordered map from name to value; empty (never null) when there are none. Values are deep-copied, immutable JSON-like data (strings, numbers, booleans, nested lists and maps). Item types keep their own fields here; memos, for example, keep their field values under a `fields` entry.",
+        "equals(Object)": "True for another `GenericItem` with equal name, owning structure, description and parameters.",
+        "hashCode()": "Hash over name, owning structure, description and parameters, consistent with `equals`.",
+        "toString()": "Debug text listing all four fields; the exact format is not part of the contract."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItem.Builder": {
+      "summary": "Mutable, not thread-safe builder of `GenericItem`. Obtained from `GenericItem.named` or `GenericItem.copy`; every setter returns the same builder for chaining, and `build` can be called repeatedly.",
+      "members": {
+        "setName(String)": "Replaces the name. Null or blank gives `IllegalArgumentException`; a name over 190 characters is abbreviated to 190 characters ending in `...`. The built item stores the name trimmed.",
+        "setOwningStructure(Long)": "Sets the owning structure ID; null removes the owner. The ID is not checked here.",
+        "setDescription(String)": "Sets the description; null removes it.",
+        "setParameter(String, Object)": "Sets one parameter (first argument = name, second = value). A null value removes the parameter. A null or blank name gives `IllegalArgumentException`. Values should be JSON-compatible data.",
+        "setParameters(java.util.Map)": "Replaces all parameters with a copy of the given map (insertion order kept); null removes all parameters.",
+        "build()": "Creates the immutable `GenericItem` from the current state. Parameter values are deep-copied into immutable form; a value that cannot be copied as JSON-like data may cause an `IllegalArgumentException`."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItemManager": {
+      "summary": "Low-level storage of generic items in the plugin's database, without permission checks. Public API; the plugin provides it as an OSGi component. Each generic item has a numeric ID that is unique across all generic item types (and must fit in a 32-bit int) and is addressed by a long `ItemIdentity` whose type key is the key of a registered generic item type module. Reads are cached. Every create, update and delete notifies `ItemTracker`; create and update also add a record to the item change history with the current user as author. Thread-safe. Methods throw `StructureStoppedException` when the plugin is not running.",
+      "members": {
+        "createItem(String, com.almworks.jira.structure.api.item.generic.GenericItem)": "Stores a new item of the given type key (first argument) with the given data (second) and returns its new long identity `<type>/<new id>`. Throws `StructureException` (create-item-failed) when the type key does not belong to an installed item type module built on `GenericItemType`. No license, app-access or permission checks are made at this level; use `GenericItemService` for checked access.",
+        "getItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Returns the stored item, or null when the identity is a string identity, no item has that ID, or the stored item's type differs from the identity's type key. No license, app-access or permission checks are made at this level; use `GenericItemService` for checked access.",
+        "loadItems(java.util.Set, java.util.function.BiConsumer)": "Loads many items at once: for each identity of the set (first argument) that exists with the same type, calls the second argument with the identity and the item; missing items are skipped. Order is not defined. All identities must be long identities (a string identity gives `UnsupportedOperationException`). Loading is done in chunks (1,000 IDs by default). No license, app-access or permission checks are made at this level; use `GenericItemService` for checked access.",
+        "updateItem(com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.item.generic.GenericItem)": "Replaces all stored fields of the item (first argument) with the given data (second). Throws `StructureException`: invalid-parameter for a string identity, item-not-exists-or-not-accessible when no item of that ID and type exists. No license, app-access or permission checks are made at this level; use `GenericItemService` for checked access.",
+        "deleteItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Deletes the item. A string identity gives `StructureException` (invalid parameter); a missing item or a type mismatch is silently ignored. Rows that point to the item are not removed (they later show as missing). No history record is written for a deletion. No license, app-access or permission checks are made at this level; use `GenericItemService` for checked access.",
+        "getOwnedItem(com.almworks.jira.structure.api.item.ItemIdentity, long, boolean)": "Implements the `StructureOwnedItemType` rule for generic items. Arguments: the item, the target structure ID, and whether to copy even when the item is already owned by that structure. If the item has no owner it is assigned to the structure in place (without a history record) and the same identity is returned; if it is owned by another structure, or by the same one and the flag is true, a copy owned by the target structure is created and the copy's identity returned; otherwise the identity is returned unchanged. String identities and missing items are returned unchanged. Throws `StructureException` if storing fails.",
+        "isVisible(com.almworks.jira.structure.api.item.generic.GenericItem, com.atlassian.jira.user.ApplicationUser)": "Decides whether the user (second argument; null = anonymous) may see the item: true when the item has no owning structure, otherwise true only if the user has at least `PermissionLevel.VIEW` on the owning structure."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItemService": {
+      "summary": "Permission-checking service for generic items, following the Jira validate-then-execute pattern: each change is first validated (returning a result object) and then executed by passing that result to the matching method. Public API; the plugin provides it as an OSGi component. Acts as the current user of the plugin's auth context. Never throws for business failures: problems are reported through the result's error collection and `getException()`. Thread-safe.",
+      "members": {
+        "getItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Reads an item as the current user. Fails (exception in the result) when the user may not use the app, when the item does not exist, or when the user may not see it. On success the result carries the item; its `getItemId()` is null. Note: when the item exists but is not visible, the failed result still carries the item data in `getGenericItem()`; callers must check `isValid()` first.",
+        "validateCreate(String, com.almworks.jira.structure.api.item.generic.GenericItem)": "Validates creating an item of the given type key (first argument) with the given data (second). Fails when the app is not fully licensed, when the current user may not use the app, or when there is no logged-in user. The type key and the item's owning structure are not checked here (the owning structure needs no permission).",
+        "create(com.almworks.jira.structure.api.item.generic.GenericItemService.CreateValidationResult)": "Creates the item if the validation result is valid and returns a result whose `getItemId()` is the new identity. If the validation is invalid, its errors and exception are passed on and nothing is created. Storage failures (for example an unsupported type key) come back as the result's exception.",
+        "validateUpdate(com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.item.generic.GenericItem)": "Validates replacing the item (first argument) with new data (second). Fails when the app is not licensed, the user may not use the app, the identity is not a long identity, or the item does not exist. If the item currently has an owning structure, the user must also see it and have `PermissionLevel.EDIT` on that structure. An item with no owner can be updated by any user with app access. The new data's owning structure is not checked.",
+        "update(com.almworks.jira.structure.api.item.generic.GenericItemService.UpdateValidationResult)": "Stores the new data if the validation is valid. On success the result carries neither item nor identity. An invalid validation is passed on unchanged; storage failures come back as the result's exception.",
+        "validateDelete(com.almworks.jira.structure.api.item.ItemIdentity)": "Validates deleting the item. Fails when the app is not licensed, the user may not use the app, the identity is not a long identity, the item does not exist or is not visible, or the user lacks `PermissionLevel.EDIT` on the owning structure. Because an item with no owner has no structure to grant EDIT, deleting an unowned item through this service always fails with an edit-denied error.",
+        "delete(com.almworks.jira.structure.api.item.generic.GenericItemService.DeleteValidationResult)": "Deletes the item if the validation is valid. On success the result carries neither item nor identity. An invalid validation is passed on unchanged."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItemService.CreateValidationResult": {
+      "summary": "Result of `GenericItemService.validateCreate`, to be passed to `create`. Holds the requested type key and item data plus the validation outcome. Immutable.",
+      "members": {
+        "<init>(com.atlassian.jira.util.ErrorCollection, com.almworks.jira.structure.api.error.StructureException, String, com.almworks.jira.structure.api.item.generic.GenericItem)": "Creates the result. Arguments: the error collection (not null), the exception describing a failure or null when none, the item type key, and the item data.",
+        "getItemType()": "The item type key the item should be created with.",
+        "getGenericItem()": "The item data to store."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItemService.DeleteValidationResult": {
+      "summary": "Result of `GenericItemService.validateDelete`, to be passed to `delete`. Immutable.",
+      "members": {
+        "<init>(com.atlassian.jira.util.ErrorCollection, com.almworks.jira.structure.api.error.StructureException, com.almworks.jira.structure.api.item.ItemIdentity)": "Creates the result: error collection (not null), failure exception or null, and the identity of the item to delete.",
+        "getItemId()": "The identity of the item to delete."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItemService.ExceptionSupportResult": {
+      "summary": "Common base of the generic item service results: a Jira `ServiceResultImpl` (error collection) that can additionally carry a `StructureException`. Its constructor is package-private, so only the nested result classes extend it.",
+      "members": {
+        "isValid()": "True only when the error collection has no errors and no exception is attached.",
+        "getException()": "The exception describing why the operation failed or was refused (license, access, not found, permission, storage), or null when there is none."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItemService.GenericItemResult": {
+      "summary": "Result of `getItem`, `create`, `update` and `delete` of `GenericItemService`. Immutable.",
+      "members": {
+        "<init>(com.atlassian.jira.util.ErrorCollection, com.almworks.jira.structure.api.error.StructureException, com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.item.generic.GenericItem)": "Creates the result: error collection (not null), failure exception or null, the item identity (may be null), and the item data (may be null).",
+        "getItemId()": "The identity concerned, or null. Set only by `create` (the new item's identity); null after `getItem`, `update` and `delete`.",
+        "getGenericItem()": "The item data, or null. Set by `getItem` (also, see there, when visibility failed); null after `create`, `update` and `delete`."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItemService.UpdateValidationResult": {
+      "summary": "Result of `GenericItemService.validateUpdate`, to be passed to `update`. Immutable.",
+      "members": {
+        "<init>(com.atlassian.jira.util.ErrorCollection, com.almworks.jira.structure.api.error.StructureException, com.almworks.jira.structure.api.item.ItemIdentity, com.almworks.jira.structure.api.item.generic.GenericItem)": "Creates the result: error collection (not null), failure exception or null, the identity of the item to update, and the new item data.",
+        "getItemId()": "The identity of the item to update.",
+        "getGenericItem()": "The new data that will replace the stored item."
+      }
+    },
+    "com.almworks.jira.structure.api.item.generic.GenericItemType": {
+      "summary": "Ready-made item type implementation for generic items (public API). Another plugin declares a `structure-item-type` module whose class is this class or a subclass; the module's complete key becomes the item type key, and the plugin then stores, shows, creates, edits, copies and cleans up such items through `GenericItemService` and `GenericItemManager`. It implements `StructureItemType` with `GenericItem` objects, `CreatableItemType`, `UpdatableItemType`, `StructureOwnedItemType`, `DeadItemsCheckingItemType` and `BulkAccessCheckingItemType`. Item identities are long identities of the module's type. Client values used for creation and update: `summary` (the name, required and non-blank on create), `description`, and `params` (an object whose entries are merged into the parameters). Subclasses can override `readItemValues` to read more values. Instances are created by the plugin system with constructor injection; thread-safe after `init`.",
+      "members": {
+        "NEW_ITEM_ID": "The long ID `Long.MAX_VALUE` (9223372036854775807) used for the not-yet-created item of a dummy row; such identities are never loaded and are treated as accessible.",
+        "myGenericItemService": "Protected field: the `GenericItemService` passed to the constructor, used for checked create and update.",
+        "myGenericItemManager": "Protected field: the `GenericItemManager` passed to the constructor, used for loading items, visibility and ownership.",
+        "myHelper": "Protected field: the `StructurePluginHelper` passed to the constructor, used for translated error messages.",
+        "<init>(com.almworks.jira.structure.api.item.generic.GenericItemService, com.almworks.jira.structure.api.item.generic.GenericItemManager, com.almworks.jira.structure.api.StructurePluginHelper)": "Creates the item type from the three plugin services (normally injected). The item type key is not known until `init` is called.",
+        "init(com.atlassian.plugin.ModuleDescriptor)": "Marked internal; called by the plugin system when the module is set up. Takes the module descriptor and, the first time only, remembers its complete key as this type's item type key. Every other method requires this to have happened (otherwise they fail with `NullPointerException`).",
+        "accessItem(com.almworks.jira.structure.api.item.ItemIdentity)": "Returns the stored `GenericItem` when the identity has this type key, is a long identity and is not `NEW_ITEM_ID`; null otherwise or when the item does not exist. No permission check.",
+        "isVisible(com.almworks.jira.structure.api.item.generic.GenericItem, com.atlassian.jira.user.ApplicationUser)": "Same as `GenericItemManager.isVisible`: visible if the item has no owning structure, or if the user has at least VIEW on it.",
+        "createDummyRow(long, long, java.util.Map, com.atlassian.jira.util.ErrorCollection)": "Builds the item from the client values (blank or missing `summary` adds an error under the field `summary` and returns null), validates creation with `GenericItemService.validateCreate`, and on success returns a temporary row with the given row ID and semantics whose identity is `<type>/NEW_ITEM_ID` and whose item object is the built `GenericItem`. If validation fails with an exception it is thrown as `StructureException`; plain errors are copied into the error collection and null is returned. Nothing is stored.",
+        "createItem(java.util.Map, com.atlassian.jira.util.ErrorCollection)": "Builds the item from the client values like `createDummyRow` and creates it through `GenericItemService`. Returns the new identity, or null with errors added. A service failure carrying an exception (license, access, anonymous user, unsupported type) is thrown as `StructureException`.",
+        "updateItem(com.almworks.jira.structure.api.item.ItemIdentity, java.util.Map, com.atlassian.jira.util.ErrorCollection)": "Updates an item as the current user. Throws `StructureException`: invalid parameter when the identity's type is not this type; item-not-exists-or-not-accessible when the item cannot be loaded or the current user cannot see it. Starts from the stored data; if `summary` is present it must be non-blank (else an error is added and nothing changes); `description` and `params` are applied when present (see `readItemValues`). Then validates and stores through `GenericItemService`; a failure with an exception is thrown, plain errors are added to the collection.",
+        "getOwnedItem(com.almworks.jira.structure.api.item.ItemIdentity, long, boolean)": "For long identities of this type, delegates to `GenericItemManager.getOwnedItem` (assign unowned item to the structure, or copy it); other identities are returned unchanged.",
+        "filterDead(com.almworks.jira.structure.api.item.ItemIdentitySet, com.almworks.jira.structure.api.item.ItemIdentitySet)": "For every long ID of this type in the first set, adds the identity to the second set when no item can be loaded for it (including `NEW_ITEM_ID`). String identities and other types are ignored.",
+        "filterInaccessible(com.almworks.jira.structure.api.item.ItemIdentitySet, com.atlassian.jira.user.ApplicationUser, boolean, com.almworks.jira.structure.api.item.ItemIdentitySet)": "Loads all identities of the first set except `NEW_ITEM_ID` in bulk and adds to the fourth set those that do not exist and, unless the third argument (override security) is true, those the user (second argument) cannot see. Expects only long identities of this type, as the plugin passes them; a string identity makes it fail with `UnsupportedOperationException`.",
+        "readItemValues(com.almworks.jira.structure.api.item.generic.GenericItem.Builder, java.util.Map, com.almworks.jira.structure.api.item.generic.GenericItem, com.atlassian.jira.util.ErrorCollection)": "Protected hook that copies client values into the builder (first argument). Arguments: the builder, the client values (may be null: then nothing happens), the existing item when updating or null when creating, and the error collection for problems. Default behaviour: if the key `description` is present, the description is set to its single value (null clears it); if the key `params` is present, its value is converted to a map: when that is not possible (or the value is null) all parameters are removed, otherwise each entry is set on the builder, a null entry value removing that parameter and other parameters being kept. Subclasses may override to read more keys; adding errors stops creation or update."
+      }
+    },
+    "com.almworks.jira.structure.api.job.AbstractStructureJob": {
+      "summary": "Convenient base class for `StructureJob` implementations that tracks the job state: PENDING initially, RUNNING while `job()` runs, FINISHED after it returns or throws. Subclasses put the work in `doJob()` and supply `getUser()`. State access is synchronized on `myLock`, so the state can be read from any thread.",
+      "members": {
+        "myLock": "Protected monitor object guarding the state; subclasses may synchronize on it for their own state too.",
+        "<init>()": "Creates a job in the PENDING state.",
+        "getState()": "Returns the current state (final; thread-safe).",
+        "toString()": "Returns the job class's fully qualified name followed by the state in parentheses, e.g. `com.example.MyJob(PENDING)`.",
+        "reset()": "Puts the job back into PENDING so it can be submitted again (the job manager does this before each run of a periodic job). Allowed in any state; resetting a RUNNING job only logs a warning.",
+        "job()": "Final. Moves the state from PENDING to RUNNING, runs `doJob()`, and always moves the state to FINISHED afterwards, passing on any exception thrown by `doJob()`. If the job was not PENDING when called, a warning is logged, the state is left as it was and the work still runs.",
+        "doJob()": "Protected, abstract: the job's work. May throw any exception; the job manager logs it."
+      }
+    },
+    "com.almworks.jira.structure.api.job.ScheduledJob": {
+      "summary": "A periodic task registered with `ScheduledJobManager`. The manager asks it about once a minute whether it is due, giving it the time of its last run across the whole cluster, and runs it on the system thread pool when it is.",
+      "members": {
+        "shouldRun(long)": "Decides whether the task is due. The argument is the wall-clock time in milliseconds since the epoch when the task was last started (on any cluster node), or 0 if it never ran or was forced. Should be fast and side-effect free; an exception is logged and treated as false.",
+        "run()": "Performs the task. Runs in a background thread without a logged-in user; exceptions are logged by the job manager."
+      }
+    },
+    "com.almworks.jira.structure.api.job.ScheduledJobManager": {
+      "summary": "Runs `ScheduledJob` tasks periodically under string keys, coordinated across a cluster. Provided by the plugin as an OSGi component. About every 60 seconds (by default) it checks each registered task, skipping the check while the plugin is locked (for example during a restore). For each task not already running it calls `shouldRun` with the stored last run time, and if due it takes a cluster lock for the key, re-checks, records the start time persistently and submits the task to the job manager's `system` executor. Registrations live in memory on each node; the last run time is stored in the plugin's settings under `sjm.<key>`.",
+      "members": {
+        "addJob(String, com.almworks.jira.structure.api.job.ScheduledJob)": "Registers the task (second argument) under the key (first argument). A task already registered under the same key is replaced (a warning is logged; a running instance is not stopped). The first run happens on a later periodic check.",
+        "forceRun(String)": "Clears the stored last run time of the task with this key and checks it immediately: the task runs now if `shouldRun(0)` returns true and it is not already running. Does nothing for an unknown key.",
+        "removeJob(String)": "Unregisters the task with this key and cancels it if it is currently running. Does nothing for an unknown key or when the manager is stopped. The stored last run time is kept.",
+        "getLastRunTime(String)": "Returns the time (milliseconds since the epoch) when the task with this key was last started on any node, or 0 if it never ran or was forced since. Works for keys that are not (or no longer) registered."
+      }
+    },
+    "com.almworks.jira.structure.api.job.StructureJob": {
+      "summary": "A unit of background work for `StructureJobManager`. Implementations usually extend `AbstractStructureJob` (or `SystemStructureJob`). The manager runs `job()` with Jira's logged-in user set to `getUser()`, and requires the job to be PENDING when submitted.",
+      "members": {
+        "job()": "Performs the work. Called by the job manager in a background thread; may throw, the manager logs the exception.",
+        "reset()": "Returns the job to the PENDING state so that it can run again; called by the manager before each repetition of a scheduled job.",
+        "getState()": "Returns the job's current state (PENDING, RUNNING or FINISHED).",
+        "getUser()": "Returns the user the job runs as (set as Jira's logged-in user during the run), or null to run with no user (anonymous/system)."
+      }
+    },
+    "com.almworks.jira.structure.api.job.StructureJob.State": {
+      "summary": "Lifecycle state of a `StructureJob`.",
+      "members": {
+        "PENDING": "Not started yet (or reset); the only state in which a job can be submitted to the job manager.",
+        "RUNNING": "The job's work is executing.",
+        "FINISHED": "The work has completed, normally or with an exception.",
+        "values()": "",
+        "valueOf(String)": ""
+      }
+    },
+    "com.almworks.jira.structure.api.job.StructureJobException": {
+      "summary": "Checked exception thrown by `StructureJobManager` when a job cannot be accepted: the job is not PENDING, the manager is stopped or not started, the queue is full, or the executor rejects the job.",
+      "members": {
+        "<init>()": "Creates the exception with no message and no cause.",
+        "<init>(String)": "Creates the exception with the given message.",
+        "<init>(String, Throwable)": "Creates the exception with the given message and cause.",
+        "<init>(Throwable)": "Creates the exception wrapping the given cause."
+      }
+    },
+    "com.almworks.jira.structure.api.job.StructureJobManager": {
+      "summary": "Runs `StructureJob` instances in the background. Provided by the plugin as an OSGi component. Three ways to run: `enqueue` puts the job on a single background queue processed one at a time in FIFO order (capacity 1,000 by default); `execute` hands it to a named thread pool (executor) right away; `schedule` runs it on the queue thread after a delay and then repeatedly. Every accepted job gets a new positive ID, unique while the plugin runs. Finished jobs stay registered (for `getJob`/`getFuture`) for about 12 hours by default (3 minutes for callables). During a run Jira's logged-in user is set to the job's user. Exceptions from jobs are logged, never rethrown. When the plugin stops, queued and scheduled jobs are dropped and running pool jobs are interrupted. Thread-safe.",
+      "members": {
+        "USER_EXECUTOR_ID": "Executor ID `user`: the pool for user-initiated work (3 threads in the reference). Default of `execute(StructureJob)`.",
+        "SYSTEM_EXECUTOR_ID": "Executor ID `system`: the pool for internal maintenance work (1 thread in the reference); used for scheduled-job runs.",
+        "GENERATOR_EXECUTOR_ID": "Executor ID `generator`: the pool for running generators (by default the larger of 4 and CPU count + 1 threads).",
+        "ATTRIBUTE_EXECUTOR_ID": "Executor ID `attribute`: the pool for attribute loading (by default the larger of 4 and CPU count + 1 threads).",
+        "EFFECTOR_EXECUTOR_ID": "Executor ID `effector`: the pool for effector work (by default the larger of 4 and CPU count + 1 threads).",
+        "enqueue(com.almworks.jira.structure.api.job.StructureJob)": "Adds the job to the end of the single background queue and returns its ID. Throws `NullPointerException` for null; `StructureJobException` when the job is not PENDING, the manager is stopped, or the queue is full.",
+        "execute(com.almworks.jira.structure.api.job.StructureJob)": "Same as `execute(job, USER_EXECUTOR_ID)`.",
+        "execute(com.almworks.jira.structure.api.job.StructureJob, String)": "Submits the job to the thread pool with the given executor ID (one of the `*_EXECUTOR_ID` constants; the reference also has an `indexing` pool) and returns its ID. Throws `NullPointerException` for a null job; `StructureJobException` when the job is not PENDING, the manager is not started, or the pool rejects it. An unknown executor ID throws `StructureJobException` with the message `illegal executor id ` followed by the ID, and no job is registered.",
+        "schedule(long, long, com.almworks.jira.structure.api.job.StructureJob)": "Schedules the job (third argument) to run on the queue thread first after the initial delay (first argument, milliseconds) and then repeatedly, each next run starting the given interval (second argument, milliseconds) after the previous run finished; an interval of 0 or less means run once. The job is reset to PENDING before each repetition. Returns the job ID, which `cancel` takes to stop repetitions. Timing is approximate (the queue thread checks the schedule when idle, about every 3 seconds). Throws as `enqueue`.",
+        "getJob(Long)": "Returns the job registered under the ID, or null if unknown, cancelled or already cleaned up. Any caller can look up any job.",
+        "cancel(Long)": "Unregisters the job with this ID: removes it from the queue and schedule (no further repetitions) and, if it is running on a pool, interrupts it. Unknown IDs are ignored. There is no ownership check: any caller can cancel any job.",
+        "execute(com.almworks.jira.structure.api.util.CallableE, String)": "Runs a callable on the given executor as a job, under the auth context (user and security override) of the calling thread, and returns the job ID; the callable's result or exception is available through `getFuture`. Throws `StructureJobException` when the manager is not started, the pool rejects it, or the executor ID is unknown (as for `execute(job, executorId)`).",
+        "getFuture(Long)": "Returns the `Future` of a job started with one of the `execute` methods (for a callable it yields the callable's result), or null when the ID is null or unknown, the job was not started on a pool, or the job's user differs from the current user. Cancelling the future interrupts the job."
+      }
+    },
+    "com.almworks.jira.structure.api.job.SystemStructureJob": {
+      "summary": "Base class for jobs that run without a user: an `AbstractStructureJob` whose `getUser()` returns null.",
+      "members": {
+        "<init>()": "Creates a PENDING system job.",
+        "getUser()": "Always null, so the job runs with no logged-in user."
+      }
+    },
+    "com.almworks.jira.structure.api.lifecycle.CachingComponent": {
+      "summary": "Callback for components that hold caches. Marked internal. The plugin looks up every enabled plugin module implementing this interface and calls `clearCaches()` when all caches must be dropped (for example when extension modules are enabled or disabled, or when another cluster node requests a cache reset), and the per-user method when data of one user changed. Exceptions are logged and ignored. Implementations must be thread-safe.",
+      "members": {
+        "clearCaches()": "Drops all cached data so that it is reloaded on next use.",
+        "clearUserCaches(com.atlassian.jira.user.ApplicationUser)": "Deprecated. Drops cached data that belongs to the given user (not null). This is the variant the plugin itself calls.",
+        "clearUserCaches(String)": "Default method: looks up the user with the given user key and, if such a user exists, calls `clearUserCaches(ApplicationUser)`; does nothing for an unknown key."
+      }
+    },
+    "com.almworks.jira.structure.api.lifecycle.StructureStoppedException": {
+      "summary": "Unchecked exception (an `IllegalStateException`) thrown by plugin services when they are called before the plugin has started, after it stopped, or while it is being restarted (for example during a restore from backup). Callers may retry later. Public API.",
+      "members": {
+        "<init>(Object)": "Creates the exception; the argument names the component that refused the call and is included in the message (converted with `toString`), together with a hint that the app may be restarting or restoring and that the caller should wait."
+      }
+    },
+    "com.almworks.jira.structure.api.memo.Memo": {
+      "summary": "Read-only view of a memo's issue-like fields. Public API. Obtained from `MemoManager`; the object is a snapshot of the memo when it was loaded. Each value is validated against the memo's field configuration; a missing or invalid value reads as null.",
+      "members": {
+        "getSummary()": "The memo's summary (title) text, or null.",
+        "getDescription()": "The memo's description text, or null.",
+        "getAssignee()": "The user assigned to the memo, or null if unassigned.",
+        "getDueDate()": "The due date (a date without time), or null.",
+        "getOriginalEstimate()": "The original estimate as a duration, or null. Not determined: the unit; the plugin's update builder names the corresponding argument in milliseconds.",
+        "getRemainingEstimate()": "The remaining estimate as a duration, or null (same unit as `getOriginalEstimate`).",
+        "getTimeSpent()": "The time spent as a duration, or null (same unit as `getOriginalEstimate`)."
+      }
+    },
+    "com.almworks.jira.structure.api.memo.MemoManager": {
+      "summary": "Entry point for reading and updating memos (items of type `com.almworks.jira.structure:type-memo`) by numeric memo ID. Public API; the plugin provides it as an OSGi component. Thread-safe.",
+      "members": {
+        "getMemo(long)": "Returns the memo with the given ID, or null if it does not exist. No permission check is made: memos in structures the current user cannot see are returned too.",
+        "getMemos(java.util.Collection)": "Returns the memos for the given IDs (not null) in the order of the IDs, skipping IDs that do not exist; duplicates give duplicate entries. Because missing IDs are dropped, positions do not necessarily match the input. No permission check.",
+        "getUpdateBuilder(long)": "Returns a new builder for changing the memo with the given ID. Nothing is checked until `MemoUpdateBuilder.update()` is called."
+      }
+    },
+    "com.almworks.jira.structure.api.memo.MemoUpdateBuilder": {
+      "summary": "Collects field changes for one memo and applies them with `update()`. Obtained from `MemoManager.getUpdateBuilder`. Each setter records a change for one field (a null value clears the field) and returns this builder; fields not set keep their values. Not thread-safe.",
+      "members": {
+        "setSummary(String)": "Sets the summary. A null or blank value is rejected at once with `IllegalArgumentException` (a memo always needs a summary).",
+        "setDescription(String)": "Sets the description; null clears it.",
+        "setAssignee(com.atlassian.jira.user.ApplicationUser)": "Sets the assignee; null unassigns.",
+        "setDueDate(java.time.LocalDate)": "Sets the due date; null clears it.",
+        "setOriginalEstimate(Long)": "Sets the original estimate; null clears it. The plugin names the argument in milliseconds.",
+        "setRemainingEstimate(Long)": "Sets the remaining estimate (milliseconds, as named by the plugin); null clears it.",
+        "setTimeSpent(Long)": "Sets the time spent (milliseconds, as named by the plugin); null clears it.",
+        "update()": "Validates and stores all recorded changes as the current user. Throws `StructureException` when the memo does not exist or is not visible, when the app is not licensed or not available to the user, when the user lacks EDIT permission on the structure owning the memo, or when a value fails the memo's field validation. A memo with no owning structure can be changed by any user with app access."
+      }
+    },
+    "com.almworks.jira.structure.api.perfstats.NodeInfo": {
+      "summary": "A node of the performance audit log: a line of text (the title) with optional child nodes. Marked internal. A plain `NodeInfo` is a leaf; `NodeInfo.Branch` has children. The plugin writes the tree as indented text (two spaces per level) on the admin performance page and in its downloadable text file.",
+      "members": {
+        "myTitle": "Protected field holding the title text given to the constructor.",
+        "<init>(String)": "Creates a leaf with the given title (null is accepted and kept).",
+        "getTitle()": "The line of text for this node.",
+        "getNodes()": "The child nodes; always empty for a leaf.",
+        "isBranch()": "False for a leaf, true for a branch.",
+        "toString()": "Returns the title.",
+        "branch(String, java.util.Collection)": "Creates a branch with the given title and children, or returns null when the collection is empty. The collection is kept by reference (not copied); null elements are skipped when children are read.",
+        "branch(String, com.almworks.jira.structure.api.perfstats.NodeInfo[])": "Same as the collection form with the given children; returns null when no children are given.",
+        "leaf(String)": "Creates a leaf with the given title."
+      }
+    },
+    "com.almworks.jira.structure.api.perfstats.NodeInfo.Branch": {
+      "summary": "A `NodeInfo` with children. Created only through `NodeInfo.branch` (its constructor is package-private).",
+      "members": {
+        "getNodes()": "Returns a live view of the children with null entries left out.",
+        "isBranch()": "Always true."
+      }
+    },
+    "com.almworks.jira.structure.api.perfstats.PerformanceLogProvider": {
+      "summary": "Contributor to the performance audit log. Marked internal. Implemented by classes registered as `structure-performance-log-provider` plugin modules (and by some plugin components). When a system administrator opens or downloads the performance audit log, the plugin calls every provider and puts the returned trees together. The output is meant for support diagnostics and may contain sensitive data.",
+      "members": {
+        "getLogs()": "Returns this provider's part of the log as a tree of `NodeInfo`, or null when it has nothing to report. Called on demand from an admin request thread.",
+        "objectsToLeaves(java.util.Collection)": "Static helper: returns a new list with one leaf per element of the collection, titled with the element's `toString()`, in the collection's order. Null elements cause `NullPointerException`."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.CoreAppPermissions": {
+      "summary": "Constants for the app-wide permissions an administrator grants in the plugin's global settings (each to anyone or to a list of permission subjects). The key of each constant is persisted in settings and used by `byKey`. Public API; an interface used only for constants. Some permissions are combined by the plugin with Jira global permissions, as noted.",
+      "members": {
+        "USE": "Key `use`: may use the app at all (see structures, open the app pages). Most other checks require it as well.",
+        "CREATE_STRUCTURE": "Key `createStructure`: may create new structures.",
+        "SYNCHRONIZATION": "Key `synchronization`: may set up and control synchronizers.",
+        "AUTOMATION": "Key `automation`: may add and change automation (generators) in structures they can control.",
+        "CONFIGURE_GENERATORS": "Key `configureGenerators`: may configure generators (also requires AUTOMATE on the structure).",
+        "CONFIGURE_EFFECTORS": "Key `configureEffectors`: may configure effectors (also requires AUTOMATE on the structure).",
+        "EXECUTE_EFFECTORS": "Key `executeEffectors`: may run effectors; the plugin additionally requires Jira's bulk change global permission.",
+        "EXECUTE_EFFECTORS_ON_QUERIES": "Key `executeEffectorsOnQueries`: may run effectors on query-based (unsaved) forests; also requires the configure and execute effector permissions.",
+        "MANAGE_GLOBAL_SAVED_COLUMNS": "Key `manageGlobalSavedColumns`: may manage saved column sets shared globally; the plugin additionally requires Jira's create-shared-objects global permission.",
+        "ALL": "Unmodifiable set of all nine permissions above, iterating in the order they are declared (USE, CREATE_STRUCTURE, SYNCHRONIZATION, AUTOMATION, CONFIGURE_GENERATORS, CONFIGURE_EFFECTORS, EXECUTE_EFFECTORS, EXECUTE_EFFECTORS_ON_QUERIES, MANAGE_GLOBAL_SAVED_COLUMNS).",
+        "byKey(String)": "Returns the permission from `ALL` whose key equals the argument exactly (case-sensitive), or null for an unknown key or null."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionLevel": {
+      "summary": "Ordered access levels a user can have on a structure (or view). Each level has a numeric serial that is persisted (in encoded rules and storage); a higher serial includes all lower ones. Note that two constants share serial 25.",
+      "members": {
+        "NONE": "Serial 0: no access; the structure is not visible.",
+        "VIEW": "Serial 10: may see the structure and its content.",
+        "EDIT": "Serial 20: may also change the structure's forest (add, move, remove rows) and its owned items.",
+        "EDIT_GENERATORS": "Deprecated, serial 25: old name of the automation level; equivalent to `AUTOMATE` in every comparison. Decoding serial 25 always gives `AUTOMATE`.",
+        "AUTOMATE": "Serial 25: may also add and configure automation (generators, effectors) in the structure.",
+        "ADMIN": "Serial 30: full control, including the structure's details and permissions and deleting it.",
+        "values()": "",
+        "valueOf(String)": "",
+        "getSerial()": "Returns the numeric serial (0, 10, 20, 25, 25, 30 for NONE, VIEW, EDIT, EDIT_GENERATORS, AUTOMATE, ADMIN).",
+        "includes(com.almworks.jira.structure.api.permissions.PermissionLevel)": "True if this level is at least the required one (compares serials, so `EDIT_GENERATORS` and `AUTOMATE` include each other). A null argument means nothing is required and gives true.",
+        "fromSerial(int)": "Returns the highest level whose serial is not greater than the argument: values below 10 (including negatives) give `NONE`, 10 to 19 give `VIEW`, 20 to 24 `EDIT`, 25 to 29 `AUTOMATE`, 30 and above `ADMIN`. Never null."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionRule": {
+      "summary": "One entry of a structure's permission list. The list is evaluated in order starting from a given level, each rule receiving the level produced by the rules before it, so later matching rules override earlier ones. Two kinds exist: `SetLevel` (if a subject matches the user, set a level) and `ApplyStructure` (evaluate another structure's rules at this point). Rules are mutable Java beans and cloneable; not thread-safe while being changed. String encoding (persisted): `set:<serial>:<encoded subject>` and `apply:<structure id>`, e.g. `set:10:anyone`, `set:20:group:jira-developers`, `apply:12`; lists are comma-separated. JSON form (Jackson): an object with a `type` property `set` or `apply`; `set` rules carry `subject` and `level`, `apply` rules carry `structure`.",
+      "members": {
+        "<init>()": "Constructor for subclasses.",
+        "toEncodedString()": "Returns the compact string encoding of the rule (see the type summary and the subclasses).",
+        "apply(com.atlassian.jira.user.ApplicationUser, com.almworks.jira.structure.api.permissions.PermissionLevel, java.util.List, com.almworks.jira.structure.api.util.La)": "Evaluates the rule. Arguments: the user (null = anonymous), the level produced so far (`pass`, not null), a mutable list of structure IDs being evaluated (used to detect cycles; may be null), and a function returning the permission rule list of a structure ID (may be null). Returns the resulting level.",
+        "fromEncodedString(String)": "Same as `fromEncodedString(s, false)`.",
+        "fromEncodedString(String, boolean)": "Decodes one rule. Null or empty input gives null. `apply:<id>` gives an `ApplyStructure` (the ID must be a decimal long). `set:<level>:<subject>` gives a `SetLevel`; the level is a serial decoded with `PermissionLevel.fromSerial` or, if not numeric, a level constant name such as `VIEW`; the subject is decoded with `PermissionSubject.fromEncodedString`, passing on the second argument (true when user subjects hold user names from an old version that must be turned into user keys). Anything else, a missing `:` after the level, an unknown level, a non-numeric ID or an undecodable or empty subject throws `java.text.ParseException`.",
+        "encodePermissions(java.util.List)": "Deprecated. Joins the encodings of the non-null rules of the list with commas, e.g. `set:10:anyone,apply:12`. A null or empty list gives the empty string.",
+        "decodePermissions(String)": "Deprecated. Splits the text at every comma and decodes each part with `fromEncodedString`, returning a new mutable list without null entries; null or empty text gives an empty list. Throws `java.text.ParseException` for a bad part. Because group names and user keys may contain commas, this list format is not safe for every value.",
+        "clone()": "Returns a copy of the rule (`SetLevel` also copies its subject).",
+        "toString()": "Same as `toEncodedString()`."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionRule.ApplyStructure": {
+      "summary": "Rule that inserts the permission rules of another structure at its position (\"apply the permissions of structure N\"). Encoded as `apply:<structure id>`; JSON `{\"type\":\"apply\",\"structure\":<id>}`.",
+      "members": {
+        "<init>()": "Creates a rule with no structure ID (bean constructor for deserialization).",
+        "<init>(Long)": "Creates a rule referring to the structure with the given ID (may be null).",
+        "getStructureId()": "The referenced structure ID, or null if not set. JSON property `structure`.",
+        "setStructureId(Long)": "Sets the referenced structure ID (null allowed).",
+        "toEncodedString()": "Returns `apply:<id>`, e.g. `apply:12`. When the ID is null this yields `apply:null`, which cannot be decoded again.",
+        "apply(com.atlassian.jira.user.ApplicationUser, com.almworks.jira.structure.api.permissions.PermissionLevel, java.util.List, com.almworks.jira.structure.api.util.La)": "Returns the second argument (`pass`) unchanged when the structure ID is null, when the resolver (fourth argument) is null, or when the ID is already in the call stack (a cycle, which is also logged as an error). Otherwise asks the resolver for that structure's rules, adds the ID to the stack while evaluating them in order starting from `pass`, removes it again and returns the result. A null rule list from the resolver gives `pass`. A null stack disables cycle detection.",
+        "equals(Object)": "True for another `ApplyStructure` with an equal structure ID (both null counts as equal).",
+        "hashCode()": "Hash of the structure ID, 0 when null."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionRule.SetLevel": {
+      "summary": "Rule that gives a fixed level to everyone matching a subject (\"set level L for subject S\"). Encoded as `set:<serial>:<subject>`, e.g. `set:20:user:jsmith`; JSON `{\"type\":\"set\",\"subject\":{...},\"level\":\"EDIT\"}` (level as the constant name).",
+      "members": {
+        "<init>()": "Creates a rule with no subject and no level (bean constructor).",
+        "<init>(com.almworks.jira.structure.api.permissions.PermissionSubject, com.almworks.jira.structure.api.permissions.PermissionLevel)": "Creates a rule for the given subject (first argument) and level (second). Both may be null but such a rule is incomplete.",
+        "clone()": "Returns a copy with a cloned subject.",
+        "apply(com.atlassian.jira.user.ApplicationUser, com.almworks.jira.structure.api.permissions.PermissionLevel, java.util.List, com.almworks.jira.structure.api.util.La)": "If the subject is set and matches the user (first argument), returns this rule's level; otherwise returns the second argument (`pass`). The other arguments are ignored. Caution: a matching rule with no level returns null.",
+        "getSubject()": "The subject the rule applies to, or null.",
+        "setSubject(com.almworks.jira.structure.api.permissions.PermissionSubject)": "Sets the subject (null allowed).",
+        "getLevel()": "The level given to matching users, or null.",
+        "setLevel(com.almworks.jira.structure.api.permissions.PermissionLevel)": "Sets the level (null allowed).",
+        "toEncodedString()": "Returns `set:<serial>:<subject encoding>`; a null level is written as `0` and a null subject as nothing (`set:20:`, which cannot be decoded again). `EDIT_GENERATORS` is written as 25 and so reads back as `AUTOMATE`.",
+        "equals(Object)": "True for another `SetLevel` with the same level and an equal subject (nulls equal to nulls).",
+        "hashCode()": "Hash over subject and level, consistent with `equals`."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionSubject": {
+      "summary": "Who a permission rule (or an app permission) applies to: anyone, one Jira user, the members of a Jira group, or the members of a project role. Mutable, cloneable Java beans; supports the visitor pattern. String encodings (persisted): `anyone`, `user:<user key>`, `group:<group name>`, `role:<project id>:<role id>` (project ID 0 means any project enabled for the app). JSON form (Jackson): an object with a `type` property `anyone`, `user`, `group` or `project.role`; users and groups carry `name` (for users this is the user key), project roles carry `project` and `role`.",
+      "members": {
+        "<init>()": "Constructor for subclasses.",
+        "matches(com.atlassian.jira.user.ApplicationUser)": "True if the user (null = anonymous) belongs to this subject.",
+        "toEncodedString()": "Returns the compact string encoding (see the type summary).",
+        "fromEncodedString(String)": "Same as `fromEncodedString(s, false)`.",
+        "fromEncodedString(String, boolean)": "Decodes a subject. Null or empty input gives null. Input starting with `anyone` gives `Anyone` (anything after that word is ignored). `user:<x>` gives a `JiraUser` with key `x`; when the second argument is true, `x` is treated as an old-style user name and converted to a user key by lower-casing it. `group:<name>` gives a `JiraGroup`. `role:<project>:<role>` gives a `ProjectRole` (both decimal longs; non-numeric parts throw `java.text.ParseException`); `role:` without a second colon gives null. Any other input throws `java.text.ParseException`. No existence checks are made.",
+        "clone()": "Returns a shallow copy of the subject.",
+        "toString()": "Same as `toEncodedString()`.",
+        "visit(com.almworks.jira.structure.api.permissions.PermissionSubject.Visitor, Object)": "Calls the visitor method matching the concrete kind (`onAnyone`, `onUser`, `onGroup` or `onProjectRole`) with this subject and the carry value (second argument) and returns what the visitor returns.",
+        "clone(com.almworks.jira.structure.api.permissions.PermissionSubject)": "Static null-safe clone: returns null for null, otherwise `clone()` of the argument."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionSubject.Anyone": {
+      "summary": "Subject that matches every user, including anonymous users. Encoded as `anyone`; JSON `{\"type\":\"anyone\"}`. Serializable; all instances are equal.",
+      "members": {
+        "<init>()": "Creates the subject.",
+        "matches(com.atlassian.jira.user.ApplicationUser)": "Always true, also for null (anonymous).",
+        "toEncodedString()": "Returns `anyone`.",
+        "equals(Object)": "True for any `Anyone` instance (including subclasses).",
+        "visit(com.almworks.jira.structure.api.permissions.PermissionSubject.Visitor, Object)": "Calls `onAnyone` of the visitor.",
+        "hashCode()": "A constant shared by all instances."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionSubject.JiraGroup": {
+      "summary": "Subject matching the members of a Jira group, identified by group name. Encoded `group:<name>`, e.g. `group:jira-administrators`; JSON `{\"type\":\"group\",\"name\":\"jira-administrators\"}`.",
+      "members": {
+        "<init>()": "Creates a subject with no group name (bean constructor).",
+        "<init>(String)": "Creates a subject for the group with the given name (null allowed).",
+        "<init>(com.atlassian.crowd.embedded.api.Group)": "Creates a subject for the given group's name; a null group gives a subject with no name.",
+        "getGroupName()": "The group name, or null. JSON property `name`.",
+        "setGroupName(String)": "Sets the group name (null allowed).",
+        "matches(com.atlassian.jira.user.ApplicationUser)": "True if the group name is set, the user is not null, and Jira's group manager reports the user as a member of that group (direct or nested as Jira decides). Anonymous users never match.",
+        "toEncodedString()": "Returns `group:<name>`; with no name this is `group:null`, which decodes to a group literally named `null`.",
+        "visit(com.almworks.jira.structure.api.permissions.PermissionSubject.Visitor, Object)": "Calls `onGroup` of the visitor.",
+        "equals(Object)": "True for another `JiraGroup` with an equal (case-sensitive) group name, nulls equal.",
+        "hashCode()": "Hash of the group name, 0 when null."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionSubject.JiraUser": {
+      "summary": "Subject matching one Jira user, identified by user key (not user name). Encoded `user:<key>`, e.g. `user:jsmith` or `user:JIRAUSER10100`; JSON `{\"type\":\"user\",\"name\":\"<key>\"}` (the JSON property is called `name` but holds the key). A subject with a null key stands for the anonymous user.",
+      "members": {
+        "<init>()": "Creates a subject with no user key (bean constructor); it matches only anonymous users.",
+        "<init>(String)": "Creates a subject for the given user key (null allowed).",
+        "<init>(com.atlassian.jira.user.ApplicationUser)": "Creates a subject for the given user's key; a null user gives a null key.",
+        "getUserName()": "Looks up the current user name of the user with the stored key; null if the key is null or no such user exists. Not part of the JSON form.",
+        "getUserKey()": "The stored user key, or null. JSON property `name`.",
+        "setUserName(String)": "Looks up the user by name and stores that user's key; an unknown or null name stores null.",
+        "setUserKey(String)": "Sets the user key directly (null allowed).",
+        "matches(com.atlassian.jira.user.ApplicationUser)": "With a null key: true only for a null (anonymous) user. Otherwise true when the given user's key equals the stored key (case-sensitive).",
+        "toEncodedString()": "Returns `user:<key>`; with a null key this is `user:null`, which decodes to a user whose key is the text `null` rather than to the anonymous subject.",
+        "visit(com.almworks.jira.structure.api.permissions.PermissionSubject.Visitor, Object)": "Calls `onUser` of the visitor.",
+        "equals(Object)": "True for another `JiraUser` with an equal user key, nulls equal.",
+        "hashCode()": "Hash of the user key, 0 when null."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionSubject.ProjectRole": {
+      "summary": "Subject matching users who hold a Jira project role in a project. Encoded `role:<project id>:<role id>`, e.g. `role:10000:10002`; JSON `{\"type\":\"project.role\",\"project\":10000,\"role\":10002}`. Project ID 0 means \"in any project currently enabled for the app\"; role ID 0 means the subject is not set.",
+      "members": {
+        "<init>()": "Creates a subject with project 0 and role 0 (bean constructor); it matches nobody until a role is set.",
+        "<init>(long, long)": "Creates a subject for the given project ID (first argument; 0 = any app-enabled project) and project role ID (second).",
+        "getProjectId()": "The project ID, or 0 for any app-enabled project. JSON property `project`.",
+        "setProjectId(long)": "Sets the project ID (0 = any app-enabled project).",
+        "getRoleId()": "The project role ID; 0 means unset. JSON property `role`.",
+        "setRoleId(long)": "Sets the project role ID.",
+        "matches(com.atlassian.jira.user.ApplicationUser)": "False when the role ID is 0 or no role with that ID exists. With a project ID: true if the user holds the role in that project (false if the project does not exist). With project 0: true if the user holds the role in at least one project for which the app is currently enabled (false if the app configuration cannot be obtained). Role membership is as reported by Jira's project role manager.",
+        "toEncodedString()": "Returns `role:<project id>:<role id>`.",
+        "visit(com.almworks.jira.structure.api.permissions.PermissionSubject.Visitor, Object)": "Calls `onProjectRole` of the visitor.",
+        "equals(Object)": "True for another `ProjectRole` with the same project ID and role ID.",
+        "hashCode()": "Hash over project ID and role ID."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionSubject.Visitor": {
+      "summary": "Visitor over the four subject kinds, with a carry value of type `T` passed in and returned (for accumulating results). Implemented by callers; invoked through `PermissionSubject.visit`.",
+      "members": {
+        "onAnyone(com.almworks.jira.structure.api.permissions.PermissionSubject.Anyone, Object)": "Called for an `Anyone` subject with the carry value; returns the new carry value.",
+        "onUser(com.almworks.jira.structure.api.permissions.PermissionSubject.JiraUser, Object)": "Called for a `JiraUser` subject with the carry value; returns the new carry value.",
+        "onGroup(com.almworks.jira.structure.api.permissions.PermissionSubject.JiraGroup, Object)": "Called for a `JiraGroup` subject with the carry value; returns the new carry value.",
+        "onProjectRole(com.almworks.jira.structure.api.permissions.PermissionSubject.ProjectRole, Object)": "Called for a `ProjectRole` subject with the carry value; returns the new carry value."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.PermissionSubject.Visitor.NoCarry": {
+      "summary": "Abstract adapter for visitors that need no carry value: subclasses implement the four one-argument methods, and the two-argument `Visitor` methods call them and return the (null) carry unchanged.",
+      "members": {
+        "<init>()": "Constructor for subclasses.",
+        "onAnyone(com.almworks.jira.structure.api.permissions.PermissionSubject.Anyone)": "Abstract: handle an `Anyone` subject.",
+        "onUser(com.almworks.jira.structure.api.permissions.PermissionSubject.JiraUser)": "Abstract: handle a `JiraUser` subject.",
+        "onGroup(com.almworks.jira.structure.api.permissions.PermissionSubject.JiraGroup)": "Abstract: handle a `JiraGroup` subject.",
+        "onProjectRole(com.almworks.jira.structure.api.permissions.PermissionSubject.ProjectRole)": "Abstract: handle a `ProjectRole` subject.",
+        "onAnyone(com.almworks.jira.structure.api.permissions.PermissionSubject.Anyone, Void)": "Calls `onAnyone(anyone)` and returns the carry argument.",
+        "onUser(com.almworks.jira.structure.api.permissions.PermissionSubject.JiraUser, Void)": "Calls `onUser(user)` and returns the carry argument.",
+        "onGroup(com.almworks.jira.structure.api.permissions.PermissionSubject.JiraGroup, Void)": "Calls `onGroup(group)` and returns the carry argument.",
+        "onProjectRole(com.almworks.jira.structure.api.permissions.PermissionSubject.ProjectRole, Void)": "Calls `onProjectRole(role)` and returns the carry argument."
+      }
+    },
+    "com.almworks.jira.structure.api.permissions.StructureAppPermission": {
+      "summary": "An app-wide permission identified by a string key. Public API, final and immutable. The constructor is package-private, so the only instances are the constants in `CoreAppPermissions`; use `CoreAppPermissions.byKey` to look one up.",
+      "members": {
+        "getKey()": "The permission key, e.g. `createStructure`; never null.",
+        "toString()": "Returns the key.",
+        "equals(Object)": "True for another `StructureAppPermission` with the same key.",
+        "hashCode()": "Hash derived from the key."
+      }
+    }
+  }
+}

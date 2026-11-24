@@ -1,0 +1,860 @@
+{
+ "claims": [
+  {
+   "key": "c1-platform/sync-tools-factory/cluster-or-local-mode",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "The component decides once, when it is created, whether Jira runs as a cluster: it asks Jira for its com.atlassian.jira.cluster.ClusterInfo component and treats Jira as Data Center only when that component exists and isClustered() is true (the answer is computed once per plugin lifetime). On Data Center, the shared caches (expiring and non-expiring) and the named lockers it hands out are cluster-aware (backed by Jira's com.atlassian.cache.CacheManager and com.atlassian.beehive.ClusterLockService); on a single server they are purely in-memory on this node and Jira's cache manager and cluster lock service are never used. Caches requested explicitly as node-local are always in-memory on this node, in both modes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.platform.DelegatingSyncToolsFactory",
+    "com.almworks.structure.commons.util.CommonUtil#isDataCenter"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/cluster-cache-registration",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "On Data Center, a shared cache requested under name N is registered with Jira's CacheManager.getCache under the name \"com.almworks.structure.\" + N, with a loader that stores only a marker (Boolean.TRUE) per key; the cached values themselves are kept in memory on each node. The cache settings map to Jira's com.atlassian.cache.CacheSettingsBuilder as follows: an expire-after-access timeout is applied only when its time unit is set and the timeout is positive, likewise expire-after-write, and maxEntries is set only when the maximum size is positive; with no settings (a non-expiring cache) nothing is set. The same expiry and size settings also apply to the node's own value storage.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory#getCacheNotSync",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory#toAtlassianSettings",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory#createLocalValueStorage",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianCacheLoaderAdapter#load"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/cluster-cache-read-and-invalidate",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "On Data Center, reading key K from a shared cache returns the value held in this node's memory only while Jira's cluster cache still contains K; if Jira's cache does not contain K (because it was invalidated on any node, expired or evicted) or this node holds no value, the node drops its own copy, asks Jira's cache for K (which puts the marker back) and computes the value again with the cache's loader. Invalidating K removes K from Jira's cluster cache (so every node recomputes on its next read); invalidating all calls removeAll() on it; 'contains K' and the key list are answered from Jira's cluster cache. If Jira's cache throws com.atlassian.cache.CacheException while putting the marker back, a warning is logged and the value is still computed and returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianCacheAdapter#get0",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianCacheAdapter#invalidateAndGetLocked",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianCacheAdapter#invalidate0",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianCacheAdapter#invalidateAll0",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianCacheAdapter#containsKey",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianCacheAdapter#getKeys"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/cluster-cache-same-name-same-instance",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "On Data Center, asking twice for a shared cache with the same name returns the same cache object as long as the first one is still referenced by someone (it is held only weakly); the loader and settings of the second request are then ignored. On a single server, and for node-local caches in either mode, every request creates a new, independent cache, even for a name already used.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory#getCache",
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory#getLocalCache"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/cluster-cache-lazy-creation",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "On Data Center, the node-side part of a shared cache is created on its first use, not when the cache is requested. If creating it fails with a runtime exception or linkage error, a read, a 'contains' check or a key listing throws StructureRuntimeException wrapping the failure, while invalidate and invalidate-all log an error and do nothing; the creation is attempted again on the next use.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.platform.LazilyCreatedCache#getCacheOrThrow",
+    "com.almworks.structure.commons.platform.LazilyCreatedCache#maybeGetCache",
+    "com.almworks.structure.commons.util.StrongLazyReference#get"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/local-cache-settings",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "A node-local cache (and, on a single server, every shared cache) is an in-memory com.google.common.cache cache built from its settings: expire-after-access and expire-after-write are applied only when the time unit is set and the timeout is positive, a maximum size only when positive, soft values and a concurrency level when requested. A removal listener given in the settings is told the key, the value (null when the entry removed was an invalidated placeholder) and the Guava com.google.common.cache.RemovalCause of every removal. Shared caches requested as non-expiring have no expiry and no size limit. On a single server, requesting a shared expiring cache with no settings object (null) fails with NullPointerException (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory#fromSettings",
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory#setCommonCacheSettingsToGuava",
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory#createGuavaCache",
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory#getCache",
+    "com.almworks.structure.commons.platform.LocalCacheSettings#fromCommon"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/local-cache-invalidate-keeps-placeholder",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "In a node-local cache, invalidating key K does not delete the entry but replaces its value with an 'invalidated' placeholder: afterwards 'contains K' is false and the next read of K computes the value again with the loader, but the key list still includes K until the entry is evicted or the whole cache is invalidated (as the original does). Invalidate-all empties the cache completely: it waits for a cache-wide lock (taken exclusively, while individual loads hold it shared) and, if that lock cannot be obtained within the lock timeout, logs an 'INCONSISTENCY WARNING' and empties the cache without it. The key list is a snapshot copy that cannot be modified.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory$GuavaCacheAdapter#invalidate0",
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory$GuavaCacheAdapter#containsKey",
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory$GuavaCacheAdapter#getKeys",
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory$GuavaCacheAdapter#invalidateAll0"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/cache-loader-errors",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "When a cache's loader fails, the read fails: a runtime exception thrown by the loader reaches the caller as StructureRuntimeException (wrapping it); a checked exception reaches the caller as a checked 'load failed' exception whose cause is the loader's exception; an InterruptedException from the loader re-sets the thread's interrupt flag and is reported as StructureRuntimeException. A failed load caches nothing, so the next read calls the loader again. The loader must not return null: in node-local caches a null result fails the read with StructureRuntimeException, and in cluster caches with Guava's unchecked 'invalid cache load' exception.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory#unwrapGuavaCacheException",
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory$GuavaCacheAdapter#get",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianCacheAdapter#get",
+    "com.almworks.structure.commons.platform.CacheConcurrentInvalidateLoadBugWorkaround#load",
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory$GuavaCacheLoaderAdapter#load"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/cache-concurrent-invalidate-guard",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "Every cache handed out guards against an invalidation racing with a load, so a value computed before an invalidation is never kept after it: a miss on key K is resolved while holding a per-key lock (one per key, locks for up to 1000 keys are remembered; dark feature com.almworks.jira.structure.cache.locksCacheMaxSize), and if the freshly stored entry has been invalidated again in the meantime the load is retried, up to 5 attempts in total (com.almworks.jira.structure.cache.loadAttempts), pausing 0, 100, 200, 400, 800 ms ... after the successive failed attempts (doubling from com.almworks.jira.structure.cache.repeatedLoadAttemptMinDelay, default 100). If all attempts fail, a warning is logged and the value is computed directly with the loader and returned without being cached. If the per-key lock cannot be taken within 65000 ms (com.almworks.jira.structure.cache.lockTimeoutMs) the value is likewise computed directly and returned uncached. The dark features are read through DarkFeatures when the component is created.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.platform.CacheConcurrentInvalidateLoadBugWorkaround#invalidateAndGet0",
+    "com.almworks.structure.commons.platform.CacheConcurrentInvalidateLoadBugWorkaround$Env",
+    "com.almworks.structure.commons.platform.CacheConcurrentInvalidateLoadBugWorkaround#invalidateAndGet"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/invalidate-never-throws",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "Invalidating one key or all keys of any cache handed out never throws: an exception or linkage error raised while invalidating (for example by Jira's cluster cache) is logged as a warning and swallowed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.platform.CacheConcurrentInvalidateLoadBugWorkaround#invalidate",
+    "com.almworks.structure.commons.platform.CacheConcurrentInvalidateLoadBugWorkaround#invalidateAll"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/expiry-presets-and-overrides",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "The expiry presets the plugin's components use when they request expiring caches are: fast-expiring 60 s, moderately expiring 600 s and slowly expiring 3600 s after last access, each overridable per cache by a DarkFeatures long property named by the requesting component. A JVM system property structure.cache.expiration-override (seconds, decoded as Long.getLong does) replaces every such expire-after-access timeout of every cache, taking precedence over the per-cache property; likewise structure.cache.expiration-after-write-override for presets that expire after write. A value of 0 or less means no expiry.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.platform.CommonCacheSettings#expireInSeconds",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#expireAfterWriteInSeconds",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#fastExpiring",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#moderatelyExpiring",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#slowlyExpiring"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/cluster-locker",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "On Data Center, a named locker N runs a piece of code while holding the Jira cluster lock obtained from ClusterLockService.getLockForName(\"com.almworks.structure..\" + N + \".\" + id) (note the double dot; id is the lock target's String.valueOf, so a null id gives \"null\"). A timeout of 0 means the default 65000 ms; a negative timeout means a single immediate tryLock(); otherwise tryLock waits up to the timeout. The lock is released when the code finishes, also when it throws, and the code's exceptions propagate unchanged. If the lock is not obtained in time, a StructureException with error StructureErrors.LOCK_FAILED is thrown and the code is not run; if the waiting thread is interrupted, the same error is thrown (with the InterruptedException as cause) and the thread's interrupt flag is set again. The lock-cache size requested is ignored in this mode.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianLockAdapter#withLock",
+    "com.almworks.structure.commons.platform.ClusterSyncToolsFactory$AtlassianLockAdapter#getLockName",
+    "com.almworks.structure.commons.platform.StructureLockingException"
+   ]
+  },
+  {
+   "key": "c1-platform/sync-tools-factory/local-locker",
+   "module": "sync-tools-factory",
+   "api": null,
+   "behaviour": "On a single server, a named locker is an in-memory, per-node lock table: asking twice for the same name returns the same locker (the first request's size wins), keeping per-target reentrant locks for at least 10 and at most max(requested size, 10) idle targets (locks in use are never dropped). Code run for one target excludes other threads running code for the same target (a null target is a valid target of its own) but not for other targets, and the same thread may re-enter. A timeout of 0 means 65000 ms, a positive timeout below 1000 ms is raised to 1000 ms, and a negative timeout means 'only if free right now'. When the lock is not obtained in time, a StructureException with error StructureErrors.LOCK_FAILED is thrown and the code is not run; an interrupted wait gives the same error and re-sets the interrupt flag. The code's own exceptions propagate unchanged and the lock is always released.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.platform.LocalSyncToolsFactory#getLocker",
+    "com.almworks.structure.commons.util.EntityLocker#withLock",
+    "com.almworks.structure.commons.util.EntityLocker#checkTimeout",
+    "com.almworks.structure.commons.util.EntityLocker#smartLock"
+   ]
+  },
+  {
+   "key": "c1-platform/ao-initializer/readiness-check",
+   "module": "ao-initializer",
+   "api": null,
+   "behaviour": "The component decides whether the plugin's Active Objects storage is usable by counting the rows of the AO_8BAD1B_BOOTSTRAP table through ActiveObjects.count. A count that returns (any number) means ready. A failure whose root cause is an IllegalStateException means 'Active Objects not ready yet' (a warning 'ActiveObjects is not ready. Waiting...' is logged) and the check is retried; any other runtime exception is not retried and propagates to the caller of the wait unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.lifecycle.AOInitializerImpl#checkInitialized",
+    "com.almworks.structure.commons.lifecycle.AOInitializerImplBase#tryAction",
+    "com.almworks.structure.commons.lifecycle.AOInitializerImplBase#causedByNotReadyAO"
+   ]
+  },
+  {
+   "key": "c1-platform/ao-initializer/wait-schedule",
+   "module": "ao-initializer",
+   "api": null,
+   "behaviour": "Storage access in the plugin (the database provider and the storage lock) first waits on this component. The first wait retries the readiness check up to 20 times, pausing after each failed check 100, 100, 100, 100, 200, 200, 200, 1000, 1000, 1000, 1000, 2000, 3000, then 5000 ms seven times (about 45 s in all). If the DarkFeatures integer almworks.ao.timeout is set to T > 0 (seconds), the pauses follow the same sequence, repeating 5000 ms at the end, until they add up to at least T*1000 ms. Once a check succeeds, every later wait returns immediately without checking again. Concurrent waiters are serialised: one thread runs the checks and the others wait for its outcome.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.AOInitializerImplBase#createDelays",
+    "com.almworks.structure.commons.lifecycle.TimedInitializer#awaitInitialization",
+    "com.almworks.structure.commons.lifecycle.TimedInitializer#sleep",
+    "com.almworks.structure.commons.db.AOBasedDatabaseProviderBase#extractEntityManager"
+   ]
+  },
+  {
+   "key": "c1-platform/ao-initializer/give-up-shuts-down-plugin",
+   "module": "ao-initializer",
+   "api": null,
+   "behaviour": "If no check succeeds within the schedule, the wait throws StructureStoppedException for the plugin key com.almworks.jira.structure. On the first such failure only, unless the DarkFeatures boolean structure.ignoreFailedStartup is true, the component asks the plugin's lifecycle module to shut the plugin down (disable it) with a prominent multi-line message saying that <product> failed to start and was automatically disabled because the database service (Active Objects) was not ready in time; with structure.ignoreFailedStartup true it only logs a prominent error saying Active Objects was not ready in time and leaves the plugin enabled. The shutdown request is made at most once per lifecycle instance. No network contact happens.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.lifecycle.AOInitializerImpl#onFail",
+    "com.almworks.jira.structure.lifecycle.AOInitializerImpl#shouldShutdownOnAOProblems",
+    "com.almworks.structure.commons.lifecycle.AOInitializerImplBase#giveUp",
+    "com.almworks.structure.commons.lifecycle.PluginLifecycleController#shutdown"
+   ]
+  },
+  {
+   "key": "c1-platform/ao-initializer/after-failure-quick-retry",
+   "module": "ao-initializer",
+   "api": null,
+   "behaviour": "After the wait has given up once, each later wait makes a single immediate readiness check (no pauses, no 'waiting' warning): if it fails, StructureStoppedException is thrown at once; if it succeeds, the failure is forgotten and the wait completes normally, after which all waits return immediately.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.AOInitializerImplBase#quickTry",
+    "com.almworks.structure.commons.lifecycle.TimedInitializer#awaitInitialization"
+   ]
+  },
+  {
+   "key": "c1-platform/ao-initializer/interrupt-and-stop",
+   "module": "ao-initializer",
+   "api": null,
+   "behaviour": "If the waiting thread is interrupted during a pause, its interrupt flag is set again and the wait gives up as when the schedule runs out (first-failure shutdown handling included, StructureStoppedException thrown). If the component has been stopped (plugin stop) before or during the wait, the next check attempt throws StructureStoppedException instead of checking.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.TimedInitializer#sleep",
+    "com.almworks.structure.commons.lifecycle.LifecycleAwareComponent#check"
+   ]
+  },
+  {
+   "key": "c1-platform/ao-initializer/bootstrap-thread-warning",
+   "module": "ao-initializer",
+   "api": null,
+   "behaviour": "Waiting on a thread whose name contains 'jira-bootstrap' (ignoring case) is treated as a programming error: with Java assertions enabled (as the tests run) the wait throws AssertionError before checking; with them disabled, it logs an error about possible delays during Jira startup and then waits normally.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.TimedInitializer#checkThread"
+   ]
+  },
+  {
+   "key": "c1-platform/ao-initializer/testing-switches",
+   "module": "ao-initializer",
+   "api": null,
+   "behaviour": "Two JVM system properties make the readiness check fail on purpose for testing: structure.testing.forceAOFail=true makes every check fail as 'not ready' (so the wait eventually gives up); structure.testing.forceAODelay=S (seconds, default 0) makes checks fail as 'not ready' until S seconds have passed since the first check that reached the database. Both are read when the component is created and log a warning on each forced failure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.lifecycle.AOInitializerImplBase$TestEnv"
+   ]
+  },
+  {
+   "key": "c1-platform/jira-components/component-role",
+   "module": "jira-components",
+   "api": null,
+   "behaviour": "The jira-components module carries no behaviour of its own beyond the public JiraComponents type: it registers JiraComponents as a plugin component only so that its shared proxy cache is emptied when the plugin's components start and stop and whenever all plugin caches are cleared (it is one of the caching components that structure-cache-helper clears); clearing one user's caches does nothing to it. The getters' behaviour is as already specified for JiraComponents.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.api.util.JiraComponents#afterPropertiesSet",
+    "com.almworks.jira.structure.api.util.JiraComponents#destroy",
+    "com.almworks.jira.structure.api.util.JiraComponents#clearCaches",
+    "com.almworks.jira.structure.api.util.JiraComponents#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c1-platform/http-request-emulator/install-only-when-absent",
+   "module": "http-request-emulator",
+   "api": null,
+   "behaviour": "Asked to install a fake current HTTP request on the calling thread, the component (Jira 9) checks com.atlassian.jira.web.ExecutingHttpRequest.get(): if a request is already present it leaves it alone and reports false; otherwise it sets a fake request (with a null response) through ExecutingHttpRequest.set and reports true. Clearing always calls ExecutingHttpRequest.clear(), whether or not the current request was installed by this component.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.lifecycle.HttpRequestEmulatorJ9#installHttpRequest",
+    "com.almworks.structure.compat.lifecycle.HttpRequestEmulatorJ9#clearHttpRequest"
+   ]
+  },
+  {
+   "key": "c1-platform/http-request-emulator/fake-request-contents",
+   "module": "http-request-emulator",
+   "api": null,
+   "behaviour": "The fake request is a javax.servlet.http.HttpServletRequest whose getRequestURI() returns the Jira base URL (as StructureUtil.getBaseUrl gives it, an absolute URL, empty if unknown) and getRequestURL() a StringBuffer of the same text, and whose getContextPath() asks the context-path supplier given at install time on every call. Everything else is empty: no headers (getHeader null, getDateHeader and getIntHeader -1, empty header enumerations), no parameters (null values, empty map), no cookies (null), no attributes (setAttribute ignored), no session (getSession() and getSession(true) return null), method, scheme, server name and remote data null, ports 0, content length -1, locale Locale.ROOT, dispatcher type REQUEST, not secure, no user; startAsync and getAsyncContext throw IllegalStateException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.lifecycle.HttpRequestEmulatorJ9$ContextPathRequest",
+    "com.almworks.structure.compat.lifecycle.JavaxFakeServletRequest"
+   ]
+  },
+  {
+   "key": "c1-platform/jira-helper-factory/creates-jira-helper",
+   "module": "jira-helper-factory",
+   "api": null,
+   "behaviour": "Given a bridged HTTP request (from servlet-bridges), the component (Jira 9) creates com.atlassian.jira.plugin.webfragment.model.JiraHelper objects for evaluating web fragments: either new JiraHelper(request), or new JiraHelper(request, project, params) with the given Jira project (may be null) and context parameter map, where request is the original javax.servlet.http.HttpServletRequest behind the bridge.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.webfragment.JiraHelperFactoryJ9#createJiraHelper"
+   ]
+  },
+  {
+   "key": "c1-platform/jira-helper-factory/rejects-non-javax-request",
+   "module": "jira-helper-factory",
+   "api": null,
+   "behaviour": "If the request behind the bridge is not a javax.servlet.http.HttpServletRequest (or is null), creating the helper throws IllegalArgumentException with the message 'Expected javax.servlet.http.HttpServletRequest, got: ' followed by the actual object's class name, or 'null'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.webfragment.JiraHelperFactoryJ9#getHttpServletRequest",
+    "com.almworks.structure.compat.webfragment.JiraHelperFactoryJ9#getClassNameOrNull"
+   ]
+  },
+  {
+   "key": "c1-platform/widget-i18n-transformer-common/url-locale-parameter",
+   "module": "widget-i18n-transformer-common",
+   "api": null,
+   "behaviour": "When the i18n web resource's URL is built, the component adds the query parameter locale with the current user's locale from JiraAuthenticationContext.getLocale(), written as the language, then '-' and the country if the country is not blank, then '-' and the variant if both country and variant are not blank (en_US gives 'en-US', fr gives 'fr', a locale with a variant but no country gives just the language). If Jira reports no locale (null), no parameter is added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.i18n.WidgetI18nTransformerCommon#makeUrlBuilder",
+    "com.almworks.structure.commons.i18n.WidgetI18nTransformerCommon#serialize"
+   ]
+  },
+  {
+   "key": "c1-platform/widget-i18n-transformer-common/which-resources-are-translated",
+   "module": "widget-i18n-transformer-common",
+   "api": null,
+   "behaviour": "Only resources whose location starts with 'i18n/' and ends with '_messages.js' (the widget-i18n resource i18n/structure_messages.js, for example) are replaced by a generated message bundle; for every other resource the component answers 'not mine' and the transformer passes the original resource through unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.i18n.WidgetI18nTransformerCommon#maybeTranslate",
+    "com.almworks.structure.compat.i18n.I18nTransformerJ9#makeResourceTransformer"
+   ]
+  },
+  {
+   "key": "c1-platform/widget-i18n-transformer-common/prefixes",
+   "module": "widget-i18n-transformer-common",
+   "api": null,
+   "behaviour": "The message keys to include are selected by prefixes taken from the resource's parameter i18n.prefixes (a comma-separated list) when it is not blank; otherwise the default list is used, which is exactly: sw., s.w., st.widget., s.g., s.generic., s.cfd., st.search., s.iv., s.end-of-life., s.stats-offer., s.manage.perm, s.manage.edit.select, s.manage.favorites, s.upm., str.admin.config.permission, str.admin.dark, s.permissions., s.p, s.issueDetails., s.itemDetails., s.tpl.structure, str.admin.support.syncAuditLog., s.action, s.gantt, common.words., s.effector, str.admin.attrSensitivity., user.picker., userpicker., assignee.types., reporter.types., common.resolution., common.filters., s.tempo, s.ext.it.item., s.wp. (in this order).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.i18n.WidgetI18nTransformerCommon#getPrefixesFromQueryParams"
+   ]
+  },
+  {
+   "key": "c1-platform/widget-i18n-transformer-common/locale-parameter-parsing",
+   "module": "widget-i18n-transformer-common",
+   "api": null,
+   "behaviour": "The locale of the bundle comes from the request's locale query parameter: blank or missing gives Locale.US; otherwise the text is split at '-' into 1, 2 or 3 parts giving new Locale(language), new Locale(language, country) or new Locale(language, country, variant) ('de-DE' gives de_DE); 4 or more parts give Locale.US (logged at debug). Parts are not validated or normalised beyond what java.util.Locale does.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.i18n.WidgetI18nTransformerCommon#getLocaleFromQueryParams",
+    "com.almworks.structure.commons.i18n.WidgetI18nTransformerCommon#deserialize"
+   ]
+  },
+  {
+   "key": "c1-platform/widget-i18n-transformer-cache/bundle-format",
+   "module": "widget-i18n-transformer-cache",
+   "api": null,
+   "behaviour": "The generated bundle for locale L and prefix list P is the UTF-8 text \"window.almworks.util.resources('\" + L.toString() + \"', {\\n\", then one entry per message joined by \",\\n\", then \"\\n});\". Each entry is \"'\" + key + \"':\" + the encoded text, with the key written as is. The messages come from Jira's I18nHelper for L (I18nHelper.BeanFactory.getInstance(L)): P is trimmed as a whole and split at commas (the parts are not trimmed individually), and for each prefix in order every key from getKeysForPrefix(prefix) is added with getUnescapedText(key) as its text. Keys matched by several prefixes appear several times; no prefix gives an empty object.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.i18n.WidgetI18nCache#generateResult"
+   ]
+  },
+  {
+   "key": "c1-platform/widget-i18n-transformer-cache/text-encoding",
+   "module": "widget-i18n-transformer-cache",
+   "api": null,
+   "behaviour": "Each message text is written as a single-quoted JavaScript string literal: first every property-file style apostrophe ('' or \\') becomes a single apostrophe; then ' becomes \\', a backslash becomes \\\\, newline \\n, carriage return \\r, U+2028 and U+2029 become \\u2028 and \\u2029, and every other character outside printable ASCII (space to '~') becomes \\u followed by 4 lowercase hex digits; finally any '</script' (any letter case) becomes '\\u003c/script'. A double quote is left as is.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.util.JavascriptEncoder#encodeString",
+    "com.almworks.structure.commons.util.JavascriptEncoder#escape"
+   ]
+  },
+  {
+   "key": "c1-platform/widget-i18n-transformer-cache/resource-metadata",
+   "module": "widget-i18n-transformer-cache",
+   "api": null,
+   "behaviour": "The generated resource has content type text/javascript, a last-modified time equal to the moment the component was created rounded down to a whole second, and the ETag '\"' + L.toString() + '.' + Integer.toHexString(java.util.Arrays.hashCode(bytes)) + '\"' where bytes is the UTF-8 content (for example \"en_US.1a2b3c\" in quotes).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.i18n.WidgetI18nCache#generateResult",
+    "com.almworks.structure.commons.i18n.WidgetI18nCache#createEtag"
+   ]
+  },
+  {
+   "key": "c1-platform/widget-i18n-transformer-cache/conditional-get",
+   "module": "widget-i18n-transformer-cache",
+   "api": null,
+   "behaviour": "When the bundle is served: if the JVM system property atlassian.disable.caches is 'true' it is always sent in full without validator headers. Otherwise the response gets Last-Modified and ETag headers and a 304 status with no body is sent when both hold: the request's If-Modified-Since is absent or not earlier than last-modified minus 1000 ms, and If-None-Match equals the ETag, is '*', or is a comma-separated list containing the ETag (entries trimmed). A missing If-None-Match always means the full bundle is sent with the content type set.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.i18n.GeneratedResource#isResourceModified",
+    "com.almworks.structure.compat.i18n.GeneratedResource#etagMatches",
+    "com.almworks.structure.compat.i18n.GeneratedResource#serveResource"
+   ]
+  },
+  {
+   "key": "c1-platform/widget-i18n-transformer-cache/caching",
+   "module": "widget-i18n-transformer-cache",
+   "api": null,
+   "behaviour": "A bundle is generated once per (L.toString() + prefix-list text) and then reused unchanged, without limit or expiry, until all plugin caches are cleared (the component is a caching component); clearing one user's caches does not affect it. Message changes in Jira therefore show only after a global cache clear or restart.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.i18n.WidgetI18nCache#getTranslation",
+    "com.almworks.structure.commons.i18n.WidgetI18nCache#clearCaches",
+    "com.almworks.structure.commons.i18n.WidgetI18nCache#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c1-platform/stateful-manager/put-state",
+   "module": "stateful-manager",
+   "api": null,
+   "behaviour": "Storing a state object returns a new numeric id: 1 for the first state after plugin start, then 2, 3, ..., never reused while the plugin runs. The state is owned by the user key of StructureAuth.getUser() at the time (null for anonymous) and its last-access time is set to now. Storing null throws NullPointerException. States live only in this node's memory: they are lost on restart and not visible on other cluster nodes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.stateful.StatefulManager#putState"
+   ]
+  },
+  {
+   "key": "c1-platform/stateful-manager/access-rule",
+   "module": "stateful-manager",
+   "api": null,
+   "behaviour": "A state is accessible to the current user when the user is a Jira administrator (StructurePluginHelper.isAdmin()) or when the current StructureAuth user key equals the owner's key; states created anonymously are therefore accessible to every anonymous caller and to administrators.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.stateful.StatefulManager#isStateAccessible"
+   ]
+  },
+  {
+   "key": "c1-platform/stateful-manager/get-state",
+   "module": "stateful-manager",
+   "api": null,
+   "behaviour": "Reading state id with an expected class returns the stored object and refreshes its last-access time. It fails with the component's checked state error, message 'no state <id>', if no such state exists (also for a null id); 'permission denied to get state <id>' if it is not accessible to the current user; and 'invalid state <id>, expected <class>, stored <class>' if the object is not an instance of the expected class (subclasses are accepted). A failed read does not refresh the access time.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.stateful.StatefulManager#getState"
+   ]
+  },
+  {
+   "key": "c1-platform/stateful-manager/list-accessible-states",
+   "module": "stateful-manager",
+   "api": null,
+   "behaviour": "Listing states of a class returns, ordered by id ascending, every stored state accessible to the current user whose object is an instance of the class; when asked to touch, each returned state's last-access time is refreshed, otherwise times are left unchanged. Inaccessible states are silently left out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.stateful.StatefulManager#getAccessibleStates"
+   ]
+  },
+  {
+   "key": "c1-platform/stateful-manager/remove-and-touch",
+   "module": "stateful-manager",
+   "api": null,
+   "behaviour": "Removing an unknown id does nothing; removing a state not accessible to the current user does nothing except log a warning; otherwise the state is removed. Touching refreshes the last-access time of an accessible state and silently does nothing for unknown or inaccessible ids. Neither throws.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.stateful.StatefulManager#removeState",
+    "com.almworks.jira.structure.stateful.StatefulManager#touchState"
+   ]
+  },
+  {
+   "key": "c1-platform/stateful-manager/expiry-job",
+   "module": "stateful-manager",
+   "api": null,
+   "behaviour": "The first time a state is stored, the component schedules a repeating system job with job-manager (initial delay 30 minutes, then every 30 minutes); this is attempted only once per plugin run, and if scheduling fails a warning is logged and it is never retried. Each run removes every state whose last access is more than 6 hours (21,600,000 ms) ago, or lies in the future (clock moved back). Expiry happens only in these runs: a state idle for more than 6 hours is still returned by reads until the next run removes it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.stateful.StatefulManager#scheduleCleanupJob",
+    "com.almworks.jira.structure.stateful.StatefulManager#expireStates",
+    "com.almworks.jira.structure.stateful.StatefulManager$State#isExpired"
+   ]
+  },
+  {
+   "key": "c1-platform/cluster-messaging-service-wrapper/single-server-noop",
+   "module": "cluster-messaging-service-wrapper",
+   "api": null,
+   "behaviour": "On a single server (Jira's ClusterInfo absent or not clustered), the component does nothing: sending a message sends nothing, listeners can be added and removed but are never called, and Jira's ClusterMessagingService is never used.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cluster.DelegatingMessagingService",
+    "com.almworks.jira.structure.cluster.DelegatingMessagingService$DummyMessagingService"
+   ]
+  },
+  {
+   "key": "c1-platform/cluster-messaging-service-wrapper/channel-registration",
+   "module": "cluster-messaging-service-wrapper",
+   "api": null,
+   "behaviour": "On Data Center, when the component starts it registers one message consumer for the channel 'Structure' with Jira's ClusterMessagingService.registerListener; when it stops it unregisters that consumer and forgets all listeners. Messages arriving before start or after stop are not delivered.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cluster.ClusterMessagingServiceWrapper#startComponent",
+    "com.almworks.jira.structure.cluster.ClusterMessagingServiceWrapper#stopComponent",
+    "com.almworks.jira.structure.cluster.DelegatingMessagingService#startComponent",
+    "com.almworks.jira.structure.cluster.DelegatingMessagingService#stopComponent"
+   ]
+  },
+  {
+   "key": "c1-platform/cluster-messaging-service-wrapper/send",
+   "module": "cluster-messaging-service-wrapper",
+   "api": null,
+   "behaviour": "On Data Center, sending a text message calls ClusterMessagingService.sendRemote('Structure', message) with the text unchanged; the sending node does not deliver the message to its own listeners.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cluster.ClusterMessagingServiceWrapper#sendRemote"
+   ]
+  },
+  {
+   "key": "c1-platform/cluster-messaging-service-wrapper/receive",
+   "module": "cluster-messaging-service-wrapper",
+   "api": null,
+   "behaviour": "On Data Center, a message received on channel 'Structure' is handed to every listener currently added, in the order they were added (a listener added twice is called twice; removing it removes one occurrence). An exception or linkage error thrown by one listener is logged as a warning and the remaining listeners are still called. Messages on any other channel are ignored. Listeners may be added and removed concurrently with delivery.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cluster.ClusterMessagingServiceWrapper$1#receive",
+    "com.almworks.jira.structure.cluster.ClusterMessagingServiceWrapper#addListener",
+    "com.almworks.jira.structure.cluster.ClusterMessagingServiceWrapper#removeListener"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-cache-helper/clear-all-local",
+   "module": "structure-cache-helper",
+   "api": null,
+   "behaviour": "Clearing all caches on this node asks Jira's PluginAccessor.getEnabledModulesByClass(CachingComponent.class) for every enabled module object implementing CachingComponent and calls clearCaches() on each; an exception or linkage error from one of them is ignored (debug log) and the rest are still cleared; finally an info message 'Cleared all <product> caches' is logged (with ' on node <id>' on Data Center). If the module lookup itself fails, nothing is cleared and a warning is logged. Nothing is thrown to the caller.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.ClusteredStructureCacheHelper#clearAllStructureCaches",
+    "com.almworks.jira.structure.lifecycle.CacheUtil#clearAllStructureCaches",
+    "com.almworks.jira.structure.lifecycle.CacheUtil#clearStructureCaches",
+    "com.almworks.jira.structure.lifecycle.CacheUtil#getCachingComponents"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-cache-helper/clear-user-local",
+   "module": "structure-cache-helper",
+   "api": null,
+   "behaviour": "Clearing one user's caches on this node calls clearUserCaches(user) on every enabled CachingComponent module object found as for clearing all, ignoring individual failures, then logs 'Cleared <product> caches for user <user>'.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.ClusteredStructureCacheHelper#clearUserStructureCaches",
+    "com.almworks.jira.structure.lifecycle.CacheUtil#clearUserStructureCaches"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-cache-helper/clearing-only-while-running",
+   "module": "structure-cache-helper",
+   "api": null,
+   "behaviour": "Cache clearing through this component has an effect only while the plugin is fully running: it becomes active when the plugin lifecycle has started all components and inactive again when the plugin begins to stop or Jira publishes ComponentManagerShutdownEvent. While inactive, every clear (local, user, or one triggered by a cluster message) finds no caching components and clears nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.lifecycle.CacheUtil#getCachingComponents",
+    "com.almworks.jira.structure.lifecycle.CacheUtil#enableClearingCaches",
+    "com.almworks.jira.structure.lifecycle.StructureLifecycle#onSystemShutdown"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-cache-helper/all-nodes-messages",
+   "module": "structure-cache-helper",
+   "api": null,
+   "behaviour": "Clearing all caches on all nodes first clears all caches on this node and then sends the cluster message 'clearAllStructureCaches' through cluster-messaging-service-wrapper. Clearing a user's caches on all nodes first does the local clear for the user with that key (nothing if the key is null or no Jira user has it), then sends 'clearUserStructureCaches:<userKey>'. The message is sent even if the local part throws; a failure to send is logged as an error and not thrown. On a single server only the local part happens.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cache.ClusteredStructureCacheHelper#clearAllStructureCachesOnAllNodes",
+    "com.almworks.jira.structure.cache.ClusteredStructureCacheHelper#clearUserStructureCachesOnAllNodes",
+    "com.almworks.jira.structure.cache.ClusteredStructureCacheHelper#clearUserStructureCachesLocalAction",
+    "com.almworks.jira.structure.cluster.ClusterAction#execute"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-cache-helper/on-message-received",
+   "module": "structure-cache-helper",
+   "api": null,
+   "behaviour": "A node receiving the cluster message 'clearAllStructureCaches' clears all caches locally; receiving 'clearUserStructureCaches:<key>' (everything after the first colon is the key, which may itself contain colons) looks the user up by key and clears that user's caches locally, doing nothing if no user has the key. The bare text 'clearUserStructureCaches' (no colon) and any message whose part before the first colon is not one of these names are ignored by this component. The receiving node does not send anything further.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.cluster.ClusterAction#subscribe",
+    "com.almworks.jira.structure.cache.ClusteredStructureCacheHelper#clearUserStructureCachesLocalAction"
+   ]
+  },
+  {
+   "key": "c1-platform/format-helper/date-styles",
+   "module": "format-helper",
+   "api": null,
+   "behaviour": "The component knows exactly seven named date styles, listed in this order: date-short, date-long, date-full, datetime-short, datetime-long, jira-date, jira-datetime. date-short, date-long and date-full format like java.text.DateFormat.getDateInstance with SHORT, LONG and FULL; datetime-short and datetime-long like DateFormat.getDateTimeInstance with SHORT/SHORT and LONG/LONG; all five use the current user's locale and the time zone Jira's TimeZoneManager.getTimeZoneforUser gives for StructureAuth.getUser(). jira-date and jira-datetime use Jira's DateTimeFormatterFactory.formatter().forUser(StructureAuth.getUser()) with DateTimeStyle.DATE and DateTimeStyle.COMPLETE. Formats are built fresh on each request, so changes of the user's locale or zone apply at once.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.FormatHelper#<init>",
+    "com.almworks.jira.structure.util.FormatHelper#getDateFormat",
+    "com.almworks.jira.structure.util.FormatHelper#getDateTimeFormat",
+    "com.almworks.jira.structure.util.FormatHelper#getJiraFormat",
+    "com.almworks.jira.structure.util.FormatHelper#withTimezone"
+   ]
+  },
+  {
+   "key": "c1-platform/format-helper/unknown-style-fallback",
+   "module": "format-helper",
+   "api": null,
+   "behaviour": "Asking for a date format by a style name that is not one of the seven (including null or empty) gives the date-short format. The short date-time format is the same as datetime-short.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.FormatHelper#getDateFormatForCurrentUser",
+    "com.almworks.jira.structure.util.FormatHelper#getShortDateTimeFormat"
+   ]
+  },
+  {
+   "key": "c1-platform/format-helper/time-included",
+   "module": "format-helper",
+   "api": null,
+   "behaviour": "A style is reported as including the time of day exactly when it is one of the seven known styles and its name contains 'time': true for datetime-short, datetime-long and jira-datetime; false for date-short, date-long, date-full, jira-date and for any unknown name.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.FormatHelper#isTimeIncludedInStyle"
+   ]
+  },
+  {
+   "key": "c1-platform/format-helper/list-styles",
+   "module": "format-helper",
+   "api": null,
+   "behaviour": "Listing the styles gives all seven style names in the order above, each with a sample text formatting the given date in that style for the current user; when no sample date is given (null), every sample is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.FormatHelper#listStylesForCurrentUser"
+   ]
+  },
+  {
+   "key": "c1-platform/format-helper/current-user-locale",
+   "module": "format-helper",
+   "api": null,
+   "behaviour": "The current user's locale is the locale of the I18nHelper Jira's I18nHelper.BeanFactory gives for StructureAuth.getUser(); for an anonymous user, or if that locale is null, Jira's default locale (as StructureUtil.getJiraDefaultLocale reports it, remembered after the first lookup) is used.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.FormatHelper#getCurrentUserLocale",
+    "com.almworks.jira.structure.util.JiraConfigurationCache#getJiraDefaultLocale"
+   ]
+  },
+  {
+   "key": "c1-platform/format-helper/format-jira-duration",
+   "module": "format-helper",
+   "api": null,
+   "behaviour": "Formatting a duration of N milliseconds as Jira time-tracking text: if |N| is below 60000 (under a minute, zero included) the result is '0m'; otherwise it is Jira's JiraDurationUtils.getShortFormattedDuration of |N|/1000 seconds (integer division), in the current user's locale for the user-specific variant and with Jira's default (no locale argument) for the plain variant, prefixed by '-' when N is negative (e.g. -7200000 gives '-2h' with standard settings).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.FormatHelper#formatDurationForCurrentUser",
+    "com.almworks.jira.structure.util.FormatHelper#formatDuration",
+    "com.almworks.jira.structure.util.FormatHelper#formatDurationSafe",
+    "com.almworks.structure.commons.util.JiraFieldUtils#formatDurationMillis"
+   ]
+  },
+  {
+   "key": "c1-platform/format-helper/format-calendar-duration",
+   "module": "format-helper",
+   "api": null,
+   "behaviour": "Formatting a duration of N milliseconds as calendar time uses com.atlassian.core.util.DateUtils.getDurationString (calendar units: 1 day = 24 hours, 1 week = 7 days) of |N|/1000 seconds, with |N| below 60000 treated as 0, and prefixes '-' when N is at most -60000.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.FormatHelper#formatDurationAsCalendarTime",
+    "com.almworks.jira.structure.util.FormatHelper#formatDurationSafe"
+   ]
+  },
+  {
+   "key": "c1-platform/format-helper/parse-durations",
+   "module": "format-helper",
+   "api": null,
+   "behaviour": "Parsing Jira time-tracking text: null or empty text gives null; otherwise the result is exactly what Jira's JiraDurationUtils.parseDuration(text, locale) returns for the StructureAuth user's locale (seconds, not converted to milliseconds), and its InvalidDurationException propagates. Parsing with explicit hours per day and days per week returns com.atlassian.core.util.DateUtils.getDuration(text, hoursPerDay, daysPerWeek) multiplied by 1000 (milliseconds); parsing as calendar time returns DateUtils.getDuration(text) multiplied by 1000. Invalid text gives com.atlassian.core.util.InvalidDurationException.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.util.FormatHelper#parseDurationAsJiraTime",
+    "com.almworks.jira.structure.util.FormatHelper#parseDurationAsCalendarTime",
+    "com.almworks.structure.commons.util.JiraFieldUtils#parseDuration"
+   ]
+  },
+  {
+   "key": "c1-platform/attachment-config-bridge/attachments-enabled",
+   "module": "attachment-config-bridge",
+   "api": null,
+   "behaviour": "On Jira 9 the component reports whether attachments are enabled by returning Jira's AttachmentManager.attachmentsEnabled() as is, asked anew on every call; an exception from Jira propagates.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.util.AttachmentConfigBridgeJ9#attachmentsEnabled"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-datetime-formatter/user-and-system-formatters",
+   "module": "structure-datetime-formatter",
+   "api": null,
+   "behaviour": "The component holds Jira's com.atlassian.jira.datetime.DateTimeFormatter. For a user (null allowed, Jira then formats for anonymous) it returns formatter.forUser(user); for a locale it returns formatter.withSystemZone().withLocale(locale), i.e. Jira's default time zone with that locale. If Jira's call returns null, the unmodified injected formatter is returned instead.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructureDateTimeService#getUserDateTimeFormatter",
+    "com.almworks.jira.structure.StructureDateTimeService#getSystemDateTimeFormatter"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-datetime-formatter/date-formatter-per-context",
+   "module": "structure-datetime-formatter",
+   "api": null,
+   "behaviour": "The date-formatting function it builds for a context key K and a 'user-based' flag formats a Unix timestamp in milliseconds as a date (DateTimeStyle.DATE): user-based means in the zone and locale of the AttributeContext's user (forUser(context.getUser())), otherwise in Jira's system zone with the context's locale. The formatter is built once per AttributeContext and stored in it with AttributeContext.putObject under K, so later calls in the same context reuse it; a different context builds its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructureDateTimeService#getDateFormatter",
+    "com.almworks.structure.commons.util.AttributeUtil#getSavedInContext"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-datetime-formatter/date-field-correction",
+   "module": "structure-datetime-formatter",
+   "api": null,
+   "behaviour": "Correcting a date-only field value for display takes the timestamp's calendar date in the JVM default time zone and returns the start of that same date (00:00) in the AttributeContext's time zone (context.getTimeZone()), in epoch milliseconds; e.g. with JVM zone UTC and context zone Europe/Berlin, 2024-03-10T00:00Z gives 2024-03-09T23:00Z. The conversion is set up once per context, stored under the context object key 'DateFieldTimestampCorrectionFunction', and reused within that context.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#makeDateFieldCorrection",
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#getTimestampCorrectionFunctionFromJVMTZ",
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#getTimestampCorrectionFunction"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-datetime-formatter/portfolio-date-correction",
+   "module": "structure-datetime-formatter",
+   "api": null,
+   "behaviour": "The Portfolio date correction converts a timestamp from time zone 'from' to time zone 'to' the same way (calendar date in 'from', start of that date in 'to'). The conversion is stored in the AttributeContext under the key 'PortfolioTimestampCorrectionFunction' the first time it is used in a context, and later calls in the same context reuse that first conversion even when they pass different 'from' or 'to' zones (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#makePortfolioDateFieldCorrection"
+   ]
+  },
+  {
+   "key": "c1-platform/structure-datetime-formatter/date-helpers",
+   "module": "structure-datetime-formatter",
+   "api": null,
+   "behaviour": "The date helpers convert: a timestamp (or java.util.Date) to the java.time.LocalDate it falls on in a given zone (a zone given as text is resolved with ZoneId.of, so an unknown id throws java.time.DateTimeException); a LocalDate to the epoch milliseconds of its start of day in the JVM default zone; a Date to the LocalDateTime in a given zone; and they offer the same 'calendar date in source zone, start of day in target zone' conversion from UTC to a zone and from a zone to the JVM default zone. Daylight-saving gaps follow java.time's atStartOfDay rules.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#toLocalDate",
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#toDate",
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#toLocalDateTime",
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#getTimestampCorrectionFunctionFromUTC",
+    "com.almworks.jira.structure.StructureDateTimeService$Companion#getTimestampCorrectionFunctionToJVMTZ"
+   ]
+  },
+  {
+   "key": "c1-platform/render-helper/wiki-to-html",
+   "module": "render-helper",
+   "api": null,
+   "behaviour": "Rendering wiki markup to HTML uses Jira's renderer for type 'atlassian-wiki-renderer' from RendererManager.getRendererForType, looked up once on first use and then reused (a null answer is remembered too). The text is rendered with render(text, null), i.e. without an issue context. Null text gives the empty string without asking Jira. If Jira has no such renderer, the text is returned HTML-escaped (as com.opensymphony.util.TextUtils.htmlEncode does) instead of rendered.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.util.RenderHelper#renderAsHTML",
+    "com.almworks.jira.structure.util.RenderHelper#<init>"
+   ]
+  },
+  {
+   "key": "c1-platform/render-helper/plain-text",
+   "module": "render-helper",
+   "api": null,
+   "behaviour": "Rendering as plain text returns the text HTML-escaped as com.opensymphony.util.TextUtils.htmlEncode does (null gives the empty string); the variant with line breaks additionally turns line breaks into HTML break tags as TextUtils.br does. Neither uses Jira's renderer.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.util.RenderHelper#renderAsText",
+    "com.almworks.jira.structure.util.RenderHelper#renderAsTextWithBrTags",
+    "com.almworks.jira.structure.util.Util#htmlEncodeAndBr"
+   ]
+  },
+  {
+   "key": "c1-platform/webresource-url-provider-bridge/static-urls",
+   "module": "webresource-url-provider-bridge",
+   "api": null,
+   "behaviour": "On Jira 9 the component builds static resource URLs through Jira's com.atlassian.plugin.webresource.WebResourceUrlProvider: the URL of a plugin resource given by module complete key (or module descriptor) and resource name, the static resource prefix with or without a resource counter. The requested URL mode (absolute, relative or automatic) is passed as the platform com.atlassian.plugin.webresource.UrlMode of the same name (ABSOLUTE, RELATIVE, AUTO). Results are Jira's, unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.webresource.WebResourceUrlProviderBridgeJ9#getStaticPluginResourceUrl",
+    "com.almworks.structure.compat.webresource.WebResourceUrlProviderBridgeJ9#getStaticResourcePrefix",
+    "com.almworks.structure.compat.webresource.WebResourceUrlProviderBridgeJ9#getUrlMode"
+   ]
+  },
+  {
+   "key": "c1-platform/webresource-manager-bridge/page-resources",
+   "module": "webresource-manager-bridge",
+   "api": null,
+   "behaviour": "On Jira 9 the component forwards to Jira's JiraWebResourceManager: requiring a web resource by complete module key (requireResource), requiring all resources of a context (requireResourcesForContext), returning the HTML tags of the resources required so far as given by getRequiredResources(UrlMode.AUTO), and putting a page metadata key and value (putMetadata), returning Jira's boolean result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.webresource.WebResourceManagerBridgeJ9"
+   ]
+  },
+  {
+   "key": "c1-platform/servlet-bridges/wrap-or-reject",
+   "module": "servlet-bridges",
+   "api": null,
+   "behaviour": "On Jira 9 (javax servlet API) the component wraps an object as a bridged request only if it is a javax.servlet.http.HttpServletRequest, and as a bridged response only if it is a javax.servlet.http.HttpServletResponse; anything else, including null, throws IllegalArgumentException ('request must be an instance of javax.servlet.http.HttpServletRequest' / 'response must be an instance of javax.servlet.http.HttpServletResponse'). Each call creates a new wrapper.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.bridge.JavaxServletBridges#forRequest",
+    "com.almworks.structure.compat.bridge.JavaxServletBridges#forResponse"
+   ]
+  },
+  {
+   "key": "c1-platform/servlet-bridges/request-bridge",
+   "module": "servlet-bridges",
+   "api": null,
+   "behaviour": "A bridged request answers header, date header, server name and port, context path, scheme, query string, method and parameter by asking the wrapped request directly, and gives back the wrapped request itself as the original. Cookies are returned as a list of name/value pairs in the request's order, an empty list when the request has no cookies (null). Asking for the session with or without creation returns a bridged session around the request's HttpSession, or null when there is none; a bridged session reads and writes session attributes directly.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.bridge.JavaxServletBridges$JavaxHttpRequestBridge",
+    "com.almworks.structure.compat.bridge.JavaxServletBridges$JavaxHttpSessionBridge"
+   ]
+  },
+  {
+   "key": "c1-platform/servlet-bridges/response-bridge",
+   "module": "servlet-bridges",
+   "api": null,
+   "behaviour": "A bridged response forwards reading header values by name, setting and adding headers, setting date headers, status, content type, character encoding and buffer size, reset, and access to the output stream and writer directly to the wrapped javax response; IOExceptions from the stream and writer propagate.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.bridge.JavaxServletBridges$JavaxHttpResponseBridge"
+   ]
+  },
+  {
+   "key": "c1-platform/velocity-request-context-factory-bridge/forwards-to-jira",
+   "module": "velocity-request-context-factory-bridge",
+   "api": null,
+   "behaviour": "On Jira 9 the component forwards to Jira's com.atlassian.jira.util.velocity.VelocityRequestContextFactory: getting the current Jira Velocity request context (getJiraVelocityRequestContext), setting it from a given context, setting it from a base URL plus a bridged request, and clearing it; caching a request context from a base URL plus a bridged request uses Jira's static DefaultVelocityRequestContextFactory.cacheVelocityRequestContext.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.compat.velocity.VelocityRequestContextFactoryBridgeJ9"
+   ]
+  },
+  {
+   "key": "c1-platform/velocity-request-context-factory-bridge/rejects-non-javax-request",
+   "module": "velocity-request-context-factory-bridge",
+   "api": null,
+   "behaviour": "Setting or caching the context from a bridged request whose original request is not a javax.servlet.http.HttpServletRequest (or is null) throws IllegalArgumentException with message 'Expected javax.servlet.http.HttpServletRequest, got: ' followed by the class name of the bridge object rather than of the request (as the original does); Jira is not called.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.velocity.VelocityRequestContextFactoryBridgeJ9#getHttpServletRequest"
+   ]
+  },
+  {
+   "key": "c1-platform/http-servlet-variables-bridge/current-request-response",
+   "module": "http-servlet-variables-bridge",
+   "api": null,
+   "behaviour": "On Jira 9 the component looks up Jira's com.atlassian.jira.web.HttpServletVariables through ComponentAccessor.getComponent on every call and returns its current HTTP request, or response, wrapped by servlet-bridges. Outside an HTTP request the result depends on Jira: if Jira's call throws, the exception propagates; if it returns null, wrapping fails with IllegalArgumentException.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.web.HttpServletVariablesBridgeJ9"
+   ]
+  },
+  {
+   "key": "c1-platform/action-context-bridge/current-action-request-response",
+   "module": "action-context-bridge",
+   "api": null,
+   "behaviour": "On Jira 9 the component returns the current web action's request and response, as webwork's action context reports them (its static getRequest and getResponse), wrapped by servlet-bridges, asked anew on every call. When no action is running and webwork reports null, wrapping fails with IllegalArgumentException.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.web.ActionContextBridgeJ9"
+   ]
+  },
+  {
+   "key": "c1-platform/xml-datatype-converter-bridge/print-and-parse",
+   "module": "xml-datatype-converter-bridge",
+   "api": null,
+   "behaviour": "On Jira 9 the component prints a java.util.Calendar as an XML Schema dateTime string and parses such a string back into a Calendar exactly as javax.xml.bind.DatatypeConverter.printDateTime and parseDateTime do (e.g. 2024-05-06T07:08:09.123+02:00; the zone of the calendar is kept). Text that is not a valid lexical xsd:dateTime makes parsing throw IllegalArgumentException.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.structure.compat.util.XmlDatatypeConverterBridgeJ9"
+   ]
+  }
+ ]
+}

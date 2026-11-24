@@ -1,0 +1,894 @@
+{
+ "claims": [
+  {
+   "key": "r3-v2-forest/rest-v2/forest-latest-get-spec-param",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/forest/latest`: the query parameter `s` is parsed as JSON text into a `forest-spec`. When `s` is missing, empty or not parsable as such JSON, the parse failure is only logged and the reply is 400 with the error object `error` = `Invalid request data`, `message` = `Forest spec is required` (never the `Cannot parse request JSON` form). A parsable `s` then behaves exactly like the body of `POST /rest/structure/2.0/forest/latest`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource#getLatest",
+    "com.almworks.jira.structure.api.util.StructureUtil#fromJson",
+    "com.almworks.jira.structure.api.forest.ForestSpec#fromRest"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/forest-latest-post-reply",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/latest`: given a valid `forest-spec`, it asks forest-service for the source of that spec, secured for the caller (a clipboard spec means the caller's own session clipboard), takes `getLatest()` and answers a `forest-snapshot`: `spec` is the request's object echoed unchanged, `version` and `formula` come from that one latest forest, and `itemTypes` lists, in ascending type number, only the non-issue item types that occur in `formula` (an empty object for a forest of issues only). A missing body gives the same 400 `Forest spec is required`. Errors from forest-service pass through (for example 404 for a structure the caller cannot view).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource#getLatest",
+    "com.almworks.structure.commons.rest.ItemSerializer#flushItemTypes",
+    "com.almworks.jira.structure.api.forest.ForestSpec#fromRest"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/forest-latest-synchronous",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/forest/latest` and `POST /rest/structure/2.0/forest/latest` compute on the request thread: they wait for generation to finish, never answer an `async-job-ticket`, and do not read `jobId`. They change nothing and record no usage counter.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource#getLatest"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-request-validation-order",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: on a first call (no `jobId`) the request is checked on the request thread before any job starts, in this order, each failure being 400 with `error` = `Invalid request data` and nothing applied: `spec` is parsed (a missing or invalid spec gives the message of `ForestSpec.fromRest`, e.g. `Forest spec is required`); `version` missing gives `Version is required`; then, for each action in order that has `cutFrom` with a `spec`, that spec is parsed, a missing `cutFrom.version` gives `Version is required` and a missing or empty `cutFrom.rowIds` gives `Row IDs are required`. `cutFrom` without `spec` is not checked here. These `cutFrom` checks apply to any action name, not only `add`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$1#callable",
+    "com.almworks.jira.structure.api.forest.ForestSpec#fromRest"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-missing-actions-or-body",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: a request with a valid `spec` and `version` but no `actions` key, an action entry that is JSON null, or a missing request body fails with `NullPointerException`, which the mapper answers 500 in plain text; no 400 is produced for them. Nothing is applied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$1#callable",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async",
+    "com.almworks.structure.commons.rest.RestExceptionMapper#toResponse"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-empty-actions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: with an empty `actions` list the forest source is never requested, so an unknown structure or a forest the caller cannot see is not noticed: the reply is 200 with `successfulActions` 0, no `updateError`, and empty `forestUpdates`, `effects`, `undoEffects` and `problems`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#createResponse"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-runs-as-generator-job",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: the work runs through structure-async-request-handler as a job on the job-manager executor `generator`, under the caller's identity and security context, and answers per that module (`async-job-ticket` after the wait). A call with `jobId` starts nothing and reads no other field of the body, so `spec`, `version` and `actions` may be absent then. A job id of another user is unknown (404, code 4603). A job that failed is not forgotten: repeating the call with its `jobId` gives the same failure again until the job is cleaned up (job-manager: 3 minutes after it finished).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource#updateForest",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-clipboard-session",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: on a first call the caller's HTTP session is obtained (and created when there is none), even when no action touches the clipboard; its id selects the clipboard that is cleared for `viaClipboard` actions. The session is not read in the job.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$1#callable",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#clearClipboard"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-sequential-stop-at-first-failure",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: actions run strictly in list order. The first action that is refused or asks a question ends the run: later actions are not looked at, not even their content, and the reply is 200 with `updateError` set and `successfulActions` = the number of actions finished before it. Actions already finished stay applied (there is no rollback of earlier actions), and their `forestUpdates`, `effects`, `oldRowIds`/`newRowIds` and `problems` are in the reply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#createResponse"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-action-content-checked-mid-run",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: an action's own content (name, `forest`, `rowId`/`rowIds`, `originalRowIds`) is checked in the job only when the run reaches that action, not up front. When that check fails on action n, the whole call answers 400 `Invalid request data`, with no `forest-update-response`, although actions 1..n-1 have already been applied and stay applied; the client learns nothing of them from this reply (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#getForest",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#getRowIds",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-unknown-action-name",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: `action` is compared exactly with `add`, `copy`, `move`, `remove` (case sensitive). Any other value, or a missing one, gives 400 `Invalid request data` with message `Invalid action: <value>` (`Invalid action: null` when missing).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-source-failure-is-a-request-failure",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: when forest-service cannot give the source of the action's forest (for example a structure that does not exist or that the caller cannot view), this is not an `updateError`: the whole call fails with the `structure-error` body and the status of its category (404 for that example), even if earlier actions were applied. The same holds for a source of `cutFrom.spec`. In the same way any exception from `ForestSource.apply` other than a `StructureException` fails the whole call (500 plain text, or the mapper's answer for its type).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#perform",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#getUfs",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#executeActionAndCategorizeResult",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-no-permission-check-of-its-own",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: anonymous callers may call it and the endpoint adds no permission check beyond the common gate. Who may change what is decided by the forest source given by forest-service for the spec secured for the caller: a refusal is a `StructureException` from `ForestSource.apply` and arrives as `updateError.error` with HTTP 200, not as 403.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#executeActionAndCategorizeResult"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-add-forest-parsing",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: for `add` and `copy`, a missing `forest` gives 400 `Forest is required`. A blank `forest` parses as an empty fragment, which only the clipboard forest then accepts. Otherwise it is split at `,` and each segment at `:`: fewer than 3 fields, or a row id, depth or semantics that is not a number, gives 400 with message `cannot parse forest: <segment>`, an item that cannot be read gives `cannot parse item identity <field>`, and rows whose depths do not form a valid forest give 400 with the forest's own diagnostic text. A fourth field is the semantics (default 0); further fields are ignored. Item forms: a percent-decoded text without `/` is an issue id, anything else a full item identity (`<item type key>/<n>` or `<item type key>//<s>`), never the numeric type form of the replies.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.ItemDeserializer#deserializeItemForest",
+    "com.almworks.jira.structure.rest.v2.ItemDeserializer#parseItemId"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-add-action",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: `add` applies a `ForestAction.Add` with the parsed fragment and `under`, `after`, `before` (each missing value becomes 0) to the forest source of `spec`, with `parameters` passed to `ForestSource.apply` unchanged (an empty map when null), so a client-sent `dryRun` reaches the source and the action counts as successful. An empty fragment is the exception: on a structure the `add` gives a 500.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#perform"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-copy-action",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: `copy` applies a `ForestAction.Copy`. `forest` is checked first, then `originalRowIds`: missing, or of a length other than the number of rows of `forest`, gives 400 `Original row IDs are missing or have incorrect size`. The map given to the action pairs the i-th row of `forest` with the i-th entry of `originalRowIds`. `cutFrom` has no effect on `copy`: nothing is removed and the clipboard is not cleared.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-move-remove-rows",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: `move` and `remove` take their rows from `rowId` when it is present (`rowIds` is then ignored), else from `rowIds`; neither, or an empty `rowIds`, gives 400 `Row IDs are required`. `move` applies a `ForestAction.Move` with `under`, `after`, `before` (missing = 0) and `remove` a `ForestAction.Remove`. On `move`, of `cutFrom` only `viaClipboard` counts (the clipboard is cleared after success, nothing is removed from `cutFrom.spec`). On `remove`, `cutFrom` has no effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#getRowIds",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-signature-rule",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: before a step's action is applied, the source's `getCurrentVersion()` signature is compared with the signature of the version the step uses. Only the signature counts: a stale version number with the same signature always passes, and so does a different signature when the action names no transient row (odd positive id); the action is then applied to the current forest. The check fails only with a different signature and a transient id among: for `remove`, its row ids; for `move`, its row ids, `under`, `after` or `before`; for `add` and `copy`, `under`, `after` or `before` (the rows of the fragment itself do not count; 0 and negative ids are not transient). With an empty fragment a failing check gives a 500 instead of the mismatch reply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#checkVersionSignature",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#isPersistentRowUpdate",
+    "com.almworks.jira.structure.row.IdPartitioning#isTransientId"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-signature-mismatch-reply",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: when the signature check fails, `ForestSource.apply` is not called and the run ends with 200 and `updateError.error`: `row` is the action's first row (first of `rowIds`, or the fragment's first row for `add` and `copy`; an empty fragment fails differently, see `d1-deepen`'s 500 claim), `message` is the text of `s.error.forest.signature-mismatch` (English `The operation cannot be applied because the structure has been re-generated.`), and `forestUpdates` ends with an update of that forest from the client's version to the current one, which for a different signature is a full update: this is how the stale client resynchronizes. `forest-action-error` carries no error code, so the code 5006 is not visible to the client.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#checkVersionSignature",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#getFirstRowId",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#consumeFailure",
+    "com.almworks.jira.structure.rest.v2.data.RestError#fromException"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-version-chaining",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: the first action of a request uses the request's `version`; after each successful action the version of the main forest moves to the version of the update just reported, so each later action's update has `fromVersion` = the previous update's `version`, and the signature check of the later action uses that newer version. `cutFrom.version` is used as given for every action.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#consumeForestUpdate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-forest-updates-order",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: on success of an action, `forestUpdates` gets, in this order: the update of the cut source (when `cutFrom.spec` was used), of the main forest, and of the clipboard (when it was cleared). Each entry echoes the spec the client sent for that forest (for the clipboard the clipboard's spec), has `fromVersion` = the version the step started from and is built with `ForestSource.getUpdate` of that version after the change.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#consumeForestUpdate",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#getForestUpdate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-failure-forest-update",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: when an action fails (error or question), the update of the failed step's forest from that step's version is added after the updates of earlier actions, so the client gets the current state of the forest even with `successfulActions` 0. No other forest of that action gets an update, apart from the undo case of a failed cut.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#consumeFailure",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#consumeForestUpdate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-error-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: a `StructureException` other than a question becomes `updateError.error`: `row` from the exception, `message` its localized message, `itemCount` the action's size (rows of the fragment, or of the row list), and `itemDescription`/`itemUrl` from the row's item displayable text and URL. For `row` 0 or a row that cannot be found, `itemDescription` is `row <id>` and `itemUrl` null. A row of the action's own fragment (for example a negative temporary id) is looked up in the fragment first, then in the row manager. Status stays 200 and `interactions` is absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#consumeErrors",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#getItemDisplayable",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#getItemCount"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-question-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: a `StructureInteractionException` from `ForestSource.apply` becomes `updateError.interactions`, one `forest-action-question` per interaction parameter in its order, with `row`, `parameter`, `message` and `values` (`value`, `iconHtml`, `message` = the explanation, `possible`), each with `itemDescription`, `itemUrl` and `itemCount` filled as for an error. Status 200, `error` absent, `successfulActions` not counting this action. Nothing of the asking action counts as applied; the client resends the remaining actions with the answers in `parameters`, starting from the versions in `forestUpdates`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#consumeInteraction",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#executeActionAndCategorizeResult",
+    "com.almworks.jira.structure.rest.v2.data.RestInteraction#fromParameter"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-cut-three-phases",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: an `add` with `cutFrom.spec` runs in this order: (1) a `ForestAction.Remove` of `cutFrom.rowIds` on the source forest, with the action's parameters plus `dryRun` = true (the signature check of `cutFrom.version` happens here); (2) the add on the main forest with the parameters as sent; (3) the same remove on the source forest with the parameters as sent, without another signature check. When (1) fails, the failure is reported with the source forest's update, and the add is not tried.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#dryRun",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#perform"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-cut-add-fails",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: when step (2) of a cut fails after the dry run passed, nothing is removed from the source, the clipboard is not cleared, the reply has the failure with only the main forest's update for this action, and `successfulActions` does not count it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-cut-real-remove-fails",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: when the real removal (3) of a cut fails after the add succeeded, the failure of the removal is reported with the source forest's update, and the action is not counted. If the main forest's source supports undo (every forest resolved from a REST spec except a clipboard), all effect batches reported by the add are undone through it, and on success of that undo the main forest's update is added too. The undo reverses effect batches only: rows the add stored without an effect batch stay. When the undo fails or the source cannot undo, no main update is sent and the add stays. The add's effects, row replacements and clipboard clearing are not reported in any of these cases.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#undo",
+    "com.almworks.jira.structure.forest.gfs.GeneratingForestSource#applyUndoRedo"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-clipboard-clear",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: an `add` or `move` with `cutFrom.viaClipboard` true clears the caller's session clipboard only after the action fully succeeded, and reports the clipboard's update (from its version just before clearing) as described by clipboard-manager. A failure while clearing fails the whole call as a `StructureException` although the action was applied. `viaClipboard` false or absent leaves the clipboard alone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateStep#clearClipboard",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-effects-and-undo",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: `effects` collects the applied effect batches of all successful actions (for an action, those of the cut before those of the add), `problems` their effect problems, in the same order. `undoEffects` is emptied at the start of every action and then holds the batch ids of that action only; so it holds the last action's batches when all actions succeeded, and is empty when the last attempted action failed, even if earlier actions had effects (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#consumeEffects"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-row-replacements",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: `oldRowIds` and `newRowIds` are two parallel lists built from the `ActionResult.getRowIdReplacements()` of the main step of all successful actions (a later action's entry for the same old id wins); they are absent when no action replaced a row, and their order is not defined. Replacements of the cut step are not reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#consumeReplacements",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#createResponse"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-response-always-present-lists",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: `successfulActions`, `forestUpdates`, `itemTypes`, `effects`, `undoEffects` and `problems` are always present in a `forest-update-response` (lists and map possibly empty). `itemTypes` covers every non-issue item type in the update encodings of the whole reply, in ascending type number. `extensionData` is filled as structure-core-extension says, once at the end of the run, also when an action failed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#createResponse",
+    "com.almworks.structure.commons.rest.ItemSerializer#flushItemTypes"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-usage-counters",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: per job, statistics-manager gets one `addUniqueUserCountAsync(\"activeUser\")`. Per action that passed its content check, `addTotalCountAndActiveUserAsync` is called with `updateForest`; then with `updateForest.success` on success, and also with `updateForest.success.effects` when an applied effect of the cut or main step is external (`AppliedEffect.isExternal()`); with `updateForest.errors` on an error failure; with `updateForest.interaction` on a question. Counters are local only.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#statAction",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#statSuccess",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#statFailure"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/update-cutfrom-list-misaligned",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/forest/update`: the parsed `cutFrom.spec` values of all actions are collected in one list, but only an `add` takes the next one from it. A `copy`, `move` or `remove` with `cutFrom.spec` placed before an `add` with `cutFrom.spec` therefore shifts the list: that `add` removes its `cutFrom.rowIds` from the forest of the earlier action's `cutFrom.spec`, while the reply's update echoes the add's own `cutFrom.spec` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$1#callable",
+    "com.almworks.jira.structure.rest.v2.javax.ForestResource$UpdateForest#call"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-subscription-limit",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: before anything else, on every call including a repeat with `jobId`: with more `subscriptions` entries than the limit (dark feature `structure.poll.maxSubscriptionsPerRequest`, default 20, read when the resource is created) it answers 400 `Invalid request data` with message `exceeded maximum subscription per request limit (20)` (the configured number); exactly the limit is accepted. Then any entry without `id` or without `version` gives 400 with a message beginning `bad subscription update request `. In both cases no job starts and no subscription is touched. A null or empty `subscriptions` means none, and `subscriptionUpdates` stays null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll",
+    "com.almworks.jira.structure.rest.v2.javax.PollResource$SubscriptionLoading#validate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-null-inputs-fail-500",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: a missing body, a `subscriptions` entry that is JSON null, a `forests` entry with a valid `spec` but no `version`, and `items` without `version` each end in `NullPointerException`, answered 500 in plain text for the whole poll, not as an entry-level error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll",
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll0",
+    "com.almworks.jira.structure.rest.v2.javax.PollResource$SubscriptionLoading#validate",
+    "com.almworks.structure.commons.rest.RestExceptionMapper#toResponse"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-subscriptions-start-first",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: value loading starts before the forest part: for each subscription entry in order it calls `AttributeSubscriptionService.getSubscription(id)` and `loadValues()`. A `StructureException` there (unknown, expired or foreign subscription) is kept for that entry and the poll goes on.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource$SubscriptionLoading#startLoading",
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-runs-as-generator-job",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: forests, items, item types, extension data and background processes are computed in one job on the job-manager executor `generator` through structure-async-request-handler, under the caller's identity. Forest specs are parsed on the request thread when the job is started. Subscription values are not part of the job: they are handled on the request thread after it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll",
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll0",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-ticket-and-resume",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: when the job does not finish within the async wait, the answer is only the `async-job-ticket`; the subscription updates of that call are dropped, although loading was started. A repeat with `jobId` gets the forests, items and processes of the original job, whatever `forests` and `items` it sends, but its subscription part is taken from the repeat's own body: its `subscriptions` entries are checked and answered, and without them `subscriptionUpdates` is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll",
+    "com.almworks.structure.commons.rest.AsyncRequestHandler#async"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-forest-list",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: null `forests` gives null `forestUpdates`; an empty list gives an empty list. Entries are answered in request order. An entry that is JSON null, or whose spec fails `ForestSpec.fromRest` (missing spec included; a warning is logged), is left out, so the reply list can be shorter than the request; the other entries are not affected.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll0",
+    "com.almworks.jira.structure.rest.v2.javax.PollResource"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-forest-unreadable",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: when the source of a forest entry cannot be given or read with a `StructureException` (for example no access), that entry has `spec` and `fromVersion` echoed and `error` as a `structure-error`, without `version`, `formula`, `updates` or `healthStatus`; the poll stays 200 and the other entries are computed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll0",
+    "com.almworks.structure.commons.rest.ItemSerializer#buildForestUpdate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-forest-update-versions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: for a forest entry other than the initial load, the reply is `ForestSource.getUpdate` from the entry's version, with `spec` and `fromVersion` echoed as sent. For the sources REST specs resolve to (a clipboard follows clipboard-manager instead), what the client gets is: a version with another signature (a restart, a reset, {0,0}): full, `formula`; the source's stopped health differing from generation-manager's blocked state, that is, right after a stop or resume: full; same signature but older than the kept change history: full; same signature and within the history: incremental, `updates`; equal to or newer than the current version, with the same signature: an empty incremental update carrying the current `version`, so a client ahead of the server is moved back without a `formula`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll0",
+    "com.almworks.jira.structure.forest.gfs.AbstractTransformingForestSource#getUpdateRefreshed"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-empty-update-encoding",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: an incremental update without changes has `updates` = the empty string (not absent), with `formula` absent, plus `version` and `healthStatus`. The same holds for such an entry in `forestUpdates` of `POST /rest/structure/2.0/forest/update`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.rest.ItemSerializer#buildForestUpdate",
+    "com.almworks.structure.commons.rest.ItemSerializer#serializeForestChanges"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-initial-load",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: for a forest entry with version {signature 0, version -1} on a source that keeps a generated snapshot (every REST-resolved forest except a clipboard): when the snapshot's version number is above 0, the reply is a full update of that snapshot with the source's current health and `needsUpdate` true, without waiting for generation or taking the source's lock; a client then polls from the returned `version`. When the snapshot version is 0 or lower, or for a clipboard, the entry behaves as a poll from {0,0}, which waits for generation, and `needsUpdate` is absent. In every case `fromVersion` echoes {0,-1}. Only exactly this version pair is special: {5,-1} is a normal stale version.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll0",
+    "com.almworks.jira.structure.forest.gfs.AbstractTransformingForestSource#accessTransformedVersionedForestNoLockCheck"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-items",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: null `items` gives null `itemsUpdate`. Otherwise `ItemTracker.getUpdate(version)` is reported: `fromVersion` and `version` are those of the update (not an echo of the request), and `updated` is the empty string for an empty update, `*` for a full update, else the comma-separated items in the forest encoding's form, whose non-issue types are added to `itemTypes`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll0",
+    "com.almworks.structure.commons.rest.ItemSerializer#buildItemsUpdate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-item-types-and-extensions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: `itemTypes` is always present (possibly empty) and covers the types of all forest updates and of `itemsUpdate` together, in ascending type number. `extensionData` is produced after forests and items as structure-core-extension says, also when `extensionRequests` is absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll0",
+    "com.almworks.structure.commons.rest.ItemSerializer#flushItemTypes",
+    "com.almworks.jira.structure.rest.ExtensionDataRetriever#getExtensionData"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-background-processes",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: `backgroundProcesses` is null for an anonymous caller, and null when `EffectorProcessManager.getRunningProcessesForUser` gives no process; otherwise one `background-effector-process` per process, in that order. `finished` is true for statuses `COMPLETED`, `COMPLETED_WITH_ERRORS`, `APPLY_INTERRUPTED` and `APPLY_STOPPED` and false for others. `percentComplete` comes from the process handle's info and is set only for a value in 0..100 (absent when the handle is unknown). `linkText` is the text of `s.effector.process.panel.button.open` (English `Open`). `linkUrl` is `<base url>/secure/StructureBoard.jspa#effectorProcessDialog=<id>`, with `?s=<structure id>` before `#` when the process has a `structureId` parameter or else its one-off forest spec names a structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#getEffectorProcesses",
+    "com.almworks.jira.structure.effector.EffectorProcessParameters#getStructureId"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-process-html",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: in a `background-effector-process`, `statusHtml` is `<span class=\"s-effector-process-icon s-effector-process-icon-<status>\"></span> <name>`, where `<status>` is the status name in lower case with `_` as `-` and `<name>` the text of `s.effector.process.status.+<STATUS NAME>+.name` in the current user's language. `titleHtml` for an undo process is a `<span>` with the text of `s.effector.processes.undo.of-process`, given a link `<a href=\"<base url>/secure/StructureEffectorAudit.jspa?processId=<reverted id>\" target=\"_blank\"><reverted id></a>`; for a process with effector instances, their summaries joined by `, ` in one `<span>`; for a one-off process the effector's summary; else the empty string.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effector.EffectorUIUtil#getProcessName",
+    "com.almworks.jira.structure.effector.EffectorUIUtil#getStatusHtml"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-values-wait",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: after the job's result is there and only when subscriptions were asked, the server waits for all started loadings for what is left of the budget (dark feature `structure.poll.valuesWait` in milliseconds, default 1000, counted from the start of the call, the forest part included). The wait is skipped when 100 ms or less are left. A timeout, cancellation or failed loading ends the wait without an error (a failure is logged); an interrupt re-sets the thread's flag. Without subscriptions there is no wait.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource#poll",
+    "com.almworks.jira.structure.rest.v2.javax.PollResource$SubscriptionLoading#waitForUpdates"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/poll-subscription-updates",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/poll`: `subscriptionUpdates` has one entry per request entry, in order. For a subscription found: `AttributeSubscription.getUpdate(entry version)` taken after the wait, `fromVersion` = the entry's version, and `stillLoading` true when this call's loading was not done at that moment. For one not found: `id` and `error` only (`error` a `structure-error` with code 4800), `full` false, no `data`, `version` or `fromVersion`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.PollResource$SubscriptionLoading#collectUpdates",
+    "com.almworks.jira.structure.rest.v2.javax.PollResource$SubscriptionLoading#writeUpdates",
+    "com.almworks.jira.structure.rest.v2.RestV2Util#createSubscriptionUpdate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-update-values",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/attribute/subscription/{id}` with `valuesUpdate=true` and `POST /rest/structure/2.0/poll` share the `attribute-subscription-update` form: `data` has one entry per attribute of the update, `values` holds only rows for which the update has a loaded value (a loaded value that is null is sent as a null entry), `outdated` lists those rows whose loaded value is marked outdated and is absent when there are none. On Jira 9 `emptyValueRows` is absent. `inaccessibleRows` is absent when empty. `attributeErrors` empties the subscription's collected errors with each update, so an error is reported once; an error without cause has `error` = `error loading attribute`; with a cause `error` and `message` are the cause's message and `localizedMessage` its localized one, with `itemId` as text and `rowId`; `code` is 6016 in both.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.RestV2Util#createSubscriptionUpdate",
+    "com.almworks.jira.structure.rest.v2.RestV2Util#getAttributeErrorInfo"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/generation-login-required",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/generation/stop`, `POST /rest/structure/2.0/generation/stopIfRunning` and `POST /rest/structure/2.0/generation/resume` require a logged-in user; `POST /rest/structure/2.0/generation/generatorDescriptions` is the only anonymous-allowed one of the family. A missing body or missing `forestSpecs` gives `NullPointerException`, answered 500 in plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource",
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#stopGeneration",
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#resumeGeneration"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/generation-spec-check",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/generation/stop`, `POST /rest/structure/2.0/generation/stopIfRunning`, `POST /rest/structure/2.0/generation/resume`: each spec is checked in list order: an invalid one gives 400 `Invalid request data`; one with a `version` or of the clipboard is skipped silently, without any check; one naming a structure the caller cannot view (`StructureManager.isAccessible` at VIEW) gives 404 `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE` for that structure, with the text of `s.edit.error.no-structure` (English `Structure <id> does not exist or you don't have permissions to see it.`). VIEW is all that is needed: EDIT or administrator rights are not asked, and administrators get no bypass of this check. A failure on a later spec leaves the earlier specs of the list done.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#checkSpec",
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#response",
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#resumeGeneration"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/generation-stop",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/generation/stop`: for each spec that passed the check, it uses the spec without security when the spec has no transformations (a transformed spec stays secured for the caller), asks generation-manager to block it, and cancels every generation returned, without interruption (`cancel(false)`). Blocking also applies when nothing is running. The action is logged at WARN with the user. The reply is `empty-ok`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#stopGeneration",
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#response"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/generation-stop-if-running",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/generation/stopIfRunning`: same checks and spec handling as stop, but it uses generation-manager's 'block if running' variant, so a spec with nothing running and not already blocked stays unblocked. Generations returned are cancelled without interruption. The reply is `empty-ok`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#stopGenerationIfRunning",
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#response"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/generation-resume",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/generation/resume`: for each spec that passed the check, it takes the forest source of the spec (errors from forest-service pass through) and walks its dependencies: the source itself first, then its wrapped source and the sources of sub-structure generators, cycles skipped. For a source without such dependencies (not generating) it is the spec alone. Each is unblocked through generation-manager and added to the reply's `forestSpecs` whether or not it was blocked; a WARN is logged only for those that were blocked. Because a secured source and the source it wraps have equal REST forms, the same spec can appear more than once in the reply. A spec skipped by the check adds nothing, so the reply can be an empty `forestSpecs`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#resumeGeneration",
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#getDependencies",
+    "com.almworks.jira.structure.forest.gfs.AbstractTransformingForestSource#getDependencies"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/generation-descriptions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/generation/generatorDescriptions`: each id of the body is resolved in order through `ItemResolver.resolveItem` for the `com.almworks.jira.structure:type-generator` identity with that id; an id that does not resolve is left out, the others give one `generator-description`, with repeats kept. `description` is `<span><span class=\"s-summary-icon s-stop-summary-icon\">` + the generator's icon HTML + `</span>` + the generator's summary + `</span>`, a missing icon or summary counting as empty text. An empty array gives an empty array. A missing body or a JSON null element gives `NullPointerException`, answered 500 in plain text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#getGeneratorDescriptions",
+    "com.almworks.jira.structure.rest.v2.javax.GenerationResource#getGeneratorDescription",
+    "com.almworks.jira.structure.extension.attribute.GeneratorSummaryLoader#getSummary"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/mapping-result",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/mapping`: `itemsVersion` is the current `ItemTracker` version, read before any forest. For each spec in order it takes `getLatest()` of the forest source (so generation is waited for) and maps each row of `rows` in order through `RowManager.createMapper(forest).mapRow`; results as structure-row-manager says (-1 stays -1, a row of the forest is itself, 0 when nothing corresponds). `rows` and each `forestSpec` are echoed as sent. The first spec that fails ends the call with its error: no partial reply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.MappingResource#getMapping"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/mapping-missing-input",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/mapping`: a missing body or `forestSpecs`, a JSON null in `rows`, or a missing `rows` with at least one spec gives `NullPointerException`, answered 500 in plain text, not 400. An empty `forestSpecs` gives 200 with empty `mappings`, and with `rows` echoed (null when absent). An empty `rows` gives empty `mappedRows`, but each spec is still resolved and may fail.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.MappingResource#getMapping"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-create",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/attribute/subscription`: it creates the subscription with `AttributeSubscriptionService.createSubscription()` first, then sets the window from the body. A missing `forestSpec` or an invalid one gives 400 `Invalid request data`, but the created subscription stays in the service, unknown to the caller, until it expires (as the original does). A missing body gives `NullPointerException` (500 plain text), with the same leftover. Missing `rows` or `attributes` are not errors: they mean an empty list. With `valuesUpdate=true` the update is from version {0,0}, since this endpoint takes no `signature` or `version`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#create",
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#updateSubscription",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription#changeSubscription"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-window-reply",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/attribute/subscription`, `GET /rest/structure/2.0/attribute/subscription/{id}`, `PUT /rest/structure/2.0/attribute/subscription/{id}`: `window` in the reply is read back from the subscription, not echoed: rows sorted ascending without duplicates, attributes in the stored order with attribute specs of unknown format or JSON null left out, `params` null when empty, and the forest spec in its REST form. Without `valuesUpdate=true` (absent or any other value), no value loading is started, no update is made, `valuesUpdate` is absent in the reply and collected attribute errors stay collected.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#createReply",
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#getWindow",
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#maybeGetUpdate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-values-timeout",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/attribute/subscription/{id}`, `POST /rest/structure/2.0/attribute/subscription`, `PUT /rest/structure/2.0/attribute/subscription/{id}`, `POST /rest/structure/2.0/attribute/subscription/{id}/patch`: with `valuesUpdate=true` it starts `loadValues()` and waits up to `valuesTimeout` milliseconds, clamped to 0..60000 (negative becomes 0), default dark feature `structure.rest.attribute.valuesTimeout` (1000), read when the resource is created. A timeout or cancellation goes unnoticed, a loading failure is only logged, an interrupt re-sets the thread's flag; the reply is still 200. `stillLoading` is true when `isLoadingValues()` is true after the wait.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#maybeGetUpdate",
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#getTimeout",
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#loadValuesWithTimeout"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-from-version",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/attribute/subscription/{id}`, `PUT /rest/structure/2.0/attribute/subscription/{id}`, `POST /rest/structure/2.0/attribute/subscription/{id}/patch`: the update's start version is {`signature`, `version`} when both query parameters are present, else {0,0} (full). `fromVersion` in the reply is that pair. `signature` and `version` are 32-bit integers. They are ignored without `valuesUpdate=true`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#maybeGetUpdate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-get-skip-loading",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/attribute/subscription/{id}`: `skipLoading=true` with `valuesUpdate=true` starts and waits for nothing and answers from what is loaded; `stillLoading` is then true only when an earlier loading is still running. The subscription is looked up first through `AttributeSubscriptionService.getSubscription`, so a missing, expired or foreign one is 404 with code 4800 whatever the parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#get",
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#maybeGetUpdate"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-put",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/attribute/subscription/{id}`: with an existing subscription, all three window parts are replaced by the body, so an absent `rows` or `attributes` empties them, and a missing `forestSpec` or an invalid one gives 400 `Invalid request data` with the window left unchanged. A missing body is `NullPointerException` (500 plain text). When the new window names another structure, version, query, clipboard or user, or goes from unsecured to secured, values loaded so far are dropped and loads running are cancelled, so a client's old version gets a full update; when only rows or attributes change, loads for attributes no longer in the window are cancelled and values kept.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#update",
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#updateSubscription",
+    "com.almworks.jira.structure.attribute.subscription.UserAttributeSubscription#changeSubscription"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-patch",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/attribute/subscription/{id}/patch`: only keys present and non-null in the body are changed; an empty array counts as present and empties that part. An invalid `forestSpec` gives 400 `Invalid request data` with nothing changed, a missing body `NullPointerException` (500 plain text). A body with no keys changes nothing and answers as a get, with the values update when asked. The 404 of an unknown subscription (code 4800) applies as on PUT.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#patch"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-delete",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`DELETE /rest/structure/2.0/attribute/subscription/{id}`: it drops the caller's subscription through `AttributeSubscriptionService.dropSubscription` and answers `empty-ok`; dropping it a second time, or a subscription of another user, gives 404 with code 4800.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource#delete"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/subscription-interceptors",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/attribute/subscription` and the other attribute subscription endpoints are, with `POST /rest/structure/2.0/poll`, the only resources of this group that send the Data Center cookie `X-Structure-DC-Meta`. Forest, generation, mapping, process, attribute sensitivity and issue endpoints do not.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSubscriptionResource",
+    "com.almworks.jira.structure.rest.v2.javax.PollResource",
+    "com.almworks.jira.structure.rest.v2.javax.package-info"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/sensitivity-admin-gate",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/attribute-sensitivity`, `PUT /rest/structure/2.0/attribute-sensitivity` and `POST /rest/structure/2.0/attribute-sensitivity/validate` are administrator-only by the common gate at resource level: a logged-in non-administrator gets 403 `permission violation` before the method runs.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSensitivityResource"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/sensitivity-get",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/attribute-sensitivity`: `sensitivityMode` is the code of the mode from `StructureConfiguration.getAttributeSensitivitySettings()`; `nonSensitiveAttributeSpecs` is the set sorted by attribute id, each in REST form (`params` null when empty), an empty list when none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSensitivityResource#sensitivitySettings",
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSensitivityResource#createResponse"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/sensitivity-put",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/attribute-sensitivity`: given a body, the mode comes from `AttributeSensitivityMode.valueOf(sensitivityMode)`, a missing `sensitivityMode` counting as 0 (`STANDARD`) because the value is a primitive int. Specs are converted strictly (unlike subscriptions, an unknown format is refused) and duplicates collapse; a missing or empty list stores an empty set. On success `StructureConfiguration.setAttributeSensitivitySettings` stores it (see structure-configuration) and the reply is `empty-ok`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSensitivityResource#update"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/sensitivity-put-errors",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/2.0/attribute-sensitivity`: a missing body is 400 with an empty body. An illegal argument (bad mode, unknown format, blank attribute id, id over 190 characters) is 400 text/plain with the text of `str.admin.attrSensitivity.error.invalidInput` with its message, in English `invalid update: 3 is not a valid sensitivity mode code` or `invalid update: format x is unknown`. Any other exception, for example from storing, is 400 text/plain with the exception's message. Nothing is stored in these cases: the settings are written only after all checks.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSensitivityResource#update",
+    "com.almworks.jira.structure.api.rest.RestAttributeSpec#fromRestNotNull",
+    "com.almworks.jira.structure.api.attribute.AttributeSpec"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/sensitivity-validate",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/attribute-sensitivity/validate`: the raw request body is the JSON of one attribute spec (not a JSON string containing it). An empty body gives 400 text/plain `specification is empty` (`str.admin.attrSensitivity.error.specEmpty`). A body that does not parse, or the literal `null`, gives 400 text/plain with an empty text, not a reason. An unknown or missing format gives 400 `format <x> is unknown`, and a blank or too long id the attribute spec's own message. A valid spec gives `empty-ok`; nothing is stored or compared with the stored list, so a spec already in the settings is valid.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.AttributeSensitivityResource#checkAttributeSpec",
+    "com.almworks.jira.structure.api.util.StructureUtil#fromJson",
+    "com.almworks.jira.structure.api.rest.RestAttributeSpec#fromRestNotNull"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/process-access",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/process/{id}/info` and `POST /rest/structure/2.0/process/{id}/cancel`: checks run in this order: the caller must be allowed to use <product>, else 403 text/plain `permission violation`; then `ProcessHandleManager.getInfo(id)` must give a process, and the caller must be an administrator or `isVisibleTo(caller)`, else 404 text/plain `process <id> does not exist`, the same text for missing and for not visible. Ownerless processes are visible to anyone, anonymous included, as process-handle-manager says.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ProcessResource#getProcessInfo",
+    "com.almworks.jira.structure.rest.v2.javax.ProcessResource#getInfo",
+    "com.almworks.jira.structure.rest.v2.javax.ProcessResource#cancel"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/process-info-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/process/{id}/info`: `name` and `buttons` come from the process's display parameters and are absent when it has none, `buttons` also when the list is empty. `status` is the status value; `statusText` is the text of `s.process.state.+<STATUS NAME>` (English `Pending`, `Running`, `Finished`); both are absent without a status. `activity` is the localized activity. `percentComplete` and `percentText` are set only for a progress in 0..100; `percentText` is the text of `s.process.progress.percent-complete` (`{0,number}% complete`). All texts are in the caller's language with the arguments stored with the text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ProcessResource#restInfo",
+    "com.almworks.jira.structure.rest.v2.javax.ProcessResource#restButton",
+    "com.almworks.jira.structure.rest.v2.javax.ProcessResource#getText"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/process-cancel",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`POST /rest/structure/2.0/process/{id}/cancel`: after the access checks it calls `ProcessInfo.cancel()` and answers the same fields as info. The body is ignored and may be missing. Cancel has no state check: a pending, running or finished process gets the same 200, and the reply's `status` shows no change, since cancel only sets the flag the process itself reads.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ProcessResource#cancel"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/issue-menu-access",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/issue/{issueId}/actions-and-operations`: the issue is fetched for the logged-in user with `IssueService.getIssue(user, id)`; an invalid result (missing, or no browse permission) gives 404 with no body. Both 200 and 404 carry `Cache-Control: no-cache, no-store`. Anonymous callers are treated by Jira as the null user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource#getActionsAndOperationsResponse",
+    "com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource#getIssue"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/issue-menu-actions",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/issue/{issueId}/actions-and-operations`: `actions` lists `IssueWorkflowManager.getSortedAvailableActions(issue, user)` in that order, with `action` = the id as text, `name` = the transition's display name and `desc` = its description trimmed, null when blank.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource#getAvailableActions"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/issue-menu-operations",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/issue/{issueId}/actions-and-operations`: `operations` comes from Jira's `SimpleLinkManager`, with a `JiraHelper` for the current request, the issue's project and the parameters `issue` and `issueId`: the sections of locations `opsbar-operations`, `opsbar-restore`, `opsbar-admin`, in this order, each section's links in order, as `name` = label, `url`, `desc` = title, `styleClass`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource#getIssueOperations"
+   ]
+  },
+  {
+   "key": "r3-v2-forest/rest-v2/issue-menu-other-fields",
+   "module": "rest-v2",
+   "api": null,
+   "behaviour": "`GET /rest/structure/2.0/issue/{issueId}/actions-and-operations`: `id` is the path id as text, `key` the issue key, `viewIssue` the Jira text of `admin.issue.operations.view`, and `atlToken` comes from Jira's `XsrfTokenGenerator.generateToken(true)`, which creates the token in the session when there is none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource#getActionsAndOperationsResponse",
+    "com.almworks.jira.structure.rest.v2.javax.ActionsAndOperationsResource#getCurrentAtlToken"
+   ]
+  }
+ ]
+}

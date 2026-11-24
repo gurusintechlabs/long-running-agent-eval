@@ -1,0 +1,1452 @@
+{
+ "claims": [
+  {
+   "key": "u4-edit-queue/widget-bare/queue-order-and-states",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Every user change that must reach the server becomes one entry in a single first-in-first-out upload queue shared by both panels of the widget. An entry is in exactly one of three working states: pending (waiting to be sent), uploading (part of the request in flight) or blocking (the server refused it or asked a question, and the user must decide). A fourth state, processing, is reserved and has no behaviour. The queue is strictly ordered: changes reach the server in the order they were made, except for priority entries.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/queue/UploadState",
+    "amd:structure/widget/queue/UploadableAction"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-optimistic-apply",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The moment an entry joins the queue its change is applied to the local view of every forest the entry touches, without waiting for the server (one forest per entry by default: the panel's current forest; an entry can name several). The change stays applied as an overlay until the server's answer removes it from the queue, then the overlay is dropped and the server's data takes over. So the user sees a move, paste, delete or add at once, and sees it undone only if the server rejects it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/queue/UploadableAction"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-upload-debounce",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After any entry is added and no entry is blocking, the upload starts 500 ms after the most recent change: each new change restarts the 500 ms wait, so a burst of changes goes up together. In the developer mode of the widget nothing uploads automatically and uploading is run by a manual action. A widget configured with an upload delay of 0 or less never uploads from the timer either.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/WidgetConfig"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-single-request-in-flight",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "At most one upload request is in flight for the whole widget. While one is running, nothing else is sent. When it completes: if the queue is empty or its first entry is blocking, the sequence is over and any sequence-finished callbacks collected from the sent requests run once; otherwise the next upload starts immediately, without the 500 ms wait.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-batch-selection",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An upload takes the longest run of pending entries from the front of the queue, stopping at the first entry that is uploading or blocking. Each registered request builder is asked in order, first the effect undo/redo builder, then the clipboard and forest builders, and the first one that accepts sends the entries it says it took; forest entries in one request share the same forest spec and version signature. An entry no builder will take right now (not ready yet, for example it refers to a row that does not exist on the server) is skipped: its affected rows are added to an exclusion set and the builders are asked again from the next entry, so later entries can overtake it when they do not touch those rows. If no builder accepts anything, the queue stops trying until the next change.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/queue/UploadableAction"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-empty-build-retry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "If a builder accepts entries but reports a count of zero, no request is sent and the upload is tried again 100 ms later.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-overriding-entry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A new non-priority entry that overrides the last entry of the queue (only when that last entry is pending or blocking) replaces it in place instead of being appended: any question or decision shown for the old entry closes, the old entry's local change is removed and the new one applied in a single update, so the screen does not flicker. Which entries override which is decided by the entry types; a plain entry overrides nothing. Example: moving the same rows twice in a row before upload sends one move.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/queue/UploadableAction"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-priority-entry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An entry flagged as priority goes to the very front of the queue. Every queued entry it overrides is removed from the queue and its question closed. A priority entry applies no local overlay of its own at this point. If the same entry is already first, the queue is left as it is.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-blocked-by-decision",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While any entry in the queue is blocking, a new change is still queued and applied locally, but the decision panel is shown again and nothing uploads, whichever position the blocking entry is in. No upload starts when the first entry is blocking. The queue resumes only after the user answers or drops that entry.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-upload-blocker",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A named blocker can be set on the queue, for example while a new row is being edited with a temporary row id. While a blocker is set nothing uploads and the queue counts as idle. Only one blocker can be held at a time, and it is released by the same id. On release, if entries remain, the 500 ms upload wait starts. Dropping or retrying a blocking entry whose temporary row id equals the blocker also releases the blocker.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-idle-and-empty-state",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The queue reports idle when no entries are waiting and no request is running, or whenever a blocker is set. It reports empty for the whole widget or for one panel, and reports blocked tasks only when a blocker is set and entries remain (for the whole widget or for a panel). Listeners are told after every change of the queue, except when an addition finds a blocking entry and shows the decision panel instead.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-success-removes-entries",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When an upload answers, the first `successfulActions` entries of the request (0 when the field is absent) leave the queue and their local overlays are removed; the rows they had marked as failed are repainted. All removal and any following forest update happen as one update of the local forest, so the user does not see the change vanish and come back.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-partial-success-remaining-pending",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When `successfulActions` is lower than the number of entries sent, every entry after the first unsuccessful one goes back to pending, to be sent again later. The first unsuccessful entry becomes blocking when the response has `updateError` or `fieldErrors`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-partial-success-no-error-stuck",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a 200 answer reports fewer `successfulActions` than sent and has neither `updateError` nor `fieldErrors`, the first unsuccessful entry stays in the uploading state forever. As it is then first in the queue, nothing else uploads until the page is reloaded or the panel's queue is cleared (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-update-error-marks-rows",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a response has `updateError`, the failed entry keeps that object (with the response's `itemId` added) as its result. Its error rows are the `error.row` of the failure, or the `row` of every question in `interactions` when there is no error. Those rows are repainted with an upload-error marker, and the decision panel (see the panel's own claims) opens for that entry. The marker stays until the entry leaves the queue (it succeeds, or its failure is acknowledged) or a new failure replaces its error rows. Answering and retrying does not clear it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/queue/UploadableAction"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-decision-answer-and-retry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Answering a question writes the chosen value into the failed entry's `parameters` under the question's `parameter` id, and removes that question from the entry's remaining questions; the panel can ask whether questions remain. Retrying with the decision closes the panel, returns the entry to pending, releases a blocker held by its temporary row id, and starts the 500 ms upload wait. The same action is then sent again with its `parameters`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/queue/UploadableAction"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-acknowledge-failed",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the user dismisses a failed entry, the decision panel closes, the entry leaves the queue, its result and error rows are wiped, its local overlay is removed so the change disappears from the screen, an undo offer for that entry is withdrawn, a blocker held by its temporary row id is released, the rows it affected are repainted, and the 500 ms upload wait starts for what remains.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-forest-update-from-response",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a response has `forestUpdates` or `itemsUpdate`, they are parsed with the response's `itemTypes` and handed to the same code that processes a poll result, tagged as coming from the upload queue. Rows that newly appear from such an update are highlighted as animated only if one of the successful entries was an effect undo or redo; for other uploads the highlight is off during that one update.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-row-id-replacement",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a response has `forestUpdates` and non-empty `oldRowIds` and `newRowIds` of equal length, each old row id is replaced by the new one in the successful entries of the request and in every queued entry that is not uploading and whose untransformed forest spec equals that of the first entry of the request. Then the UI state of the panels on that forest (expansion, selection, focus) follows the new ids. Without a forest spec on the entry only a warning is logged.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-poll-after-upload",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After an upload, a poll is requested at once when the upload failed, or when the request said an update is required and the response brought neither `forestUpdates` nor `itemsUpdate`. All forest and clipboard requests and effect undo/redo say an update is required.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-effects-notify",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Effects and problems in any upload response are shown as notifications: `effects` batches are flattened and go to the effect notification rules, `problems` to the problem notification rules.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/EffectNotifications"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-response-errors-array",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a response has an `errors` array, each element becomes an entry in the widget's error panel. Its text is looked up by the element's numeric `code`, with the `itemDescription` (else `itemId`, else nothing) as parameter. Code 4002 reads: Changing item {0} was not allowed because you don't have Edit Issue permissions on its parent. For any other code, the text is 'Failed to upload changes for item {0}. Please try again or reload. Sorry about that!' when an item is known, else 'Failed to upload changes to server. Please try again or reload. Sorry!'. The panel's details add 'Error <code>' and the element's `message`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-http-failure-reported",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When an upload request fails with a real HTTP status other than 204 and 304 (so 4xx and 5xx), the change is given up: all entries of the request leave the queue as though they had succeeded, their local overlays are removed, a poll is requested, and an error is shown in the error panel. The short text is 'Failed to upload changes due to permission problems. Please check that you are logged in. Our apologies!' for 403, 'Failed to upload changes (structure does not exist or not available). Please check that you are logged in. Sorry!' for 404, and otherwise 'Failed to upload structure changes. Please retry operation. ({0})' with the HTTP error's title. The details carry the generic line, then 'When uploading change:' for one request entry or 'When uploading N structure changes:' for N, then the HTTP error's details.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-network-failure-backoff",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When an upload fails on a timeout, on a lost connection, with status 0 or no readable status, or with status 204 or 304, nothing is reported to the user and nothing is lost: all entries of the request return to pending and stay in place. The next attempt is held back: the wait is the previous wait times 1.5, at least 3000 ms and at most 30000 ms, rounded down (3000, 4500, 6750, 10125, 15187, 22780, 30000, 30000 ms). Any answer handled as a response, success or reported failure, resets the wait to zero.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-retry-timer",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the retry wait runs, an attempted upload does not go out but sets one timer for the remaining time plus 50 ms.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-clear-panel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a panel's content is replaced after the user confirmed losing pending changes, that panel's queue entries are cleared: each leaves the queue, overlays are removed, its decisions close and the undo offer is cleared, whichever entry it was for. Answers to any request already in flight are ignored from then on, entries of other panels included. If the queue is empty afterwards, retry waits and sequence-finished callbacks are dropped too.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/ui/panel/ForestPanel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-clear-inflight-other-panel-stall",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "If a panel's queue is cleared while an upload is in flight and entries of the other panel remain, the in-progress mark stays set, because the answer of the old request is ignored, and uploads from then on no longer run until the page is reloaded (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-update-actions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Other parts of the widget can walk all queued entries with a function that updates each one: the overlay of each entry is swapped if the function changed it, and an entry for which the function answers false leaves the queue. A variant skips entries that are uploading. The undo offer's action goes through the same function, and the offer is withdrawn if it answers false.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-effect-undo-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Undoing or redoing an effect sends one request with no other entries: `POST /rest/structure/2.0/effect/undo` when the offer is in the applied state, otherwise `POST /rest/structure/2.0/effect/redo`. The body is `effectIds` (the batch ids on the offer), `forest` with `spec` (the spec of the undone action) and `version` (the current known version of that forest), and `items` with `version` (the current items version). Its local overlay is empty: nothing changes on screen until the response's update arrives, which is then animated.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/queue/UploadableUndoRedo"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/queue-effect-undo-failure",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When effect undo or redo answers with `updateError`, it is handled as any other failed entry: a blocking entry and the decision panel, with the server's message ('This action can no longer be undone.' or 'This action can no longer be redone.' when the batch is gone).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/queue/UploadableUndoRedo"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/undo-offer-created",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An action made with an undo label (labels: `add-from-search`, `dnd`, `level-down`, `level-up`, `move-down`, `move-up`, `paste`, `remove`) sets the single undo offer of the widget to that action in the applied state and starts a 60-second lifetime. A forest change without a label withdraws any offer at once. A non-forest change without a label, such as a field edit, leaves the offer as it is. There is only one level of undo.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/widget"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/undo-footer-link",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The footer shows the undo offer as two links that do the same thing: a long one reading 'Undo Move Up', 'Undo Move Down', 'Undo Indent', 'Undo Outdent', 'Undo Remove', 'Undo Paste', 'Undo Drag and Drop' or 'Undo Add' by label, and a short one reading 'Undo'. After an undo the texts become 'Redo Move Up' ... 'Redo Add' and 'Redo'. Both links have the accessible label 'Undo or redo'. They are hidden while history is open, and hidden when there is no offer.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/widget",
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/undo-lifetime-fade",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An undo offer lives 60 seconds from when it was made, undone or redone. Then it turns fading: the footer links fade out over 10 seconds, and 10.5 seconds after fading began the offer is gone. Using the offer during the fade restarts the 60 seconds and shows the links fully again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/widget",
+    "amd:structure/widget/Constants"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/undo-actions-keys",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Three actions use the offer: 'undo' works only in the applied state, 'redo' only after an undo, and the footer links' action uses whichever fits. Every use without an offer or in the wrong state does nothing. The keyboard shortcuts are Ctrl+Z and Ctrl+Shift+Z (Cmd on Mac).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue",
+    "amd:structure/widget/ui/grid/DragPresenter"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/undo-before-upload",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the offer has no effect batches, undo works only while the offered action is still the last queue entry and is pending or blocking: its decision closes, it leaves the queue, its overlay is removed, and the 500 ms upload wait restarts for what remains. The offer turns to its redo state with a new 60 seconds.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/undo-after-upload-noop",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Once a plain action without reversible effect batches has reached the server, using its undo offer does nothing visible: the footer link stays and keeps reading 'Undo ...', the change stays on the server, and only the 60 seconds restart. The forest is not restored from the client (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/undo-redo-reupload",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Redo of an offer without effect batches marks the action's affected rows as animated, resets the same action to pending, sends it through the queue again and turns the offer back to its applied state with a new 60 seconds.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/undo-offer-gets-effects",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When an upload response has both `effects` and `undoEffects`, the offer belongs to the last successful entry of the request and it has no batches yet: the offer gets as its batches those ids of `undoEffects` whose batch in `effects` has at least one `reversible` effect. If none qualifies, the offer of any successful entry of the request is withdrawn, because nothing can be undone. From then on undo and redo go through the effect endpoints and can be repeated in turn within the offer's lifetime.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/queue/UploadQueue"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-panel-layout",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The history panel sits beside the grid in the widget and has a header with an icon, the title 'History' and a close button, a scrolling list of change entries, newest first, and below the list a 'Show More' button or a short status text. The close button hides the panel. History mode applies only to the primary panel's structure.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-open-load-first-page",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When history becomes visible and the primary panel shows a structure, the widget sends `GET /rest/structure/2.0/history/{id}/versions?maxCount=20`. With no structure id (a query, for example) the list is emptied and the status text 'History is not available' is shown, with no request. If the list held versions of another structure, it is reset first.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-show-more",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Show More' sends `GET /rest/structure/2.0/history/{id}/versions` with `maxCount` = the larger of 20 and the number of versions loaded so far, and `maxVersion` = the lowest version loaded. So pages grow: 20, 20, 40, 80 and so on. After any list request, if the lowest version loaded is 1 or did not change, the button is hidden and the status text reads 'No more changes' when anything was loaded, else 'History is empty'. Otherwise the text is hidden and the button shown.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-list-merge",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Entries are unique per version and kept in descending order. A loaded version higher than all others goes on top; one lower than all others goes at the bottom; one in between is inserted at its place when it is not yet in the list. Each incoming version with an empty or zero `version` is skipped. Entries already listed are left as they are.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-refresh-on-change",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the panel is visible and the primary panel switches to another structure, the list is reset when needed and the first page request is sent for the new structure. Changes made to the same structure while the panel is open do not add entries by themselves.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-entry-content",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An entry shows the user's avatar (`user.avatarUrl` with `&size=small` appended), with Jira's user hover card when `user.profileUrl` is present; the subject, which is `synchronizer.description` (also as tooltip) for a synchronizer's change and otherwise `user.displayName`; the time `dateTimeFormatted`; and one line per operation.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-entry-operations",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Changes of a version are combined per operation in first-seen order, with `forestSize` summed (a version with a single change is used as it is). A line reads, for `add`, `copy`, `move`, `remove`: with size 1 and a non-zero numeric `itemId`, an `issueKey` and an `issueSummary`, 'added KEY', 'copied KEY', 'moved KEY' or 'removed KEY', with KEY a link showing the summary as tooltip; with size 1 otherwise 'added 1 item', 'copied 1 item', 'moved 1 item', 'removed 1 item'; with size n 'added n items', 'copied n items', 'moved n items', 'removed n items'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-entry-issue-link",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clicking the KEY link in an entry stays on the page. If that entry's version is already the shown one, the first row of the item in the shown forest gets focus and the entry's own click is not processed. Otherwise the entry is selected and its version is loaded and shown, but focus does not move to the item's row until the link is clicked a second time (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-select-version",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clicking an entry that is not selected selects it and loads the version: from a cache of the 10 most recent versions, otherwise with `GET /rest/structure/2.0/history/{id}/version/{v}`. Of several quick requests only the last requested version takes effect: older answers fill the cache but change nothing on screen. The entry is highlighted and scrolled into view; if it fits, one entry above and below remains visible when it comes from outside the viewport.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-version-parse",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "From a version's response the UI reads for each change `operation`, `moveDirection`, `forest` (comma-separated rows, of which it takes the leading `<rowId>:<depth>`), and `parentPathFrom`, `precedingSiblingsFrom`, `parentPathTo`, `precedingSiblingsTo` (comma-separated positive ids; empty, null, non-numeric, zero and negative elements are dropped).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-before-after-default",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Selecting a version shows the forest after that change, unless every change in it is a `remove`: then it shows the forest before the change, so the removed rows can be seen.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-before-after-toggle",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An entry with at least one `move` change has a two-state toggle. A click on it does not select the entry; it flips the shown version between before and after the change. Whenever the state changes, the toggle of the selected entry shows the new state and gets the tooltip 'Showing items before change' or 'Showing items after change'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-forest-version-shown",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The forest displayed for the selected version is the version itself in the after state. In the before state it is the version of the next older entry in the list; for the oldest listed entry the next page is loaded first; if there is still no older entry, it is version 0 (the empty start of the structure). With the panel hidden or no selection, no historical forest is displayed and the grid is back to the live forest. Every change of the shown version is announced to the grid, which then reloads the forest.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-row-marks",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For the shown version and state, each row in a change's sub-forest is marked by operation: copied, added or removed; for a move: moved-from in the before state and moved-to in the after state. The top rows of a change also get an icon. For a move the direction is Up for `moveDirection` < 0, Down for > 0, otherwise from the depth of the parent paths: Left when the row moved to a shallower parent, Right when deeper, none when equal. Otherwise the icon is the operation's. The marks are computed once per version and state, in a cache of 50.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager",
+    "amd:structure/widget/ui/grid/RowHistoryDisplay"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-keyboard-navigation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Ctrl+] moves to the next older entry and Ctrl+[ to the next newer one, at most one move per 100 ms. The move starts from the entry reached by the previous key press, else the selected entry, else (older only) the first entry. Reaching the end of the list going older loads the next page when 'Show More' is visible and continues. Nothing happens while a list request is running. The new entry is highlighted at once and its version is loaded 200 ms after the last key press.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-keyboard-in-list",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the keyboard focus is inside the entries list, grid shortcuts handled by the widget are not applied to those key presses. Focus in the panel marks it as focused for the panel focus cycle; if the panel is hidden, focus is taken away again.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-remembered-per-structure",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The shown version and before/after state are part of the user's stored view perspective, per structure id (or per spec type for non-structures), under the history entry. The value is empty when the panel is closed. When the widget starts, a stored or forced version is restored once the list has loaded: that entry is selected and shown; when the stored state has no before/after, the default for its changes applies.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager",
+    "amd:structure/widget/perspective/CellBasedValueWrapper",
+    "amd:structure/widget/perspective/StorageUtil"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-forced-version-url",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A version given from outside (the `v` page parameter or the widget's history command) opens the panel and shows that version, and is reflected in the page URL's `v`. Choosing a different version or closing the panel clears it, which removes `v` from the URL.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager",
+    "amd:structure/widget/URLController"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/history-loading-state",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A running history request (list or version) counts in the panel's loading state, which the widget's progress indication reads. When a request fails nothing is changed in the list and no error text is shown by the panel.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/history/HistoryManager"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/clipboard-server-forest",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The widget has one clipboard forest with the spec `{\"type\": \"clipboard\"}`, kept on the server per session (see `clipboard-manager`). Copy and cut replace its content with one queued change: `POST /rest/structure/2.0/forest/update` with `spec` as above, `version` the clipboard's current known version and one action `{\"action\": \"add\", \"forest\": <encoded rows>}`. Emptying it sends the same action with an empty forest. Each such request carries one action and asks for an update. Locally the clipboard shows the new content at once.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/clipboard/Clipboard"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/clipboard-browser-memory",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The browser remembers the clipboard's source, not its rows: the cut flag, the source forest spec, the source forest's version signature and the row ids in order. It is kept in browser storage shared between all tabs on the same site and survives closing the browser; emptying the clipboard clears it. A stored value that is not valid JSON or lacks an object spec, numeric signature, row id array or a boolean or absent cut flag counts as no clipboard.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/clipboard/Clipboard",
+    "amd:structure/widget/Storage"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/clipboard-sync-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Once the server's clipboard is loaded, and 100 ms after each later change of its version, the clipboard is re-evaluated. If the server's clipboard has a positive version and is empty, the local clipboard becomes empty. Otherwise the stored source is read: with none, the clipboard is emptied. With one, the source forest is loaded, and the clipboard is emptied when its version signature differs from the stored one. Otherwise the rows still in the source are kept in the source's order, and new clipboard rows are built by the copy or cut rule. If none remain the clipboard is emptied, when the server has content. If the result differs from the current clipboard, or the server's version is 0 (a new session), the result is pushed to the server. This is how the clipboard follows another tab and survives a new session.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/clipboard/Clipboard"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/clipboard-cut-follows-source",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While a cut is on the clipboard, every change of the source forest triggers the same re-evaluation 10 ms later: rows that vanished leave the clipboard, and rows that moved in the source are reordered.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/clipboard/Clipboard"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/clipboard-copy-rule",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Copy keeps the shape of what was selected: in forest order the selected rows form groups, each group starting at relative depth 0, and a row at the group's starting depth or shallower starts a new group. A selected row one level under the previous kept row or its ancestor in the group keeps its relative depth. If a selected row's parent is inside a group but was not selected, or a selected row is temporary (negative row id), the rule gives no rows at all. Rows outside the selected range are ignored. Examples: selected parent and child give depths 0, 1; selected rows under two different unselected parents give 0, 0; selected parent and grandchild without the child between them give no rows.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/clipboard/Clipboard"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/clipboard-cut-rule",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Cut takes each selected row with its whole subtree, in the order given, each row once.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/clipboard/Clipboard"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/clipboard-queries",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The widget can ask the clipboard for its rows, whether a row id is in it, the source spec, whether it is in cut mode and, for cut, the top row ids with the source spec and version: these are what a paste sends as `cutFrom`. Each change of the clipboard's row list is announced with the old and new ids, for the toolbar and the row marks.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/clipboard/Clipboard"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/clipboard-attribute-values",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The values of the clipboard's rows are loaded with the source panel's forest spec and used attributes, and are copied as provisional values into the rows pasted, so a paste shows values at once.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/clipboard/Clipboard"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-start-gesture",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A drag can begin on a mouse press on a row when no drag runs, and either on the row's drag handle or anywhere on the row with Shift held, without Ctrl or Meta. The actual drag starts after the mouse has moved at least 3 pixels (horizontal plus vertical distance). Text selection is off from the press until the gesture ends. In a gadget the window takes focus at the press, and in WebKit browsers there a mouse leaving the page's body ends the gesture as a cancel.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-shift-click-select",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A press with Shift on a row followed by release without moving 3 pixels, with no Ctrl or Meta, is a Shift+click: the focus moves to that row and extends the selection. No drag happens.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-dragged-rows",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The dragged rows are the normalized selection (no row inside another selected row's subtree) when the pressed row is selected and selection is not empty; otherwise the pressed row alone. Each dragged row brings its subtree. Focus is cleared in the panel when dragging starts.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController",
+    "amd:structure/widget/dnd/DragModel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-start-refused",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "No drag starts when the rows include the panel's title row. When the panel cannot move these rows, the drag starts in copy-only mode only if the panel allows copying and another visible, non-read-only panel exists; otherwise nothing starts. Also nothing starts when none of the rows is displayed.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragModel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-hint",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "During a drag a hint follows the mouse vertically in the target panel, showing at most 5 rows (walking down, entering subtrees only of expanded rows), with the rows' cells and the panel's columns, and is indented to the drop depth, and a counter label. The label shows, with the total number of rows dragged including subtrees: 'Move an item here', 'Copy an item here', 'Move N items here', 'Copy N items here', or 'Drop is not possible'. The hint's values update as attribute values arrive.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragModel",
+    "amd:structure/widget/dnd/DragController"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-move-or-copy",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Copy key: Ctrl, or Option (Alt) on Mac; it counts only while the page has focus, and changes of it during the drag take effect at once. When the drop panel is the source panel, or shows the same forest, or already has all dragged rows, the drag moves, and the key turns it into a copy unless the source panel is read-only. When the drop panel shows another forest without all those rows, the drag copies, and the key turns it into a move unless the source panel is read-only. Copy-only drags are always copies.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController",
+    "amd:structure/widget/dnd/DragModel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-moving-hides-rows",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While a drag is in move mode, the dragged rows and subtrees disappear from the source panel's displayed forest; in copy mode they stay. The rows return at once when the mode flips or the drag ends.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragModel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-target-panel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With two panels, the target is the panel on the mouse's side of the splitter (at or right of it: the secondary panel). With one panel the target is the primary panel.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-drop-position-vertical",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For the row under the mouse, the top quarter of the row height means insert before it and the bottom quarter insert after it. In the middle half the previous choice decides: when the current drop index is at or above that row in the same panel, before it, otherwise after it. So the drop line does not jitter on the middle.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-drop-depth-horizontal",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Depth at index 0 is always 0. In the source panel it is the rows' original depth plus one level for each full 50 pixels the mouse is right of where the drag started (rounded down, so leftward is negative). Dragging into the other panel: for the secondary panel it is one level for each full 50 pixels right of the splitter; for the primary panel it is the depth of the path above the drop point minus one level per full 50 pixels left of the splitter. The result is limited to at most one level under the row above, and at least the depth of the row at the drop index (0 at the end of the list), at least 1 when the panel has a title row, and at least deep enough to stay inside the panel's root paths.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-auto-expand",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the drop depth is above 0, staying 500 ms at a drop position expands the rows on the path to that depth in the target panel and re-evaluates the drop there. Moving on cancels the timer.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-auto-scroll",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the mouse is more than half a row above the first visible row or within half a row of the bottom of the visible rows, and the area can scroll, the target panel scrolls every 100 ms: by 9 pixels, doubled for each further row height the mouse is beyond the edge, and at most 100 pixels per step. It stops when the mouse returns, on reaching the end (the drop is then re-evaluated) or when the drag ends.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-drop-validity",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A drop is possible only if the target panel is not locked, the index is within the displayed rows and the position exists; the unchanged position in the source panel counts as possible; every other position follows the panel's drop check for the dragged rows. When a drop is impossible the hint shows 'Drop is not possible' and, on release, nothing happens: the drag is cancelled.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragModel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-finish-same-forest",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A left-mouse release on a possible drop in a place that differs from the origin finishes the drag, with undo label `dnd`. A move within one forest (same panel, or another panel on the same untransformed forest) becomes a forest `move` action. A copy within one forest becomes a `copy` action of new rows that keeps the original row ids. Any drop in another forest becomes an `add` of new rows, with the source spec and version and row ids as `cutFrom` when it is a move.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragModel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-finish-values-and-focus",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After a drop into another forest the new rows show the source's values as provisional values at once. After a successful drop the target panel gets the focus, the parent of the dropped pressed row is expanded, and the pressed row (or its new copy) is focused and scrolled into view.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController",
+    "amd:structure/widget/dnd/DragModel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-cancel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Releasing on the origin place, on an impossible drop, or calling cancel (Esc in the widget) ends the drag without any change: the rows come back, the pressed row is focused in the source panel and is scrolled into view, and the source panel gets focus. A cancel reports whether a drag was really running, so the same key press does nothing else then.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/dnd/DragController",
+    "amd:structure/widget/dnd/DragModel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/dnd-gap-in-grid",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While dragging, the target grid opens a gap at the drop index, as high as the hint's rows (their count times the fixed row height). There is no gap when copying over the rows' own place at their own depth in the source panel. When the mouse leaves that panel the gap closes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/grid/DragPresenter",
+    "amd:structure/widget/dnd/DragModel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effect-notify-success",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Effects with `external` true and a non-empty `description` are shown as Jira success messages, one message per `generatorRowId`, in the order the generators first appear. With one effect of a generator the message is its description. With two it adds a line '(One more similar change.)'. With n ≥ 3 it adds '(N more similar changes.)' with N = n − 1, for example 5 effects give '(4 more similar changes.)'. Other effects show nothing. Descriptions are HTML-escaped.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/EffectNotifications"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effect-notify-problems",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Problems with a non-empty `description` are shown as Jira error messages, one message per `generatorRowId` in first-seen order. Up to 5 problems of a generator are listed, one per line. With more than 5, the first 4 are listed, followed by a line '({n} more similar problems.)' with n = count − 4, for example 7 problems give '(3 more similar problems.)'. Descriptions are HTML-escaped.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/EffectNotifications"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-run-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Running effectors opens a large form dialog loaded with `GET /secure/StructureEffectorProcess.jspa?runParams=<JSON>`. The run parameters are sent as JSON text, and a single `effectorId` value is first turned into a one-element list. The dialog closes itself when the server's form flow finishes, and tooltips inside it are set up on opening.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorUtil"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-open-process-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A URL with `effectorProcessDialog=<digits>` in it opens the same dialog on an existing process, with `GET /secure/StructureEffectorProcess.jspa?processId=<digits>`. A URL without it opens nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorUtil"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-can-run",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Effectors can be run from a panel only when all hold: the panel has forest data and a structure id; its spec has no transformations and no pinned item; the widget is not in a gadget; the structure's info says `effectorExecutionAllowed`; and at least one row in the forest is an effector item.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorUtil"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-progress-poll",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While the progress dialog is open it requests `GET /rest/structure/2.0/effectorProcess/{id}/status`: right away and again 3 seconds after each answer. It is a repeating wait after the answer, not a fixed rate, and has no limit on attempts. On a successful answer the error line is hidden; when `percentComplete` differs from the shown number, the shown number changes (it starts at 0).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorProgressDialog",
+    "templates/structure/effector/process-progress.vm"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-progress-status-change",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When `status` in an answer differs from the status the page was rendered with, polling ends, the progress throbber is removed and the dialog's form is submitted to `StructureEffectorProcess.jspa` with `processId`, so the server's next stage (preview or result) replaces the content.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorProgressDialog"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-progress-poll-failure",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A failed status request shows the line 'Failed to retrieve the process state from the server.' with the 'Trying again after a while...' note, and tries again after 3 seconds, with no limit. The next successful answer hides it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorProgressDialog"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-progress-hide",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Closing the dialog, including the 'Minimize and continue in background' link, stops the polling timer; the process goes on and remains in the background process panel.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorProgressDialog",
+    "templates/structure/effector/process-progress.vm"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-progress-abort",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Abort' asks in a confirmation dialog 'Are you sure you want to abort the process?'. On confirm it sends `POST /rest/structure/2.0/effectorProcess/{id}/cancel` with body `{}` and the button is disabled at once. A disabled button does nothing when clicked. On success the error next to the buttons is hidden; on failure 'Failed to abort the process' is shown, and the button stays disabled, so the user cannot try again without reopening the dialog (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorProgressDialog"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-progress-no-remaining-time",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The remaining-time text next to the progress is never filled in: no estimate appears. The text forms 'Remaining {0} min' and 'Remaining {0} sec' exist unused (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorProgressDialog"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-result-resume",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On the result dialog of an interrupted process, 'Resume' asks 'Are you sure you want to resume applying previously calculated effects?'. On confirm the button is disabled and the form is submitted to `StructureEffectorProcess!resume.jspa` instead of the form's default action. A disabled button does nothing. The cancel of the confirmation changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectorResultDialog",
+    "templates/structure/effector/process-result.vm"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/preview-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The preview dialog has a paged table of 20 records a page with the columns: a select-all checkbox, 'Items' and 'Effect'. Each page is requested with `POST /rest/structure/2.0/effectorProcess/{id}/preview/` with body `{\"startAt\": <offset>, \"maxResults\": 20}`, and the UI reads `items` and `pagination.total`. Paging controls appear only when there is more than one page. While loading, a spinner shows and paging is disabled; on failure the text 'Failed to retrieve records from the server', on no records 'No records available'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectsPreview",
+    "js/structure/widget/effector/EffectsTable.js",
+    "amd:structure/widget/ui/PaginatedTable",
+    "templates/structure/effector/process-preview.vm"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/preview-record",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A normal record shows a checkbox, the affected items and the effect text as HTML. A record with `isError` shows no checkbox and its text in error style, so it cannot be selected.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/effector/EffectsPreview"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/preview-total-message",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The text beside the buttons depends on the numbers: with total 0 it is empty; with no errors 'One effect in total' or '{n} effects in total'; when all are errors 'One error in total' or '{n} errors in total'; for a mix 'One effect and one error in total', 'One effect and {n} errors in total', '{n} effects and one error in total', '{n} effects and {m} errors in total'. The number of errors handed to this text is always 0, because `pagination.errors` of the response is not read, so only the effects forms appear, counting error records as effects (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/effector/EffectsPreview",
+    "amd:structure/widget/ui/PaginatedTable"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/preview-selection",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Selection works across pages by the record's `index`: a page shows its rows checked when their index is selected, and clicks on page rows add or remove them. The header checkbox selects all selectable rows of the page only; it is hidden when the page has no selectable rows, disabled while loading, and checked when at least one is selected and none is left unselected.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/effector/EffectsTable.js"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/preview-apply-buttons",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Apply selected' shows the number of selected records next to its text and is disabled at 0. The form posts to `StructureEffectorProcess!applyEffects.jspa` with `selectedIndexes` = a JSON array of indexes. 'Apply all' first clears the selection, so `selectedIndexes` is JSON `null`. 'Dismiss' asks 'Are you sure you want to dismiss the preview?' and on confirm submits to `StructureEffectorProcess!dismiss.jspa`. 'Save & Close' closes the dialog and keeps the preview for later.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/effector/EffectsTable.js",
+    "amd:structure/widget/effector/EffectsPreview",
+    "templates/structure/effector/process-preview.vm"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/preview-adjusted-parameters",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An effect's HTML can contain selects bound to a parameter name. Changing one records in the hidden form field `adjustedParameters` the JSON object `{\"<index>\": {\"<parameter>\": <value>}}`, keeping earlier changes. An option marked as empty stores `null`. Such selects use the rich select control, and a selected text that does not fit gets a tooltip with the full text. Elements with their own tooltip text show it as plain text.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/effector/EffectsTable.js"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/preview-apply-one",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The table can apply one record: the selected indexes field is set to the JSON array of that index alone and the form is submitted. This is used by the audit view's record action, not by the preview.",
+   "confidence": "medium",
+   "evidence": [
+    "js/structure/widget/effector/EffectsTable.js",
+    "js/structure/EffectRecordsView.js"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effect-items-render",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An item list shows 'Empty' for no items. Otherwise the first item, then for more than one 'and N more' with a chevron link (N = count − 1) that expands and collapses the rest, without leaving the page. An item without description shows 'N/A'. An issue item (`itemId` starts with `com.almworks.jira.structure:type-issue`) shows its description as a link to `url` in a new tab, as issue key link. Other items of types supporting the structure field show a link in the same way. Anything else shows the plain description. An item whose text does not fit shows it as a tooltip. A missing effect text shows 'N/A'.",
+   "confidence": "high",
+   "evidence": [
+    "js/structure/widget/effector/EffectRenderer.js",
+    "js/structure/widget/effector/EffectsTable.js"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/bgproc-where",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The background process section exists on full pages only, not on the issue page, the Jira Software tab or gadgets. It sits in the widget's footer, hidden by default.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/process/BackgroundProcessPanel",
+    "amd:structure/widget/widget"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/bgproc-poll-source",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The section follows the poll: only results from the regular poll count, not results from uploads, and nothing is read while an acknowledge request is running. When `backgroundProcesses` is missing or empty the section and the panel are hidden. Otherwise the section is shown and an open panel is updated in place.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/process/BackgroundProcessPanel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/bgproc-footer",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The footer section shows the link 'Effectors', a progress bar and a percent label. The bar and label show the rounded mean of `percentComplete` over the processes that have one, for example 33 and 66 give 50%. When no process has one, the bar is at 0 and the label is empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/process/BackgroundProcessPanel",
+    "amd:structure/widget/process/templates"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/bgproc-panel-toggle",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A click on 'Effectors' opens a pop-up panel, 432 pixels wide with a 100 ms delay, or closes it when open; clicks inside do not close it. The panel lists the processes, then the 'Manage effectors' link and, with any finished process, 'Acknowledge all'. The pop-up repositions 50 ms after a page layout change.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/process/BackgroundProcessPanel",
+    "amd:structure/widget/process/templates"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/bgproc-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each process row shows the title (`titleHtml`, with attribute placeholders filled by the automation summary rule), the status (`statusHtml`), the progress as `percentComplete` plus '%' or nothing when absent, and a link with `linkText`. The title and status also appear as tooltips, without tags.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/process/BackgroundProcessPanel",
+    "amd:structure/widget/process/templates"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/bgproc-row-link",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A click on a row's link closes the panel and opens the process dialog in place, using the id in `linkUrl`. The browser does not navigate.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/process/BackgroundProcessPanel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/bgproc-manage-link",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Manage effectors' links to `/secure/StructureProcesses.jspa` and opens in a new tab, with the tooltip 'Open the list of all effector processes in a new tab'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/process/BackgroundProcessPanel",
+    "amd:structure/widget/process/templates"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/bgproc-acknowledge",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Acknowledge all' (tooltip 'Acknowledge all finished effector processes') sends `POST /rest/structure/2.0/effectorProcess/acknowledge` with a JSON array of the ids of processes with `finished` true, and is disabled meanwhile. A second click does nothing. On failure it is enabled again and a flag reads 'There was an error communicating with the server: {status}', closing itself. In all cases a poll is requested when the request ends.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/process/BackgroundProcessPanel"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/effector-descriptors-registered",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Four built-in effector descriptors are registered with the browser-side automation registry, by module key: `com.almworks.jira.structure:effector-attribute-to-field`, `com.almworks.jira.structure:effector-status-rollup`, `com.almworks.jira.structure:effector-delay` and `com.almworks.jira.structure:effector-conversion`. Each generates the summary name shown in the effector's edit form. Each gives no name when the summary template or the parameters are missing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/DelayEffectorDescriptor",
+    "amd:structure/widget/automation/effector/AttributeToFieldEffectorDescriptor",
+    "amd:structure/widget/automation/effector/ConversionEffectorDescriptor",
+    "amd:structure/widget/automation/effector/StatusRollupEffectorDescriptor"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/generator-descriptors-registered",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The same start-up registers the built-in generator descriptors with the automation registry: sorter by attribute, Agile rank sorter, epic grouper, link extender, link grouper, sub-task extender, three filter kinds (text, JQL, S-JQL), `com.almworks.jira.structure:grouper-text`, `com.almworks.jira.structure:filter-attribute`, filter by field, and these with a simple short label: `grouper-version-name` 'Version Name', `grouper-portfolio-parent` 'Parent Issue', `grouper-tempo-account` 'Account', `extender-portfolio-children` 'Child Issues', `extender-agile` 'Stories under Epics', `grouper-sprint` 'Sprint', `sorter-manual` 'Manual', `filter-sprint` 'Sprint' (all under `com.almworks.jira.structure:`). The factories run on the registry's demand and each descriptor gets the widget.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/DelayEffectorDescriptor"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/name-attribute-to-field",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Attribute to Field summary: while the attribute is not chosen (`attributeJson` empty) the name is empty, once Jira's fields are known. With an attribute, after attribute metadata and fields have loaded, the name is 'Set {attribute} to issue field {field}', or with `collectionOperation` `add` 'Add {attribute} to issue field {field}' and `remove` 'Remove {attribute} from issue field {field}'; any other operation counts as set. The field name comes from Jira's field map, for `comment` it is 'Comment', and otherwise '?'. `{attribute}` is replaced by the attribute's display label, 'Attribute' when none is known. If loading fails the summary template is shown unchanged. Both parameters are highlighted in the text.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/AttributeToFieldEffectorDescriptor",
+    "amd:structure/widget/ui/column/ColumnUtil"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/name-conversion",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Conversion summary: always 'Convert Planning Task to Issue'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/ConversionEffectorDescriptor"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/name-delay",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Delay summary: the template's `{previewDelay}` and `{applyDelay}` are replaced by the parameter values, with '?' for a missing or empty value; the form's text '0' stays '0'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/DelayEffectorDescriptor"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/name-status-rollup",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Status Rollup summary: 'Roll up status: A, B' with the names from the comma-separated parameter `statusNames` in order, each highlighted and HTML-escaped. Without that parameter the list is empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorDescriptor"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/edit-name-regenerated",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On the effector edit form, every change of a parameter field marked as a summary parameter regenerates the summary: the fields' name and value pairs go to the automation registry with the module key and the summary template, and the result appears as the name, with its text as the tooltip. An empty result clears it, and a failure shows the template itself. Without a running widget on the page the form's name logic is inactive.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/EffectorEdit"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/edit-name-configurable",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On an editable form with a generated name: an effector with a custom name opens in edit mode with the name field shown; otherwise the generated name is shown. Clicking the generated name or the pencil switches to edit mode, shows the name field pre-filled with the generated name's text if it was empty, and focuses it. Clicking the trash icon clears the custom name and returns to the generated name. Leaving the field with blank text also returns to the generated name.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/EffectorEdit",
+    "templates/structure/effector/eff-edit-form.vm"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/edit-name-read-only",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On a non-editable form both icons are hidden. A custom name stays in the disabled field; otherwise the generated name shows in a disabled state.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/EffectorEdit"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-load-projects",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The status rollup form loads the projects once with `GET /rest/structure/1.0/config/projects` and fills 'Projects' (placeholder 'Select projects'), an option reading 'Name (KEY)' with the project's icon, with the saved ids selected.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI",
+    "amd:structure/widget/automation/effector/utils",
+    "amd:structure/widget/automation/effector/templates"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-all-toggle",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'All projects' and 'All types' are toggles. For a saved effector (`effectorId` > 0) with an empty saved list, the toggle starts on; for a new one, off. On an editable form with a toggle on, or while its list is empty, the select is disabled. On a non-editable form the toggles are disabled and show their state.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI",
+    "amd:structure/widget/automation/effector/utils"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-load-types",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Issue types reload whenever the projects or the 'All projects' toggle change, when some project is chosen or the toggle is on: `GET /rest/structure/1.0/config/types?projects=<sorted comma-separated ids, or * for all>`. With nothing chosen the list becomes empty and no request is sent. Options read the type name with its icon, placeholder 'Select issue types', with the current selection kept. Each distinct project set is requested once in the form's lifetime.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI",
+    "amd:structure/widget/automation/effector/utils"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-load-statuses",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Statuses reload whenever projects, types or their toggles change, when both sides have a choice: `GET /rest/structure/1.0/config/statuses?projects=<ids or *>&types=<ids or *>`, requested once per distinct combination. Without a choice on both sides, the status list and picked statuses are emptied.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-status-blocks",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The picked statuses show as an ordered list of status lozenges above the picker, each posted as a hidden `statuses` field, in order. The picker's placeholder is 'Add status for rollup'; it shows statuses as lozenges, without those already picked, and without a search box. Picking adds a lozenge at the end. On an editable form, hovering a lozenge shows a handle to drag it up or down and a delete icon (tooltip 'Delete'). 'Clear all' removes all and is shown only when at least one is picked.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI",
+    "amd:structure/widget/automation/effector/utils",
+    "amd:structure/widget/automation/effector/templates"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-status-list-change",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the status list changes, the picked lozenges are rebuilt in their order from those still in the list; others are dropped silently. An empty list drops all. The picker is disabled when the list is empty or the form is not editable.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-status-names-param",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After every change of the picked statuses, a hidden `statusNames` field is set to their names joined by commas and marked changed, so the generated name updates.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-loading-state",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While any of the three lists loads, its field group shows a spinner in place of its toggle. While anything loads or any of them failed to load, the submit buttons are disabled.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI",
+    "amd:structure/widget/automation/effector/utils"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-loading-errors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A failed list request gives an empty list and the text under the field: 'Failed to retrieve projects from the server', 'Failed to retrieve issue types from the server' or 'Failed to retrieve statuses from the server'. A successful later request of that list clears it. A failed request stays cached for its key during the form's lifetime.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI",
+    "amd:structure/widget/automation/effector/utils"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-server-errors-wiped",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The texts of `projects`, `issueTypes` and `statuses` errors rendered by the server under these fields are cleared as the form's script starts, so they are not seen (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI",
+    "amd:structure/widget/automation/effector/utils"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-validation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clicking a submit button checks in order and stops at the first problem, keeping the form open: no project and no 'All projects' gives 'Please select at least one project.'; no type and no 'All types' gives 'Please select at least one issue type.'; no status gives 'Please select at least one status.'. After that first attempt, any change of the lists clears all three texts.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/rollup-help-link",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The link to status information opens its `href` in a separate pop-up window shared under one window name, with scrollbars and resizable, instead of following the link.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/automation/effector/StatusRollupEffectorUI"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/keys-notation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Keyboard shortcuts are given here with a comma for keys pressed one after the other. On the issue page and the Jira Software tab the widget has no shortcuts at all. The shortcut `g` is deliberately left unhandled so Jira's own 'g' sequences work. `F2` and on non-Mac `Insert` are the texts shown for their shortcuts in the UI.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/grid/DragPresenter"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/keys-navigation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Grid keys everywhere: Up and Down move focus (`k` and `j` too, see modes); Left collapses or moves to the parent; Right expands or moves to the next row; PageUp and PageDown move a screen; Home and End go to the first and last displayed row; Escape and Shift+Escape cancel the current mode; F2 toggles edit mode; Tab and Shift+Tab go to the next and previous editable field; Ctrl+Alt+Up, Down, Left, Right go to the editable field in that direction; `\\` moves focus between panels; Delete removes the selected rows with their subtrees.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/grid/DragPresenter"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/keys-expand",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Alt+plus, Alt+= and Alt+Shift+= expand the next level; plus,plus or =,= or Shift+=,Shift+= or Shift+=,= expand all (browsers that report the key as a combined =/+ key work the same, here and below); Alt+minus and Alt+- collapse the next level; minus,minus or -,- collapse all; =,N or plus,N (N = 1 to 8, on the main row or numeric pad) expand to level N.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/grid/DragPresenter"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/keys-selection",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Space toggles selection of the focused row and moves focus to the next row; Shift+Up, Down, PageUp, PageDown, Home, End extend selection; Shift+Right selects subtrees; Shift+Left deselects subtrees. Select-all is under the platform keys.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/grid/DragPresenter"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/keys-view-layout",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "t,= and t,plus and t,t add a column; i,i toggles thumbnails; v,v opens view selection; v,s saves the view; v,r reverts it; v,s,s saves as; v,v,v returns to the previous view; Ctrl+Alt+1, 2, 3, 4 (main row or numeric pad) switch layout to single, double, details and history; Alt+`\\` swaps panels; ` and Shift+` toggle automation; q,q toggles the quick-transformation panel; r,r toggles unresolved; v,w toggles text wrapping; v,h toggles horizontal scrolling; v,d toggles the UI mode panel; d,d toggles the structure description; q,N (1 to 9, main row or numeric pad) toggles the N-th quick transformation.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/grid/DragPresenter"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/keys-search-and-misc",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Ctrl+Alt+/ focuses search; Ctrl+Alt+; and Ctrl+Alt+Shift+/ toggle the search filter; Ctrl+Alt+[ and Ctrl+Alt+] go to the previous and next highlighted row; s,s opens structure selection; Ctrl+Alt+' toggles the query; s,q opens quick actions; e,e runs all effectors; Ctrl+] and Ctrl+[ go to the older and newer history version; i,d,d,q,d opens the hidden debug actions.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/grid/DragPresenter"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/keys-platform",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Non-Mac: Ctrl+Up, Down move rows; Ctrl+Left and Ctrl+Right change level (outdent, indent); Insert creates a child; Ctrl+C copy; Ctrl+X and Shift+Delete cut; Ctrl+V and Shift+Insert paste; Ctrl+Shift+V and Shift+Alt+Insert paste under; Ctrl+A toggles select all; Ctrl+Z undo; Ctrl+Shift+Z redo; Ctrl+Shift+`\\` adds a column. Mac: Ctrl+Up, Down, Left, Right and Ctrl+Meta+Up, Down, Left, Right do the same moves; Meta+C, X, V copy, cut, paste; Meta+Shift+V paste under; Meta+A select all; Meta+Z undo; Meta+Shift+Z redo; Ctrl+Shift+`\\` and Meta+`\\` add a column; Meta+] toggles the UI mode panel.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/grid/DragPresenter"
+   ]
+  },
+  {
+   "key": "u4-edit-queue/widget-bare/keys-mode-dependent",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Outside the issue page and Jira Software tab: Enter adds an item, Shift+Enter adds a child, Alt+Enter adds an item above, `k` up, `j` down. Not in a gadget: Ctrl+/ and Ctrl+Shift+/ show the shortcuts, `x` manages saved columns. Everywhere except Confluence macro gadgets: `o` opens the issue, Shift+O toggles issue details without moving focus, `a` assign, `e` edit, `i` assign to me, `.` Jira actions, Alt+Down the actions drop-down, `m` comment, Ctrl+. pin, `z` full screen, and `g` passes through. Outside gadgets, and in local gadgets: `l` labels.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/ui/grid/DragPresenter"
+   ]
+  }
+ ]
+}

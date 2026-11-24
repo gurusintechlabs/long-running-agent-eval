@@ -1,0 +1,963 @@
+{
+ "claims": [
+  {
+   "key": "e11-groupers-sorters/grouper-sprint/availability-and-parameters",
+   "module": "grouper-sprint",
+   "api": null,
+   "behaviour": "`grouper-sprint` is available exactly when `gh-integration` reports a Jira Software Sprint custom field; without Jira Software (no Sprint field) it is unavailable and produces no grouping (no grouper function, no action handler). It has no parameters of its own: its form adds nothing and building parameters from any form gives an empty map, so its AO_8BAD1B_GENERATOR.C_PARAMETERS carries only the framework's keys. Its semantic label is the text of `s.ext.gen.grouper.agilesprint.summary.sprint` (\"Sprint\") in the current user's locale.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper#isAvailable",
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper#getSemanticLabel"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-sprint/groups-are-visible-sprints",
+   "module": "grouper-sprint",
+   "api": null,
+   "behaviour": "For each visible issue row the groups are the sprints in the issue's Sprint field value, each as item `com.almworks.jira.structure:type-sprint` with the sprint id as long id. A sprint that the current user cannot resolve (item resolver gives no sprint) is left out. An issue in several sprints gets one group per sprint (sprint groups are not exclusive: the row is copied under each). An issue with no remaining sprint goes to the no-sprint group, folder `com.almworks.jira.structure:type-folder` with string id `s.grouper.sprint.no-sprint` (English text \"Backlog\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper$SprintFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#filterUnavailableGroups"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-sprint/open-issue-in-closed-sprints-also-backlog",
+   "module": "grouper-sprint",
+   "api": null,
+   "behaviour": "An issue whose status is not in the status category with key `done`, and whose visible sprints are all CLOSED (or cannot be resolved as open), is placed both under each of those closed sprint groups and under the no-sprint group `s.grouper.sprint.no-sprint`. An issue in a Done-category status in only closed sprints stays only under the closed sprints. An issue with no status counts as not done.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper$SprintFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper#statusIsClosed"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-sprint/non-issue-rows",
+   "module": "grouper-sprint",
+   "api": null,
+   "behaviour": "Rows that are not visible issues go to the not-an-issue group, folder string id `s.grouper.field.+not-an-issue` (\"Not an issue\"), which is exclusive. Exception: when `structure-field-manager` knows a field for the Sprint custom field, memo and planning-task rows are grouped by that field's value (the sprint item(s) it holds; no value gives the no-sprint group), and a memo whose configuration hides that field goes to the not-an-issue group.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.GenericItemAwareGrouperFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper#createGrouperFunction"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-sprint/group-order",
+   "module": "grouper-sprint",
+   "api": null,
+   "behaviour": "Sprint group rows are ordered by sprint state ACTIVE first, then FUTURE, then CLOSED, and within a state by the sprint's sequence ascending; the order of sprints with equal state and sequence is not defined. After the sprint groups comes the no-sprint group, then the not-an-issue group.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper$SprintFunction#sortRegularGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#createGroupRows",
+    "com.almworks.structure.commons.agile.Sprint#compareTo"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-sprint/values-from-index-and-reuse",
+   "module": "grouper-sprint",
+   "api": null,
+   "behaviour": "Sprint ids and the issue's status are read in bulk from the Jira issue index (the Sprint field's index field, positive long values, and the `status` field) for the rows to be grouped; an issue not read from the index is read from the issue itself. Values read are kept with the generator between generations and re-read only for issues that the item update reports as changed (all of them after a full update).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper$SprintValueIssueReader#readIssues0",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#setContext",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#getIssueCache"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-sprint/regenerates-on-item-changes",
+   "module": "grouper-sprint",
+   "api": null,
+   "behaviour": "The grouping registers an item change filter that accepts changes of every issue it grouped and of every sprint item it created a group row for; such a change makes the generated content regenerate.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#createGroupRows"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-sprint/moves-and-reorders",
+   "module": "grouper-sprint",
+   "api": null,
+   "behaviour": "Moving rows between its groups is handled by the sprint handler of `effect-based-issue-movers` (C-2626: CoreEffects.setSprint with `from` and `sameBoard`, carried out by `sprint-effect-provider`, which checks closed sprints, boards and permissions), together with that module's general rules for non-issues, the not-an-issue group, new rows and memos/planning tasks (C-2622, C-2623, C-2630). Reordering sprint groups is always blocked with `s.ext.gen.grouper.agilesprint.block.reorder` (\"Sprint reordering is not supported.\"); moving the no-sprint or not-an-issue group, or placing a group after one of them, is blocked with `s.ext.gen.grouper.issuefield.block.invalid-order`. Without a Sprint field there is no handler.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper#createActionHandler",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$SprintActionHandler#reorderGroup",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#reorderGroup"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/availability",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "`grouper-agile-epic` is available exactly when Jira Software's `com.atlassian.greenhopper.api.rank.RankService` can be obtained. Filling a new form, showing parameters on a form and building parameters from a form throw GeneratorUnavailableException with message `rank service is not found` and the localized text of `s.gen.sort.rank.error.no-service` (\"Jira Software is not available, sorry! Please install it and try again.\") when the rank service is missing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#isAvailable",
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#getRankServiceOrThrow"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/parameter-rankFieldId",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "Its only stored parameter is `rankFieldId`, the long id of a Jira Software rank custom field used to order epics. Building from the form: a `rankFieldId` that reads as a long and that RankService.isRankField accepts gives `{\"rankFieldId\": <id>}`; one that is not a rank field adds error `s.gen.sort.rank.error.no-field` (argument: the id) under field `rankFieldId` and gives an empty map; a missing or non-numeric value (the form's 'Epic Name' option) gives an empty map with no error, meaning epics are not ordered by rank. Showing parameters puts `rankFieldId` (as a long, or null) into the form.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#addParametersToForm"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/default-form-uses-text-id",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "A new form gets `rankFieldId` = the first rank field's id in its text form (`customfield_<n>`), not its long id, when RankService reports any rank field (as the original does); building parameters from that untouched value gives an empty map because it does not read as a long.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#getSingleRankField"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/preset",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "When RankService reports at least one rank field, the grouper offers one GeneratorPreset labelled with the text of `s.ext.gen.grouper.agileepic.label` (\"Epic\") and parameters `{\"rankFieldId\": <first rank field's long id>}`; with no rank service or no rank fields it offers no presets (null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#getPresets"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/no-grouping-when-epics-unavailable",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "No grouping is produced (no grouper function) when `gh-integration` finds no epic issue type or no epic link type (each logged as a warning), or when `rankFieldId` is set but the rank service is missing or the field is not a rank field. The action handler is likewise absent in those cases and also when Jira Software's epic service is not operational.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#createActionHandler",
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#withEpicLink"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/groups",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "Each visible issue row goes to exactly one group: its epic as found by `gh-integration` (the source of an inward link of the epic link type whose issue has the epic issue type), as item `com.almworks.jira.structure:type-issue` with the epic's id; the Epic Link field's indexed value is used instead when it was read from the index. No epic, or an epic the current user cannot see, gives the group folder `s.grouper.agileepic.no-epic` (\"No epic\"). Rows that are not visible issues (including memos and planning tasks) go to `s.grouper.field.+not-an-issue`. All groups are exclusive.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper$EpicFunction#getValue",
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper$EpicFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#getGroups"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/epic-order",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "Epic groups are ordered: with `rankFieldId`, by RankService.compareIssuePosition(rankFieldId, epic1, epic2); without it, when the Epic Name field exists, by the Epic Name value's text in natural (case-sensitive) string order with epics without a name last; otherwise by issue key ignoring case. The no-epic group follows the epics, then the not-an-issue group.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper$EpicFunction#sortEpics",
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper$EpicFunction#getEpicNameIssueComparator",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#createGroupRows"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/regenerates",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "It registers an item change filter for every issue it grouped and every epic it created a group row for; values per issue are kept between generations and re-read only for issues reported as changed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#setContext"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/move-issue-changes-epic",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "Moving an existing issue to another epic group, or into the no-epic group, gives an effect that sets the issue's epic to the target (none for no-epic) with an inverse setting it back to the source group's epic (the issue's current epic when it came from outside a group). When source and target epic are the same the handler does nothing (it does not take part). A new issue (no id) placed in any group gets an empty effect; a non-issue or a memo/planning task moved into any group other than not-an-issue is blocked with `s.ext.gen.grouper.issuefield.block.move-non-issue`; an issue moved into the not-an-issue group with `s.ext.gen.grouper.issuefield.block.move-issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper$EpicHandler#moveIssue",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGroupedItem",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGenericItem"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/epic-effect-checks",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "When the epic change is evaluated: Jira Software's epic service not operational yields with `s.ext.gen.extender.agile.block.no-epic-service`; no epic link type yields with `.no-epic-link-type`, no epic issue type with `.no-epic-issue-type`; an issue the user cannot see blocks with `s.ext.gen.block.no-issue`; a sub-task yields with `s.ext.gen.extender.agile.block.sub-task`; an epic being moved yields with `.epic`; a target epic that cannot be seen blocks with `s.ext.gen.block.no-issue`; a target that is not of the epic issue type yields with `.not-an-epic`; missing EDIT_ISSUES permission blocks with the `gh-integration` text (C-2247).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.ChangeEpicEffect#apply"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/epic-effect-run",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "Otherwise the effect is described as `s.ext.gen.agile.effect.epic.move` (\"Moved {0} to epic {1}.\") when the issue had an epic and gets another, `.add` when it had none, `.remove` (\"Removed {0} from epic {1}.\", with the old epic) when cleared; arguments are the issue key and the epic's display name (Epic Name or key). Running it sets the epic through `gh-integration` (EpicService, as the current user; C-2249).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.ChangeEpicEffect#apply"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/reorder-epics-changes-rank",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "Reordering epic groups without `rankFieldId` is blocked with `s.ext.gen.grouper.agileepic.block.no-rank-field` (\"No rank field is configured, cannot reorder epics.\"). With it, the effect ranks the epic after the new preceding epic (or before the new following one when there is none) in that rank field, with an inverse restoring the old neighbours; it is described as `s.ext.gen.grouper.agileepic.effect.rank` (\"Changed rank of epic {0}.\", the epic's display name). Moving the no-epic or not-an-issue group, or placing a group after one of them, is blocked with `s.ext.gen.grouper.issuefield.block.invalid-order`; a group or both neighbours that are not issues with `.invalid-group`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper$EpicHandler#reorderGroup",
+    "com.almworks.jira.structure.extension.generator.grouper.AgileEpicGrouper$ChangeEpicRankEffect#getChangeRankExplanation",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#reorderGroup"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-agile-epic/rank-effect-checks",
+   "module": "grouper-agile-epic",
+   "api": null,
+   "behaviour": "A rank change is evaluated as follows: if neither neighbour issue can be resolved nothing happens; no rank service blocks with `s.ext.gen.agile.block.no-rank-service` (\"Rank service is unavailable.\"); field id 0 or not a rank field blocks with `s.ext.gen.agile.block.not-a-rank-field`; an unresolvable issue with `s.ext.gen.block.no-issue`; missing SCHEDULE_ISSUES permission with the `gh-integration` text (C-2247). Running it calls RankService.rankAfter(user, field, issue, after) when the preceding neighbour resolves, else rankBefore(user, field, issue, before), as the current Structure user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.ChangeRankEffect#apply"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-text/parameters-stored",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "Its stored parameters are `{\"attribute\": {\"id\": <attribute id>, \"format\": \"text\", \"params\": {...}}}` (a RestAttributeSpec; null members are left out). Building from the form reads JSON from form field `attributeJson`: valid JSON for an attribute spec (unknown members ignored) is stored with `format` forced to `text`; empty, missing or invalid JSON adds error `s.ext.gen.param.error.attribute` (\"Invalid attribute specification, please use Advanced tab\") under `attributeJson` and gives an empty map. `{}` passes the form check and is stored as `{\"attribute\": {\"format\": \"text\"}}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$Parameters"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-text/form-and-summary",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "A new form gets `attributeJson` = `{}`; showing stored parameters puts the JSON text of the `attribute` member (or `{}`) into `attributeJson`. The summary map gets `attributeJson` the same way and `attribute` = the literal placeholder `{attribute}`. The semantic label is null. Showing a form or a summary for parameters that are empty (or cannot be read) throws NullPointerException (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#addParametersForSummary",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#getParams"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-text/sprint-name-preset",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "When `gh-integration` reports a Sprint field, the grouper offers one GeneratorPreset labelled `s.ext.gen.grouper.attrtext.preset.+sprint` (\"Sprint name\") with tooltip `s.ext.gen.grouper.attrtext.preset.+sprint+.tooltip` (\"Group by Sprint across multiple projects\") and parameters `{\"attribute\": {\"id\": \"expr\", \"format\": \"text\", \"params\": {\"formula\": \"sprint.name\", \"variables\": {\"sprint\": {\"id\": \"customfield\", \"format\": \"text\", \"params\": {\"fieldId\": <sprint field number>}}}}}}`. Without a Sprint field there are no presets (null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#getPresets",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#sprintNamePreset"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-text/spec-and-values",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "No grouping is produced when parameters lack `attribute` or the attribute id is not accepted by AttributeSpec (logged as a warning). The attribute is loaded in format TEXT, except id `expr`, which is loaded in the plugin's untyped value format so that formulas can give items, numbers, booleans and lists. Values come from the attribute service for the rows being grouped (as GenerationUtil.getValuesFromSubjectForest gives them, C-0493); for ids `description` and `environment` the values of issue rows are read from the Jira issue index (Description / Environment search fields) and only other rows use the attribute service.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#bulkReadDescriptionOrEnvironmentFromIndex",
+    "com.almworks.jira.structure.extension.generator.grouper.SingleAttributeRowValues#getLoadedValue"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-text/value-to-text-groups",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "Every row (issue or not) is grouped by its value: a string becomes a text folder (folder item with string id `/` + text); text longer than 189 characters is abbreviated to 189 with `...` at the end; a blank string gives no group. A number becomes a text folder of its plain decimal form without trailing zeros (2.50 gives `2.5`, 3.0 gives `3`, 1e3 gives `1000`); a boolean gives `true` or `false`. A null value or a map gives no group. A list gives the union of its elements' groups (nested lists flattened). A row with no group goes to the folder `s.ext.gen.grouper.attrtext.no-value` (\"No value\").",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$GetGroupsVisitor#visitNumber",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$GetGroupsVisitor#singleFolder",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$GetGroupsVisitor#visitList",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$AttributeGrouperFunction#getGroups"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-text/value-to-item-groups",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "An item value becomes a group that is the item itself when its type is one of `com.almworks.jira.structure:` type-folder, type-group, type-issue, type-issue-link-type, type-issuetype, type-label, type-cf-option, type-priority, type-project-component, type-project, type-sd-request-type, type-resolution, type-sprint, type-status, type-user, type-version, type-insight-object (and that type supports expressions); type-comment and type-worklog items become a text folder of their display text. An item that its type cannot access gives no group. An item of any other type, or a value the grouper cannot interpret, gives the folder `s.ext.gen.grouper.attrtext.unsupported` (\"Unsupported value\"), the latter with a rate-limited warning.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$GetGroupsVisitor#visitItemIdentity",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$GetGroupsVisitor#isItemTypeSupported",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$AttributeGrouperFunction#getGroups"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-text/group-order-and-exclusivity",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "Group rows are ordered with TotalOrder using a java.text.Collator for Jira's default locale: text folders by their text (so `10` comes before `9`), item groups by the item type's expression order value (by default its display text). Because item order values are tuples and texts are strings, item groups come before text folders. Then the unsupported-value group, then the no-value group last. Only the no-value group is exclusive; rows in other groups are copied under each group they have.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$AttributeGrouperFunction#createGroupRows",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$AttributeGrouperFunction#wrapToComparable",
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper$AttributeGrouperFunction#isExclusiveGroup"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-text/no-moves",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "The grouper offers no action handler: moving rows between its groups never changes Jira data, and such edits are handled as the generator framework does for a grouper without action handling.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper",
+    "com.almworks.jira.structure.api.generator.util.AbstractGenerator$Grouper#createActionHandler"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-text/regenerates",
+   "module": "grouper-text",
+   "api": null,
+   "behaviour": "It regenerates when the attribute values of the rows it grouped change (the attribute update checker records each grouped row); for `description` and `environment` an item change filter also records the grouped issues, so a change to one of them regenerates.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AttributeGrouper#createGrouperFunction",
+    "com.almworks.structure.commons.generator.SplitIssueRecorder#record"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-portfolio-parent/availability-and-parameters",
+   "module": "grouper-portfolio-parent",
+   "api": null,
+   "behaviour": "`grouper-portfolio-parent` is available exactly when `portfolio-integration` reports Advanced Roadmaps available; otherwise it produces no grouping and no action handler. It has no parameters of its own (building from any form gives an empty map). Its summary map gets `parent` = the text of `s.ext.gen.grouper.portfolio.summary.parent`; its semantic label is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.PortfolioParentGrouper#isAvailable",
+    "com.almworks.jira.structure.extension.generator.grouper.PortfolioParentGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.PortfolioParentGrouper#addParametersForSummary"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-portfolio-parent/groups",
+   "module": "grouper-portfolio-parent",
+   "api": null,
+   "behaviour": "Each visible issue row goes to exactly one group: the issue whose id `portfolio-integration` returns as its Advanced Roadmaps parent (C-2271), as item `com.almworks.jira.structure:type-issue`. Parent id 0, or a parent the current user cannot see, gives the folder `s.ext.gen.grouper.portfolio.no-parent` (\"No parent\"). Rows that are not visible issues (memos and planning tasks included) go to `s.grouper.field.+not-an-issue`. All groups are exclusive. Parent groups are ordered by parent issue id ascending, then no-parent, then not-an-issue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.PortfolioParentGrouper$ParentFunction#getValue",
+    "com.almworks.jira.structure.extension.generator.grouper.PortfolioParentGrouper$ParentFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.PortfolioParentGrouper$ParentFunction#sortRegularGroups"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-portfolio-parent/values-and-regeneration",
+   "module": "grouper-portfolio-parent",
+   "api": null,
+   "behaviour": "Parents are not read from the index: each issue's parent is asked of `portfolio-integration` the first time and kept with the generator between generations, re-read only for issues reported as changed. An item change filter records every grouped issue and parent group, so their changes regenerate the content.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.PortfolioParentGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#setContext"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-portfolio-parent/move-changes-parent-link",
+   "module": "grouper-portfolio-parent",
+   "api": null,
+   "behaviour": "Moving an existing issue to another parent group or to no-parent gives an effect that sets its Advanced Roadmaps parent to the target issue (none for no-parent), with an inverse back to the source group's parent (the issue's current parent when it came from outside a group). If source and target parent ids are equal the handler does nothing. A new issue gets an empty effect; non-issues, memos and planning tasks follow the same blocks as other field groupers (`s.ext.gen.grouper.issuefield.block.move-non-issue`, `.move-issue` for the not-an-issue group). Group reordering is blocked with `s.ext.gen.grouper.issuefield.block.reorder-not-supported` (or `.invalid-order` / `.invalid-group` as for other field groupers), with the manual-adjustment suggestion when available.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.PortfolioParentGrouper$ParentHandler#moveIssue",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGroupedItem",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#reorderGroup"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-portfolio-parent/parent-effect-checks",
+   "module": "grouper-portfolio-parent",
+   "api": null,
+   "behaviour": "When the parent change is evaluated: an unresolvable issue or target parent blocks with `s.ext.gen.block.no-issue`; a sub-task yields with `s.portfolio.parent.error.child-is-subtask` (\"Child issue is a sub-task.\"); an issue that has a Jira Software epic, or a target parent that is an epic (per `gh-integration`), yields with `s.ext.gen.portfolio.yield.use-epic-link` (\"Cannot set parent issue, please use Epic Link instead.\"); errors from `portfolio-integration` validation (C-2273) block with their text. Otherwise the effect is described `s.ext.gen.portfolio.effect.parent.move`, `.add` or `.remove` (child key, parent key; the old parent for remove) and runs the parent change through `portfolio-integration`; a failed update raises StructureErrors.UPDATE_ITEM_FAILED for the child issue with the error text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.ChangePortfolioParentEffect#apply"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-tempo-account/parameters",
+   "module": "grouper-tempo-account",
+   "api": null,
+   "behaviour": "Stored parameters are `{\"includeClosed\": <boolean>, \"includeArchived\": <boolean>}`. A new form has both true; building from the form stores each as true only when the form value is true (Boolean true or the text `true`, ignoring case), else false (an unchecked box is false); there are no errors. Showing stored parameters copies the same two booleans to the form. Missing stored values count as false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper#copyParams",
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-tempo-account/availability",
+   "module": "grouper-tempo-account",
+   "api": null,
+   "behaviour": "The grouper is available exactly when `tempo-integration` reports Tempo Accounts available; otherwise there is no grouping and no action handler. Its summary map gets `account` = the text of `s.ext.gen.grouper.tempo.accounts.summary.account` (\"Tempo Account\"); the semantic label is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper#isAvailable",
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper#createActionHandler",
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper#addParametersForSummary"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-tempo-account/groups",
+   "module": "grouper-tempo-account",
+   "api": null,
+   "behaviour": "Each visible issue row goes to one group from its current Tempo account (`tempo-integration`, C-2284): no account gives the folder `s.ext.gen.grouper.tempo.accounts.no-account` (\"No account\"); an archived account when `includeArchived` is false, or a closed account when `includeClosed` is false, gives the folder `s.ext.gen.grouper.tempo.accounts.excluded` (\"Excluded accounts\"); any other account gives item `com.almworks.jira.structure:type-tempo-account` with the account id. Accounts are not checked for visibility. Non-issue rows go to `s.grouper.field.+not-an-issue`. All groups are exclusive.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper$AccountFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper$AccountFunction#getValue"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-tempo-account/group-order",
+   "module": "grouper-tempo-account",
+   "api": null,
+   "behaviour": "Account groups are ordered with open accounts first, sorted by account key, then all other accounts (closed and archived together) sorted by key; then the excluded-accounts group, then no-account, then not-an-issue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper$AccountFunction#sortRegularGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#createGroupRows"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-tempo-account/values-and-regeneration",
+   "module": "grouper-tempo-account",
+   "api": null,
+   "behaviour": "Accounts are asked of `tempo-integration` per issue (no index read) and kept with the generator between generations, re-read only for issues reported as changed; an item change filter records grouped issues and account groups.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#setContext"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-tempo-account/move-changes-account",
+   "module": "grouper-tempo-account",
+   "api": null,
+   "behaviour": "Moving an existing issue into an account group gives an effect that sets that account, with an inverse that sets the source group's account (or no account when the source is not an account group). Moving it into the no-account group, or into the excluded-accounts group (as the original does), clears the account. The effect is offered even when source and target are the same. A new issue moved into a group is only validated (as below, from no account to the target) and gets an empty effect. Non-issues and memos/planning tasks are blocked as for other field groupers (`s.ext.gen.grouper.issuefield.block.move-non-issue`, `.move-issue`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.TempoAccountGrouper$AccountActionHandler#moveIssue",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGroupedItem",
+    "com.almworks.jira.structure.extension.generator.ChangeTempoAccountEffect#newIssue"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-tempo-account/account-effect",
+   "module": "grouper-tempo-account",
+   "api": null,
+   "behaviour": "When evaluated: an issue that cannot be resolved blocks with `s.ext.gen.block.no-issue`; `tempo-integration` validation of the change from the current account to the target (C-2296) blocks with its error text. Otherwise the effect is described `s.ext.gen.tempo.effect.account.change` (\"Associated issue {1} with account {0}.\") when both accounts exist, `.remove` (\"Removed issue {1} from account {0}.\", old account name) when the target is no account (also when the target account id no longer exists), and `.set` when only the target exists; arguments are the account name and the issue key. Running it sets the account through `tempo-integration` (C-2298); an invalid result raises StructureErrors.UPDATE_ITEM_FAILED for the issue with the error text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.ChangeTempoAccountEffect#apply",
+    "com.almworks.jira.structure.extension.generator.ChangeTempoAccountEffect#validate"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-tempo-account/reorder-blocked",
+   "module": "grouper-tempo-account",
+   "api": null,
+   "behaviour": "Reordering account groups is never supported: moving the no-account or not-an-issue group, or placing a group right after one of them, is blocked with `s.ext.gen.grouper.issuefield.block.invalid-order`; moving the excluded-accounts group (not an account) or a group between non-account neighbours with `.invalid-group`; any other reorder with `.reorder-not-supported`; each wrapped in `s.ext.gen.block.suggest-adjustment` when manual adjustment is possible.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#reorderGroup"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/parameter-fieldId",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "Its stored parameter is `fieldId`: `fixVersions`, `versions` or the id (`customfield_<n>`) of a version-picker custom field (single or multiple). A new form has `fieldId` = `fixVersions`. Building from the form: no `fieldId` adds `s.gen.grp.field.error.no-field-selected` (\"Please select an issue field.\"); an id that is neither system field and not a known custom field adds `s.gen.grp.field.error.no-field` (argument: the id); a custom field of another type adds `s.gen.grp.field.error.not-supported` (argument: the field's localized name, or its name when the name key is undefined); each error is under `fieldId` and gives an empty map. Otherwise the result is `{\"fieldId\": <id>}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#addDefaultFormParameters"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/summary-label-fields",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "Its summary map gets `fieldName` = the Jira field's name for `fieldId` (null when missing), and the semantic label is the same name. The form lists the Affects Version/s and Fix Version/s fields and every version-type custom field, sorted.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#addParametersForSummary",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#getSemanticLabel",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#getSupportedFields"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/no-grouping-cases",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "There is no grouping and no action handler when `fieldId` is missing, unknown to Jira's FieldManager, or a custom field that is not a version picker.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#createActionHandler"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/groups-by-canonical-name",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "Each visible issue row is grouped by the names of the versions in the field: one group per distinct canonical name (trimmed, lower-cased, at most 190 characters; C-0525) as item `com.almworks.jira.structure:type-version-name` with that string id, so versions with the same name in different projects share a group. Names that are blank are dropped. No version gives the folder `s.grouper.field.+no-fix-version` (\"No fix version\") for `fixVersions` and `s.grouper.field.+no-version` (\"No version\") for `versions` and custom fields. Version ids come from the issue index (`fixfor`, `version` or the custom field id) when read in bulk, else from the issue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameFunction#getGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameFunction#getValue",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#getEmptyGroup"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/order-exclusivity-nonissues",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "Name groups are ordered by canonical name in plain string order, then the empty-version group, then `s.grouper.field.+not-an-issue` for non-issue rows. For a single-version custom field all groups are exclusive; for multi-valued fields (fix/affects versions, multi-version custom fields) only the not-an-issue group is, and an issue is copied under each of its version names. When `structure-field-manager` knows the field as a single or multiple version field, memo and planning-task rows are grouped by the names of their version value(s) too; a memo whose configuration hides the field goes to not-an-issue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameFunction#sortRegularGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameFunction#isExclusiveGroup",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#createGenericItemAwareGrouperFunction"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/regenerates",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "An item change filter records every grouped issue and every version-name group; changed issues are re-read, others reuse the values kept with the generator.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#setContext"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/move-issue-to-name",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "Moving an existing issue into a name group whose name matches no version of the issue's project is blocked with `s.ext.gen.grouper.issuefield.block.version-project` (name, issue key). Otherwise the effect, when evaluated, takes the issue's current versions, removes the source group's version of that name in the issue's project (if present) and adds the target's (if absent). A source name that matches more than one version of the project stops the change with `s.ext.gen.grouper.version-name.block.remove.too-many-versions` (issue key, name), a target name with more than one with `.add.too-many-versions`; these refusals are reported on the move being handled rather than on the effect (as the original does). The inverse adds back what was removed and removes what was added.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameIssueMover#moveIssue",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper#apply"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/move-issue-to-empty",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "Moving an existing issue into the empty-version group gives an effect that sets the field to no versions; its inverse restores exactly the versions the issue had when the effect was evaluated (archived ones allowed).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameIssueMover#moveIssue"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/version-effect-validation",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "Before the change, the new versions are checked: clearing while the issue has an archived version blocks with `s.ext.gen.grouper.issuefield.block.remove.archived.version` (issue key, version name); a missing version with `.no-version`; a version of another project with `.version-project` (name, key); adding an archived version the issue did not have with `.add.archived.version` (key, name); dropping an archived version it had with `.remove.archived.version`; more than one value for a single-version field with `s.ext.gen.grouper.issuefield.block.move-issue`. The inverse skips both archived checks. A field no longer known blocks with `s.ext.gen.grouper.issuefield.block.no-field` (`.custom.no-field` for custom fields).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionFieldEffect#validateValues",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionFieldEffect#validateEmptyValues",
+    "com.almworks.jira.structure.extension.generator.grouper.GenericFieldEffect#updateIssueParameters"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/version-effect-update",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "The change is made with Jira's IssueService as the current Structure user: input parameters keep all existing values (`setRetainExistingValuesWhenParameterNotProvided(true, true)`) and set the fix version ids, affected version ids or the custom field's version ids as strings; validateUpdate errors block with their text; for a custom field with no value in the result's field values holder it blocks with `s.ext.gen.grouper.issuefield.block.custom.no-value` (field name, issue key). Otherwise IssueService.update runs, described as `s.ext.gen.grouper.issuefield.effect.fixVersions` (\"Changed fix versions of {1}.\"), `.versions` or `.custom` (field name, issue key). An issue that cannot be resolved blocks with `s.ext.gen.block.no-issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.UpdateIssueEffect#apply",
+    "com.almworks.jira.structure.extension.generator.grouper.GenericFieldEffect#validateResult",
+    "com.almworks.jira.structure.extension.generator.grouper.IssueEffect#apply"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/new-issue",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "A new issue placed in a name group is checked against the versions of its project with that name: none blocks with `s.ext.gen.grouper.issuefield.block.version-project` (or `.version-project.new-issue` when it has no key yet), more than one with `s.ext.gen.grouper.version-name.block.create.too-many-versions` (name), an archived one with `s.ext.gen.grouper.issuefield.block.create.archived.version` (name); otherwise, and for the empty group, it gets an empty effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameIssueMover#validateCreate",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGroupedItem"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/move-memo-or-planning-task",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "Moving an existing memo or planning task: no project on the item blocks with the text of `s.grouper.field.+no-project` (\"No project\"); a field `structure-field-manager` does not know (or of the wrong version kind) blocks with `s.ext.gen.grouper.block.no-field` (field name). Into the empty group the field is set to null; into a name group, more than one version of that name in the item's project blocks with `s.ext.gen.grouper.version-name.block.add.too-many-versions.pt` (item key, name), none with `s.ext.gen.grouper.block.pt.version-project`, whose arguments are passed as (item key, name) although the text expects (name, item key) (as the original does). A single field gets that version; a multiple field gets its current list without versions named like the source group's version and with the target appended (even if already present). The change is the memo field effect (C-2630); a new memo or planning task gets an empty effect.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameIssueMover#moveGenericItem",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameIssueMover#getNewVersionValues",
+    "com.almworks.jira.structure.extension.generator.grouper.VersionNameGrouper$VersionNameIssueMover#handleGenericEffect"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-version-name/reorder-and-other-blocks",
+   "module": "grouper-version-name",
+   "api": null,
+   "behaviour": "Reordering name groups is blocked as for other field groupers (`s.ext.gen.grouper.issuefield.block.invalid-order` for the empty or not-an-issue group, `.reorder-not-supported` otherwise, wrapped in the manual-adjustment suggestion when possible). Non-issues moved into a group are blocked with `.move-non-issue`; issues moved into not-an-issue with `.move-issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#reorderGroup",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGroupedItem"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-links/parameters-and-availability",
+   "module": "grouper-links",
+   "api": null,
+   "behaviour": "Parameters, form handling and summary are those of `issue-links-support` (C-2635 to C-2639): `linkTypeId` (long), `direction` (`outward`, `inward` or `any`, or boolean `inward`), and `shortestPaths` = true for direction any. The grouper is available only when Jira issue linking is enabled. There is no grouping when the link type is missing, unknown or hidden; the semantic label is null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.LinkGrouper#isAvailable",
+    "com.almworks.jira.structure.extension.generator.grouper.LinkGrouper#createGrouperFunction",
+    "com.almworks.jira.structure.extension.generator.grouper.LinkGrouper#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-links/groups",
+   "module": "grouper-links",
+   "api": null,
+   "behaviour": "Each visible issue row X is grouped under the issues linked to it by links of the chosen type, looking in the opposite of the configured direction: for outward, the source issues of X's inward links; for inward, the destination issues of X's outward links; for any, the other end of both. Each linked issue the current user can see is a group (item `com.almworks.jira.structure:type-issue`); X is copied under every such group (no group is exclusive, not even no-links or not-an-issue). No visible linked issue gives the folder `s.grouper.links.no-links` (\"No links\"); non-issue rows go to `s.grouper.field.+not-an-issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.LinkGrouper$LinksGrouperFunction#getValue",
+    "com.almworks.jira.structure.extension.generator.grouper.LinkGrouper$LinksGrouperFunction#isExclusiveGroup",
+    "com.almworks.structure.commons.lucene.reader.LinkAccessor#getParents"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-links/order-and-regeneration",
+   "module": "grouper-links",
+   "api": null,
+   "behaviour": "Linked-issue groups are ordered by issue id ascending, followed by no-links and then not-an-issue. Links are read from Jira's IssueLinkManager per issue (no index read) and kept with the generator between generations, re-read only for issues reported as changed; an item change filter records grouped issues and group issues.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.LinkGrouper$LinksGrouperFunction#sortRegularGroups",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractIssueFunction#setContext"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-links/moves-change-links",
+   "module": "grouper-links",
+   "api": null,
+   "behaviour": "With `linkTypeId` set there is an action handler (none without it). Moving issue X from group P to group Q changes links as `issue-links-support` describes (C-2640 to C-2645): leave P, join Q. Moving into the no-links group removes all of X's links of that type in the configured direction (the source group is ignored). A moved row that is not an issue, or a target or source group row that is not an issue (such as not-an-issue), yields with `s.ext.gen.links.yield.not-an-issue`; unresolvable issues block with `s.ext.gen.block.no-issue` and missing LINK_ISSUES permission with `s.ext.gen.links.block.no-link-perm`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.LinkGrouper$LinkActionHandler#moveGroupedItem",
+    "com.almworks.jira.structure.extension.generator.grouper.LinkGrouper#createActionHandler"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/grouper-links/reorder-blocked",
+   "module": "grouper-links",
+   "api": null,
+   "behaviour": "Reordering link groups is always blocked with `s.ext.gen.grouper.issuefield.block.reorder-not-supported` (\"Group reordering is not supported.\"), wrapped in `s.ext.gen.block.suggest-adjustment` when manual adjustment is possible.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.LinkGrouper$LinkActionHandler#reorderGroup"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-attribute/parameters-stored",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "Stored parameters: `attribute` = a RestAttributeSpec `{\"id\", \"format\", \"params\"}` (null members left out) and optionally `locale` = a BCP 47 language tag, plus the sorter keys `desc`, `from`, `to` handled by the generator framework. Building from the form reads JSON from `attributeJson` (unknown members ignored, format kept as given); empty or invalid JSON adds `s.ext.gen.param.error.attribute` under `attributeJson` and leaves `attribute` out. A non-empty `locale` is stored as given; if Locale.forLanguageTag(tag).toLanguageTag() differs from it, error `s.ext.gen.param.error.locale` (\"Invalid locale, please select another\") is added under `locale`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter$Parameters"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-attribute/form-and-summary",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "A new form gets `attributeJson` = `{}`. Showing stored parameters puts the attribute's JSON (or `{}`) into `attributeJson` and `locale` (or `default` when none); the summary gets `attributeJson` likewise and `attribute` = the placeholder `{attribute}`. For empty or unreadable parameters these two throw NullPointerException (as the original does). The form's locale list offers the collatable locales.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#addParametersForSummary",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#addDefaultFormParameters"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-attribute/presets",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "Presets: for each navigable field available to the current user that is Summary, a field with a built-in order (issuekey, votes, watches, issuetype, status, resolution, priority, description, environment, duedate, resolutiondate, created, updated, timespent, timeoriginalestimate, timeestimate, workratio, assignee, creator, reporter, project, components, labels, fixVersions, versions) or any custom field, except Jira Software lexo-rank fields (type key `com.pyxis.greenhopper.jira:gh-lexo-rank`), one GeneratorPreset labelled with the field's localized name and parameters `{\"attribute\": {\"id\": <id>, \"format\": \"order\"[, \"params\": ...]}}` where issuekey becomes id `key` and `customfield_<n>` becomes id `customfield` with params `{\"fieldId\": <n>}`; fixVersions, versions and single or multiple version-picker custom fields also get `\"desc\": true`. Preset parameters are built once per field id and reused. If Jira fails to list the fields, an error is logged and there are no presets.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#getPresets",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#buildFieldSpec"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-attribute/no-sorting-cases",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "No sorting happens (no compare function) when `attribute` is missing, when its `format` is not a standard format id (a missing format means `order`), when the format's value type is neither comparable nor Number (logged as a warning), when the attribute id is not accepted, or when no visible row lies in the level range.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#getCompareFunction"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-attribute/rows-and-values",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "Values are taken for the visible rows at levels `from` (default 1) to `to` (default unlimited), counted from 1 at the top of the generator's input. With format `order`, for the built-in field ids (`key`/`issuekey`, `project`, `issuetype`, `status`, `priority`, `resolution`, `components`, `versions`, `fixVersions`, `assignee`, `reporter`, `creator`, `labels`, `workratio`, `watches`, `votes`, the time tracking fields, `created`, `updated`, `resolutiondate`, `duedate`, `summary`, `description`, `environment`) and for `customfield` of a supported type, issue rows' values are read from the Jira issue index; other rows, and all rows for any other attribute, get values from the attribute service (C-0493). Index values are kept with the generator between generations and re-read for issues reported as changed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#getNeededRows",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#getIndexReader",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#fillCompareMapFromIndex"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-attribute/index-order-values",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "Order values read from the index: issue key as (project key, issue number); project and project-picker by project name; issue type by localized name; status by (status category sequence, status sequence); priority by negated priority sequence; resolution by resolution sequence with unresolved lowest; components and labels by their names; versions by version order; users by user name; select options by option sequence; cascading selects by the cascade order; numbers, dates and date-times by value; text fields by text. Custom fields of a type key starting `com.innovalog.jmcf.jira-misc-custom-fields:calculated` are never read from the index; other custom fields without an index reader (unless their searcher is a number searcher) use the attribute service. A custom field read from the index is limited to issues in its field context.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#getCustomFieldReader",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter$StatusOrderReader",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter$IssueKeyOrderReader",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#getFilterQuery"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-attribute/comparison",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "Rows are compared with TotalOrder (C-0994): lists of values as tuples, numbers numerically, strings with a java.text.Collator of the `locale` parameter (Jira's default locale when absent) at PRIMARY strength, so case and accents are ignored. Rows with no value (or a null value) always come after rows with values, both ascending and with `desc`; rows with equal values, and rows without values, keep their previous relative order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter$ValueCompareFunction#compare0",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#getLocale",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#getCompareFunction"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-attribute/no-manual-reordering",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "The sorter offers no action handler, so placing a row among sorted siblings at a position that needs a reorder is blocked by the generator framework with `s.ext.gen.sorter.block.no-handler` (\"Sorry, you cannot make this change, because the items are sorted.\", with the manual-adjustment suggestion when possible). It sets no applicability check: every row is sorted.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter",
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter#getApplicabilityChecker",
+    "com.almworks.jira.structure.forest.gfs.SorterDriver#getActionOptions"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-attribute/regenerates",
+   "module": "sorter-attribute",
+   "api": null,
+   "behaviour": "For issue rows whose values came from the index, an item change filter records the compared issues; for other rows the attribute update checker records them; a change to a recorded issue, or an attribute update for a recorded row, makes the content regenerate.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AttributeSorter$ValueCompareFunction#compare",
+    "com.almworks.structure.commons.generator.SplitIssueRecorder#record"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-agile-rank/availability-and-forms",
+   "module": "sorter-agile-rank",
+   "api": null,
+   "behaviour": "`sorter-agile-rank` is available exactly when Jira Software's RankService can be obtained; when it is missing, filling a new form, showing parameters and building parameters throw GeneratorUnavailableException with message `rank service is not found` and the text of `s.gen.sort.rank.error.no-service`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#isAvailable",
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#getRankServiceOrThrow"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-agile-rank/parameter-fieldId",
+   "module": "sorter-agile-rank",
+   "api": null,
+   "behaviour": "Its own stored parameter is `fieldId`, the long id of a rank custom field (plus the framework's `desc`, `from`, `to`). Building from the form: no value adds `s.gen.sort.rank.error.no-field-selected` (\"Please select Rank field.\"), a field RankService.isRankField rejects adds `s.gen.sort.rank.error.no-field` (argument: the id), each under `fieldId` with an empty map; otherwise `{\"fieldId\": <id>}`. Showing parameters puts `fieldId` as a long. The summary gets `fieldName` = the custom field's name (null if not found).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#addParametersForSummary"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-agile-rank/presets",
+   "module": "sorter-agile-rank",
+   "api": null,
+   "behaviour": "One GeneratorPreset per rank field reported by RankService, labelled with the field name, with parameters `{\"fieldId\": <long id>}`; no rank service or no rank fields gives no presets (null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#getPresets"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-agile-rank/which-rows-sorted",
+   "module": "sorter-agile-rank",
+   "api": null,
+   "behaviour": "Only visible issue rows at levels `from` (default 1) to `to` (default unlimited) take part in sorting; other rows are not applicable and the framework keeps them after the sorted ones. When applicability is asked outside a generation, every visible issue row is applicable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#getApplicabilityChecker",
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#getIssuesSeen"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-agile-rank/rank-order",
+   "module": "sorter-agile-rank",
+   "api": null,
+   "behaviour": "Rank values are read, as superuser, from the issue index field `customfield_<fieldId>` for the applicable issues; empty values count as none. Issues are ordered by plain string order of their rank values; issues without a rank come after ranked ones ascending, and (since `desc` reverses the comparison) before them with `desc`. No sorting happens when the rank service is missing, `fieldId` is missing or not a rank field, there are no applicable issues, or the index search fails (logged as a warning).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#getCompareFunction"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-agile-rank/regenerates",
+   "module": "sorter-agile-rank",
+   "api": null,
+   "behaviour": "It registers an item change filter for exactly the issues it sorted, so a change to one of them (such as a rank change) regenerates the content.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#getCompareFunction"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-agile-rank/move-changes-rank",
+   "module": "sorter-agile-rank",
+   "api": null,
+   "behaviour": "Moving or placing an issue among sorted issues gives an effect that ranks it after the new preceding issue, or before the new following issue when there is no preceding one, in the `fieldId` rank field, with an inverse to the old neighbours when the issue had an issue neighbour before; the description is `s.ext.gen.sorter.agilerank.effect.rank` (\"Changed rank of {0}.\", issue key). Nothing is done (the handler does not take part) when the row is not an issue, both new neighbours are not issues, or the new preceding issue (or, with none, the new following issue) is the same as before. The rank effect's checks are those described for the epic grouper (no rank service, not a rank field, no issue, SCHEDULE_ISSUES).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#createActionHandler",
+    "com.almworks.jira.structure.extension.generator.ChangeRankEffect#apply"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-agile-rank/sub-task-blocks",
+   "module": "sorter-agile-rank",
+   "api": null,
+   "behaviour": "A sub-task placed where neither neighbour is a sub-task of the same parent is blocked with `s.gen.sort.rank.error.different-parent`. A task placed between two sub-tasks of the same parent is blocked with `s.gen.sort.rank.error.task-between-sub-tasks`; a task placed between a parent and its first sub-task (the following neighbour is a sub-task of the preceding one) with `s.gen.sort.rank.error.task-between-parent-and-its-sub-task`. The rank effect is still offered after these blocks, but the block prevents the edit (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.AgileRankSorter#createActionHandler"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-manual/parameters-and-actions",
+   "module": "sorter-manual",
+   "api": null,
+   "behaviour": "`sorter-manual` has no parameters of its own and no form; its summary is the text of `s.ext.gen.sorter.manual.summary` (\"Reorder Manually\"). It cannot be reversed (no descending option). Its action handling is always allowed: user edits under it are handled even when the generator's `disableActions` parameter is true. Asking it for a compare function throws a runtime exception with message `Not applicable`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorter",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorterDriver#canReverse",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorter#getCompareFunction",
+    "com.almworks.jira.structure.forest.gfs.GeneratorDriver#isActionHandlingDisabled"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-manual/order-lookup-key",
+   "module": "sorter-manual",
+   "api": null,
+   "behaviour": "When generated content is sorted, for each set of siblings the stored order is looked up under C_KEY `<generator id>.<path>` of AO_8BAD1B_ORDERING (via `ordering-io`), where <path> is `root` or the ancestors' item tokens as SPEC §1.5 describes, with suffix `.gr` when the first non-generator sibling row was created by a grouper. If nothing is stored, trailing ancestors that are group rows are dropped one at a time and the lookup repeated; if still nothing and the path had `.gr`, the same path without `.gr` is tried.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorter#getOrdering",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorter#buildParentPath",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.OrderingPath#getKey",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.OrderingPath#removeLastGroup"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-manual/applying-order",
+   "module": "sorter-manual",
+   "api": null,
+   "behaviour": "With a stored order, the siblings become: generator and effector (automation) rows first in their current order; then, for each item in the stored list in turn, all sibling rows with that item (in their current relative order); then all remaining rows in their current order. Items in the list that are not among the siblings are ignored. Without a stored order the siblings keep their order. Only rows in the sorter's level range are reordered.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorter#sortSiblings",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorterDriver#generate"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-manual/cache",
+   "module": "sorter-manual",
+   "api": null,
+   "behaviour": "Stored orders are cached by key in cache `orderings`, loaded through `ordering-io`, expiring 3600 s after last access (dark feature `structure.manualsorter.cache.timeout`; JVM property `structure.cache.expiration-override` overrides it). A load error is logged as a warning and counts as no order. Clearing the component's caches empties it; per-user cache clearing does nothing. Saving an order invalidates the saved keys.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorter#<init>",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorter#clearCaches",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorter#getOrdering",
+    "com.almworks.structure.commons.platform.CommonCacheSettings#slowlyExpiring"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-manual/edit-records-order",
+   "module": "sorter-manual",
+   "api": null,
+   "behaviour": "Every add, copy, move or remove the framework passes to it gets an effect (never a block) described as `s.ext.gen.sorter.manual.effect.explanation` (\"Manually reordered items.\"). When evaluated it applies the change to a copy of the forest under the sorter's parent and, for the parent of each changed row, records that parent's children as an ordered list of distinct items, leaving out automation items and other rows of a changed item; the key uses `.gr` when the changed row is a group row. Running it stores the lists with `ordering-io` (C-1829; an empty list deletes the key), invalidates those cache keys and records a change of the generator item (`com.almworks.jira.structure:type-generator` with the sorter's id), which regenerates the content.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorterUpdater#onUpdate",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorterUpdater#onForestUpdated",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorterUpdater#getChildrenIdentities",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorterUpdater$ReorderEffect#apply"
+   ]
+  },
+  {
+   "key": "e11-groupers-sorters/sorter-manual/inverse-and-errors",
+   "module": "sorter-manual",
+   "api": null,
+   "behaviour": "The inverse of an add or copy is removing the added row from its new position; of a move, moving it back from the new position to the old one; of a remove, adding the fragment back at its old position; it is recorded the same way. If the forest under the sorter's parent cannot be copied the effect fails with a RuntimeException `Cannot get sub tree of <row id>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorterUpdater$UpdateInverter",
+    "com.almworks.jira.structure.extension.generator.sorter.manual.ManualSorterUpdater#generatorForest"
+   ]
+  }
+ ]
+}

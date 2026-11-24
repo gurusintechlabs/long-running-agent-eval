@@ -125,7 +125,7 @@ def test_counters_missing_records_zeros_and_warning(tmp_path, monkeypatch):
     make_run(r, n_cp=2)
     rep = ingest(r, tmp_path / "m.sqlite")
     assert any("counters unavailable" in w for w in rep.warnings)
-    assert rows(tmp_path / "m.sqlite", "SELECT COUNT(*), SUM(value) FROM counters") == [(26, 0.0)]
+    assert rows(tmp_path / "m.sqlite", "SELECT COUNT(*), SUM(value) FROM counters") == [(28, 0.0)]   # 14 counters x 2 checkpoints
 
 
 def test_unfinished_run_and_torn_lines(tmp_path):

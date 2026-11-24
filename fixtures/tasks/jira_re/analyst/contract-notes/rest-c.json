@@ -1,0 +1,870 @@
+{
+ "endpoints": {
+  "GET /rest/structure/2.0/author-picker": {
+   "summary": "Search box backend for picking 'authors' (users, groups and project roles), used by worklog-style column settings. Returns up to three result groups in this order: users, groups, project roles. Users come from Jira's user search (inactive users included, email may match); groups are the groups the caller may see (all groups for Jira admins or when the instance-wide setting that exposes all groups is on, otherwise the caller's own groups; for anonymous callers all groups only if anonymous holds the Browse Users global permission, else none); roles are all project roles and are omitted for anonymous callers. Read-only.",
+   "params": {
+    "query": "Text to match, case-insensitive, as a literal substring (no wildcards). For users this filters what Jira's user search returns (limit + 1 asked), so a user Jira does not return never appears. Users match on username, display name or email; groups and roles on name. Empty or omitted: no filtering.",
+    "noRoles": "true to leave out the project-role group. Default false.",
+    "noUsers": "true to leave out the user group. Default false.",
+    "limit": "Maximum items per group. Missing, zero or negative means 10."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestSearchResult}} (`query` is not set). Each non-empty group is included with a localized label ('Users', 'Groups', 'Project roles'). Item `value` (and `id`) is `author:<user key>`, `group:<group name>` or `role:<numeric role id>`; `label` is the display name (user) or name (group, role); `html` is the user label 'Display Name (username)' (with ' - email' after the display name when the caller may see emails) or the group/role name, HTML-escaped, with the matched part wrapped in a span of class s-match, all inside an outer span. Groups and roles are sorted by name; users keep the order of Jira's search. A group's `footer` is a localized 'there are more results, refine your search' text when items were cut by the limit, otherwise null.",
+   "errors": "403 when the caller may not use the app. Never fails on bad query text (returns an empty result)."
+  },
+  "GET /rest/structure/2.0/author-picker/project-role/{key}": {
+   "summary": "Looks up one Jira project role, by numeric id or (if the key is not a number) by exact name. Read-only.",
+   "params": {
+    "key": "Project role id (decimal) or project role name."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestProjectRole}}.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} body when no role has that id or name. 403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/author-picker/users": {
+   "summary": "Resolves a list of user keys into display data for showing already-selected users. Requires the Jira global Browse Users permission. Unknown keys are not an error: they are echoed back as their own name.",
+   "params": {
+    "keys": "Comma-separated user keys. Blank entries are skipped. Empty or omitted: empty result."
+   },
+   "response": "200 with a JSON array, one object per non-blank key in input order, with string keys `key` (the key as given), `name` (username, or the key if no such user), `displayName` (display name; for an inactive user the localized 'Name (Inactive)' form; the key if no such user) and `avatarUrl` (absolute URL `<base url>/secure/useravatar?ownerId=<key>&ts=<current time in ms>` for a known user, Jira's anonymous avatar URL for an unknown key).",
+   "errors": "403 with no body when the caller lacks Browse Users; 403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/calendar/list": {
+   "summary": "Lists the work calendars available for scheduling-related features, from every installed calendar provider. Calendars of the built-in provider come first, then other providers ordered by provider key. Read-only; requires a logged-in user.",
+   "params": {},
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.javax.CalendarResource$RestCalendarList}}. The built-in provider offers two calendars: id `com.almworks.jira.structure:simple-calendar-provider/0` (all time is working time, the default) and `.../1` (09:00 to 17:00 Monday to Friday in Jira's default time zone), with localized names and descriptions.",
+   "errors": "401 when not logged in; 403 when the caller may not use the app."
+  },
+  "POST /rest/structure/2.0/cloudmigration/stats/{id}": {
+   "summary": "Computes statistics about one structure for the cloud migration assistant: how many rows of each kind its current forest has and which projects its issues belong to. Jira system administrators only. Runs as a background job: the call waits up to the async timeout (default 3 seconds, configurable by an instance property) and, if the job has not finished, returns the job id so the caller can poll by repeating the call with that id. Read-only; does not contact any external server.",
+   "params": {
+    "id": "Structure id (positive integer).",
+    "body": "A {{com.almworks.jira.structure.api.rest.RestJobId}}: send `{}` (or `jobId` null) to start a new computation; send the `jobId` returned earlier to keep waiting for that job."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.javax.CloudMigrationResource$StructureStats}} when the job finished within the wait; the job is then discarded. 200 with a {{com.almworks.jira.structure.api.rest.RestJobId}} (only `jobId` set) when still running.",
+   "errors": "400 with no body when `id` is missing, zero or negative. 403 when the caller is not a system administrator. 404 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the given `jobId` is unknown (or already collected); errors raised by the computation (e.g. structure not found) are reported in the same error form with their usual status. 503 when the app is stopping."
+  },
+  "GET /rest/structure/2.0/configuration/permissions": {
+   "summary": "Returns the app-level permission settings (who may use the app, create structures, and so on). Jira administrators only. Read-only.",
+   "params": {},
+   "response": "200 with a JSON object whose keys are the nine app permission keys, always all present, in this order: `use`, `createStructure`, `synchronization`, `automation`, `configureGenerators`, `configureEffectors`, `executeEffectors`, `executeEffectorsOnQueries`, `manageGlobalSavedColumns`; each value is a {{com.almworks.jira.structure.rest.v2.data.RestAppPermission}} with both fields filled.",
+   "errors": "401 when not logged in; 403 when the caller is not a Jira administrator."
+  },
+  "PUT /rest/structure/2.0/configuration/permissions": {
+   "summary": "Changes several app permissions at once. Jira administrators only. Every entry is validated first; only if all are valid are the changes applied, so a bad entry changes nothing. For each entry, `allowedForAnyone` (if given) sets the 'anyone' flag and `subjects` (if given) replaces the whole subject list.",
+   "params": {
+    "body": "JSON object mapping app permission key to a {{com.almworks.jira.structure.rest.v2.data.RestAppPermission}}. Keys not mentioned are left unchanged."
+   },
+   "request": "At least one entry. Each entry must have at least one of `allowedForAnyone` and `subjects`. In `subjects` only `group` subjects (group must exist) and `projectRole` subjects (role must exist; `projectId` must be 0 or an existing project) are accepted.",
+   "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
+   "errors": "400 text/plain when the body is missing or empty, a key is not a known permission key (message lists the valid keys), an entry sets neither field, a subject is null, malformed, of type `user` or `anyone`, or refers to a group, role or project that does not exist. 401/403 as for the GET."
+  },
+  "GET /rest/structure/2.0/configuration/permissions/{key}": {
+   "summary": "Returns one app permission setting. Jira administrators only. Read-only.",
+   "params": {
+    "key": "App permission key, one of `use`, `createStructure`, `synchronization`, `automation`, `configureGenerators`, `configureEffectors`, `executeEffectors`, `executeEffectorsOnQueries`, `manageGlobalSavedColumns` (case-sensitive)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestAppPermission}}.",
+   "errors": "400 text/plain when the key is unknown (message lists the valid keys). 401 when not logged in; 403 when not a Jira administrator."
+  },
+  "PUT /rest/structure/2.0/configuration/permissions/{key}": {
+   "summary": "Changes one app permission: `allowedForAnyone` (if given) sets the 'anyone' flag, `subjects` (if given) replaces the subject list. Validation happens before any change. Jira administrators only.",
+   "params": {
+    "key": "App permission key (see GET).",
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestAppPermission}}; at least one field must be set. Subjects are restricted as in PUT /configuration/permissions."
+   },
+   "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
+   "errors": "400 text/plain for an unknown key, an empty body or entry, or an invalid subject (same rules as the bulk PUT). 401/403 as for the GET."
+  },
+  "POST /rest/structure/2.0/configuration/permissions/{key}/add": {
+   "summary": "Adds subjects to one app permission's subject list (duplicates are ignored; order of existing entries kept, new ones appended). Saves only if something was actually added. Jira administrators only.",
+   "params": {
+    "key": "App permission key (see GET).",
+    "body": "JSON array of {{com.almworks.structure.commons.rest.data.RestPermissionSubject}}; non-empty. Only `group` subjects of existing groups and `projectRole` subjects of existing roles (with `projectId` 0 or an existing project) are accepted."
+   },
+   "response": "200 with `{\"updated\": true|false}`: whether the stored list changed.",
+   "errors": "400 text/plain when the body is missing or an empty array, the key is unknown, or a subject is null, malformed, of a disallowed type or refers to something that does not exist. 401/403 as for the GET."
+  },
+  "POST /rest/structure/2.0/configuration/permissions/{key}/remove": {
+   "summary": "Removes subjects from one app permission's subject list. Subjects only need to be well-formed (any of the four subject types is accepted and existence is not checked); subjects not in the list are ignored. Saves only if something was removed. Jira administrators only.",
+   "params": {
+    "key": "App permission key (see GET).",
+    "body": "JSON array of {{com.almworks.structure.commons.rest.data.RestPermissionSubject}}; non-empty."
+   },
+   "response": "200 with `{\"updated\": true|false}`.",
+   "errors": "400 text/plain when the body is missing or an empty array, the key is unknown, or a subject is null or malformed (missing `subject`, unknown subject type, missing id field for its type). 401/403 as for the GET."
+  },
+  "GET /rest/structure/2.0/configuration/projects": {
+   "summary": "Returns in which Jira projects the app is enabled: all projects, or an explicit list of picked projects. Jira administrators only. Read-only.",
+   "params": {},
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestEnabledProjects}} with both fields set (the picked list is kept even while 'all projects' is on).",
+   "errors": "401 when not logged in; 403 when not a Jira administrator."
+  },
+  "PUT /rest/structure/2.0/configuration/projects": {
+   "summary": "Changes the project enablement. `enabledForAllProjects` (if given) sets the all-projects flag; `pickedProjectIds` (if given) replaces the picked-project list. Jira administrators only.",
+   "params": {
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestEnabledProjects}} with at least one field set. Every picked id must be a non-null id of an existing project; duplicates collapse."
+   },
+   "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
+   "errors": "400 text/plain when the body is missing or both fields are absent ('empty request'), or a picked id is null or names no existing project (the flag may already have been applied when the list is rejected). 401/403 as for the GET."
+  },
+  "POST /rest/structure/2.0/configuration/projects/add": {
+   "summary": "Adds project ids to the picked-project list (does not touch the all-projects flag). Saves only if the list changed. Jira administrators only.",
+   "params": {
+    "body": "Non-empty JSON array of project ids (integers); each must be an existing project."
+   },
+   "response": "200 with `{\"updated\": true|false}`.",
+   "errors": "400 text/plain when the array is missing or empty, contains null, or contains the id of a project that does not exist. 401/403 as for the GET."
+  },
+  "POST /rest/structure/2.0/configuration/projects/remove": {
+   "summary": "Removes project ids from the picked-project list. Ids need not exist. Saves only if the list changed. Jira administrators only.",
+   "params": {
+    "body": "Non-empty JSON array of project ids (integers)."
+   },
+   "response": "200 with `{\"updated\": true|false}`.",
+   "errors": "400 text/plain when the array is missing or empty or contains null. 401/403 as for the GET."
+  },
+  "GET /rest/structure/2.0/dark-features": {
+   "summary": "Lists the app's tuning properties ('dark features') currently set, for the admin page. A property is any key starting with `com.almworks.`, `almworks.`, `structure.` or `testy.` found either in Jira's application properties or in the JVM system properties, except protected keys (license-related keys of the app, profiler agent keys, keys under `com.almworks.jira.structure.config.`, and keys ending in `:build`). Jira administrators with a websudo session only. Read-only.",
+   "params": {},
+   "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.data.RestDarkFeatureResponse}}, sorted by key.",
+   "errors": "401 when not logged in or no websudo session; 403 when not a Jira administrator."
+  },
+  "POST /rest/structure/2.0/dark-features": {
+   "summary": "Validates a property key and returns its current state, so the admin page can add a row for it. Stores nothing. Jira administrators with a websudo session only.",
+   "params": {
+    "body": "The property key as the raw request body text (not a JSON object). Must be non-blank, start with one of the allowed prefixes (see GET) and not be a protected key."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestDarkFeatureResponse}} for that key (value from application properties if set, else from JVM system properties, else null).",
+   "errors": "400 text/plain with a localized message when the key is blank or has a wrong prefix or is protected. 401/403 as for the GET."
+  },
+  "PUT /rest/structure/2.0/dark-features": {
+   "summary": "Sets a tuning property in Jira's application properties (persisted, instance-wide). A null value removes the stored value. Failures to write are swallowed. Jira administrators with a websudo session only.",
+   "params": {
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestDarkFeatureRequest}}; `key` must pass the same checks as for POST."
+   },
+   "response": "204 with no body.",
+   "errors": "400 when the body is missing (no message) or the key is invalid (localized text/plain message). 401/403 as for the GET."
+  },
+  "DELETE /rest/structure/2.0/dark-features": {
+   "summary": "Removes a tuning property from Jira's application properties. The JVM system property of the same name, if any, is not affected and becomes the effective value again. Jira administrators with a websudo session only.",
+   "params": {
+    "body": "The property key as the raw request body text; same checks as for POST."
+   },
+   "response": "200 text/plain whose body is the remaining JVM system property value for that key; 204 with no body when there is none.",
+   "errors": "400 text/plain with a localized message for an invalid key. 401/403 as for the GET."
+  },
+  "GET /rest/structure/2.0/date/validate": {
+   "summary": "Checks whether a date typed by the user is valid in the caller's Jira date-picker format, and converts it to ISO form. Read-only.",
+   "params": {
+    "date": "The date text in the caller's date-picker format (as configured in Jira for the logged-in user)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestDateValidationResponse}}. An unparseable date is not an HTTP error: `isValid` is false and `error` holds the localized parser message.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "POST /rest/structure/2.0/expr/validate": {
+   "summary": "Parses an expression in the app's formula language and reports syntax errors and every variable, function, aggregation and comment with its character range, for the formula editor (highlighting, hints, documentation links). Also increments the app's local usage counters (expression validations, valid/invalid, functions used, complexity distribution); nothing is sent anywhere.",
+   "params": {
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestExprValidationRequest}}."
+   },
+   "request": "`expr` is required. `definedVariables` lists variable names the caller already has bound (for example by column configuration); they are compared after the language's name normalization (case-insensitive, ignoring the characters the language ignores in names), and a free variable counts as resolved only if it is in this list.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestExprValidationResult}}. Each validation problem appears exactly once: attached to the usage or declaration range it belongs to (that range's `error`), otherwise in `errors`. Texts are in the caller's language.",
+   "errors": "400 text/plain when `expr` is missing. 403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/group-picker": {
+   "summary": "Search box backend for picking Jira groups (used in sharing and permission dialogs). Searches the groups the caller may see: all groups for Jira admins or when the instance-wide setting that exposes all groups is on, otherwise only the caller's own groups. Requires a logged-in user. Read-only.",
+   "params": {
+    "query": "Case-insensitive literal substring of the group name. Blank or omitted: all visible groups.",
+    "maxResults": "Maximum items; used only when positive and lower than the instance limit (default 20, adjustable by an instance property)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestSearchResult}} holding no group when nothing matches, else one group labelled with the localized word 'Groups'. With a non-blank query, matches are ordered by name length (shortest first); with a blank query they keep the group list's order and have no highlighting. Item `value`, `id` and `label` are the group name; `html` is the HTML-escaped name with the matched part wrapped in `<b>`. `footer` is a localized 'Showing N of M matching groups' text only when results were cut.",
+   "errors": "401 from the platform when not logged in; 403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/info-popup": {
+   "summary": "Data for the app's 'about' popup: app version, license, update availability, the Jira cluster node id, and the same for four companion add-ons (Gantt, Pages, Deliver, Testy). IMPORTANT: the original asks the Atlassian Marketplace (an external server) whether a newer version of the app and of each installed companion is available (results cached for a long time; failures count as 'no update'). The replacement must not contact the Marketplace; it reports `false` for every update flag.",
+   "params": {},
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestInfoPopup}}. License objects are null for anonymous callers. For the app, the fixed licence state of SPEC section 1.1 is shown (`unlicensed` false). Companions: one entry each for plugin keys `com.almworks.structure.gantt`, `com.almworks.structure.pages`, `com.almworks.structure.deliver`, `com.almworks.testy`, in that order, always present even when not installed (then `version` is null and `updateAvailable` false).",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/issue-field": {
+   "summary": "Lists the Jira issue fields for which the app can offer a value picker (used by 'filter by field' and similar generator settings): the navigable fields the caller can see that have an option source, i.e. project, status, issue type, affects and fix versions, priority, reporter, creator, assignee, labels, components, resolution, and custom fields of user, multi-user, multi-group, version, labels, select, multi-select, cascading select, project, sprint, Advanced Roadmaps team, Tempo team and Assets object types (the last four only when that integration is present). When the app is not enabled for all projects, a custom field is listed only if it applies to at least one enabled project; global-context custom fields have no associated projects and are therefore left out (as the original does), although the single-field lookup accepts them. Read-only.",
+   "params": {},
+   "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.data.RestSupportedIssueField}} sorted by field name.",
+   "errors": "403 when the caller may not use the app. Failure to read the field list yields an empty array."
+  },
+  "GET /rest/structure/2.0/issue-field/options": {
+   "summary": "Searches the selectable values of one supported issue field (see GET /issue-field), limited to the app-enabled projects the caller can browse. Read-only.",
+   "params": {
+    "fieldId": "Jira field id, e.g. `status`, `fixVersions`, `customfield_10010`. Required. An unknown or unsupported field gives an empty `groups` array.",
+    "query": "Optional filter: an option matches when one of the words in its label starts with the query text (case-insensitive). User, group and user-picker custom fields are not searchable this way (they return no options); labels fields use Jira's label suggestions for the text.",
+    "limit": "Maximum options per group; zero, negative or omitted means no limit."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestFieldOptionsResponse}}. Issue type options come in two groups (standard and sub-task types, localized labels); every other field has one group with an empty label. If the field has a 'no value' option (id `special:EMPTY`, localized label such as 'No version', 'Unassigned', 'Unresolved') and its label contains the query (always true for an empty query), it is put first in each group, in addition to the limit. Option `id` formats are described in {{com.almworks.jira.structure.extension.field.FieldOption}}.",
+   "errors": "400 text/plain when `fieldId` is blank. 403 when the caller may not use the app."
+  },
+  "POST /rest/structure/2.0/issue-field/options": {
+   "summary": "Resolves known option ids of one supported issue field into displayable options (e.g. to render the current selection). Read-only.",
+   "params": {
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestFieldOptionsRequest}}; `fieldId` must be non-blank and `fieldValues` non-empty."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestFieldOptionsResponse}} holding a single group (empty label, `total` = number of options returned). Options follow the order of `fieldValues`; an id that cannot be resolved (or is not visible) still yields an option with that id and the placeholder label `option_<id>`. The 'no value' id `special:EMPTY`, if requested and the field has such an option, is moved to the end.",
+   "errors": "500 for a JSON `null` body. 400 text/plain when `fieldId` is blank or `fieldValues` is missing or empty. 403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/label-picker": {
+   "summary": "Returns Jira's label suggestions for the caller, either for the system Labels field or for one labels-type custom field. Read-only.",
+   "params": {
+    "query": "Label prefix to complete; omitted means Jira's default suggestions.",
+    "customFieldId": "Numeric id of a labels custom field (the number in `customfield_<n>`). Omitted: the system Labels field."
+   },
+   "response": "200 with a JSON array of label strings, as suggested by Jira.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/macro/search-filters": {
+   "summary": "Finds Jira saved filters by name for the Confluence macro editor (called from a linked Confluence). Returns at most 10 filters visible to the caller whose name matches the query as a word-wildcard search. Read-only.",
+   "params": {
+    "query": "Filter name search text."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.javax.MacroResource$RestFilters}}. If the search fails, `error` holds the failure message and `savedfilters` whatever was found so far.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/macro/settings": {
+   "summary": "Configuration lists for the Confluence macro editor: the structures and views the caller can view, and saved filters. Works even when the caller may not use the app (then it reports that in `error`). Also serves as an 'is the app installed' probe. Read-only.",
+   "params": {
+    "ping": "true: return only `{\"structureInstalled\": true}` and ignore everything else.",
+    "savedFilterId": "With `oneSavedFilter=true`: id of the one saved filter to return (if the caller can see it).",
+    "oneSavedFilter": "true: return only the filter named by `savedFilterId` (none if absent or not visible). Otherwise all saved filters shared with the caller are returned."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.javax.MacroResource$RestSettings}} (or the ping object). When the caller may not use the app, only `error` (localized 'app not available to the current user') and `supportedOptions` are set. If reading fails midway, `error` holds the message and the lists hold what was collected.",
+   "errors": "No error statuses of its own; problems are reported in `error`."
+  },
+  "POST /rest/structure/2.0/note": {
+   "summary": "Creates a stored note (a named, separately editable text attribute that can be shown as a column) owned by a structure; whoever may edit that structure may later rename or archive it. The name is trimmed. Requires edit permission on the given structure. Persisted in the NOTE table.",
+   "params": {
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestNoteCreateRequest}}."
+   },
+   "request": "`structureId` must be non-zero; `name` must be non-blank and at most 190 characters.",
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestNote}} for the new note (id `dc_note_<n>`).",
+   "errors": "400 text/plain (localized) when `structureId` is missing or 0. 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the name is blank or too long. 403 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the caller cannot edit the structure (also when it does not exist). 403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/note/search": {
+   "summary": "Note picker search: finds non-archived notes whose name contains the text, grouped for display relative to a structure. Read-only.",
+   "params": {
+    "name": "Case-insensitive literal substring of the note name; empty string matches every note. Should always be sent.",
+    "structureId": "Structure the picker is open in; decides the 'Used in structure' group. 0 or omitted: no such group.",
+    "limit": "Maximum total notes over all groups; omitted means unlimited."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestNoteSearchResults}}. Groups, in order and only when non-empty: (1) untitled group with the built-in default note (id `notes`) if it matches; (2) 'Used in structure': matching notes that have values in the given structure, if the caller can view it; (3) only if the limit is not yet exceeded, 'Other notes': matching notes used in other structures the caller can view, plus unused notes the caller may view. Within a group notes are sorted by name, then id. The limit cuts the group in which it is reached; `hasMore` is true when more matches existed than the limit.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/note/{noteId}": {
+   "summary": "Returns one note by id, including whether the caller may edit it. The id `notes` returns the built-in default note (localized name 'Notes (Default)', never editable). No view-permission check is made on stored notes. Read-only.",
+   "params": {
+    "noteId": "`notes` or a stored note id `dc_note_<n>` (the prefix may be omitted)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestNote}}.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the id is not of the form `dc_note_<integer>` / `<integer>`. 404 text/plain (localized 'note not found') when no such note exists. 403 when the caller may not use the app."
+  },
+  "PUT /rest/structure/2.0/note/{noteId}": {
+   "summary": "Renames a stored note. Requires edit permission on the note's owning structure; archived notes cannot be renamed; the built-in default note cannot be renamed. The new name is trimmed.",
+   "params": {
+    "noteId": "Stored note id `dc_note_<n>`.",
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestNoteEditRequest}}; `name` non-blank, at most 190 characters."
+   },
+   "response": "200 with the updated {{com.almworks.jira.structure.rest.v2.data.RestNote}}.",
+   "errors": "400 text/plain (localized) for `notes`. 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} for a malformed id, an archived note, or a blank or too long name. 403 (same error form) when the caller cannot edit the owning structure. 404 (same error form) when the note does not exist. 403 when the caller may not use the app."
+  },
+  "PUT /rest/structure/2.0/note/{noteId}/archive": {
+   "summary": "Archives a stored note: it disappears from note search and becomes read-only, but values and columns referring to it keep working. Requires edit permission on the owning structure. Archiving an archived note succeeds again. There is no un-archive endpoint. The built-in default note cannot be archived.",
+   "params": {
+    "noteId": "Stored note id `dc_note_<n>`."
+   },
+   "response": "200 with the updated {{com.almworks.jira.structure.rest.v2.data.RestNote}} (`archived` true, name shown with the localized '(Archived)' suffix).",
+   "errors": "400 text/plain (localized) for `notes`. 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} for a malformed id. 403 (same error form) when the caller cannot edit the owning structure. 404 (same error form) when the note does not exist. 403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/options-picker/list": {
+   "summary": "Returns every option of an option source (projects, issue types, priorities, versions, components, sprints, users, groups or custom field options), for drop-downs in item-creation forms. Read-only.",
+   "params": {
+    "spec": "URL-encoded JSON object describing the source: `sourceKey` (one of `PROJECTS`, `ISSUE_TYPES`, `PRIORITIES`, `VERSIONS`, `COMPONENTS`, `SPRINTS`, `USERS`, `GROUPS`, `FIELD_OPTIONS`, `EMPTY`), `projectId` (project the options are for; required for issue types, priorities, versions and components, which are empty without it or when the caller cannot browse that project) and `filters` (object of boolean flags: `excludeSubtasks` for issue types; `excludeInactive` to drop archived projects/versions/components, closed sprints, inactive users, disabled field options; `checkCreateIssues` and `checkStructureConfig` for projects (caller may create issues / app enabled in the project); `checkAssignable` for users (assignable in `projectId`); plus string `customField` (custom field id) and `issueTypeId` for `FIELD_OPTIONS`)."
+   },
+   "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource$RestOption}} (`html` null), sorted by the source's order (group, then name; custom field options by their configured order). Versions and components are in practice sorted by name only, because their intended group order (unreleased, released, archived, then archived components) never applies (as the original does). Projects, versions and components are limited to projects the caller can browse and view issues in. When `spec` is missing or not valid JSON, the source key is unknown or `EMPTY`, or the source is not selectable for the caller (`USERS` requires the Browse Users global permission), the response is 200 with a {{com.almworks.structure.commons.rest.RestEmpty}} instead.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/options-picker/search": {
+   "summary": "Searches an option source for a picker. Returns at most N options, where N is the smaller of the source's search threshold (default 50) and the page size (default 10); both adjustable by instance properties. Read-only.",
+   "params": {
+    "spec": "Option source description, as for /options-picker/list.",
+    "query": "Search text. Blank: behaves like /options-picker/suggestions with no ids. Otherwise options whose label contains the text (case-insensitive, literal) are returned; for users, Jira's user search is used instead."
+   },
+   "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource$RestOption}}; for a non-blank query `html` is the HTML-escaped label inside a span with the match wrapped in a span of class s-match. Same {{com.almworks.structure.commons.rest.RestEmpty}} fallback as /list.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/options-picker/suggestions": {
+   "summary": "Initial content of an option picker: the caller's recent items for the source (recent projects, recently used users; for sprints the suggestions are always empty (as the original does)) topped up with other options up to N (as in /search; users are not topped up), plus the currently selected options given by id. Read-only.",
+   "params": {
+    "spec": "Option source description, as for /options-picker/list.",
+    "ids": "URL-encoded JSON array of option ids that are currently selected; each one that exists and is valid for the source is included even beyond N. Omitted or invalid JSON: none."
+   },
+   "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource$RestOption}} (`html` null) without duplicates, sorted in the source's order. Same {{com.almworks.structure.commons.rest.RestEmpty}} fallback as /list.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/projects-picker": {
+   "summary": "Search box backend for picking Jira projects in which the app is enabled and which the caller can view. Results are split into 'Recent Projects' (from the caller's Jira project history) and 'All Projects' (the rest). Read-only.",
+   "params": {
+    "query": "Case-insensitive literal substring of project name or key. Blank or omitted: all.",
+    "maxResults": "Total number of items to show; positive values are capped at 20; missing, zero or negative means 20.",
+    "applyLimit": "Default true. false: no limit at all (every matching project is returned)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v1.data.RestSearchResult}}. The recent group (if any match) gets up to the limit; the all group gets the limit minus the number of matching recent projects (omitted if that is not positive or nothing remains). Both sorted by project name in the caller's locale. Item `value`/`id` is the project id (decimal string), `label` the project name, `icon` the small project avatar URL, `html` 'Name (KEY)' HTML-escaped with the first match wrapped in `<b>`. Each group always has a localized label and a 'Showing N of M matching projects' footer.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/query/validate": {
+   "summary": "Checks a query for syntax and semantic errors before it is used in a query-based feature. Read-only.",
+   "params": {
+    "q": "The query text. Leading/trailing problem characters are sanitized first.",
+    "type": "`jql` (Jira query, validated by Jira for the caller), `sjql` (the app's structure query language, parsed only) or `text` (plain text search, turned into a Jira text query)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestQueryValidationResponse}}: `errors` is null when the query is valid; otherwise a list of localized messages. A blank query or an unknown `type` is reported this way too (one message), not as an HTTP error.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/saved-column": {
+   "summary": "Returns all saved-column lists visible to the caller: first the bundled list (read-only preset columns shipped with the app, source `bundled`, list `bundled`), then the stored lists of source `stored`: `global` (shared columns) and `user` (the caller's own columns; empty for anonymous). Read-only.",
+   "params": {},
+   "response": "200 with a JSON array of {{com.almworks.jira.structure.rest.v2.data.RestSavedColumnList}}: bundled, then global, then user.",
+   "errors": "403 with a {{com.almworks.structure.commons.rest.RestStructureError}} (or the generic access 403) when the caller may not use the app."
+  },
+  "PUT /rest/structure/2.0/saved-column/{columnSource}/{id}": {
+   "summary": "Replaces all properties of a stored saved column (name, description, type and parameters; `name` is checked as when saving a new column, other absent fields become null, absent parameters become an empty object). The caller must own the column (user column) or hold the 'manage global saved columns' app permission (global column). Persisted in the SAVED_COLUMN table.",
+   "params": {
+    "columnSource": "`stored` (the bundled source cannot be changed).",
+    "id": "Saved column id (integer).",
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput}}."
+   },
+   "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the source is unknown. 404 (same form) when the column does not exist or belongs to another user. 403 (same form) when a global column is changed without the permission, an anonymous caller changes a user column, or the caller may not use the app. 500 for the bundled source. 401 when not logged in."
+  },
+  "DELETE /rest/structure/2.0/saved-column/{columnSource}/{id}": {
+   "summary": "Deletes a stored saved column. Same ownership/permission rules as PUT. Views that used it keep their own copy of the column configuration.",
+   "params": {
+    "columnSource": "`stored`.",
+    "id": "Saved column id."
+   },
+   "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
+   "errors": "400 text/plain (localized 'column not found') when the column does not exist or belongs to another user. 500 text/plain carrying the message for every other failure, including an unknown source and missing permission for a global column; 500 also for the bundled source. 401 when not logged in."
+  },
+  "POST /rest/structure/2.0/saved-column/{columnSource}/{id}/edit": {
+   "summary": "Changes only the name and/or description of a stored saved column; type and parameters stay. Fields that are null or absent are left unchanged. Same permission rules as PUT.",
+   "params": {
+    "columnSource": "`stored`.",
+    "id": "Saved column id.",
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput}}; only `name` and `description` are used."
+   },
+   "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
+   "errors": "400 text/plain (localized) when the column does not exist or is not readable by the caller (another user's column). 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} for an unknown source. 403 (same form) when editing a global column without the permission or when the caller may not use the app. 500 for the bundled source. 401 when not logged in."
+  },
+  "POST /rest/structure/2.0/saved-column/{columnSource}/{id}/move/{newListKey}": {
+   "summary": "Moves a user's own saved column into the global list (it loses its owner and becomes shared). Only the move to `global` exists; it requires that the caller owns the column and holds the 'manage global saved columns' app permission.",
+   "params": {
+    "columnSource": "`stored`.",
+    "id": "Saved column id.",
+    "newListKey": "Target list; only `global` is accepted.",
+    "body": "Any JSON object (for example `{}`); ignored, present only so the request is a non-simple POST."
+   },
+   "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
+   "errors": "400 text/plain (localized messages joined by '. ') (an empty body for the bundled source) when the source is unknown or bundled, the column does not exist, is already global, belongs to another user, the target is not `global`, or the caller lacks the permission. 401 when not logged in."
+  },
+  "POST /rest/structure/2.0/saved-column/{columnSource}/{id}/updateParameters": {
+   "summary": "Replaces only the parameters of a stored saved column; name, description and type stay. A missing `parameters` clears them to an empty object. Same permission rules as PUT.",
+   "params": {
+    "columnSource": "`stored`.",
+    "id": "Saved column id.",
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput}}; only `parameters` is used."
+   },
+   "response": "200 with a {{com.almworks.structure.commons.rest.RestEmpty}}.",
+   "errors": "Same as POST .../edit."
+  },
+  "GET /rest/structure/2.0/saved-column/{columnSource}/{listKey}": {
+   "summary": "Returns one saved-column list. Read-only.",
+   "params": {
+    "columnSource": "`bundled` or `stored`.",
+    "listKey": "`bundled` (for source `bundled`), `global` or `user` (for source `stored`)."
+   },
+   "response": "200 with a {{com.almworks.jira.structure.rest.v2.data.RestSavedColumnList}}.",
+   "errors": "404 with no body when the source or list is unknown. 403 when the caller may not use the app."
+  },
+  "POST /rest/structure/2.0/saved-column/{columnSource}/{listKey}": {
+   "summary": "Saves a new column into a list: into `user` as a personal column of the caller, or into `global` as a shared column (requires the 'manage global saved columns' app permission). `name` is mandatory and stored trimmed: blank gives 400 `Column name cannot be blank`, over 190 characters gives 400. Type and parameters are not validated. Persisted in the SAVED_COLUMN table.",
+   "params": {
+    "columnSource": "`stored`.",
+    "listKey": "`user` or `global`.",
+    "body": "A {{com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput}} with the column's name, description, type and parameters."
+   },
+   "response": "200 with the new {{com.almworks.jira.structure.rest.v2.data.RestSavedColumn}}.",
+   "errors": "400 with a {{com.almworks.structure.commons.rest.RestStructureError}} for an unknown source or an unknown list key. 403 (same form) for `global` without the permission or when the caller may not use the app. 500 for the bundled source. 401 when not logged in."
+  },
+  "GET /rest/structure/2.0/structureWelcome/search": {
+   "summary": "Structure finder on the app's welcome page. Without a query it returns the caller's recently opened structures; with a query, the structures the caller can view whose name contains the text. At most 10 are returned. Requires a logged-in user. Read-only.",
+   "params": {
+    "query": "Case-insensitive literal substring of the structure name. Blank or omitted: recent structures."
+   },
+   "response": "200 with a JSON object: `result`, array of at most 10 {{com.almworks.structure.commons.rest.data.RestStructure}} whose `name` is HTML (HTML-escaped; for a query, the first match wrapped in `<b>`), and `total`, the number of recent structures or of all matching structures before the cut.",
+   "errors": "401 when not logged in; 403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/tempo/accounts": {
+   "summary": "Searches Tempo accounts through the Tempo Accounts add-on installed in the same Jira (an in-process call, no external server). Open and closed accounts are included; archived accounts are left out unless the property `structure.tempo.showArchivedAccounts` is true (default false). Read-only.",
+   "params": {
+    "query": "Search text, passed to Tempo's account search.",
+    "limit": "Maximum number of accounts, passed to Tempo; omitted means Tempo's default.",
+    "ids": "Comma-separated numeric account ids to restrict the search to. Omitted: no restriction."
+   },
+   "response": "200 with a JSON object: `options`, array of {{com.almworks.jira.structure.rest.v2.data.RestTempoAccount}}, and `total`, the total number of matching accounts reported by Tempo. When Tempo Accounts is absent or fails: `options` empty and `total` 0.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/tempo/roles": {
+   "summary": "Lists Tempo team roles through the Tempo Teams add-on installed in the same Jira (in-process, no external server). Read-only.",
+   "params": {
+    "query": "Case-insensitive substring of the role name (trimmed). Blank: all roles.",
+    "limit": "Maximum number returned; missing, 0 or above Jira's 'stable search max results' setting means that setting.",
+    "ids": "Comma-separated numeric role ids to keep. A non-numeric id makes the whole result empty."
+   },
+   "response": "200 with a JSON object: `options`, array of {{com.almworks.jira.structure.rest.v2.data.RestTempoTeamRole}} (first `limit` matches in Tempo's order), and `total`, the number of matches before the limit. Empty with `total` 0 when Tempo Teams is absent or fails.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "GET /rest/structure/2.0/tempo/teams": {
+   "summary": "Searches Tempo teams through the Tempo Teams add-on installed in the same Jira (in-process, no external server); Tempo applies its own search and visibility rules. Read-only.",
+   "params": {
+    "query": "Team search text, passed to Tempo.",
+    "limit": "Maximum number returned; missing, 0 or above Jira's 'stable search max results' setting means that setting.",
+    "ids": "Comma-separated numeric team ids to keep. A non-numeric id makes the whole result empty."
+   },
+   "response": "200 with a JSON object: `options`, array of {{com.almworks.jira.structure.rest.v2.data.RestTempoTeam}}, and `total`, the number of matches before the limit. Empty with `total` 0 when Tempo Teams is absent or fails.",
+   "errors": "403 when the caller may not use the app."
+  },
+  "POST /rest/structure/2.0/wiki-markup/render": {
+   "summary": "Renders several Jira wiki-markup texts to HTML in one call, with Jira's wiki renderer (no issue context). If the wiki renderer is not available, or returns nothing for a value, the value is returned HTML-escaped instead. Requires a logged-in user. No side effects.",
+   "params": {
+    "body": "JSON object mapping caller-chosen keys to wiki-markup strings."
+   },
+   "response": "200 with a JSON object with the same keys (same order), each mapped to the rendered HTML string.",
+   "errors": "401 when not logged in; 403 when the caller may not use the app. 400 with a {{com.almworks.structure.commons.rest.RestStructureError}} when the body is not a JSON object of strings."
+  }
+ },
+ "shapes": {
+  "com.almworks.jira.structure.api.rest.RestJobId": {
+   "name": "async-job-ticket",
+   "summary": "Handle of a long-running server computation. Sent in a request to resume waiting for an earlier job, and returned when the computation did not finish within the wait time.",
+   "fields": {
+    "jobId": "Server-side job id (integer, unique while the app runs). Null or absent in a request means 'start a new job'. Jobs are kept in memory only; an id becomes unknown once its result has been delivered or the app restarted."
+   }
+  },
+  "com.almworks.jira.structure.extension.field.FieldOption": {
+   "name": "issue-field-option",
+   "summary": "One selectable value of an issue field in the field value picker. All fields are always present; missing values are empty strings, never null.",
+   "fields": {
+    "id": "Value identifier, format depends on the field: project key (project, and project-picker custom fields); Jira id of the status, issue type, priority or resolution; version or component id (options with the same name in several projects are merged into one, keeping one id); `author:<user key>` or `group:<group name>` for user fields; the label text for labels; option id for select lists and `<parent option id>:<child option id>` for a cascading child; sprint id; team id; Assets object id. `special:EMPTY` is the 'no value' option.",
+    "label": "Display text, e.g. project name, version name, user display name, 'Parent - Child' for a cascading option.",
+    "iconUrl": "Icon URL or empty: issue constant icon, `/secure/projectavatar?pid=<project id>&size=small` (relative to the Jira base URL) for projects, an Assets object-type icon path, else empty.",
+    "metadata": "Extra data as a JSON-encoded string, or empty: for statuses `{\"color\": <status category color name>}`; for sprints `{\"board\": <board name>, \"state\": <sprint state in lower case>}`.",
+    "html": "Ready-made HTML for the option, or empty; for users it is 'Display Name (username)' (plus email when visible to the caller) HTML-escaped inside a span."
+   }
+  },
+  "com.almworks.jira.structure.rest.v1.data.RestSearchItem": {
+   "name": "picker-search-item",
+   "summary": "One entry of a search-box result list (user, group, role or project picker).",
+   "fields": {
+    "value": "The value to store when the item is chosen (format defined by the endpoint, e.g. `group:<name>` or a project id).",
+    "label": "Plain display text.",
+    "title": "Optional tooltip or secondary text; null when not used.",
+    "html": "Display HTML with the matched part of the search text highlighted; already escaped.",
+    "entity": "Optional full object for the item; null except for the gadget pickers.",
+    "icon": "Icon or avatar URL, or null.",
+    "id": "Always equal to `value`.",
+    "params": "Optional extra string attributes (absent when there are none)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v1.data.RestSearchResult": {
+   "name": "picker-search-result",
+   "summary": "Result of a search-box query: a list of titled groups of items.",
+   "fields": {
+    "query": "Echo of the search text; null for the endpoints in this group except the gadget pickers.",
+    "groups": "Groups of results in display order, each a {{com.almworks.jira.structure.rest.v1.data.RestSearchGroup}}; empty array when nothing matched."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestAppLicenseInfo": {
+   "name": "about-license-summary",
+   "summary": "Short license description for the about popup.",
+   "fields": {
+    "licenseSEN": "Support entitlement number (serial) of the license; null when unlicensed, and always null in the replacement (SPEC.md 1.1).",
+    "unlicensed": "true when there is no usable license (license disabled); then `licenseSEN` is null."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestAppPermission": {
+   "name": "app-permission-setting",
+   "summary": "Who holds one app-level permission. A user holds it when `allowedForAnyone` is true or the user matches one of the subjects.",
+   "fields": {
+    "allowedForAnyone": "true: every user (including anonymous where applicable) has the permission. Always set in responses; in requests null/absent means 'leave unchanged'.",
+    "subjects": "Users, groups or project roles granted the permission, as {{com.almworks.structure.commons.rest.data.RestPermissionSubject}}. Always set in responses (possibly empty); in requests absent means 'leave unchanged' and a value replaces the whole list."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestDarkFeatureRequest": {
+   "name": "tuning-property-update",
+   "summary": "New value for one app tuning property.",
+   "fields": {
+    "key": "Property name; must start with `com.almworks.`, `almworks.`, `structure.` or `testy.` and must not be a protected key.",
+    "value": "New value as a string; null removes the stored value."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestDarkFeatureResponse": {
+   "name": "tuning-property-state",
+   "summary": "Current state of one app tuning property.",
+   "fields": {
+    "key": "Property name.",
+    "value": "Effective value: the value stored in Jira's application properties if non-empty, else the JVM system property value, else null.",
+    "removable": "true when the value comes from Jira's application properties (and can be deleted through this API); false when it comes from a JVM system property or is unset."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestDateValidationResponse": {
+   "name": "date-check-result",
+   "summary": "Outcome of validating a user-entered date.",
+   "fields": {
+    "isValid": "true when the text parsed as a date in the caller's date-picker format.",
+    "resultDate": "When valid, the date in ISO 8601 form `yyyy-MM-dd`; otherwise null.",
+    "error": "When invalid, the localized parser message; otherwise null."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestEnabledProjects": {
+   "name": "app-project-scope",
+   "summary": "Where the app is enabled: all projects, or a list of picked projects.",
+   "fields": {
+    "enabledForAllProjects": "true: the app is enabled in every project and the picked list is ignored. In requests null/absent means unchanged.",
+    "pickedProjectIds": "Jira project ids of the projects explicitly enabled (used when the flag is false). In requests null/absent means unchanged; a value replaces the list."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestExprValidationRequest": {
+   "name": "formula-check-request",
+   "summary": "A formula to validate.",
+   "fields": {
+    "expr": "Formula text in the app's expression language. Required.",
+    "definedVariables": "Optional names of variables the caller has already bound; used only to decide whether each free variable is resolved."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestExprValidationResult": {
+   "name": "formula-check-result",
+   "summary": "Analysis of a formula: validity and the location of every name, comment and problem. All ranges are character offsets into `expr`, half-open (`from` inclusive, `to` exclusive).",
+   "fields": {
+    "expr": "The analysed formula text, echoed.",
+    "valid": "true when the formula parsed and has no validation errors.",
+    "resolved": "true when every function and aggregation used is known to the language (free variables do not affect this flag).",
+    "errorIndex": "Character offset where parsing failed; null when parsing succeeded.",
+    "expectedTokens": "When parsing failed, the tokens that would have been accepted at `errorIndex`, plus the words `identifier` and/or `literal` when a name or a literal value would have been accepted; null when parsing succeeded.",
+    "variables": "Every variable name used: free variables and locally declared ones.",
+    "functions": "Every function name used, with documentation when known.",
+    "aggregations": "Every aggregation function used, with documentation when known.",
+    "comments": "Ranges of the comments in the text (no `error`).",
+    "errors": "Validation problems not tied to a reported name usage or declaration: each a range with a localized `error`."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestExprValidationResult$ExprNameUsage": {
+   "name": "formula-name-usage",
+   "summary": "One distinct name (variable, function or aggregation) used in a formula and where it occurs.",
+   "fields": {
+    "name": "The name in canonical lower-case form; names that differ only in case are one entry.",
+    "usage": "Ranges of every occurrence; an occurrence with a problem carries a localized `error`.",
+    "declaration": "For a variable declared inside the formula (local variable), the range of its declaration (with an `error` if the declaration has a problem); null otherwise.",
+    "resolved": "Local variable: always true. Free variable: true when listed in the request's `definedVariables`. Function or aggregation: true when the language knows it.",
+    "description": "Localized description of a known function or aggregation; null for variables and unknown names.",
+    "documentationUrl": "Link to the documentation of a known function or aggregation; null otherwise."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestExprValidationResult$ExprRange": {
+   "name": "formula-text-range",
+   "summary": "A stretch of the formula text, optionally with a problem.",
+   "fields": {
+    "from": "Start character offset (0-based, inclusive).",
+    "to": "End character offset (exclusive).",
+    "error": "Localized problem message for this stretch, or null."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestFieldOptionGroup": {
+   "name": "issue-field-option-group",
+   "summary": "A titled group of issue field options.",
+   "fields": {
+    "label": "Group title (localized), or empty string when the field has a single untitled group.",
+    "options": "The options of this page, as {{com.almworks.jira.structure.extension.field.FieldOption}}, possibly cut by the limit; may start with the 'no value' option.",
+    "total": "Number of options available in the group regardless of the limit (for most fields the total before the text filter; for labels the number of suggestions found)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestFieldOptionsRequest": {
+   "name": "issue-field-option-lookup",
+   "summary": "Request to resolve option ids of one issue field.",
+   "fields": {
+    "fieldId": "Jira field id (e.g. `priority`, `customfield_10010`). Required.",
+    "fieldValues": "Option ids to resolve (formats as in {{com.almworks.jira.structure.extension.field.FieldOption}}). Required, non-empty."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestFieldOptionsResponse": {
+   "name": "issue-field-option-list",
+   "summary": "Options of an issue field, grouped.",
+   "fields": {
+    "groups": "Option groups in display order; empty when the field is unknown or unsupported."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestInfoPopup": {
+   "name": "about-popup-data",
+   "summary": "Content of the app's about popup.",
+   "fields": {
+    "structureVersion": "Installed version of the app (plugin version string).",
+    "structureUpdateAvailable": "Whether a newer compatible version exists on the Marketplace. The replacement never contacts the Marketplace and always reports false.",
+    "structureLicenseInfo": "The app's license summary; null for anonymous callers or when no license applies.",
+    "jiraClusterNodeId": "Id of the Jira cluster node that served the request; null on a non-clustered Jira.",
+    "plugins": "Companion add-ons (Gantt, Pages, Deliver, Testy), always these four in this order."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestInfoPopup$RestPluginDetails": {
+   "name": "about-companion-addon",
+   "summary": "Status of one companion add-on in the about popup.",
+   "fields": {
+    "key": "Plugin key, e.g. `com.almworks.structure.gantt`.",
+    "name": "Product name: `Structure.Gantt`, `Structure.Pages`, `Structure.Deliver` or `Structure.Testy`.",
+    "version": "Installed version, or null when the add-on is not installed and enabled.",
+    "licenseInfo": "The add-on's license summary when the add-on is installed, registered with the app and the caller is logged in; null otherwise (always null for Testy).",
+    "updateAvailable": "Whether the Marketplace offers a newer version. Always false in the replacement (no Marketplace access).",
+    "links": "Always all null (see the shape)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestInfoPopup$RestPluginLinks": {
+   "name": "about-companion-links",
+   "summary": "Links of a companion add-on. The keys stay in the reply, and every value is null: the original's addresses lead to the vendor, so the replacement has none.",
+   "fields": {
+    "gettingStarted": "Always null.",
+    "documentation": "Always null.",
+    "tryIt": "Always null."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestNote": {
+   "name": "note-record",
+   "summary": "A note (named text attribute) and whether the caller may edit it.",
+   "fields": {
+    "id": "Note id: `notes` for the built-in default note, `dc_note_<n>` for stored notes.",
+    "name": "Display name; for an archived note the localized form 'Name (Archived)'.",
+    "archived": "true when the note has been archived.",
+    "editAllowedResponse": "Whether the caller may rename or archive the note, and why not."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestNoteCreateRequest": {
+   "name": "note-create-request",
+   "summary": "Data for a new note.",
+   "fields": {
+    "name": "Note name; non-blank, at most 190 characters, trimmed before storing.",
+    "structureId": "Id of the structure that owns the note and whose edit permission governs it; required, 0 or absent is rejected."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestNoteEditAllowedResponse": {
+   "name": "note-edit-permission",
+   "summary": "Whether the caller may change a note.",
+   "fields": {
+    "allowed": "true when the caller may rename or archive the note: the note is not archived and the caller has edit permission on the owning structure. Always false for the built-in default note.",
+    "reason": "When not allowed, a localized explanation (archived; no permission on the named structure; default note cannot be changed); may be null."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestNoteEditRequest": {
+   "name": "note-rename-request",
+   "summary": "New name for a note.",
+   "fields": {
+    "name": "New name; non-blank, at most 190 characters, trimmed."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestNoteSearchResults": {
+   "name": "note-search-result",
+   "summary": "Grouped result of a note picker search.",
+   "fields": {
+    "groups": "Groups in display order; only non-empty groups are present.",
+    "hasMore": "true when more notes matched than the requested limit allowed."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestNoteSearchResults$RestNoteSearchGroup": {
+   "name": "note-search-group",
+   "summary": "A titled group of found notes.",
+   "fields": {
+    "title": "Localized group title ('Used in structure', 'Other notes'); null for the group holding the default note.",
+    "notes": "Found notes, sorted by name then id."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestNoteSearchResults$RestNoteSearchItem": {
+   "name": "note-search-hit",
+   "summary": "A note found by the note search.",
+   "fields": {
+    "id": "Note id (`notes` or `dc_note_<n>`).",
+    "name": "Note name (plain text).",
+    "html": "Note name HTML-escaped, with the matched part wrapped in a span of class s-match.",
+    "editAllowedResponse": "Whether the caller may change this note."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestQueryValidationResponse": {
+   "name": "query-check-result",
+   "summary": "Outcome of validating a query.",
+   "fields": {
+    "errors": "Localized error messages; null when the query is valid."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSavedColumn": {
+   "name": "saved-column",
+   "summary": "A reusable column configuration from a saved-column list. Boolean fields are either true or absent/null (never false).",
+   "fields": {
+    "composedId": "Global column reference `<source id>/<column id>`, e.g. `stored/12` or `bundled/3`; this is what a view column stores to refer to the saved column.",
+    "listId": "The list the column belongs to, `<source id>/<list key>`, e.g. `stored/global`, `stored/user`, `bundled/bundled`.",
+    "name": "Column name (localized for bundled columns).",
+    "description": "Column description (localized for bundled columns); may be null.",
+    "type": "Column type key, i.e. the kind of column as used in view specifications (bundled columns are all `formula`).",
+    "params": "The column's configuration parameters as a JSON object (as in a view column specification); null when empty.",
+    "shouldOpenConfigurator": "true when the client should open the column settings right after adding the column (some bundled presets); otherwise null.",
+    "featured": "true for columns to be highlighted in the column picker (some bundled presets); otherwise null.",
+    "editable": "true when the caller may change or delete the column (own user column, or global column with the 'manage global saved columns' permission); otherwise null. Bundled columns are never editable."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSavedColumnInput": {
+   "name": "saved-column-input",
+   "summary": "Properties of a saved column to create or change. Which fields are used depends on the endpoint (full replace, name/description only, or parameters only).",
+   "fields": {
+    "name": "Column name.",
+    "description": "Column description.",
+    "type": "Column type key (kind of column, as in a view column specification).",
+    "parameters": "Column configuration parameters as a JSON object; null is stored as an empty object."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSavedColumnList": {
+   "name": "saved-column-list",
+   "summary": "One list of saved columns (bundled presets, global columns, or the caller's own columns).",
+   "fields": {
+    "id": "List reference `<source id>/<list key>`: `bundled/bundled`, `stored/global` or `stored/user`.",
+    "sourceId": "Column source: `bundled` or `stored`.",
+    "name": "Localized list name: 'Bundled', 'Global', 'My Columns'.",
+    "columns": "Columns in the list, as {{com.almworks.jira.structure.rest.v2.data.RestSavedColumn}}; for the user list only the caller's own columns.",
+    "createSupported": "true when the caller may add columns to this list (user list for logged-in callers; global list with the 'manage global saved columns' permission); otherwise null. Never true for the bundled list."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestSupportedIssueField": {
+   "name": "pickable-issue-field",
+   "summary": "An issue field for which a value picker is available.",
+   "fields": {
+    "id": "Jira field id, e.g. `status` or `customfield_10010`.",
+    "label": "Field name in the caller's language (translated name for system fields, custom field name otherwise)."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestTempoAccount": {
+   "name": "tempo-account-option",
+   "summary": "A Tempo account offered in a picker.",
+   "fields": {
+    "id": "Tempo account id (integer).",
+    "name": "Account name.",
+    "key": "Account key.",
+    "status": "Account status as localized display text (open, closed or archived), not a code."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestTempoTeam": {
+   "name": "tempo-team-option",
+   "summary": "A Tempo team offered in a picker.",
+   "fields": {
+    "id": "Tempo team id (integer).",
+    "name": "Team name."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.data.RestTempoTeamRole": {
+   "name": "tempo-team-role-option",
+   "summary": "A Tempo team role offered in a picker.",
+   "fields": {
+    "id": "Tempo team role id (integer).",
+    "name": "Role name."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.CalendarResource$RestCalendar": {
+   "name": "work-calendar-entry",
+   "summary": "A work calendar that scheduling features can use.",
+   "fields": {
+    "id": "Full calendar id `<provider plugin module complete key>/<calendar number>`, e.g. `com.almworks.jira.structure:simple-calendar-provider/1`; this string is what settings store to refer to the calendar.",
+    "name": "Localized calendar name, e.g. 'Standard calendar 24/7', 'Standard work calendar 8/5'.",
+    "description": "Localized description of the calendar's working time."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.CalendarResource$RestCalendarList": {
+   "name": "work-calendar-list",
+   "summary": "All available work calendars.",
+   "fields": {
+    "calendars": "Calendars: those of the built-in provider first, then other providers by provider key, each provider's calendars in the provider's order."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.MacroResource$RestEntity": {
+   "name": "macro-choice",
+   "summary": "An id/name pair offered in the Confluence macro editor.",
+   "fields": {
+    "key": "Numeric id as a decimal string (structure id, view id or saved filter id).",
+    "value": "Display name."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.MacroResource$RestFilters": {
+   "name": "macro-filter-search-result",
+   "summary": "Saved filters found for the Confluence macro editor.",
+   "fields": {
+    "savedfilters": "Found saved filters (at most 10) (the access gate answers 403 first for a caller who may not use the app).",
+    "error": "Localized or technical error text when the app is unavailable to the caller or the search failed; otherwise null."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.MacroResource$RestSettings": {
+   "name": "macro-editor-settings",
+   "summary": "Choices for configuring the Confluence macro.",
+   "fields": {
+    "structures": "Structures the caller can view; null when the app is unavailable to the caller.",
+    "views": "Views the caller can view; null when the app is unavailable.",
+    "savedfilters": "Saved filters shared with the caller (or only the requested one); null when the app is unavailable.",
+    "error": "Error text (app unavailable to the caller, or a failure while reading); otherwise null.",
+    "supportedOptions": "Optional features this server supports."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.MacroResource$SupportedOptions": {
+   "name": "macro-supported-features",
+   "summary": "Feature flags telling the Confluence side what this server understands.",
+   "fields": {
+    "oneSavedFilter": "Always true: the server supports returning just one saved filter via `oneSavedFilter`/`savedFilterId`."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.OptionsPickerResource$RestOption": {
+   "name": "picker-option",
+   "summary": "One option from an option source.",
+   "fields": {
+    "value": "Option id as a string: project id, issue type / priority id, version or component id, sprint id, user key, group name, or custom field option id.",
+    "label": "Display text: 'Name (KEY)' for projects; translated name for issue types and priorities; formatted sprint name; 'Display Name (username)' (with email when visible) for users; name otherwise.",
+    "html": "Highlighted HTML label for search results (escaped label inside a span, match in a span of class s-match); null elsewhere.",
+    "icon": "Icon URL: issue type/priority icon, small project avatar, or `<base url>/secure/useravatar?ownerId=<user key>` for users; null when none.",
+    "group": "Message key (not translated text) of the sub-group the option belongs to, used by the client for grouping and headings: e.g. recent vs other projects, archived projects, released / unreleased / archived versions, archived components, sprints of suggested boards; null when ungrouped."
+   }
+  },
+  "com.almworks.structure.commons.rest.data.RestPermissionSubject": {
+   "name": "permission-subject",
+   "summary": "Who a permission or sharing rule applies to: a user, a group, a project role or anyone. Only the id field(s) for the given type are used; the others are null.",
+   "fields": {
+    "subject": "Subject type: `user`, `group`, `projectRole` or `anyone` (case-insensitive on input; written in this form on output). Required.",
+    "groupId": "Group name, for `group`.",
+    "projectId": "Jira project id, for `projectRole`; 0 means the role in any project.",
+    "roleId": "Jira project role id, for `projectRole`.",
+    "userKey": "Jira user key, for `user`."
+   }
+  },
+  "com.almworks.jira.structure.rest.v2.javax.CloudMigrationResource$StructureStats": {
+   "name": "structure-migration-stats",
+   "summary": "Counts describing one structure's current forest, for planning a migration to the cloud. All counts are row counts in the forest (an item appearing in several rows counts several times).",
+   "fields": {
+    "id": "Structure id.",
+    "size": "Total number of rows.",
+    "issues": "Rows that are Jira issues.",
+    "folders": "Rows that are folders.",
+    "memos": "Rows that are memos.",
+    "pages": "Rows that are Confluence pages.",
+    "generators": "Rows that are generators (automation) of any kind.",
+    "inserters": "Generator rows that are inserters.",
+    "extenders": "Generator rows that are extenders.",
+    "groupers": "Generator rows that are groupers.",
+    "filters": "Generator rows that are filters.",
+    "sorters": "Generator rows that are sorters.",
+    "effectors": "Rows that are effectors.",
+    "projects": "Names of the distinct projects of the issues (and other project-bearing items) in the forest, sorted by the caller's locale."
+   }
+  }
+ }
+}

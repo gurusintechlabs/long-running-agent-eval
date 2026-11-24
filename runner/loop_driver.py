@@ -5,6 +5,8 @@ piece of work, which for a staged task is the next stage (runner/stages.py); whe
 left, the run is done. The agent is never told to "keep working" on something it has declared
 finished. A turn that fails (non-zero exit: crash, API error) is resumed once more with the
 recovery prompt, so the agent can finish what it was doing; three failed turns in a row stop the run.
+A turn whose background subagents the CLI stopped when the reply ended has not finished either: the
+orchestrator's ``next_prompt`` then continues the current stage (``unfinished_prompt``).
 
 Configs B-E (gates, resets, interval caps) are Phase 5; enabling them here raises.
 """

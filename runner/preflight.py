@@ -61,6 +61,23 @@ def _check_no_harness_paths(work: Path, repo_root: Path, forbidden_names: list[s
     return Check(name, True)
 
 
+def check_toolchain(dir_: str, manifest_sha256: str | None, m2_manifest_sha256: str | None, *,
+                    home: Path) -> list[Check]:
+    """J1: the task's toolchain dir exists and its manifests (``MANIFEST.txt`` from the install script,
+    ``m2.manifest`` from the Maven priming) have the pinned SHA-256 (rule 4). Unpinned: not checked."""
+    import hashlib
+    d = Path(home) / dir_[2:] if dir_ == "~" or dir_.startswith("~/") else Path(dir_)
+    checks = [Check("J-1 toolchain dir", d.is_dir(), "" if d.is_dir() else f"{d}: not a directory")]
+    for name, want in (("MANIFEST.txt", manifest_sha256), ("m2.manifest", m2_manifest_sha256)):
+        if want is None:
+            continue
+        f = d / name
+        got = hashlib.sha256(f.read_bytes()).hexdigest() if f.is_file() else None
+        detail = "" if got == want else (f"{f}: missing" if got is None else f"{f}: sha256 {got}, pinned {want}")
+        checks.append(Check(f"J-1 toolchain {name}", got == want, detail))
+    return checks
+
+
 def run_static_checks(paths, *, repo_root: Path, claude_home: Path, home: Path,
                       forbidden_names: list[str] | None = None,
                       check_state_empty: bool = True) -> list[Check]:

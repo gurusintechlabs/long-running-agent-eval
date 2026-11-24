@@ -176,3 +176,41 @@ def test_real_cli_1_0_126_tool_list_is_accepted():
     tools = ["Task", "Bash", "Glob", "Grep", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write",
              "NotebookEdit", "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillShell", "SlashCommand"]
     assert all(c.ok for c in preflight.evaluate_init(init_msg(tools=tools)))
+
+
+# --- J1: the task toolchain outside the repo ---------------------------------------------------
+
+def _toolchain(tmp_path):
+    import hashlib
+    d = tmp_path / "re"
+    d.mkdir()
+    (d / "MANIFEST.txt").write_text("abc  cfr.jar\n")
+    (d / "m2.manifest").write_text("def  org/x/x.jar\n")
+    return d, {n: hashlib.sha256((d / n).read_bytes()).hexdigest() for n in ("MANIFEST.txt", "m2.manifest")}
+
+
+def test_toolchain_check_passes_on_matching_manifests(tmp_path):
+    d, h = _toolchain(tmp_path)
+    checks = preflight.check_toolchain(str(d), h["MANIFEST.txt"], h["m2.manifest"], home=tmp_path)
+    assert all(c.ok for c in checks) and len(checks) == 3
+
+
+def test_toolchain_check_expands_home_and_skips_unpinned_manifests(tmp_path):
+    d, _ = _toolchain(tmp_path)
+    checks = preflight.check_toolchain("~/re", None, None, home=tmp_path)
+    assert [c.ok for c in checks] == [True]
+
+
+@pytest.mark.parametrize("which", ["MANIFEST.txt", "m2.manifest"])
+def test_toolchain_check_fails_on_a_changed_manifest(tmp_path, which):
+    d, h = _toolchain(tmp_path)
+    (d / which).write_text("changed\n")
+    checks = preflight.check_toolchain(str(d), h["MANIFEST.txt"], h["m2.manifest"], home=tmp_path)
+    bad = [c for c in checks if not c.ok]
+    assert len(bad) == 1 and which in bad[0].name and "sha256" in bad[0].detail
+
+
+def test_toolchain_check_fails_when_missing(tmp_path):
+    checks = preflight.check_toolchain(str(tmp_path / "nope"), "a" * 64, None, home=tmp_path)
+    assert not checks[0].ok and "not a directory" in checks[0].detail
+    assert not checks[1].ok

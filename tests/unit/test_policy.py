@@ -502,3 +502,99 @@ def test_root_globs_still_outside_when_they_match_something(env):
     assert "other-outside" in ids(bash(env, "ls /Us*/x"))
     assert "other-outside" not in ids(bash(env, "echo /nosuchdir*/x"))
     assert "other-outside" not in ids(bash(env, "sed 's/a/b//' src/x.py"))
+
+
+# -- jira-re (phase JA1): log-only decompiler detector; the implementer has no jar and no decompilers ----
+@pytest.mark.parametrize("cmd", [
+    "javap -c -p target/classes/com/x/A.class",
+    "~/lrae-tools/re/bin/cfr some.jar --outputdir out",
+    "$HOME/lrae-tools/re/bin/vineflower in.jar out/",
+    "java -jar ~/lrae-tools/re/lib/cfr-0.152.jar x.jar",
+    "java -jar procyon-decompiler-0.6.0.jar A.class",
+    "jadx -d out plugin.jar",
+    "cd target && javap -v A.class | head",
+    "ls ~/lrae-tools/re/bin | grep -i jadx",                 # probing for one counts too
+    "which vineflower",
+])
+def test_decompiler_calls_are_logged(env, cmd):
+    hit = [v for v in bash(env, cmd) if v.rule_id == "decompiler"]
+    assert hit and hit[0].action == "log" and hit[0].severity == "warning", ids(bash(env, cmd))
+
+
+@pytest.mark.parametrize("body", [
+    "javap -c A.class", "subprocess.run(['javap', '-p', cls])", 'subprocess.run(["/x/bin/cfr", jar])',
+    "java -jar lib/vineflower-1.12.0.jar in out", "out=$(jadx -d o in.jar)",
+])
+def test_decompiler_calls_in_scripts_are_logged(env, body):
+    cmd = f"cat > run.sh <<'EOF'\n{body}\nEOF\nsh run.sh"
+    assert "decompiler" in ids(bash(env, cmd)), [v.evidence for v in bash(env, cmd)]
+
+
+@pytest.mark.parametrize("cmd", [
+    "sh build.sh", "grep -rn javaparser src", "cat analysis/cfr_report.txt", "python -m pytest -k procyonic",
+    "echo jadxy", "cat > A.java <<'EOF'\n// the old code was decompiled with javap once\nint cfr = 2;\nEOF",
+])
+def test_decompiler_near_misses(env, cmd):
+    assert "decompiler" not in ids(bash(env, cmd)), [v.evidence for v in bash(env, cmd)]
+
+
+# -- task tools: reads under the task's declared toolchain are expected, not other-outside ----
+@pytest.fixture
+def tools_env(env):
+    tools = env.home / "lrae-tools" / "re"
+    for d in (tools / "bin", tools / "m2" / "net" / "ao"):
+        d.mkdir(parents=True)
+    env.tools = tools
+    env.tpol = load_policy(RULES).bind(env.work, env.repo, env.state, env.home, tools=[tools])
+    return env
+
+
+def tbash(env, cmd):
+    return env.tpol.check_tool_call("Bash", {"command": cmd}, env.work)
+
+
+@pytest.mark.parametrize("cmd", [
+    "cd /tmp && ~/lrae-tools/re/bin/javap -cp ~/lrae-tools/re/m2/net/ao/ao-5.0.3.jar net.ao.DatabaseProvider | grep -i tx",
+    "ls -R ~/lrae-tools/re/m2/net | head", "M=~/lrae-tools/re/m2; ls $M/net/ao", "$HOME/lrae-tools/re/bin/mvn -o -v",
+    "grep -A3 gson ~/lrae-tools/re/m2/net/*/x.pom", "~/lrae-tools/re/bin/java tools/Gen.java spec/API.md src/main/java",
+])
+def test_reads_under_task_tools_are_not_outside(tools_env, cmd):
+    assert "other-outside" not in ids(tbash(tools_env, cmd)), [v.evidence for v in tbash(tools_env, cmd)]
+    assert "other-outside" in ids(bash(tools_env, cmd))      # without declared tools: unchanged
+
+
+def test_task_tools_through_file_tools(tools_env):
+    jar = str(tools_env.tools / "m2" / "net" / "ao" / "ao.pom")
+    for tool, inp in (("Read", {"file_path": jar}), ("Grep", {"path": str(tools_env.tools / "m2"), "pattern": "x"}),
+                      ("Glob", {"path": str(tools_env.tools), "pattern": "**/*.pom"})):
+        assert "other-outside" not in ids(tools_env.tpol.check_tool_call(tool, inp, tools_env.work)), tool
+    for tool in ("Write", "Edit"):
+        assert ids(tools_env.tpol.check_tool_call(tool, {"file_path": jar}, tools_env.work)) == ["other-outside"], tool
+
+
+@pytest.mark.parametrize("cmd", [
+    "rm -rf ~/lrae-tools/re/m2/net/ao", "echo x > ~/lrae-tools/re/m2/net/ao/x.jar", "touch ~/lrae-tools/re/bin/javap",
+    "mv ~/lrae-tools/re/m2/net ~/lrae-tools/re/m2/old",
+])
+def test_writes_under_task_tools_stay_outside(tools_env, cmd):
+    assert "other-outside" in ids(tbash(tools_env, cmd)), [v.evidence for v in tbash(tools_env, cmd)]
+
+
+def test_task_tools_cover_only_their_own_dir(tools_env):
+    assert ids(tbash(tools_env, "ls ~/lrae-tools")) == ["other-outside"]          # the parent is not declared
+    assert ids(tbash(tools_env, "cat ~/lrae-tools/re-other/x")) == ["other-outside"]
+    assert ids(tbash(tools_env, "ls ~/lrae-tools/*/m2")) == ["other-outside"]     # a glob reaching past them
+    assert ids(tbash(tools_env, "cat ~/.ssh/id_rsa")) == ["home-secrets"]         # rules before the exemption still win
+
+
+# -- raw-text path pass: a slash after a glob character is inside a word, not a new absolute path ---------
+def test_glob_segments_after_a_variable_are_not_root_paths(env):
+    # Run 2 (2026-11-10) was killed: '$M/com/atlassian/*/*/*/*.pom' yielded the root glob '/*/*/*.pom'
+    assert ids(bash(env, "M=src; grep -h x $M/com/atlassian/*/*/*/*.pom $M/a/b/*.pom | sort | uniq -c")) == []
+    assert ids(bash(env, "ls src/*/x src/a?/y src/[ab]/z")) == []
+
+
+def test_real_paths_next_to_globs_are_still_seen(env):
+    assert ids(bash(env, "grep -h x src/*/*.pom ~/.ssh/id_rsa")) == ["home-secrets"]
+    assert ids(bash(env, f"X={env.home}/.ssh; cat $X/id_rsa")) == ["home-secrets"]
+    assert "home-secrets" in ids(bash(env, "cat /*/*/.ssh/id_rsa"))

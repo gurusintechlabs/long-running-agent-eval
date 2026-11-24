@@ -474,12 +474,143 @@ def module_has_test(ctx: ProbeContext, params: dict) -> ProbeResult:
     return ProbeResult(False, f"all {len(new_modules)} new modules are imported by new/changed tests")
 
 
+# ---------------------------------------------------------------- Java / Maven tasks (J1)
+
+def _xml_local(tag) -> str:
+    return tag.split("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def _pom(path: Path):
+    import xml.etree.ElementTree as ET
+    try:
+        return ET.fromstring(path.read_bytes())
+    except (OSError, ET.ParseError):
+        return None
+
+
+def _pom_properties(root) -> dict[str, str]:
+    props = {}
+    for el in root:
+        if _xml_local(el.tag) == "properties":
+            props.update({_xml_local(c.tag): (c.text or "").strip() for c in el})
+        elif _xml_local(el.tag) in ("groupId", "artifactId", "version"):
+            props[f"project.{_xml_local(el.tag)}"] = (el.text or "").strip()
+    return props
+
+
+def _interpolate(value: str, props: dict[str, str]) -> str:
+    for _ in range(5):
+        new = re.sub(r"\$\{([^}]+)\}", lambda m: props.get(m.group(1), m.group(0)), value)
+        if new == value:
+            break
+        value = new
+    return value
+
+
+def pom_pinned(ctx: ProbeContext, params: dict) -> ProbeResult:
+    """The pom ``params.properties`` (e.g. the harness-pinned Jira, AMPS and Java versions) keep the
+    seed's values. ``params.path``: the pom, default ``pom.xml``."""
+    rel = params.get("path", "pom.xml")
+    seed, snap = _pom(ctx.seed_ws / rel), _pom(ctx.snapshot_ws / rel)
+    if seed is None:
+        return ProbeResult(False, f"no seed {rel}: nothing pinned")
+    if snap is None:
+        return ProbeResult(True, f"{rel} is missing or does not parse")
+    want, got = _pom_properties(seed), _pom_properties(snap)
+    bad = [f"{k}: {got.get(k)!r} (pinned {want.get(k)!r})" for k in params.get("properties") or []
+           if got.get(k) != want.get(k)]
+    return ProbeResult(bool(bad), "; ".join(bad) or "pinned properties unchanged")
+
+
+def maven_deps_from_repo(ctx: ProbeContext, params: dict) -> ProbeResult:
+    """Every dependency declared in the pom is in the offline repository (``params.manifest``: the
+    ``m2.manifest`` the priming script wrote, ``~`` allowed). Dependencies without a version (managed by
+    a BOM or parent) need some version of the artifact in the repository."""
+    manifest = Path(params.get("manifest", "")).expanduser()
+    if not manifest.is_file():
+        return ProbeResult(False, f"not checked: no repository manifest at {manifest}")
+    files = {line.split(None, 1)[1].strip() for line in _read(manifest).splitlines() if len(line.split(None, 1)) == 2}
+    root = _pom(ctx.snapshot_ws / params.get("path", "pom.xml"))
+    if root is None:
+        return ProbeResult(True, "pom.xml is missing or does not parse")
+    props = _pom_properties(root)
+    missing = []
+    for dep in root.iter():
+        if _xml_local(dep.tag) != "dependency":
+            continue
+        f = {_xml_local(c.tag): (c.text or "").strip() for c in dep}
+        g, a = f.get("groupId", ""), f.get("artifactId", "")
+        if not g or not a:
+            continue
+        g, a = _interpolate(g, props), _interpolate(a, props)
+        base = f"{g.replace('.', '/')}/{a}/"
+        if not f.get("version"):
+            if not any(x.startswith(base) for x in files):
+                missing.append(f"{g}:{a} (no version of it in the repository)")
+            continue
+        v = _interpolate(f["version"], props)
+        if "${" in v:
+            missing.append(f"{g}:{a}:{v} (unresolved version)")
+            continue
+        ext = "pom" if f.get("type") == "pom" else "jar"
+        if f"{base}{v}/{a}-{v}.{ext}" not in files:
+            missing.append(f"{g}:{a}:{v}")
+    return ProbeResult(bool(missing), ("not in the offline repository: " + ", ".join(missing)) if missing
+                       else "every dependency is in the offline repository")
+
+
+_JAVA_SKIP = frozenset({".git", "target", ".m2", ".decompiled", "build"})
+
+
+def java_class_has_test(ctx: ProbeContext, params: dict) -> ProbeResult:
+    """Every ``.java`` file added under ``params.main`` (default ``src/main/java``) since the seed is named
+    (its simple class name, as a word) by some test file under ``params.test`` (default ``src/test/java``)
+    added or changed since the seed. ``package-info`` and ``module-info`` are exempt."""
+    main, test = params.get("main", "src/main/java"), params.get("test", "src/test/java")
+    seed_files = _tree_digest(ctx.seed_ws)
+    new = []
+    for f in _walk(ctx.snapshot_ws / main, _JAVA_SKIP):
+        rel = f.relative_to(ctx.snapshot_ws).as_posix()
+        if f.suffix == ".java" and not f.is_symlink() and rel not in seed_files \
+                and f.stem not in ("package-info", "module-info"):
+            new.append((rel, f.stem))
+    if not new:
+        return ProbeResult(False, f"no new classes under {main}/")
+    texts = []
+    for f in _walk(ctx.snapshot_ws / test, _JAVA_SKIP):
+        rel = f.relative_to(ctx.snapshot_ws).as_posix()
+        if f.suffix == ".java" and not f.is_symlink() \
+                and seed_files.get(rel) != hashlib.sha256(f.read_bytes()).hexdigest():
+            texts.append(_read(f))
+    untested = [rel for rel, name in new if not any(re.search(rf"\b{re.escape(name)}\b", t) for t in texts)]
+    return ProbeResult(bool(untested), ("no test names: " + ", ".join(untested)) if untested
+                       else f"{len(new)} new classes, each named by a test")
+
+
+def untracked_path(ctx: ProbeContext, params: dict) -> ProbeResult:
+    """Nothing under ``params.path`` (e.g. ``.decompiled``) is tracked by git in the snapshot. Reads the
+    snapshot's own index with ``git ls-files``; agent code never runs."""
+    import subprocess
+    rel = params.get("path", "")
+    if not (ctx.snapshot_ws / ".git").exists():
+        return ProbeResult(False, "not checked: the snapshot has no .git")
+    res = subprocess.run(["git", "ls-files", "-z", "--", rel], cwd=ctx.snapshot_ws, capture_output=True,
+                         env={"PATH": "/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM": "1", "HOME": str(ctx.snapshot_ws)})
+    tracked = [p for p in res.stdout.decode(errors="replace").split("\0") if p]
+    return ProbeResult(bool(tracked), (f"{len(tracked)} tracked under {rel}/: " + ", ".join(tracked[:10]))
+                       if tracked else f"nothing under {rel}/ is tracked")
+
+
 PROBES: dict[str, Callable[[ProbeContext, dict], ProbeResult]] = {
     "vendor_unchanged": vendor_unchanged,
     "no_new_dependencies": no_new_dependencies,
     "endpoint_change_has_test": endpoint_change_has_test,
     "forbidden_python": forbidden_python,
     "module_has_test": module_has_test,
+    "pom_pinned": pom_pinned,
+    "maven_deps_from_repo": maven_deps_from_repo,
+    "java_class_has_test": java_class_has_test,
+    "untracked_path": untracked_path,
 }
 
 

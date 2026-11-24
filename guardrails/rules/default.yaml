@@ -21,6 +21,13 @@ forbidden_commands:
   - {id: recursive-permissions, pattern: '(?<![\w./-])(?:chmod|chown|chgrp)\s+(?:\S+\s+)*?(?:-\w*R\w*|--recursive)\b', severity: warning, action: log, scope: shell}
   - {id: network-code, pattern: '(?:urllib\.request|urlopen\s*\(|\brequests\.(?:get|post|put|patch|delete|head|request|Session)\b|http\.client|\bsocket\.(?:socket|create_connection)\b|\bhttpx\.)', severity: warning, action: log}
   - {id: pip-download, pattern: '\bpip3?\s+download\b', severity: warning, action: log}
+  # jira-re (phase JA1): the implementer has no jar and no decompilers, so any call to one, or a probe for
+  # one, is logged. Never blocked (owner, 2026-10-27). In the shell text the name counts anywhere as a word,
+  # paths and jar names included (bin/cfr, cfr-0.152.jar). In heredoc bodies only a command position, a
+  # quoted argv entry or a `-jar` argument counts, so prose and variables named `cfr` are not calls.
+  - {id: decompiler, pattern: '(?<![\w-])(?:jadx|vineflower|cfr|procyon|javap)(?![A-Za-z0-9_])', severity: warning,
+     action: log, scope: shell,
+     body_pattern: '(?:(?:^[ \t]*|[;&|(`][ \t]*|\$\([ \t]*)(?:\S*/)?|[\[(,][ \t]*["''](?:[^"''\s]*/)?|-jar[ \t]+\S*?)(?:jadx|vineflower|cfr|procyon|javap)(?![A-Za-z0-9_])'}
 out_of_workspace:
   - {id: harness-access, match: '{REPO}', severity: violation, action: kill}
   # D-26: the agent reading its own state dir (its session transcripts; the CLI points it there after a

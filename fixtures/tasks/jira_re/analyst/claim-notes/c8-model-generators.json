@@ -1,0 +1,1475 @@
+{
+ "claims": [
+  {
+   "key": "c8-model-generators/recent-issue-inserter/query-issue-history",
+   "module": "recent-issue-inserter",
+   "api": null,
+   "behaviour": "Generating its fragment inserts, as top-level rows, the issues returned by the fixed JQL query `issue in issueHistory() ORDER BY lastViewed DESC` (the current user's recently viewed issues, most recently viewed first), searched with the plugin's sorted search as the current StructureAuth user (see `helper`, searchAndSortQuery). A `jql` parameter, if present, is ignored for the inserted rows.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.RecentIssueInserter#createFragment",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#createFragment",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#createJQLFragment"
+   ]
+  },
+  {
+   "key": "c8-model-generators/recent-issue-inserter/limit-parameter",
+   "module": "recent-issue-inserter",
+   "api": null,
+   "behaviour": "The `limit` parameter (integer) caps the number of inserted issues: a missing, zero or negative limit means no limit; a positive n inserts at most the first n issues of the query order. When a refresh inserts at least `limit` issues (limit > 0), the generation reports that this generator hit its limit (shown as generation trouble). The default form value of `limit` for a new inserter is 1000.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#createFragment",
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#createJQLFragment"
+   ]
+  },
+  {
+   "key": "c8-model-generators/recent-issue-inserter/project-scope",
+   "module": "recent-issue-inserter",
+   "api": null,
+   "behaviour": "When the plugin is not enabled for all projects, the query is narrowed with the plugin's configured project-scope clause before searching, so issues from projects outside the scope are never inserted; when it is enabled for all projects the query is used unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#createJQLFragment"
+   ]
+  },
+  {
+   "key": "c8-model-generators/recent-issue-inserter/timed-refresh",
+   "module": "recent-issue-inserter",
+   "api": null,
+   "behaviour": "Each generated fragment asks to be regenerated after a fixed interval even if nothing changed: 1 minute by default, set in milliseconds by dark feature `structure.issue.inserter.refreshRecentInterval` (read once, when the component is created). It behaves like a TimedUpdateChecker with that interval.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.RecentIssueInserter",
+    "com.almworks.jira.structure.extension.generator.inserter.RecentIssueInserter#createFragment"
+   ]
+  },
+  {
+   "key": "c8-model-generators/recent-issue-inserter/item-change-refresh",
+   "module": "recent-issue-inserter",
+   "api": null,
+   "behaviour": "Besides the timer, the fragment is regenerated when a changed-items batch contains any item of type `com.almworks.jira.structure:type-sprint`, `:type-version`, `:type-project`, `:type-project-component` or the (misspelt) `com.almworks.jira.stucture:type-tempo-team-membership`; or an issue already inserted; or an issue inside the project scope that now matches the query (checked with a match search, whose failure counts as no match). Changes of issues outside the scope are ignored.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#createJQLFragment",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#checkItemChanges"
+   ]
+  },
+  {
+   "key": "c8-model-generators/recent-issue-inserter/search-failure",
+   "module": "recent-issue-inserter",
+   "api": null,
+   "behaviour": "If the Jira search fails with a SearchException, a warning is logged and the fragment stays empty; nothing is thrown to the generation. When the Jira index is unavailable the search gives no issues (see `helper`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.QueryInserter#createFragment"
+   ]
+  },
+  {
+   "key": "c8-model-generators/recent-issue-inserter/form-parameters",
+   "module": "recent-issue-inserter",
+   "api": null,
+   "behaviour": "Shown on a form, the parameters give `limit` (and `jql` when stored). Building parameters from a form returns a map with `jql` (the form value with leading/trailing horizontal whitespace removed, validated as JQL only when non-blank: a parse error or Jira validation error is added under field `jql`; a present but blank value gets error `s.ext.gen.jql.param.jql.error.no-jql`) and `limit` (the form value as an integer, or null).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter#addParametersToForm",
+    "com.almworks.jira.structure.extension.JQLUtil#getJQLParameter"
+   ]
+  },
+  {
+   "key": "c8-model-generators/recent-issue-inserter/no-action-handler",
+   "module": "recent-issue-inserter",
+   "api": null,
+   "behaviour": "Without a `jql` parameter the inserter offers no action handler, so it takes no part in deciding user edits (add, move, remove) of the rows it inserted.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.inserter.JqlInserter#createActionHandler"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/hard-limit",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "The hard maximum generation time is dark feature `structure.gfs.generationTimeHardLimit` in seconds (default 600), clamped to at least 5 and at most 1800, read once when the component is created.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GenerationManager",
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#getGenerationTimeHardLimit"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/effective-limit",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "The generation time limit of a forest spec is the per-structure property `generationTimeLimit` (AO_8BAD1B_STRUCTURE_PROPERTY) of the spec's structure when the spec has a structure id and the stored value is non-zero; otherwise the global property `generationTimeLimit` (AO_8BAD1B_PROPERTY, default 30). The result is capped at the hard limit (min of the two); it is not raised to the 5 s minimum. A null spec or one without a structure id uses the global value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#getGenerationTimeLimit"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/set-limit-validation",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "Setting a time limit below 5 s throws IllegalArgumentException `Generation time limit should be more than 5s` (5 itself is accepted); above the hard limit throws IllegalArgumentException `Generation time limit should be less than hard limit`; for a non-null spec without a structure id it throws IllegalArgumentException `Forest spec should contain structure id to specify time limit`. Nothing is stored in these cases.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#setGenerationTimeLimit"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/set-limit-store",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "Setting a valid limit for a null spec stores the global property `generationTimeLimit`; for a structure spec it stores the structure property `generationTimeLimit` and immediately applies the new limit to every generation currently running for any spec with that structure id.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#setGenerationTimeLimit"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/register-running",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "The manager tracks, in memory per node and per forest spec, the generations running for that spec (in the order registered). Registering a generation succeeds unless the spec is blocked; for a blocked spec the generation is not registered and the caller is told so, so it does not run.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#add",
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#get"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/unregister",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "Unregistering a generation reports whether it was registered for that spec; once a spec has no running generations and is not blocked, its entry is dropped (an unknown spec reports false).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#remove"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/block",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "Blocking a spec marks it stopped even when nothing is running, clears any recorded generator times, and returns (unmodifiable) the generations that were running, so the caller can cancel them; blocking an already blocked spec returns an empty list and changes nothing. The 'block if running' variant blocks only a spec that has an entry (something running or already blocked) and otherwise does nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#block",
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#blockIfRunning"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/unblock",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "Unblocking returns true exactly when the spec was blocked; it clears the recorded generator times and keeps the entry only while generations are still registered. A spec is reported blocked only while marked so; nothing is blocked after a restart (state is not persisted).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#unblock",
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#isBlocked"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/generator-times",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "Per-generator timings of a spec (generator row id to time) are kept only while the spec is blocked: recording them for a spec that is not blocked is ignored, and reading them for a spec with nothing recorded gives an empty map. Blocking or unblocking clears them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#setGeneratorTimes",
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#getGeneratorTimes"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generation-manager/timeout-blocks-spec",
+   "module": "generation-manager",
+   "api": null,
+   "behaviour": "When a refresh runs out of its generation time limit, the spec is blocked and every generation running for it is cancelled; the forest then stays stopped until resumed (REST `POST /rest/structure/2.0/generation/resume`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.RefreshContext",
+    "com.almworks.jira.structure.forest.gfs.GenerationManager#block"
+   ]
+  },
+  {
+   "key": "c8-model-generators/item-identity-mapper/issue-codes",
+   "module": "item-identity-mapper",
+   "api": null,
+   "behaviour": "An issue identity whose numeric id is between 1 and 2147483647 maps to that id as its code, without storing anything; mapping it again always gives the same code.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.ItemIdentityMapperImpl#map"
+   ]
+  },
+  {
+   "key": "c8-model-generators/item-identity-mapper/other-codes",
+   "module": "item-identity-mapper",
+   "api": null,
+   "behaviour": "Any other identity (non-issue items, and issues with an id of 0, negative or above 2147483647) gets a negative code assigned on first request: -1, then -2, -3, ... in request order. The same identity (by equals) always gets the same code for the life of the node; the mapping is in memory only and starts again from -1 after a restart.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.ItemIdentityMapperImpl#map"
+   ]
+  },
+  {
+   "key": "c8-model-generators/item-identity-mapper/unmap",
+   "module": "item-identity-mapper",
+   "api": null,
+   "behaviour": "Decoding gives null for 0, the issue identity with that id for a positive code, the identity assigned to a negative code, and null for a negative code never assigned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.ItemIdentityMapperImpl#unmap"
+   ]
+  },
+  {
+   "key": "c8-model-generators/item-identity-mapper/null-identity",
+   "module": "item-identity-mapper",
+   "api": null,
+   "behaviour": "Mapping a null identity throws IllegalArgumentException `itemId must not be null`. Mapping and decoding are safe for concurrent use (one lock guards the assigned codes).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.ItemIdentityMapperImpl#map"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-row-manager/create-ids",
+   "module": "transient-row-manager",
+   "api": null,
+   "behaviour": "Each transient row created gets the next odd id 1, 3, 5, ... (the n-th row since start gets 2n-1), held in memory only; numbering starts again at 1 after a restart. The row keeps its item identity, semantics, creator id and original id. This is the store behind the transient rows of `structure-row-manager`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.FastTransientRowManager#createRow",
+    "com.almworks.jira.structure.row.IdPartitioning#toIdFromTransient"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-row-manager/int-packing",
+   "module": "transient-row-manager",
+   "api": null,
+   "behaviour": "Semantics, creator id and original id are kept as 32-bit values: a value outside the int range is logged as an error and kept as 0. Reading a row returns a TransientRow with the stored creator and original ids.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.FastTransientRowManager#createRow",
+    "com.almworks.jira.structure.row.FastTransientRowManager#toRow",
+    "com.almworks.structure.commons.util.CommonUtil#toInt(long)"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-row-manager/get-row",
+   "module": "transient-row-manager",
+   "api": null,
+   "behaviour": "Reading a row by id throws MissingRowException for an id that is not transient (0, negative or even) and for a transient id that was never created (or was lost on restart); otherwise it returns the row with its item resolved lazily by `item-resolver` per the access mode.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.FastTransientRowManager#getRow"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-row-manager/scan-rows",
+   "module": "transient-row-manager",
+   "api": null,
+   "behaviour": "Scanning a list of ids visits them in the given order and stops as soon as the predicate returns false. An id that is not transient throws IllegalArgumentException `<id> is not a transient row id`. A transient id with no row goes to the missing collector, or throws MissingRowException when no collector is given.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.FastTransientRowManager#scanRows"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-row-manager/find-by-item",
+   "module": "transient-row-manager",
+   "api": null,
+   "behaviour": "Finding rows of an item reports the ids of all its transient rows, newest first, until the consumer returns false (the search then reports that it was stopped); a null item reports nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.FastTransientRowManager#findRows(Lcom/almworks/jira/structure/api/item/ItemIdentity;Ljava/util/function/LongPredicate;)Z"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-row-manager/find-by-item-and-creator",
+   "module": "transient-row-manager",
+   "api": null,
+   "behaviour": "Finding rows of an item made by one creator reports only the rows with that creator id, newest first, stopping when the consumer returns false. The per-creator index behind it is cached and dropped after 60 s (dark feature `structure.ftrm.cache.timeout`; concurrency `structure.ftrm.cache.concurrency`) and rebuilt from all rows of the creator on the next use, with the same results. If loading the index fails, a warning is logged and nothing is reported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.FastTransientRowManager#findRows(Lcom/almworks/jira/structure/api/item/ItemIdentity;JLjava/util/function/LongPredicate;)Z",
+    "com.almworks.jira.structure.row.FastTransientRowManager#reindex"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-row-manager/no-individual-delete",
+   "module": "transient-row-manager",
+   "api": null,
+   "behaviour": "Transient rows are never deleted one by one, also not when their creator generator is gone: they live until restart. The only removal drops all transient rows at once, either keeping the numbering (the next id continues) or resetting it so the next row is 1 again; nothing in the plugin triggers that removal on Jira 9.12.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.row.FastTransientRowManager#clear",
+    "com.almworks.jira.structure.row.RowManagerFacade#deleteAllTransientRows"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-row-manager/statistics",
+   "module": "transient-row-manager",
+   "api": null,
+   "behaviour": "On start it registers usage statistics with `statistics-manager`: `transientTotalRowCount` (number of transient rows) together with `transientTotalRowCount.<bin>` where bin is the first of 1000, 10000, 30000, 50000, 70000, 100000, 200000, 300000, 400000, 500000, 1000000, 2000000, 5000000 not below the count, or `inf`; and `transientRowsItemCreatorCacheMissToTotal` = index rebuilds / index lookups, left out while no lookup happened.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.FastTransientRowManager#startComponent",
+    "com.almworks.jira.structure.row.RowStatisticSource#getStatistics",
+    "com.almworks.jira.structure.statistics.BinUtil#findBin"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-row-manager/item-encoding",
+   "module": "transient-row-manager",
+   "api": null,
+   "behaviour": "Item identities of transient rows are encoded through `item-identity-mapper`; if a stored code can no longer be decoded, the row counts as missing (MissingRowException with message `cannot unmap item identity from idx <code>, row <id> cannot be used`, or the id goes to the missing collector with a warning).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.row.FastTransientRowManager#toRow"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-generator-manager/create",
+   "module": "transient-generator-manager",
+   "api": null,
+   "behaviour": "Creating a short-lived generator stores the given GeneratorSpec in memory only and returns the next odd id 1, 3, 5, ... (counting from start of the node; never persisted, restarted at 1 after a restart). This is the store behind `generator-manager`'s transient generators.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.InMemoryTransientGeneratorManager#createGenerator"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-generator-manager/get",
+   "module": "transient-generator-manager",
+   "api": null,
+   "behaviour": "Reading by an id returns the stored spec as given at creation, or null for an id never created or already deleted. For an id that is not positive and odd: with assertions enabled (as the tests run) it throws AssertionError; with them disabled 0 and negative ids give null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.InMemoryTransientGeneratorManager#getGenerator"
+   ]
+  },
+  {
+   "key": "c8-model-generators/transient-generator-manager/delete",
+   "module": "transient-generator-manager",
+   "api": null,
+   "behaviour": "Deleting returns true when a generator with that id was removed and false when there was none; ids are never reused. Non-transient ids behave as for reading (AssertionError with assertions on). Reads and writes are safe concurrently (read/write lock).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generator.InMemoryTransientGeneratorManager#deleteGenerator"
+   ]
+  },
+  {
+   "key": "c8-model-generators/clipboard-manager/per-session",
+   "module": "clipboard-manager",
+   "api": null,
+   "behaviour": "Each HTTP session id has its own clipboard forest, kept in memory on the node: the first request for a session creates an empty clipboard, later requests return the same one. Clipboards are never shared between sessions and are lost on restart.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ClipboardManager#getForestSource"
+   ]
+  },
+  {
+   "key": "c8-model-generators/clipboard-manager/add-replaces",
+   "module": "clipboard-manager",
+   "api": null,
+   "behaviour": "Adding (pasting) a fragment into a clipboard first empties it (except on a dry run), then puts the fragment at the top level whatever under/after/before were given. Each row becomes a new transient row (creator 0, original 0) with the same item and semantics, and the action result maps each old row id to its new id; with parameter `reuseRows` true and no id shared with the clipboard's rows, the fragment's row ids are kept. A dry run (`dryRun` true) changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ClipboardManager$ClipboardForestSource$ForestUpdater#visit(Lcom/almworks/jira/structure/api/forest/action/ForestAction$Add;)V",
+    "com.almworks.jira.structure.forest.SimpleForestSource$ForestUpdater#visit(Lcom/almworks/jira/structure/api/forest/action/ForestAction$Add;)V"
+   ]
+  },
+  {
+   "key": "c8-model-generators/clipboard-manager/remove-only-all",
+   "module": "clipboard-manager",
+   "api": null,
+   "behaviour": "Removing from a clipboard is accepted only when the given row ids are exactly its top-level rows in their order, and then removes everything; any other row list fails with StructureException UNSUPPORTED_FOREST_SOURCE_OPERATION. Move and copy actions on a clipboard always fail with UNSUPPORTED_FOREST_SOURCE_OPERATION.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ClipboardManager$ClipboardForestSource$ForestUpdater#visit(Lcom/almworks/jira/structure/api/forest/action/ForestAction$Remove;)V",
+    "com.almworks.jira.structure.forest.ClipboardManager$ClipboardForestSource$ForestUpdater#visit(Lcom/almworks/jira/structure/api/forest/action/ForestAction$Move;)V",
+    "com.almworks.jira.structure.forest.ClipboardManager$ClipboardForestSource$ForestUpdater#visit(Lcom/almworks/jira/structure/api/forest/action/ForestAction$Copy;)V"
+   ]
+  },
+  {
+   "key": "c8-model-generators/clipboard-manager/versions",
+   "module": "clipboard-manager",
+   "api": null,
+   "behaviour": "A clipboard's forest version has a random signature chosen when the clipboard is created and a counter starting at 0 that grows by the number of forest changes of each edit. An update request from the current version gets an empty incremental update; from a version at most 2 changes back an incremental update; from anything older or another signature a full update.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ClipboardManager$ClipboardForestSource",
+    "com.almworks.jira.structure.forest.SimpleForestSource#getUpdate"
+   ]
+  },
+  {
+   "key": "c8-model-generators/clipboard-manager/expiry",
+   "module": "clipboard-manager",
+   "api": null,
+   "behaviour": "Clipboards not requested for more than 30 minutes (dark feature `almworks.attributes.dev.clipboard.timeout`, milliseconds; negative counts as 0) are emptied and dropped. The sweep runs when some clipboard is requested, at most once per minute, before the requested one is looked up; a later request for a dropped session gets a new empty clipboard with a new signature.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ClipboardManager#getForestSource",
+    "com.almworks.jira.structure.forest.ClipboardManager#removeStaleClipboards",
+    "com.almworks.jira.structure.forest.ClipboardManager$Env$ProductionEnv#getInvalidationTimeout"
+   ]
+  },
+  {
+   "key": "c8-model-generators/clipboard-manager/clear-session",
+   "module": "clipboard-manager",
+   "api": null,
+   "behaviour": "Clearing one session's clipboard removes all its rows and returns the forest update since the version before clearing; it returns null when the session has no clipboard. The clipboard itself stays. REST uses this after rows were moved through the clipboard (`viaClipboard`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ClipboardManager#clear(Ljava/lang/String;)Lcom/almworks/jira/structure/api/forest/VersionedForestUpdate;"
+   ]
+  },
+  {
+   "key": "c8-model-generators/clipboard-manager/clear-all-on-restore",
+   "module": "clipboard-manager",
+   "api": null,
+   "behaviour": "A backup restore empties and drops every clipboard of the node.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.ClipboardManager#clear()V",
+    "com.almworks.jira.structure.backup.AbstractRestoreOperation"
+   ]
+  },
+  {
+   "key": "c8-model-generators/adjustment-service/global-switch",
+   "module": "adjustment-service",
+   "api": null,
+   "behaviour": "Manual adjustments are globally enabled unless dark feature `structure.gfs.manualAdjustments.enable` is false (default true); the value is read on first use and kept until restart.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#isEnabled",
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService"
+   ]
+  },
+  {
+   "key": "c8-model-generators/adjustment-service/structure-switch",
+   "module": "adjustment-service",
+   "api": null,
+   "behaviour": "A structure has manual adjustments enabled exactly when its structure property `manualAdjustments.enable` (AO_8BAD1B_STRUCTURE_PROPERTY) reads as `true` (ignoring case; missing means false). Enabling or disabling stores `true`/`false` there and then reports a change of item `com.almworks.jira.structure:type-gfs-manual-adjustments/<structureId>` to ItemTracker.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#isEnabledForStructure(Lcom/almworks/jira/structure/api/property/StructurePropertyService;J)Z",
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#setEnabledForStructure"
+   ]
+  },
+  {
+   "key": "c8-model-generators/adjustment-service/new-structure-default",
+   "module": "adjustment-service",
+   "api": null,
+   "behaviour": "Whether new structures get manual adjustments enabled is the global property `manualAdjustments.enableForNewStructure` (AO_8BAD1B_PROPERTY, default false); setting it stores the boolean there.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#isEnabledForNewStructure",
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#setEnabledForNewStructure"
+   ]
+  },
+  {
+   "key": "c8-model-generators/adjustment-service/plain-structure-spec-only",
+   "module": "adjustment-service",
+   "api": null,
+   "behaviour": "Adjustments apply only to a forest spec equal to the plain unsecured spec of its structure (no version, transformation, title or user): for such a spec the structure id is used, for any other spec (or no structure) 0, which means no adjustments.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#getStructureId"
+   ]
+  },
+  {
+   "key": "c8-model-generators/adjustment-service/adjuster-conditions",
+   "module": "adjustment-service",
+   "api": null,
+   "behaviour": "Adjustments are applied to a generated forest (and offered when handling user edits) only when they are globally enabled, the spec's structure id is positive and the structure has them enabled; when handling user edits, the current user must also pass the permission rule. Each structure gets one transient row (item `com.almworks.jira.structure:type-gfs-manual-adjustments/<structureId>`, semantics 0, no creator, no original) created on first need and reused for the life of the node as the creator of adjustment rows; if it cannot be created, no adjustments are applied.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#createAdjuster0",
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#newFakeCreatorId",
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#getFakeCreatorId"
+   ]
+  },
+  {
+   "key": "c8-model-generators/adjustment-service/permission-rule",
+   "module": "adjustment-service",
+   "api": null,
+   "behaviour": "Who may make manual adjustments is set by dark feature `structure.gfs.manualAdjustments.editPermission`: unset or an unknown value lets every user; `EDIT`, `AUTOMATE`, `CONTROL` or `ADMIN` (ignoring case; CONTROL means ADMIN) requires that the current user's StructureManager.getStructurePermission for the structure includes PermissionLevel EDIT, AUTOMATE or ADMIN; no permission level means not allowed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#isManualAdjustmentAllowed"
+   ]
+  },
+  {
+   "key": "c8-model-generators/adjustment-service/apply-and-delete",
+   "module": "adjustment-service",
+   "api": null,
+   "behaviour": "Applying an empty list of changes does nothing. A non-empty list is stored through `adjustment-store` (SPEC table AO_8BAD1B_MANUAL_ADJUSTMENTS), and afterwards, also when storing failed, a change of the structure's adjustments item is reported to ItemTracker so the forest regenerates. Deleting all adjustments of a structure goes through `adjustment-store` and also always reports that change. Structure id 0 reports nothing. Reading returns what `adjustment-store` holds.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#applyChanges",
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#deleteAdjustments",
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#recordChange",
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#getAdjustments"
+   ]
+  },
+  {
+   "key": "c8-model-generators/adjustment-service/statistics",
+   "module": "adjustment-service",
+   "api": null,
+   "behaviour": "On start it registers usage statistics with `statistics-manager`: `manuallyAdjustedStructuresCount` (structures with at least one stored adjustment), `manualAdjustmentsMovesCount`, `manualAdjustmentsAddsCount` and `manualAdjustmentsCount` (moves plus adds), counted over all stored rows each time statistics are taken.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#getStatistics",
+    "com.almworks.jira.structure.forest.gfs.manual.ManualAdjustmentService#startComponent"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/supported-fields",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "For a field grouper's `fieldId` it provides the handler for user moves: system fields `priority`, `components`, `versions`, `fixVersions`, `labels`, `assignee`, `reporter`, `status` (changed through effects) and `project`, `issuetype`, `resolution`, `creator` (never changed). For a custom field id the handler depends on the field's type: single select, multi select, cascading select, labels, project picker, version picker (single or multiple), user picker, multi-user picker, group picker (single or multiple), the ScriptRunner single issue picker, and Insight/Assets object fields that support effects. Any other field, or an unknown custom field id, has no handler. The sprint grouper gets a sprint handler for the agile sprint field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers#getFieldGrouperMover",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers#getSprintMover"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/group-items",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "Groups without a value are folder items of type `com.almworks.jira.structure:type-folder` with string ids `s.grouper.field.+<name>`, for example `s.grouper.field.+no-priority`, `+unassigned`, `+no-reporter`, `+no-creator`, `+no-status`, `+unresolved`, `+no-issue-type`, `+no-project`, `+no-labels`, `+no-version` (affects and version fields), `+no-fix-version`, `+no-components`, `+no-option`, `+no-user`, `+no-group`, `+no-issue`, `+no-insight-object`; the group for rows that are not issues is `s.grouper.field.+not-an-issue`; for sprints the empty group is `s.grouper.sprint.no-sprint`. Moving into a field's empty group clears the field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.FieldGrouper",
+    "com.almworks.jira.structure.extension.generator.grouper.SprintGrouper",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGroupedItem"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/non-issue-rows",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "Moving a row that is neither an issue nor a memo/planning task into any group except the not-an-issue group is blocked with `s.ext.gen.grouper.issuefield.block.move-non-issue`; into the not-an-issue group (or to no group) it is neither blocked nor given an effect. Moving an issue, memo or planning task into the not-an-issue group is blocked with `s.ext.gen.grouper.issuefield.block.move-issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGroupedItem"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/new-items-no-effect",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "For a row being created (an issue without id, or a memo/planning task with id Long.MAX_VALUE) a move only validates the target value (where the field has rules, see the project and archived checks) and on success gives an empty effect; no Jira change is made for the new row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGroupedItem"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/single-value-effects",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "Moving an existing issue to a group of a single-valued field produces the CoreEffects effect setting the field to the target value, or to null when moved into the empty group: setIssuePriority, assignIssue, setIssueReporter, setIssueStatus, setSingleSelectCustomField, setCascadeCustomField, setProjectPickerCustomField, setSingleVersionCustomField, setSingleUserCustomField, setSingleGroupCustomField; the ScriptRunner issue picker gets its own set effect. Moving to a status group equal to the issue's current status gives an empty effect.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$PriorityMover#createEffect",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$AssigneeMover#createEffect",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$StatusMover#moveIssue",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$SingleSelectCustomFieldMover#createEffect",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$CascadeCustomFieldMover#createEffect",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$EffectBasedMover#moveIssue"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/multi-value-effects",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "For multi-valued fields, moving an existing issue into the empty group sets the field to an empty collection (CoreEffects.setIssueComponents, setIssueAffectedVersions, setIssueFixVersions, setCustomFieldOptions, setCustomFieldUsers, setCustomFieldGroups, setCustomFieldVersions, and the label and Insight set effects). Moving to another group gives a 'move' effect that replaces the source group's value by the target value (source null when coming from outside a group), for the effect provider modules `com.almworks.jira.structure:components-effect-provider`, `:affects-versions-effect-provider`, `:fix-versions-effect-provider`, `:labels-effect-provider`, `:multi-labels-custom-field-effect-provider`, `:multi-select-custom-field-effect-provider`, `:multi-user-custom-field-effect-provider`, `:multi-group-custom-field-effect-provider`, `:multi-versions-custom-field-effect-provider` (and the Insight object provider).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$EffectBasedMultiMover#moveIssue",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$InsightObjectFieldMover#moveIssue",
+    "com.almworks.jira.structure.effectprovider.multivalue.ComponentsEffectProvider#moveEffect"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/sprint-effects",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "Moving an issue between sprint groups gives the CoreEffects.setSprint effect for the target sprint id (null for the no-sprint group) with extra parameters `from` = the source sprint id and `sameBoard` = true. Reordering sprint groups is always blocked with `s.ext.gen.grouper.agilesprint.block.reorder` (with the manual-adjustment suggestion when possible).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$SprintActionHandler#createEffect",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$SprintActionHandler#reorderGroup",
+    "com.almworks.jira.structure.effectprovider.SprintEffectProvider#moveIssueToSprint(Lcom/atlassian/jira/issue/Issue;Ljava/lang/Long;Ljava/lang/Long;Ljava/lang/Boolean;)Lcom/almworks/jira/structure/api/effect/StoredEffect;"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/unchangeable-fields",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "Project, issue type, resolution and creator are never changed: moving an existing issue is allowed with an empty effect only when the target group's value equals the issue's current one (project id, issue type id, resolution id, creator user key; moving into the empty group counts as the value null, so an unresolved issue may go to `+unresolved`), and otherwise blocked with `s.ext.gen.grouper.issuefield.block.project`, `.issueType`, `.resolution` or `.creator`. A new issue placed in a group with a different value is blocked with the same key plus `.new-issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$DumbIssueMover#moveIssue",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$DumbIssueMover#validateCreate"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/effect-application",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "Every effect produced is sent with parameter `sendNotifications` = true. When the move is applied, the effect provider registered for the effect's module key is found through `extension-service`; no provider blocks with `s.ext.gen.block.no-effect-provider`, an error response blocks with its localized error, an empty response is a no-op, otherwise the change is offered with the provider's localized success message. The undo effect returned when it runs (again with `sendNotifications` true) becomes the inverse; undoing before it ran does nothing, and running the inverse records no further undo.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$EffectBasedActionEffects#applyStored",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$EffectBasedActionEffects#withNotification",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$EffectBasedActionEffects"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/new-issue-project-checks",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "For a new issue placed in a components, affects-version or fix-version group, a value from another project than the issue's is blocked with `s.ext.gen.grouper.issuefield.block.component-project` or `.version-project` (arguments: value name, issue key), or the `.new-issue` variant when the issue has no key yet; an archived version is blocked with `s.ext.gen.grouper.issuefield.block.create.archived.version` (argument: version name). For a multi-version custom field both checks use `s.ext.gen.grouper.issuefield.block.version-project` (no new-issue variant) and the same archived key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$ProjectConstantsMover#validateCreate",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$VersionMover#validateCreate",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$MultiVersionCustomFieldMover#validateCreate"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/generic-item-single",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "Moving an existing memo or planning task changes it through the memo field effect: module `com.almworks.jira.structure:memo-field-effect-provider` with parameters `memo` = the item identity text, `field` = the field id, `value` = the target value in the stored field format of SPEC (null when cleared). This works for priority, assignee, reporter, sprint and custom fields that `structure-field-manager` knows; status, Insight fields and custom fields it does not know are blocked with `s.ext.gen.grouper.issuefield.block.move-non-issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$EffectBasedMover#moveGenericItem",
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider#createEffect",
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#moveGenericItem"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/generic-item-multi",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "For multi-valued fields of an existing memo or planning task, moving into the empty group sets the field to null; otherwise the new value is the current value (as read with validation) without the source value and with the target value appended unless already present, items compared by version id, component id, label text, option id, user key or group name. Multi-valued custom fields not known to `structure-field-manager` are blocked with `s.ext.gen.grouper.issuefield.block.move-non-issue`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$EffectBasedMultiMover#genericItemEffect",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$MultiEffectBasedCustomFieldMover#unsafeGenericItemEffect"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/new-generic-item-checks",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "For a new memo or planning task placed in a components or version group: an item with no project value is blocked with `s.ext.gen.grouper.itemfield.block.not-supported` (argument `project`); a version from another project with `s.ext.gen.grouper.itemfield.block.version-project.new-item`, an archived version with `s.ext.gen.grouper.itemfield.block.create.archived.version`; a component from another project with `s.ext.gen.grouper.itemfield.block.component-project` (the key meant for existing items, as the original does). Arguments are the value name and the item key (`MEMO:<id>` / `PT:<id>`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$ProjectConstantsMover#validateCreate",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$ProjectComponentsMover#getValidationExplanationKey",
+    "com.almworks.jira.structure.extension.generator.grouper.EffectBasedIssueMovers$VersionMover#getValidationExplanationKey"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-based-issue-movers/reorder-groups",
+   "module": "effect-based-issue-movers",
+   "api": null,
+   "behaviour": "Reordering groups of these fields is never supported: moving the empty group or the not-an-issue group, or placing a group right after one of them, is blocked with `s.ext.gen.grouper.issuefield.block.invalid-order`; a group whose value (or both neighbours' values) cannot be read is blocked with `s.ext.gen.grouper.issuefield.block.invalid-group`; any other reorder with `s.ext.gen.grouper.issuefield.block.reorder-not-supported`. When manual adjustment is possible in that context the message is wrapped in `s.ext.gen.block.suggest-adjustment`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.grouper.AbstractFieldMover#reorderGroup(Lcom/almworks/jira/structure/api/row/StructureRow;Lcom/almworks/jira/structure/api/generator/StructurePosition;Lcom/almworks/jira/structure/api/generator/StructurePosition;Lcom/almworks/jira/structure/api/generator/StructureGenerator$HandlingContext;)V",
+    "com.almworks.jira.structure.extension.generator.GeneratorUtil#getErrorMessageWithManualAdjustmentSuggestion"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/link-type-options",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "Link type options list every Jira issue link type (IssueLinkTypeManager) with id, name and labels: when the outward and inward descriptions are equal, the outward label is `s.gen.links.direction.outward` and the inward label `s.gen.links.direction.inward` (each with the description as argument) and the 'any' label is the description itself; otherwise outward and inward are the descriptions and 'any' is `s.gen.links.direction.any` (outward, inward). Hidden link types are listed the same way from `hidden-links-helper`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#getLinkTypes",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#getHiddenLinkTypes",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkTypeOption"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/direction-parameter",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "The link direction of a generator is inward when boolean parameter `inward` is true; otherwise parameter `direction` ignoring case: `outward`, `inward` or `any`; missing or any other value means outward.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#getDirection"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/link-type-lookup",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "The link type is parameter `linkTypeId` (a long); missing gives no link type; otherwise Jira's link type with that id, but only if `hidden-links-helper` says it is visible to users (an unknown or hidden type gives none).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#getIssueLinkTypeOrNull(Ljava/lang/Long;)Lcom/atlassian/jira/issue/link/IssueLinkType;"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/linking-disabled-forms",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "When issue linking is disabled in Jira, filling a new form, showing parameters on a form and building parameters from a form all throw GeneratorUnavailableException with message `linking is disabled` and the localized `s.gen.links.error.links-disabled`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#checkLinkSystemEnabled",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/build-parameters",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "Building parameters from a form: no `linkTypeId` adds error `s.gen.links.error.no-type-selected` under field `linkTypeId` and returns an empty map; an unknown or hidden type adds `s.gen.links.error.no-type` (argument: the id) and returns an empty map; otherwise the map has `linkTypeId`, `direction` (the form's string as given, possibly null) and, when the direction is any, `shortestPaths` = true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/form-and-summary",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "Showing parameters on a form puts `linkTypeId` and the parsed `direction` there (plus the support object for the template). For a summary, when the link type is found, it adds `linkTypeName` (the type's name) and `linkDirectionName` (the option label for the direction); otherwise it adds nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#addParametersToForm",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#addParametersForSummary"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/linkable-row",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "For a moved row that is not an issue, link handlers yield (let other generators decide) with `s.ext.gen.links.yield.not-an-issue`. An issue that cannot be resolved is blocked with `s.ext.gen.block.no-issue`; one the current user lacks Jira's LINK_ISSUES permission on (unless StructureAuth security is overridden) is blocked with `s.ext.gen.links.block.no-link-perm`. A new issue without an id counts as id Long.MAX_VALUE.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#getLinkableIssueId",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#checkIssue",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#hasPermission"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/handle-action",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "Handling a link change for a new issue (id Long.MAX_VALUE) gives an empty effect; making an issue a child of itself (issue = new parent) is blocked with `s.gen.links.error.link-to-self`; anything else gives an effect with its inverse.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#handleAction"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/effect-checks",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "When the link effect is evaluated: linking disabled blocks with `s.gen.links.error.links-disabled`; a missing or hidden link type blocks with `s.gen.links.block.no-link-type`; the issue, old parent and new parent are checked as for moved rows (no-issue, no-link-perm).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#getIssueLinkType",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkEffectPair#effect0",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkEffectPair#effect"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/link-plan",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "The links to change are worked out once, as the current user, through `bulk-link-processor` (for parent P being left, new parent Q, issue X, the given link type): leaving P removes the link P->X when the direction includes outward and X->P when it includes inward (each if it exists). Joining Q: outward creates Q->X unless it exists; inward creates X->Q unless it exists; any creates Q->X only when neither Q->X nor X->Q exists. Removing all links: with inward, X's outward links of the type; with outward, X's inward links of the type; only links whose other end the user may link (LINK_ISSUES or security overridden).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkEffectPair#prepareLinks",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkEffectPair#checkLink"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/explanations",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "Nothing to change gives an empty effect. Otherwise the effect is described as `s.ext.gen.links.effect.add` (link Q-X), `.remove` (link P-X), `.move` (P-X, Q-X) or, for remove-all, `s.ext.gen.links.effect.removeAllOfType` (link type name, X's key). A link is written `<parent key> <phrase> <child key>` where the phrase is the link type's inward description when the direction is inward or any, else its outward description.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkEffectPair#getExplanation",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkEffectPair#describeLink",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport#describeLink"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-links-support/apply-and-undo",
+   "module": "issue-links-support",
+   "api": null,
+   "behaviour": "Running the effect opens a new link transaction as the current user, removes each planned link that still exists, creates each planned new link and commits. The inverse re-creates the removed links and removes the created ones, with the same checks (old and new parent swapped); undoing a remove-all is described with `s.ext.gen.links.effect.add` for one link or `s.ext.gen.links.effect.add.n` (first link, number of further links, issue key) for more.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkEffectPair#changeLinks",
+    "com.almworks.jira.structure.extension.generator.IssueLinksSupport$LinkEffectPair#inverse"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-provider-helper/update-validation",
+   "module": "effect-provider-helper",
+   "api": null,
+   "behaviour": "To build an issue-update effect it makes Jira issue input parameters that keep every value not provided (IssueInputParameters.setRetainExistingValuesWhenParameterNotProvided(true, true)), lets the provider fill in the new value, and validates with IssueService.validateUpdate as the current StructureAuth user. An invalid result becomes an error response whose message joins Jira's error messages and field errors with `, `.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect",
+    "com.almworks.structure.commons.util.CommonUtil#asErrorMessage"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-provider-helper/field-not-on-screen",
+   "module": "effect-provider-helper",
+   "api": null,
+   "behaviour": "When validation passes but the validated field values do not contain the target field id (the field is not on the issue's edit screen), the response is error `s.ext.effect.cf.error.no-value` with the field name and the issue key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-provider-helper/apply-with-undo",
+   "module": "effect-provider-helper",
+   "api": null,
+   "behaviour": "The resulting effect, when applied, first builds its undo effect (from the values before the change), then calls IssueService.update as the same user with EventDispatchOption.ISSUE_UPDATED and send-mail set from the effect's `sendNotifications` boolean parameter, and returns the undo.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#updateIssueEffect",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#effectResponse"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-provider-helper/field-identification",
+   "module": "effect-provider-helper",
+   "api": null,
+   "behaviour": "A system field is identified by its Jira field id, which is also used as its name in messages. A custom field target is chosen by the effect's `customField` parameter, restricted to custom fields of a given type class or type keys; its name in messages is the parameter's description, or `<?>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.SystemFieldTypeDescriptor",
+    "com.almworks.jira.structure.effectprovider.CustomFieldTypeDescriptor",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#field",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#customField(Ljava/util/Collection;)Lcom/almworks/jira/structure/effectprovider/FieldTypeDescriptor;"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-provider-helper/value-comparisons",
+   "module": "effect-provider-helper",
+   "api": null,
+   "behaviour": "Old/new value comparisons: two nulls are equal and a null never equals a non-null; non-null values compare by a key (for example the id), or by the custom field type's string form, or as strings with null read as the empty string.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByKey",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#valuesEqualByStringRepresentation",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#stringsEqual"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-provider-helper/merge-grouped",
+   "module": "effect-provider-helper",
+   "api": null,
+   "behaviour": "When an effect batch is optimized, effects are grouped by the values of the given parameters (groups in first-seen order). If every group has one effect, the list is returned unchanged; otherwise each group is merged into one effect and groups that merge to nothing are dropped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#optimizeGrouped(Ljava/util/List;Ljava/util/function/Function;Ljava/util/function/Function;)Ljava/util/List;"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-provider-helper/single-value-merge",
+   "module": "effect-provider-helper",
+   "api": null,
+   "behaviour": "Merging a group of effects that set one value keeps the last effect. If earlier effects had other values for that parameter, the kept effect gets parameter `conflicts`: the distinct other values in first-seen order, a null value written as {\"empty\": true}; with no differing value the last effect is returned unchanged. An empty group merges to nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#optimizeSingleValuedGroup",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#getConflictsList",
+    "com.almworks.jira.structure.effectprovider.parameter.ConflictsParameter"
+   ]
+  },
+  {
+   "key": "c8-model-generators/effect-provider-helper/conflict-html",
+   "module": "effect-provider-helper",
+   "api": null,
+   "behaviour": "An effect description with conflicts is rendered as `<div class=\"s-effect-icon\"><i class=\"s-fa s-fa-exclamation-triangle s-exclamation-icon\" title=\"T\"></i></div><div class=\"s-effect-message C\">M</div>`, where T is `s.ext.effect.conflict-resolution-warning` in the user's language, C the extra CSS classes joined by spaces, and M the HTML-encoded i18n text of the key with the arguments inserted unencoded (quotes around placeholders removed) using the user's locale. Encoding a plain value encodes its text (null as `null`); an i18n text is first localized for the current user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#getAsHTMLWithConflicts",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#htmlEncode",
+    "com.almworks.jira.structure.effectprovider.EffectProviderHelper#getExclamationHTML"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/type-catalogue",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "It defines these field value types, by key: `single-user`, `single-date`, `single-duration`, `single-line-text`, `multi-line-text`, `single-project`, `single-version`, `single-issue-type`, `single-priority`, `single-date-time`, `single-number`, `multi-label`, `multi-version`, `multi-component`, `single-sprint` (only when the agile sprint services are available), `multi-user`, `single-group`, `multi-group`, `single-option`, `multi-option`. There is no resolution type. The catalogue is built once on first use and not refreshed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#loadFieldTypes",
+    "com.almworks.jira.structure.structurefield.internalapi.StructureFieldTypeInfo"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/custom-field-type-keys",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "Jira custom field type keys map to types: `com.atlassian.jira.plugin.system.customfieldtypes:` `userpicker` single-user, `datepicker` single-date, `textfield` single-line-text, `textarea` multi-line-text, `project` single-project, `version` single-version, `float` single-number, `datetime` single-date-time, `labels` multi-label, `multiversion` multi-version, `multiuserpicker` multi-user, `grouppicker` single-group, `multigrouppicker` multi-group, `select` single-option, `multiselect` multi-option; `com.pyxis.greenhopper.jira:gh-sprint` single-sprint (only when that type exists). Every other key has no type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#loadFieldTypes",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#getFieldTypeByCustomFieldType"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/stored-format",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "Each type writes and reads the per-field string stored in a generic item's `fields` map exactly as SPEC's AO_8BAD1B_GENERIC_ITEM.C_PARAMETERS notes describe (user key, `yyyy-MM-dd`, milliseconds, JSON lists, project id as a floating number, and so on). A null value stores nothing; a stored string that cannot be read back (or names a missing user, version, option, ...) reads as null and is logged as a warning, never thrown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeImpl#serializeValue",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeImpl#deserializeValue",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#storageConverterSV",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#storageConverterMV"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/parse-editor-input",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "User input is parsed per type: null gives null; texts treat `` as null; dates use Jira's date-picker format (blank gives null), falling back to ISO `yyyy-MM-dd`; durations use Jira's duration format (for example `2h 30m`, blank gives null) and give milliseconds; date-times fall back to ISO local date-time in the logged-in user's time zone; numbers, priorities and issue types by Jira id; single user, project, version, group, option and sprint values by id. When an input fails the editor form and a second accepted form exists, that one is tried before reporting an error.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeImpl#parseEditorValue",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#loadFieldTypes",
+    "com.almworks.jira.structure.structurefield.ConverterPair$DurationConverterPair#parse"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/duration-errors",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "An invalid duration reports `createissue.error.original.estimate.invalid` for `timeoriginalestimate`, `createissue.error.remaining.estimate.invalid` for `timeestimate`, `s.column.editor.timespent.error` for `timespent`, and Jira's parse error text for other duration fields.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#loadFieldTypes",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeImpl#parseEditorValue"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/option-input-correction",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "For single-valued option-backed types (user, project, issue type, priority, version, group, option, sprint) a text input not found as an id is looked up by name. For multi-valued ones (versions, components, users, groups, options), when no element could be read and the input is text, it is split on commas, each part trimmed and looked up by id then name; unknown parts and duplicates (same id) are dropped and an empty result is null. Label lists drop nulls and duplicates, keeping order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#setupSingleValuedBuilder",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#setupMultiValuedBuilder",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#parseSomehow"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/validate-visibility-required",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "Validating a value against a field configuration fails with `s.ext.type.memo.error.invisible-field` (field name) when the configuration hides the field, and with `s.ext.type.memo.error.required-field` (field name) when the value is empty (null, empty text or empty list) and the field is required. An empty label list validates to null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeBuilder",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#loadFieldTypes"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/validate-options",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "For option-backed single values, a value that is not a valid option of the field's option source (per the configuration's option-source spec, for the current StructureAuth user) fails with `s.ext.type.memo.error.misconfigured-field` (field name, value's display text). For multi values, invalid elements fail with the same key listing their display texts, but the failure still carries the valid elements (or null when none), so a read keeps the valid ones; with no invalid element the valid list is returned (null when empty).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#setupSingleValuedBuilder",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#setupMultiValuedBuilder",
+    "com.almworks.jira.structure.util.Response$ErrorWithValueResponse"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/display-text",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "Display text: users by display name, dates in Jira's date-picker format, durations in the plugin's duration format, priorities and issue types by their translated name in the user's language, sprints and groups by name; other values through `value-text-converter`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#loadFieldTypes",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeBuilder#setIssueConstant"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/view-html",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "HTML views: single-line text is HTML-encoded; multi-line text is rendered as wiki markup when the field's renderer is `atlassian-wiki-renderer`, else as text with `<br>` line breaks; durations as formatted text and sprints and groups as encoded names (empty string for null); labels, components, priority and issue type through Jira's velocity templates (`templates/plugins/fields/view/view-label.vm`, `templates/jira/issue/field/components-columnview.vm`, `.../priority-columnview.vm`, `.../issuetype-columnview.vm`); custom-field-backed types through their Jira type's `column-view` template, or `view` when it has none.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#loadFieldTypes",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeBuilder#setCustomFieldType",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeBuilder#setIssueConstant"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/formula-values",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "Values given to formulas: a date becomes the epoch milliseconds of the start of that day in the formula's time zone (time format); a date-time its epoch milliseconds; a duration its milliseconds (duration format); a number the number; users, projects, issue types, priorities, versions, components, groups, options, sprints and labels become item identities (lists for multi-valued types); texts stay text. Null stays null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#loadFieldTypes",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeImpl#getExtendedValue"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-type-manager/backup-mapping",
+   "module": "structure-field-type-manager",
+   "api": null,
+   "behaviour": "For backups, option-backed values are exported as a map from stored value to the option's name (looked up without a user, ignoring restrictions), and on restore are found again by name; a name not found fails with `s.ext.type.memo.error.misconfigured-field` (field name and the name, or the stored value). For multi values the found ones are kept and the missing names listed in the error. Other types export and resolve nothing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#setupSingleValuedBuilder",
+    "com.almworks.jira.structure.structurefield.StructureFieldTypeManagerImpl#setupMultiValuedBuilder"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-manager/system-fields",
+   "module": "structure-field-manager",
+   "api": null,
+   "behaviour": "The catalogue starts with these Jira system fields in this order, each with its type: `summary` (single-line text, renderer `jira-text-renderer`), `description` (multi-line text, `atlassian-wiki-renderer`), `assignee` (user), `duedate` (date), `timeoriginalestimate`, `timeestimate`, `timespent` (duration), `environment` (multi-line text, `atlassian-wiki-renderer`), `reporter` (user), `priority`, `issuetype`, `project`, `labels` (labels), `versions`, `fixVersions` (multi-version, frother-control renderer), `components` (multi-component, frother-control renderer). A field whose type is missing is left out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl$HardcodedFields",
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#systemField(Ljava/lang/String;Lcom/almworks/jira/structure/structurefield/internalapi/StructureFieldTypeInfo;Lcom/almworks/jira/structure/structurefield/internalapi/StructureFieldProperties;)Lcom/almworks/jira/structure/structurefield/internalapi/StructureField;"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-manager/custom-fields",
+   "module": "structure-field-manager",
+   "api": null,
+   "behaviour": "After the system fields come Jira's custom fields (in CustomFieldManager order) whose type key maps to a type of `structure-field-type-manager`; others are left out. A custom field's renderer type comes from its item in Jira's default field layout, when there is one.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#loadCustomFields",
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#customField"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-manager/names",
+   "module": "structure-field-manager",
+   "api": null,
+   "behaviour": "A system field's id is its Jira field id and also its plain name; its localized name is the Jira field's name key translated in the requested locale. A custom field's id is `customfield_<n>`, its plain name the untranslated name, and its localized name Jira's translation for the locale, or the untranslated name when there is none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#systemField(Ljava/lang/String;Lcom/almworks/jira/structure/structurefield/internalapi/StructureFieldTypeInfo;Lcom/almworks/jira/structure/structurefield/internalapi/StructureFieldProperties;)Lcom/almworks/jira/structure/structurefield/internalapi/StructureField;",
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#customField"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-manager/lookup",
+   "module": "structure-field-manager",
+   "api": null,
+   "behaviour": "Looking up a field by id returns the catalogue entry or null for an id not in it (an unsupported custom field, or an unknown id).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#getStructureField"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-manager/refresh",
+   "module": "structure-field-manager",
+   "api": null,
+   "behaviour": "The catalogue is reloaded from Jira at most 60 s after it was built (a tuning setting in seconds; its key is not contract), so new or removed custom fields show within a minute; clearing the plugin's caches reloads it at the next use; clearing one user's caches does nothing. A failure to build it surfaces as StructureRuntimeException.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl",
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#clearCaches",
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#clearUserCaches",
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#getStructureFields"
+   ]
+  },
+  {
+   "key": "c8-model-generators/structure-field-manager/known-fields",
+   "module": "structure-field-manager",
+   "api": null,
+   "behaviour": "The fixed system fields (summary, description, assignee, due date, estimates, time spent, environment, reporter, priority, issue type, project, labels, affects and fix versions, components) are also available directly, built once and not refreshed; they are used by memos, planning tasks, groupers and effectors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#getSummaryField",
+    "com.almworks.jira.structure.structurefield.StructureFieldManagerImpl#getProjectField"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-config-service/memo-config",
+   "module": "generic-item-field-config-service",
+   "api": null,
+   "behaviour": "For memos the field configuration shows and allows editing exactly `summary`, `description`, `assignee`, `duedate`, `timeoriginalestimate`, `timeestimate` and `timespent`, requires none, and asks no Jira configuration.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#getMemoConfig",
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService$SimpleFieldConfig"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-config-service/simple-option-sources",
+   "module": "generic-item-field-config-service",
+   "api": null,
+   "behaviour": "Under the memo (and migration) configuration, an option-backed field's options come from the type's option source with no project and no filters, except `FIELD_OPTIONS` which gets `customField` = the field id; fields without options have none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService$SimpleFieldConfig#getOptionSourceSpec"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-config-service/planning-task-config",
+   "module": "generic-item-field-config-service",
+   "api": null,
+   "behaviour": "For a planning task the configuration is that of `jira-field-visibility-service` for the task's stored project and issue type (read without validation) and the current StructureAuth user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#getConfig",
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService$PlanningTaskConfig"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-config-service/planning-task-option-sources",
+   "module": "generic-item-field-config-service",
+   "api": null,
+   "behaviour": "Planning-task option sources: field `project` uses PROJECTS with `checkStructureConfig`, `checkCreateIssues`, `excludeInactive`; field `assignee` uses USERS with `excludeInactive`, `checkAssignable` and the task's project; otherwise by source PROJECTS (`checkStructureConfig`, `excludeInactive`), VERSIONS, COMPONENTS, USERS, SPRINTS (`excludeInactive`), ISSUE_TYPES (`excludeSubtasks`), FIELD_OPTIONS (`customField`, `excludeInactive`, and `issueTypeId` when known). The task's project id is passed for ISSUE_TYPES, PRIORITIES, VERSIONS, COMPONENTS, FIELD_OPTIONS, SPRINTS and assignee only. When the project is not visible to the user, every option-backed field gets the empty source `EMPTY`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService$PlanningTaskConfig#getOptionSourceSpec",
+    "com.almworks.jira.structure.optionsource.PlanningTaskOptionSourceSpecs#getSpec"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-config-service/validate-and-write",
+   "module": "generic-item-field-config-service",
+   "api": null,
+   "behaviour": "Applying field updates checks each one: a field the configuration does not let edit fails with `s.ext.type.memo.error.uneditable-field` (field name in the user's language); otherwise the type's validation applies (see `structure-field-type-manager`). Each failure is reported for its field and that field is not written; valid ones are written in SPEC's stored format: summary to the item name, description to the item description, others into the `fields` map (null removes the key, an empty map removes `fields`, and the estimate fill-in applies).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#validateAndUpdate(Lcom/almworks/jira/structure/structurefield/internalapi/StructureFieldConfig;Lcom/almworks/jira/structure/api/item/generic/GenericItem$Builder;Ljava/util/Collection;Ljava/util/function/BiConsumer;)V",
+    "com.almworks.jira.structure.structurefield.StructureFieldUpdate#validate",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#updateGenericItem(Lcom/almworks/jira/structure/api/item/generic/GenericItem$Builder;Ljava/util/Map;)V"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-config-service/inject-required",
+   "module": "generic-item-field-config-service",
+   "api": null,
+   "behaviour": "When an item is created, every catalogue field except `summary` that the configuration requires and that is neither being set nor already stored is checked as if set to null, so a missing required field fails (with `s.ext.type.memo.error.required-field`, or `uneditable-field` when the user may not edit it).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#injectRequiredFields",
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#validateAndUpdateIncludingRequired"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-config-service/visibility",
+   "module": "generic-item-field-config-service",
+   "api": null,
+   "behaviour": "A planning task is visible to a user only when its stored project is visible to that user per `jira-field-visibility-service` (no project means not visible); memos are always visible by this check (structure ownership is checked elsewhere).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#isVisible"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-config-service/migration-config",
+   "module": "generic-item-field-config-service",
+   "api": null,
+   "behaviour": "For backup restore, a planning task needs its project key and issue type name: no key fails with `s.ext.type.memo.error.project-required`, an unknown key with `s.ext.type.memo.error.project-not-found` (key); no issue type name with `s.ext.type.memo.error.issue-type-required`, a name matching no Jira issue type exactly with `s.ext.type.memo.error.issue-type-not-found` (name). Otherwise, and for memos, the configuration lets every field be shown and edited and requires none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldConfigService#getItemConfigForMigration"
+   ]
+  },
+  {
+   "key": "c8-model-generators/jira-field-visibility-service/project-issuetype-always",
+   "module": "jira-field-visibility-service",
+   "api": null,
+   "behaviour": "For planning tasks, `project` and `issuetype` are always visible and required, even when the project or issue type is unknown.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#isFieldVisible",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#isFieldRequired"
+   ]
+  },
+  {
+   "key": "c8-model-generators/jira-field-visibility-service/time-tracking",
+   "module": "jira-field-visibility-service",
+   "api": null,
+   "behaviour": "`timespent` is never visible, required or editable for planning tasks; `timeoriginalestimate` and `timeestimate` are checked as Jira's `timetracking` field.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService#isFieldVisible",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService#getJiraFieldId"
+   ]
+  },
+  {
+   "key": "c8-model-generators/jira-field-visibility-service/visible-rule",
+   "module": "jira-field-visibility-service",
+   "api": null,
+   "behaviour": "Any other field is visible only when both the project and the issue type are known, Jira's field layout for that project and issue type has the field and does not hide it, and the field is on the create-issue screen (any tab) of the project's issue type screen scheme for that issue type; a custom field on that screen counts only when it is in scope for the project and issue type. Without a screen scheme or create screen nothing else is visible.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#isFieldVisible",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#getFieldsOnIssueTypeScreen",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#isFieldInScope"
+   ]
+  },
+  {
+   "key": "c8-model-generators/jira-field-visibility-service/required-rule",
+   "module": "jira-field-visibility-service",
+   "api": null,
+   "behaviour": "A visible field is required when its field layout item is required, it has no default value, and it is on the create screen. Defaults: reporter and priority always have one; assignee has one unless the project's default assignee is the project lead (assignee type 2) and the lead is missing or not assignable (ASSIGNABLE_USER); description and custom fields have one when the field configuration for the project and issue type gives a non-empty default value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#isFieldRequired",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#hasDefaultValue",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#isDefaultAssigneeAssignable"
+   ]
+  },
+  {
+   "key": "c8-model-generators/jira-field-visibility-service/editable-rule",
+   "module": "jira-field-visibility-service",
+   "api": null,
+   "behaviour": "A visible field is editable when: `assignee` and the user has ASSIGN_ISSUES on the project; `reporter` and MODIFY_REPORTER; `duedate` and SCHEDULE_ISSUES; a custom field that Jira marks not editable never; the agile sprint field with SCHEDULE_ISSUES; anything else always. Permissions are checked for the user on the project as for issue creation; without a project they fail.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#isFieldEditable",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService$JiraFieldVisibility#hasProjectPermission"
+   ]
+  },
+  {
+   "key": "c8-model-generators/jira-field-visibility-service/project-visibility",
+   "module": "jira-field-visibility-service",
+   "api": null,
+   "behaviour": "A project is visible to a user when it is a valid option of the PROJECTS option source with `checkStructureConfig`, `checkCreateIssues` and `excludeInactive` for that user (anonymous when the user is null); a null project is never visible.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService#isProjectVisible",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService#getProjectOptionSourceForVisibilityCheck"
+   ]
+  },
+  {
+   "key": "c8-model-generators/jira-field-visibility-service/caching",
+   "module": "jira-field-visibility-service",
+   "api": null,
+   "behaviour": "Answers are cached per (project id, issue type id, user key) and dropped 60 s after they were computed (dark feature `FieldConfigService.refreshTimeout`, seconds); the per-user project option source expires 1 hour after its last use (dark feature `FieldConfigService.projectVisibilityLifespan`, hours). Clearing the plugin's caches drops both; clearing one user's caches drops only that user's entries. A failure to compute them surfaces as an unchecked exception.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService#clearCaches",
+    "com.almworks.jira.structure.generic.JiraFieldVisibilityService#clearUserCaches"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-type-helper/key-and-url",
+   "module": "generic-item-type-helper",
+   "api": null,
+   "behaviour": "The key of a memo is `MEMO:<id>`, of a planning task `PT:<id>`, of any other item null. The board link of a generic item is `<base URL>/secure/StructureBoard.jspa?s=<owning structure id>#layout=details&itemId=<HTML-encoded item identity>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#getGenericItemKey",
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#getGenericItemUrl"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-type-helper/formula-basic-fields",
+   "module": "generic-item-type-helper",
+   "api": null,
+   "behaviour": "For formulas, a memo or planning task gives: `key` its key; `name` and `summary` the item name; `description` the description (undefined/null when absent).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#getFieldExprValue"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-type-helper/formula-history-fields",
+   "module": "generic-item-type-helper",
+   "api": null,
+   "behaviour": "Formula field `history` gives the list of the item's history records as items `com.almworks.jira.structure:type-memo-change-history-group/<record id>` (from `generic-item-history-manager`); `created` the time of its create record and `updated` the latest record time (epoch ms); `creator` the user item of the create record's author (null when none). For many items at once only `history` is loaded in bulk.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#getFieldExprValue",
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#bulkGetFieldExprValues",
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#getSyntheticField"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-type-helper/formula-other-fields",
+   "module": "generic-item-type-helper",
+   "api": null,
+   "behaviour": "Any other formula field name is turned into a field id (`affectedversions` -> `versions`, `fixversions` and also `versions` -> `fixVersions`, `attachments` -> `attachment`, `originalestimate` -> `timeoriginalestimate`, `remainingestimate` -> `timeestimate`) and looked up in `structure-field-manager`; if not found, a field whose name matches after removing whitespace, punctuation and control characters and lower-casing is used; none gives undefined. The value is read with validation (invalid reads as null) and given in its formula form (see `structure-field-type-manager`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#getStructureField",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#convertExprFieldNameToFieldId",
+    "com.almworks.jira.structure.expr.executor.ExprExecutorUtil#normalizeName"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-type-helper/read-client-values",
+   "module": "generic-item-type-helper",
+   "api": null,
+   "behaviour": "When a memo or planning task is created or edited from client values, `description` is taken from the values and the field values from the `params` map (field id to editor value); only fields known to `structure-field-manager` that the configuration shows and lets edit are used, others are ignored. Each is parsed as user input; a parse error is recorded under the field id in the user's language.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#readItemValues",
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#readItemFieldParameters"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-type-helper/apply-client-values",
+   "module": "generic-item-type-helper",
+   "api": null,
+   "behaviour": "On edit, any parse error means nothing is applied. On create, all values are applied and all errors collected, and required fields not given are checked too. Validation errors (see `generic-item-field-config-service`) are added under the field id unless that field already has an error. The remaining `params` are then passed on to the item type (for example a memo's colour and icon).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#readItemFieldParameters",
+    "com.almworks.jira.structure.extension.item.generic.GenericItemTypeHelper#readItemValues"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-accessor-manager/read-view",
+   "module": "generic-item-field-accessor-manager",
+   "api": null,
+   "behaviour": "A field view of an item identity loads the item through GenericItemManager.getItem (its cache; no permission or app-access check) and gives nothing when the item does not exist; its configuration comes from `generic-item-field-config-service` for the item's type and the current user. For a list of identities it keeps the order and leaves out missing items.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessorManager#getFieldAccessor(Lcom/almworks/jira/structure/api/item/ItemIdentity;)Lcom/almworks/jira/structure/generic/GenericItemFieldAccessor;",
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessorManager#getFieldAccessors"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-accessor-manager/read-value",
+   "module": "generic-item-field-accessor-manager",
+   "api": null,
+   "behaviour": "Reading a field reads the stored string (summary from the name, description from the description, others from `fields`), converts it with the field type and validates it with the configuration: a failure reads as null, except for multi-valued option-backed fields (versions, components, users, groups, options) where the valid elements are kept and only invalid ones dropped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessor#getFieldValue",
+    "com.almworks.jira.structure.generic.GenericItemFieldsUtil#getFieldValueWithoutValidation"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-accessor-manager/stored-fields",
+   "module": "generic-item-field-accessor-manager",
+   "api": null,
+   "behaviour": "The fields of a view are the catalogue fields whose ids are keys of the item's `fields` map; keys unknown to `structure-field-manager` are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessor#getFields"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-accessor-manager/custom-field-kind-checks",
+   "module": "generic-item-field-accessor-manager",
+   "api": null,
+   "behaviour": "Reading or setting a custom field through the typed accessors throws IllegalArgumentException `Field <field name> is unsupported` when `structure-field-manager` does not know it and `Field <field name> is of wrong type` when its type does not match the accessor (text accepts single- and multi-line text).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessor#getCustomFieldValue(Lcom/atlassian/jira/issue/fields/CustomField;Ljava/util/function/Predicate;)Ljava/lang/Object;",
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#setCustomFieldValue(Lcom/atlassian/jira/issue/fields/CustomField;Ljava/lang/Object;Ljava/util/function/Predicate;)Lcom/almworks/jira/structure/generic/GenericItemFieldUpdateBuilder;"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-accessor-manager/update-builder",
+   "module": "generic-item-field-accessor-manager",
+   "api": null,
+   "behaviour": "An update builder records field values for one identity (the last value per field wins) and stores them as `memo-manager` and `planning-task-manager` describe: it reads the item through GenericItemService as the current user, applies and validates the recorded values (failure: StructureException UPDATE_ITEM_FAILED with the field's localized message), then runs GenericItemService.validateUpdate and update and throws their exception, or UPDATE_ITEM_FAILED with the joined error messages when there is none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldAccessorManager#getFieldUpdateBuilder",
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#update",
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#getUpdateException"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-accessor-manager/validate-only",
+   "module": "generic-item-field-accessor-manager",
+   "api": null,
+   "behaviour": "The same builder can only validate: it gives the first problem as a localized text (field error, or the item service's error) or null when the update would pass, and stores nothing; `memo-field-effect-provider` uses this before applying a change.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#validateUpdate",
+    "com.almworks.jira.structure.effectprovider.GenericItemFieldEffectProvider"
+   ]
+  },
+  {
+   "key": "c8-model-generators/generic-item-field-accessor-manager/restore-rebuild",
+   "module": "generic-item-field-accessor-manager",
+   "api": null,
+   "behaviour": "When a backup is restored, a generic item's `fields` map is rebuilt only from the restored field values, validated with the migration configuration; a failing field throws StructureException UPDATE_ITEM_FAILED for that item with the field's message. Other parameters (such as a memo's colour) are kept.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.generic.GenericItemFieldUpdateBuilder#createNewItemParams",
+    "com.almworks.jira.structure.backup.StructureFieldResolver"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-to-planning-task-converter/project-and-type-first",
+   "module": "issue-to-planning-task-converter",
+   "api": null,
+   "behaviour": "Converting an issue to planning-task field values always starts with the issue's project and issue type, and uses the planning-task configuration of that project and issue type for the current StructureAuth user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.planningtask.IssueToPlanningTaskConverter#getUpdatesListFromIssue"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-to-planning-task-converter/copied-fields",
+   "module": "issue-to-planning-task-converter",
+   "api": null,
+   "behaviour": "It then takes every other field of `structure-field-manager` (in catalogue order) that this configuration shows, is not excluded by the caller and exists as a Jira field: the issue's value is read and converted to the field's value with `field-information-provider`; fields it has no conversion for, and empty results, are skipped. Hidden fields (for example `timespent`, or fields not on the create screen) are never copied.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.planningtask.IssueToPlanningTaskConverter#getUpdatesListFromIssue",
+    "com.almworks.jira.structure.planningtask.IssueToPlanningTaskConverter#getStructureFieldUpdate"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-to-planning-task-converter/copy-with-validation",
+   "module": "issue-to-planning-task-converter",
+   "api": null,
+   "behaviour": "Copying into a planning task validates and writes these values like any field update (see `generic-item-field-config-service`): fields the user may not edit or whose value is invalid there are not copied and get a localized error under their field id in the caller's error collection; the others are written.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.planningtask.IssueToPlanningTaskConverter#copyIssueToPlanningTask"
+   ]
+  },
+  {
+   "key": "c8-model-generators/issue-to-planning-task-converter/sample-issue",
+   "module": "issue-to-planning-task-converter",
+   "api": null,
+   "behaviour": "When a planning task is created with an issue as its sample, the issue's values are copied this way with `summary` excluded (the summary is given separately).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.item.generic.PlanningTaskItemType#readValuesFromIssue",
+    "com.almworks.jira.structure.planningtask.IssueToPlanningTaskConverter#copyIssueToPlanningTask"
+   ]
+  }
+ ]
+}

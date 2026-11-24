@@ -1,0 +1,1043 @@
+{
+ "claims": [
+  {
+   "key": "e13-synchronizers/sync-filter/descriptor",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Module `sync-filter` is a `structure-synchronizer` with order 10, label key `s.ext.sync.filter.label` (English `Filter`), description key `s.ext.sync.filter.description`, rules key `s.ext.sync.filter.rules` and a velocity resource named `form` at `/templates/structure/ext/sync/filter-form.vm`. It is always available (no Jira feature it depends on) and supports autosync.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#isAvailable",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#isAutosyncSupported"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/stored-params",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Stored parameters are a JSON object with only the keys that were set: exactly one of `filterId` (long, a Jira saved-filter id > 0) or `jql` (string, trimmed), then `add` and `remove` (booleans), `removeOnlyFromUnderAddRootIssue` and `recheckSubtreeWhenParentCanBeRemoved` (booleans, always written by the form), and only when issues are added under a parent issue `addRootIssue` (long Jira issue id) and `moveFromUnderAnotherRoot` (boolean). Missing booleans read as false and missing longs as 0 (0 `addRootIssue` means the top level).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSyncParams",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSyncParamsBuilder",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/form-filter-source",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Building parameters from the form: form field `filtertype` (ignoring case) `savedFilter` reads the saved filter from field `filterid`, `jql` reads JQL from field `filterjql`; any other or missing value makes the build return null without adding an error. When the filter or JQL is rejected the build returns null at once, before the other fields are checked.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#setFilter"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/form-saved-filter-field",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "A saved-filter form field (`filterid` here, and the parent/child filter fields of `sync-links`) must match `filter-<digits>` with a number > 0, else error `s.sync.error.no-filter-id` (`Please select a saved filter.`) is added under that field name and 0 is returned (rejected). The filter is looked up with `SearchRequestService.getFilter` as the current `StructureAuth` user: if Jira's service context reports errors they are joined with newlines into one field error and the field is rejected; if the filter is simply not found error `s.sync.error.bad-filter` (`Please select a valid saved filter.`) is added but the id is still accepted and stored (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.SyncUtil#getFilterId"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/form-jql-field",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "A JQL form field (`filterjql` here, `parentfilterjql`/`childfilterjql` in `sync-links`) that is missing or blank adds error `s.sync.error.no-jql-query` (`Please type in a JQL query.`) under the field and is rejected. Otherwise the trimmed text is parsed with Jira's JQL parser: a parse failure adds the parser's localized message (Jira's generic parse error when it has none); then `StructurePluginHelper.validateQuery` for the current user is asked, and any error messages are joined with newlines into one field error. A valid query stores the trimmed text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.SyncUtil#getJqlQuery"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/form-actions",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Form booleans `add` and `remove` become `add`/`remove`; when both are false error `s.sync.filter.error.noaction` (`Please select either Add or Remove or both.`) is added under field `remove`, but the parameter map is still returned. `removeWhereAdd` becomes `removeOnlyFromUnderAddRootIssue` and `forceReCheck` becomes `recheckSubtreeWhenParentCanBeRemoved`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/form-add-under",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "When form field `addWhere` equals `under` (ignoring case), field `addUnder` holds the parent issue key: missing gives error `s.sync.filter.error.nounder` under `addUnder`; otherwise the trimmed key is looked up in Jira (as typed, then upper-cased with the US locale) and when `StructurePluginHelper.getIssueError(issue, false)` reports a problem (missing or not browsable) error `s.sync.filter.error.badunder` (`The specified issue does not exist or you don't have permissions to view it.`) is added. A good issue stores its id as `addRootIssue` and form boolean `addMoveForced` as `moveFromUnderAnotherRoot`. Any other `addWhere` stores neither key (top level).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/form-defaults-and-refill",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "A new form gets defaults `filtertype`=`savedFilter`, `add`=true, `removeWhereAdd`=true, `addMoveForced`=true. Showing stored parameters on the form puts `filtertype` (`savedFilter` when `filterId` > 0, else `jql`), `filterid`=`filter-<id>` plus `filtername` (the filter's name as the current user sees it, `?` when not found) or `filterjql`, then `add`, `remove`, `removeWhereAdd`, `forceReCheck`; when `addRootIssue` > 0 also `addWhere`=`under`, `addMoveForced` and `addUnder` (the issue key, only when the issue exists and has a non-empty key). Parameters that are not a map leave the form unchanged.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#addFormParameters"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/config-description",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "The one-line description is `s.sync.filter.name` (`Filter ({0})`) with the saved filter's name (as the current user sees it) when `filterId` > 0, the text of `s.sync.filter.name.jql` (`JQL query`) when a non-empty `jql` is set, and `?` otherwise (for example a filter that no longer exists). Parameters that are not a map give the empty string.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#getConfigDescription"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/config-details",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Description details, in order: `s.sync.filter.desc.jql` with the JQL when non-blank; when `add`: `s.sync.filter.desc.add` + `, ` + (`s.sync.filter.desc.add.under` with the add-under issue key when that issue exists and passes `getIssueError(issue,false)`, `s.sync.filter.desc.add.error` with the stored id when it does not, `s.sync.filter.desc.add.top` when `addRootIssue` is 0), then, only when the key was resolved, `s.sync.filter.desc.add.moveForced.true` (with the key) or `.moveForced.false`; when `remove`: `s.sync.filter.desc.remove.whereAdd` (with the key) if `removeOnlyFromUnderAddRootIssue` and the key was resolved, else `s.sync.filter.desc.remove`, followed by `s.sync.filter.desc.removeWithForceRecheck` when `recheckSubtreeWhenParentCanBeRemoved`. Non-map parameters give an empty list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#getConfigDescriptionDetails"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/resync-effects",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Possible resync effects: `s.sync.filter.effect.add` when `add`, `s.sync.filter.effect.move` when `moveFromUnderAnotherRoot`, `s.sync.filter.effect.remove` when `remove`, in that order; null when the parameters are not a map.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#getPossibleResyncEffects"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/run-preconditions",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "A run (resync or incremental) fails, without changing the structure, when the parameters are not a map, have neither `add` nor `remove`, or do not have exactly one of `filterId` > 0 and `jql` (a non-null `jql` together with a filter id fails); and when the owner lacks EDIT access to the structure. These failures carry no reason text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#sync0",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#sync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/run-query",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "The query is the saved filter's query, fetched as the current `StructureAuth` user (the owner), or the stored JQL parsed by Jira; it is then ANDed with `StructurePluginHelper.getConfigurationScopeQuery()` when that is not null (projects not enabled for <product> are never matched). Failure reasons: `filter <id> does not exist or is not available to <user>`, `cannot parse JQL: <jql>` (with the parse exception as cause), `no valid query` (blank JQL), and `error running query <query>` when the search throws `SearchException`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#getQuery",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#getSearchResultOrdered",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#getValidIssues"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/incremental-trigger",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Incremental sync reacts only to Jira changes: when the batch has no Jira-changed issues (only structure changes) it returns success with no actions and touches nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer#doSync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/add-target",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "With `add` and `addRootIssue` = 0, new issues go to the top level after the last top-level row. With `addRootIssue` > 0 the issue must pass `getIssueError(id, false)` for the owner, else the whole run fails with reason `cannot add under <issue>: issue absent or unavailable`; when no row of that issue is in the structure nothing is added (and removal limited to that place does nothing) and only a warning is logged. When several rows hold the issue the shallowest is used; among rows at that same depth the last one is used when assertions are disabled, while with assertions enabled (as the tests run) a second row at the current best depth throws `AssertionError` (as the original does). New rows are added as children of that row after its last child.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#updateUnderAndAfter",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#getRootIndex"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/resync-add",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Resync with `add`: all issues the query finds, in the query's sort order (`StructurePluginHelper.searchAndSortQuery`), that are not yet anywhere in the structure are added as one flat list of new issue rows at the add target, in that order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#doFullSync",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#createForestForAddMove",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#updateForest"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/incremental-add",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Incremental sync with `add`: the candidates are the Jira-changed issues (ascending issue id) that match the query (checked with `StructurePluginHelper.matchIssuesSorted`); those not yet in the structure are added at the add target in ascending id order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#doAutoSync",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#createForestForAddMove"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/move-forced",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "When issues go under a parent issue (`addRootIssue` > 0) and `moveFromUnderAnotherRoot` is true, rows outside the parent row's subtree whose issue is a candidate (query result on resync, matching changed issue on incremental) are moved, each with its whole subtree, to the end of the parent row's children, in forest order (topmost occurrences; a row inside an already moved subtree is not moved separately). Only issues not already in the parent row's subtree and not carried along by those moves are then added, after the last moved row. Without move-forcing an issue already anywhere in the structure is neither moved nor added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#createForestForAddMove",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#isMoveForced",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#updateForest"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/remove-rule",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "With `remove`, an issue row is removed only together with its whole subtree and only when every row of that subtree is an issue row whose issue is checked and does not match the query; rows of other item types are never removed and keep their ancestors in place; the add-under parent row itself is never removed. Removal removes the maximal such subtrees (a non-removable parent keeps its removable children's subtrees in the removal list).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#getRootRowsToRemove"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/remove-scope",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "When `removeOnlyFromUnderAddRootIssue` is true, removal only looks inside the subtree of the add-under parent row (the whole structure when adding to the top level); when that parent row is not found (or the add-under issue cannot be resolved), nothing is removed. Otherwise the whole structure is checked. On resync every issue row is checked against the full query result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#canRemove",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#getRootRowsToRemove",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#doFullSync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/incremental-remove",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Incremental removal checks only the Jira-changed issues plus the issues of every ancestor row of their rows, so a changed parent whose unchanged children still sit under it is not removed. With `recheckSubtreeWhenParentCanBeRemoved` the issues of the whole subtree of each changed row that no longer matches are checked as well, so the parent is removed together with its subtree when the whole subtree fails the query; still only removal roots whose issue is a changed issue or an ancestor of one are removed.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#doAutoSync",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#getChangedIssuesAndAncestorsSorted",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#addSubtreesOfPossibleRootsToRemove"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-filter/apply-order-and-retry",
+   "module": "sync-filter",
+   "api": null,
+   "behaviour": "Changes are applied as removals first, then moves, then additions. The plan is computed against the latest forest version; when the version changed while computing, the plan is recomputed, up to 5 attempts; after 5 changed versions the run fails with reason `can't synchronize`. A missing forest fails with `forest is not available`. Forest errors that the shared rules swallow (not found, invalid forest operation, unavailable module, parent-permission prohibition, code 6014) only log a warning; any other `StructureException` fails the run with reason `update error`. The run never changes Jira, and a successful run reports no audit actions.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#sync0",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#updateForest",
+    "com.almworks.jira.structure.extension.sync.filter.FilterSynchronizer$Sync#sync",
+    "com.almworks.jira.structure.extension.sync.SyncUtil#remove",
+    "com.almworks.jira.structure.extension.sync.SyncUtil#add"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/descriptor",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "Module `sync-subtasks` is a `structure-synchronizer` with order 230, label key `s.ext.sync.subtasks.label` (`Sub-Tasks`), description key `s.ext.sync.subtasks.description`, rules key `s.ext.sync.subtasks.rules` and velocity resource `form` at `/templates/structure/ext/sync/subtasks-form.vm`. It supports autosync and is available exactly when Jira's `SubTaskManager.isSubTasksEnabled()` is true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#isAvailable",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#isAutosyncSupported"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/stored-params",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "Stored parameters are `{\"types\":[\"<issueTypeId>\",...]}`: the list of sub-task issue type ids exactly as entered on the form (trimmed, empty pieces dropped, duplicates and ids that are not sub-task types kept).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/form",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "Building parameters reads the comma-separated form field `types`; when none of the listed ids is one of Jira's current sub-task issue types (`ConstantsManager.getSubTaskIssueTypeObjects`) error `s.sync.subtasks.error.type` (`Please select at least one sub-task type.`) is added under field `types` and null is returned. Showing stored parameters puts `types` as the ids joined with `,` (omitted when the list is empty).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#addFormParameters"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/descriptions",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "The description is `s.sync.subtasks.name` (`Sub-Tasks ({0})`) with the translated names of the stored type ids that are current sub-task types, in Jira's sub-task type order, joined with `, ` (empty when none); non-map parameters give the empty string. Details are always an empty list. Possible resync effects are always `s.sync.subtasks.effect.add` then `s.sync.subtasks.effect.move`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#getConfigDescription",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#getConfigDescriptionDetails",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#getPossibleResyncEffects"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/run-preconditions",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "Resync and incremental sync return failure `cannot edit structure` when the owner lacks EDIT access to the structure. Parameters with no `types` (or not a map) make the run throw a `StructureException` with `StructureErrors.INVALID_PARAMETER` and message `invalid parameters: no sub-task types selected`. A `SearchException` while classifying issues is thrown as the plugin's search error with message `cannot run Lucene searches`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#doResync",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#doSync",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#startSync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/resync-scope",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "Resync considers every issue in the structure: the sub-tasks are those matching JQL `issuetype in (<stored type ids>)` and the parents are those that are not sub-tasks (checked with `StructurePluginHelper.matchIssuesSorted`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#doResync",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#createSubTasksQuery"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/incremental-scope",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "Incremental sync considers the union of the Jira-changed issues and the structure-changed issues: changed sub-tasks of the selected types, changed non-sub-task issues, the Jira parents of the changed sub-tasks, and every sub-task of the selected types of all those parents.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#doSync",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#findAllParents",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#findAllSubtasks"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/jira-reads",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "A sub-task's parent is `Issue.getParentId()` of the issue the issue manager returns; when `StructurePluginHelper.getIssueError(issue, false)` reports a problem for the owner (missing or not browsable) the sub-task is treated as having no parent and a warning is logged. A parent's sub-tasks are `Issue.getSubTaskObjects()` in Jira's order, keeping only the selected types; an inaccessible parent has none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#getParentIssue",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#getSubTasks"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/place-under-parent",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "For every row of a parent issue in scope, each of its selected-type sub-tasks ends up exactly once as a direct child of that row, the sub-task rows in Jira's sub-task order: further direct-child rows of the same sub-task are merged into the first one (their children are moved under it and the duplicate row is removed); existing sub-task rows are reordered with the fewest moves; missing ones are added. Other children keep their places. Sub-tasks whose parent issue has no row in the structure are not touched, and parent issues are never added.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#orderSubTaskRowsUnderParentRows",
+    "com.almworks.jira.structure.extension.sync.MissingsRowsResolver#fillMissing"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/missing-position",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "A missing sub-task is added under the parent row right after the row of the sub-task that precedes it in Jira's order and is already there; with no such preceding row it is added with no `after` row (position 0) under the parent. Consecutive missing sub-tasks with the same anchor are added together, in Jira's order.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#orderSubTaskRowsUnderParentRows",
+    "com.almworks.jira.structure.extension.sync.MissingsRowsResolver#fillMissing"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/misplaced-rows",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "A row of an in-scope sub-task whose parent row is not a row of its Jira parent is misplaced. The synchronizer looks for rows of the Jira parent before and after it in forest order (outside the sub-task's own subtree) and prefers the nearer one (ties to the one above). When that parent row is missing the sub-task, the misplaced row is moved there (with its subtree) instead of adding a new row; otherwise, after additions, it is moved to the end of the target parent row's children, or merged into a row of the same sub-task already there. A misplaced sub-task with no row of its parent in the structure stays where it is.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#moveOrphanedChildrenRows",
+    "com.almworks.jira.structure.extension.sync.PossibleParentRowsFinder#find",
+    "com.almworks.jira.structure.extension.sync.OrphansResolver#moveOrphans"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/move-out-of-own-subtree",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "When the target parent row lies inside the subtree of the sub-task row being moved, the parent row is first moved out to sit right after the sub-task row under the sub-task row's former parent, so the move never creates a cycle.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.SyncUtil#resolveMoveIntoOwnSubtree",
+    "com.almworks.jira.structure.extension.sync.OrphansResolver#moveOrphans"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/one-way",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "The synchronizer never writes to Jira: structure changes (moving a sub-task elsewhere, removing it) are not reflected in Jira, and a successful run reports no audit actions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#doResync",
+    "com.almworks.jira.structure.extension.sync.subtasks.SubTasksSynchronizer#doSync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-subtasks/forest-errors",
+   "module": "sync-subtasks",
+   "api": null,
+   "behaviour": "Forest changes go through the structure's forest source; a move or add that fails with an invalid forest operation, a not-found item, an unavailable module, a parent-permission prohibition or error code 6014 only logs a warning and the run continues; any other `StructureException` ends the run with that exception.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.SyncUtil#move",
+    "com.almworks.jira.structure.extension.sync.SyncUtil#add",
+    "com.almworks.jira.structure.extension.sync.SyncUtil#remove"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/descriptor",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Module `sync-status-rollup` is a `structure-synchronizer` with order 50, label key `s.ext.sync.statusup.label` (`Status Rollup`), description key `s.ext.sync.statusup.description`, rules key `s.ext.sync.statusup.rules` and velocity resource `form` at `/templates/structure/ext/sync/statusup-form.vm`. It is always available and supports autosync; it offers no undo.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#isAvailable",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#isAutosyncSupported"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/stored-params",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Stored parameters: `applicableToAllProjects` (bool), `applicableProjects` (array of project ids, only when not all projects), `applicableToAllTypes` (bool), `applicableTypes` (array of issue type id strings, only when not all types), `resolutionId` (string, only when chosen), `states` (array in rollup order of `{\"statusId\":\"<id>\",\"allTransitionsAllowed\":bool}` plus `allowedTransitions`: `[{\"workflowName\":\"...\",\"actionId\":<int>}]` written only when not all transitions are allowed and the list is non-empty). Reading: missing booleans are false, a missing list is empty; when `allTransitionsAllowed` is true any stored list is ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSyncParams",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSyncParams#setStates"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/form-projects",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Form field `projects` is `*` or comma-separated project ids, matched against `StructurePluginHelper.getStructureProjectsForCurrentUser()` (projects enabled for <product> that the user may browse); unknown ids are dropped. No matching project (or an empty field) adds error `s.ext.sync.statusup.error.noprojects` under `projects` and returns null. `*` stores `applicableToAllProjects`=true and no list; otherwise false and the matched ids in the order of the enabled-project list.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/form-types",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Form field `types` is `*` or comma-separated issue type ids, matched against the issue types of the selected projects' issue type schemes; none (or empty) adds `s.ext.sync.statusup.error.notypes` under `types` and returns null. `*` stores `applicableToAllTypes`=true; otherwise false and the matched type ids.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/form-resolution",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Form field `resolution`, when non-empty, must be an existing Jira resolution id (`ConstantsManager.getResolution`), else error `s.ext.sync.statusup.error.badresolution` under `resolution` and null; a valid id is stored as `resolutionId`; an empty or missing field stores nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/form-statuses-transitions",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Form field `statuses` is a comma-separated list of status ids in rollup order (unknown ids dropped); none adds `s.ext.sync.statusup.error.nostatuses` under `statuses`. For each status, field `transitions-<statusId>` is `*` (all transitions allowed) or a comma-separated list of URL-encoded `<workflowName>:<actionId>` (split at the last colon); entries without a colon, naming a workflow not used by the selected projects and types, with a negative or unparsable action id, or with an action missing from that workflow are dropped with a warning. The result is null whenever the action has any errors.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/form-defaults-refill",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "A new form gets `projects`=`*` and `types`=`*`. Showing stored parameters puts `projects` (`*` or the ids joined with `,`), `types` (likewise), `resolution` (the stored id or null), `statuses` (the status ids joined with `,`) and for each state `transitions-<statusId>`: `*` when all transitions are allowed, else the allowed transitions as URL-encoded workflow name + `:` + action id, joined with `,`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#addFormParameters"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/descriptions",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "The description is the label text (`Status Rollup`) followed, when parameters are a map, by ` (` + the translated names of the stored statuses that still exist, joined with `, ` + `)`. Details: `s.ext.sync.statusup.conf.projects.all` or `.projects.some` (project names joined with `, `), `.types.all` or `.types.some` (localized type names), one `s.ext.sync.statusup.conf.status` per existing status with its 1-based position, name and transitions text (`.actions.all`, `.actions.none`, or each existing transition as `s.ext.sync.statusup.conf.action` with action name, workflow name and action id, joined with `, `), and finally `.resolution.selected` (resolution name, or `?<id>` if it no longer exists) or `.resolution.default` (no id or id `0`). Possible resync effects are always `s.ext.sync.statusup.effect`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#getConfigDescription",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#getConfigDescriptionDetails",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#getPossibleResyncEffects"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/run-preconditions",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "A run fails with reason `invalid parameters` when the parameters are not a map and with `no selected statuses` (and a warning) when `states` is empty. It needs no edit access to the structure and never changes the structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#sync0"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/resync-scope",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Resync visits every row that has children, bottom-up (children before parents), so a parent sees the statuses its children got earlier in the same run.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#sync0",
+    "com.almworks.jira.structure.extension.sync.statusup.ProcessingData#isProcessingNeeded"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/incremental-scope",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Incremental sync processes a parent row (with children) only when one of its children is a row of a Jira-changed issue, a structure-changed row, or a row whose issue this run already transitioned, or when the parent row is a previous parent of moved or removed rows. For issues deleted in Jira, the parents of their rows in the structure (read as an unsecured skeleton forest, as superuser) are processed too; when that forest cannot be read a warning is logged and they are skipped.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.ProcessingData#isProcessingNeeded",
+    "com.almworks.jira.structure.extension.sync.statusup.ProcessingData#create"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/parent-applicability",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "A parent row is updated only when it is an issue that matches the project scope (its project id is in `applicableProjects` unless all projects) and type scope (its type id is in `applicableTypes` unless all types) and passes `StructurePluginHelper.getIssueError(issue, false, true)` for the owner (exists, browsable, project enabled for <product>). Rows that are not issues are skipped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer$SyncApplier#getIssue",
+    "com.almworks.jira.structure.extension.sync.statusup.ProcessingData#isApplicableToIssue"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/target-status",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "The target status is the earliest one in `states` order among the statuses of the parent row's direct child issue rows (non-issue children are ignored). Nothing happens when any child issue has no status, a status without id, or a status not listed in `states`, or when there are no child issues at all. When the target status no longer exists in Jira a warning is logged and the parent is left alone; when the parent already has it nothing happens.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer$SyncApplier#calculateTargetState",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer$SyncApplier#apply"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/transition-choice",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Candidate transitions come from the parent's workflow (`WorkflowManager.getWorkflow(issue)`): the actions of the step linked to the current status whose unconditional result leads to the step linked to the target status, or, if there are none, the workflow's actions with that result (common and global ones); either way only actions allowed for the target state (all, or listed by workflow name and action id). No workflow, no step for the current or target status, or no candidate skips the parent with a log message.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer$SyncApplier#findSuitableActions",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer$SuitableActionFilter#la",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer$SyncApplier#getWorkflow"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/transition-execution",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Candidates are tried in order as the current user: `IssueService.validateTransition(user, issueId, actionId, inputParameters)`, then `IssueService.transition`; the input parameters carry `resolution` = the stored `resolutionId` when one is set. The first one that validates and succeeds wins; when all fail a warning lists the errors and the parent keeps its status.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer$SyncApplier#applyActionsUntilSuccess",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer$SyncApplier#apply"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-status-rollup/audit-actions",
+   "module": "sync-status-rollup",
+   "api": null,
+   "behaviour": "Each successful transition adds one audit action `{\"issue\":{key,id},\"newStatus\":{name,id},\"action\":{\"name\"?,\"id\":<int>},\"oldStatus\":{name,id}}` (in that key order, the action name omitted when null); the run succeeds with all of them in visiting order.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.statusup.ProcessingData#recordAction",
+    "com.almworks.jira.structure.extension.sync.statusup.StatusRollupSynchronizer#sync0"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/descriptor",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Module `sync-links` is a `structure-synchronizer` with order 30, label key `s.ext.sync.links.label` (`Issue Links`), description key `s.ext.sync.links.description` and velocity resource `form` at `/templates/structure/ext/sync/links-form.vm` (no rules key). It supports autosync and undo, and is available exactly when Jira's `IssueLinkManager.isLinkingEnabled()` is true; with linking disabled its link-type list is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#isAvailable",
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#getLinkTypes"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/stored-params",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Stored parameters: `sourceOfTruth` (`jira`|`structure`), `linkTypeId` (long), `childIsLinkSource` (bool), optional `parentFilterId`/`childFilterId` (long) or `parentJql`/`childJql` (string), either `useAllLinks`=true or `expandChild` and `expandParent` (bools), `primacy` (`links`|`structure`|`none`) and `orphanAction` (`remove`|`moveUp`). With `childIsLinkSource` false the parent is the link's source (outward) and the child its destination; with true the child is the source.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncParams",
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/codes",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Reading `primacy` accepts exactly `links`, `structure`, `none` and `orphanAction` exactly `remove`, `moveUp` (case-sensitive); a missing or other value throws `IllegalArgumentException` whose message is `Unknown code for ` + the Java simple name of the code's enum type + the value, with no separators (for `primacy` the message is `Unknown code for Primacy` + value, `null` when missing; for `orphanAction` the enum name is the orphan-action type's name). `sourceOfTruth` follows `SourceOfTruth.fromCode`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.Primacy#fromCode",
+    "com.almworks.jira.structure.extension.sync.links.OrphanAction#fromCode",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncParams#getPrimacy"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/stored-validation",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Stored parameters are valid only when `linkTypeId` is not 0, not both a parent filter id and parent JQL (nor both for the child), not `useAllLinks` together with `expandChild` or `expandParent`, primacy `links` is not combined with source of truth `structure` nor primacy `structure` with `jira`, and the link type exists and is visible to users (`hidden-links-helper`). Invalid parameters give an empty description, no details, no form values and null resync effects, and a run fails with reason `invalid parameters`. Missing `primacy` makes these checks throw the `IllegalArgumentException` above.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncParams#verify",
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#getLinkParams",
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#doSync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/form-type-direction",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Building parameters: form `sourceOfTruth` is read first (`SourceOfTruth.fromCode`, so a missing or unknown value throws `IllegalArgumentException`); form `linktype` (long) must name a link type visible to users, else error `s.sync.links.error.notype` (`Please select a valid link type.`) under `linktype` and null; form `direction` `out` (ignoring case) stores `childIsLinkSource`=false, `in` stores true, anything else adds `s.sync.links.error.nodir` (`Please select a valid link direction.`) under `direction` and returns null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/form-filters",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Form fields `parentfilter` and `childfilter`: `savedFilter` (ignoring case) reads `<prefix>filterid` with the saved-filter field rules and stores `parentFilterId`/`childFilterId`; `jql` reads `<prefix>filterjql` with the JQL field rules and stores `parentJql`/`childJql`; anything else stores no filter. Both filters are checked (errors for both can be reported) and the build returns null when either is rejected.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#setFilter"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/form-scope-primacy-orphans",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Form boolean `useall` true stores `useAllLinks`=true only; otherwise `expandChild` and `expandParent` come from `expandchild` and `expandparent`. Form boolean `useprimacy` true stores primacy `structure` when the source of truth is structure, else `links`; false stores `none`. Form `orphanaction` `remove` (ignoring case) stores `remove`, anything else `moveUp`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/form-defaults-refill",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "A new form gets `expandchild`=true and `sourceOfTruth`=`jira`. Showing valid stored parameters puts `sourceOfTruth`, `linktype`, `direction` (`in` when the child is the link source, else `out`), for each filter `<prefix>filter`=`savedFilter` with `<prefix>filterid`=`filter-<id>` and `<prefix>filtername` (name or `?`) or `<prefix>filter`=`jql` with `<prefix>filterjql`, then `useall`, `expandchild`, `expandparent`, `useprimacy` (primacy is not `none`) and `orphanaction`=`remove` only for the remove action.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#addFormParameters"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/descriptions",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "The description is `s.sync.links.name` (`Links ({0})`) with the link type name. Details, skipping empty texts: `s.ext.sync.source-of-truth.description.short` with the text of `s.ext.sync.source-of-truth.+jira`/`+structure`; the primacy text (`s.sync.links.primacy.links`/`.structure`/`.none`); `s.sync.links.direction-expr` with the type's inward description when the child is the link source, else its outward description; the parent and child filter texts (`s.sync.links.<parent|child>.sf` with the filter name, `.sf.unknown` when the filter cannot be read, `.jql` with the JQL, or `.unfiltered`); the scope (`s.sync.links.scope.all`, `.expand.parent-and-child`, `.expand.parent`, `.expand.child` or `.expand.none`); the orphan action text (`s.sync.links.orphan-action.remove`/`.move-up`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#getConfigDescription",
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#getConfigDescriptionDetails"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/resync-effects",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Possible resync effects: `s.ext.sync.links.effect.addRemoveLinks` first when the source of truth is structure, then always `s.ext.sync.effect.structure.hierarchy`; null for invalid parameters.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#getPossibleResyncEffects"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/run-preconditions",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "A run first checks the owner's EDIT access to the structure (failure `cannot edit structure`), then the parameters (failure `invalid parameters`). On resync a primacy of `none` is treated as `links` when the source of truth is Jira and as `structure` when it is structure.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#doSync",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncParams#fixForResync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/link-model",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Only links of the configured type count; links with a missing source or destination id and links from an issue to itself are ignored. Each link is a parent-child pair as given by `childIsLinkSource`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinkSource$TypeIdFilter#la",
+    "com.almworks.jira.structure.extension.sync.links.LinkSource$ManagerBased#getParentLinks"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/link-scope",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Which links are synchronized: with `useAllLinks`, resync takes every link of the type in Jira (`IssueLinkManager.getIssueLinks(typeId)`) and incremental sync follows links transitively from the changed issues. Otherwise links are followed from the structure's issues (resync) or the changed issues (incremental): a link between two issues of the structure always counts; with `expandChild` a link to a child of an included issue counts and the child becomes included (transitively), with `expandParent` the same towards parents; without expansion only links between issues already in the structure count.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinkCollector$Expand#processLinks",
+    "com.almworks.jira.structure.extension.sync.links.LinkCollector$ResyncAll#collect",
+    "com.almworks.jira.structure.extension.sync.links.LinkCollector$AutosyncAll#processLinks"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/issue-filters",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "An issue can act as a parent only if it matches the parent filter and as a child only if it matches the child filter (saved filter query or JQL, restricted to projects enabled for <product> unless all are); with no filter the Structure-enabled project scope applies. Links whose ends fail these filters are ignored. A filter that cannot be loaded throws a `StructureException` with the plugin's inaccessible-filter error and message `Parent IssueFilter is invalid. ` or `Sub-IssueFilter is invalid. ` (no space between `Issue` and `Filter`, as the original does) followed by Jira's error messages joined with newlines or `Could not load saved filter #<id>`; unparsable JQL gives the plugin's invalid-JQL error with the parser's message in Jira's default locale; a search failure gives the plugin's search error.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.IssueScopeFilter#filter",
+    "com.almworks.jira.structure.extension.sync.links.IssueScopeFilter#getQuery",
+    "com.almworks.jira.structure.extension.sync.links.LinkSyncFilterException"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/missing-parents",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Link parents that are not in the structure and were not reached are handled from the roots of the link graph: with primacy `links` (or `none` unless the root was removed from the structure in this batch) each root is added at the top level after the last top-level row, with its link subtree. With primacy `structure` (and `none` for roots removed from the structure) the links reachable from such a root are removed instead, except that with source of truth Jira links Jira added in this batch are kept.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#processMissingParents",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#removeAllReachableLinks"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/structure-to-jira",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Structure to Jira (primacy other than `links`): a child row whose issue may be a child, under a row whose issue may be a parent and is not already linked to it, makes the synchronizer create the link (never a link of an issue to itself, and not one removed by a structure change in this batch; with primacy `none` not one Jira removed in this batch). With primacy `structure`, links of the type that the structure does not show are removed: links from an issue's other parents (only when that parent is in the structure, unless `expandParent` or `useAllLinks`) and links from a parent to children that are not under its row (only when the child is in the structure, unless `expandChild` or `useAllLinks`). With primacy `none` these removals happen only for issues removed from the structure in this batch.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$SyncOutScan#visitIssue",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$SyncOutScan#visitChildren",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun$SyncOutScan#visitAddLink",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#syncOutScan"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/structure-events",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Incremental sync with primacy other than `links` replays the batch's structure changes: a row moved or added under a new parent row creates the link new parent -> child, a row moved away from or removed under an old parent row removes the link old parent -> child (both only when the issues pass the parent/child filters). With source of truth Jira a link Jira added in the same batch is not removed and a link Jira removed is not re-created; with source of truth structure the structure change wins. Removing a row does not remove its link when neither `expandChild` nor `useAllLinks` is set and the child issue is no longer anywhere in the structure.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#applyStructureEvents",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#addLinkViaStructureEvent",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#removeLinkViaStructureEvent"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/jira-events",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Incremental sync reads link-created and link-deleted events of the configured type (orientation by `childIsLinkSource`), issue-change events, structure-changed rows and previous parent rows; the issues of all of them form the changed set, and only rows of changed or linked issues are examined. A link created and then deleted in the same batch counts as deleted, and vice versa.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#getChanges"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/apply-links",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Link changes are applied at the end in one `bulk-link-processor` transaction as the current `StructureAuth` user (the owner): planned links are created unless one already exists, planned removals remove the existing link. Each change needs both issues to pass `StructurePluginHelper.getIssueError(issue, false, true)` (exist, browsable, project enabled) and the user to hold Jira's `LINK_ISSUES` permission on both; otherwise it is skipped with a warning. The run succeeds with the transaction's description (`createLink`/`removeLink` actions) as its audit actions.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#applyLinkChanges",
+    "com.almworks.jira.structure.extension.sync.links.LinksSyncRun#canLink"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-links/undo",
+   "module": "sync-links",
+   "api": null,
+   "behaviour": "Undo takes audit actions in order: `createLink` is undone by removing the link (failure `linkDoesNotExist` when it no longer exists), `removeLink` by creating it again; an action without `linkTypeId`, `source.id` or `destination.id` gives failure `invalidLink` and any other type `unknownAction`. Failures are the original action with `type` set to the undo type plus `result`=`failure` and `reason`. All changes run in one link transaction as the current user; the result lists, in the original order, the failure entries and the transaction's descriptions of the performed changes (entries the transaction did not report are dropped).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#undo",
+    "com.almworks.jira.structure.extension.sync.links.LinksSynchronizer#describeUndoActionFailure"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/descriptor",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Module `sync-gh` is a `structure-synchronizer` with order 40, label key `s.ext.sync.gh.label` (`Agile`), description key `s.ext.sync.gh.description`, rules key `s.ext.sync.gh.rules` and velocity resource `form` at `/templates/structure/ext/sync/gh-form.vm`. It supports autosync and undo.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#isAutosyncSupported"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/availability",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "The synchronizer is available only when Jira Software is present: its `RankService` can be obtained as an OSGi component and the classes `RankService` and `RankChange` load. When Jira Software is absent it is unavailable, it offers no rank fields and no boards.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#isAvailable",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#createRankAPIAccessor",
+    "com.almworks.structure.commons.agile.RankAPIAccessor"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/stored-params",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Stored parameters always contain `sourceOfTruth` (`jira`|`structure`), `independentRanking` and `subtasks` (bools), `syncEpics` and `syncRank` (bools). Board mode adds `viewId` (long board id); project mode stores `viewId` as JSON null, `projects` (array of project ids) and `rankField` (custom field id string such as `customfield_10019`) when a rank field was chosen, with `syncRank` true exactly when it was. Reading a missing or null `viewId` gives 0 (project mode).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileParamsBuilder",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSyncParams",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#buildParametersFromForm"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/stored-validation",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Stored parameters are usable only when there is something to sync (`syncEpics`, or rank: `syncRank` with a board, or a non-null `rankField` without one) and, in project mode, `projects` is not empty (`Nothing to sync` / `Scope is not specified` are logged as warnings). Unusable parameters give an empty description, no details, no form values and null resync effects, and a run throws a `StructureException` with `StructureErrors.INVALID_PARAMETER` and message `Agile Synchronizer configuration problems`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSyncParams#verify",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#getAgileParams",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#<init>"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/form",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Building parameters: `sourceOfTruth` via `SourceOfTruth.fromCode` (missing throws `IllegalArgumentException`), `independentRanking` and `subtasks` from form booleans. Form `mode`=`rapidview` with a `viewId` gives board mode: `viewId` must parse as a long >= 0, else `s.ext.sync.gh.form.error.badrapidviewfield` under `viewId`; `syncRank` from the form; with neither epics nor rank `s.ext.sync.gh.form.error.nothingtosync.rapidview` under `syncEpics`. Otherwise project mode: `projects` (comma ids) filtered to projects enabled for <product> that the user can browse; none gives `s.ext.sync.gh.form.error.noproject` under field `project`; a non-empty `rankField` must be a Jira Software rank field in scope for all selected projects (for all standard issue types), else `s.ext.sync.gh.form.error.badrankfield` under `rankField`; neither epics nor rank gives `s.ext.sync.gh.form.error.nothingtosync` under `syncEpics`. `syncEpics` is the form value and requires the Jira Software epic service to be available. The map is returned even when errors were added.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#buildParametersFromForm",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#buildProjectParameters",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#buildRapidViewParameters",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#getRankFields"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/form-defaults-refill",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "A new form gets `viewId` = the first board the user sees (when boards are supported and there is one), `syncEpics` = whether the epic service is available, `syncRank`, `independentRanking` and `subtasks` = true and `sourceOfTruth`=`jira`. Showing stored parameters puts `mode`=`rapidview`, `viewId`, `syncRank` (board mode) or `mode`=`classic`, `projects` (ids joined with `,`), `rankField`, then `sourceOfTruth`, `syncEpics`, `subtasks`, `independentRanking`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#addDefaultFormParameters",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#addFormParameters"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/descriptions",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Description: board mode `s.ext.sync.gh.pd.rapidview` with the board name (`?` when unknown) and id; project mode `s.ext.sync.gh.pd.project` with the project's name for one project, `s.ext.sync.gh.pd.n-projects` (count) for several, `?` otherwise. Details: the source-of-truth line, `s.ext.sync.gh.pd.rapidview.epics` when epics are synced, then in board mode `.rapidview.rank` plus the ranking line (`s.ext.sync.gh.desc.ranking.independent`/`.consecutive`) when rank is synced and `s.ext.sync.gh.pd.subtasks` when sub-tasks are forced; in project mode `s.ext.sync.gh.pd.n-projects-full` (names joined with `, `) for more than one eligible project, the sub-tasks line, `s.ext.sync.gh.pd.rank` with the rank field name (`?` unknown, `s.generic.none` when none) and the ranking line when a rank field is set.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#getConfigDescription",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#getConfigDescriptionDetails"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/resync-effects",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Possible resync effects: always `s.ext.sync.effect.structure.hierarchy`; with epics synced and source of truth structure also `s.ext.sync.gh.effect.epic.update` and `.epic.remove`; with rank synced (`syncRank` or a non-empty `rankField`) and source of truth structure, or with the dark feature `almworks.sync.agile.always.hold.rank.invariant` on, also `s.ext.sync.gh.effect.rank`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#getPossibleResyncEffects",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#isAlwaysHoldRankInvariant"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/run-preconditions",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Each run throws `StructureErrors.INVALID_PARAMETER` (`Agile Synchronizer configuration problems`) when Jira Software reports no epic issue type, when in board mode the board's filter query cannot be read for the user or the epic service is unavailable, or when in project mode none of the stored projects is enabled for <product> and browsable. When the epic link type is missing it throws with message `Agile Synchronizer configuration problem: cannot find epic link type`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#<init>",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#createServiceEpicAccessor",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#createEpicAccessor"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/rank-field-and-scope",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "The rank field is the board's rank field (as `gh-integration` finds it) in board mode with `syncRank`, or the stored `rankField` when it is still a rank field for the projects; when none is found rank is not synchronized (warning only). The scope query is the board's filter query, or `project in (<ids>)` ordered by the rank field ascending. Stories are scope issues that are not sub-tasks and not epics; epics are scope issues of the epic type.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#<init>",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#getBaseGreenHopperQuery",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#createStoriesQuery",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#createEpicsQuery"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/permissions",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Changing the structure (epics in, rank in, forced sub-tasks) needs EDIT access to the structure for the owner; without it resync still writes to Jira but leaves the structure alone, and incremental sync fails with reason `cannot edit structure`. In project mode with exactly one project, writing epics needs `EDIT_ISSUES` and writing rank needs `RESOLVE_ISSUES` (Resolve Issues, as the original does) on that project for the current user; boards and several projects skip these checks.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#isSyncInPermitted",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#isSyncOutEpicsPermitted",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#isSyncOutRankPermitted",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#sync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/epic-reads",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "An issue's epic is the issue itself when it is of the epic type, else the source of its first inward epic-link link whose source is an epic, else 0; values are cached for one run. An epic's stories are the destinations of its outward epic-link links that pass `getIssueError(issue, false, true)` and are not sub-tasks, in Jira's link order, limited to stories in scope.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicAccessor#loadEpicOf",
+    "com.almworks.jira.structure.extension.sync.agile.EpicAccessor#getStories"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/epics-out-resync",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Structure to Jira on resync (source of truth structure, epics synced): each story's epic becomes the nearest epic-row ancestor of its first row; a story not under any epic row is removed from its epic only when that epic is in the structure; an epic's stories that appear under no row of that epic are removed from it.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#resync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/epics-out-incremental",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Structure to Jira on incremental sync: an added or copied story row under an epic row sets the story's epic to that epic; a moved story row sets its epic to its nearest epic-row ancestor (removing the epic when there is none); a story row removed from under the row of its own epic removes it from the epic. With source of truth Jira these are skipped for stories whose epic link Jira changed in the same batch.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#onAdd",
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#onMove",
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#onRemove",
+    "com.almworks.jira.structure.extension.sync.agile.EpicsOut#changeEpic"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/epic-writes",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Epic changes are grouped by epic and committed through `gh-integration`'s epic setting as the current user, in batches of `almworks.sync.agile.epics.batch` (dark feature, default 100) changes. Before a group: an epic that is missing gives failure action `{type:changeEpic, epic, result:failure, reason:epicNotFound}`, one of another type `unexpectedEpicType` (with `epicType`), one not editable `cannotEditEpic`; each issue that is missing gives `issueNotFound`, not editable or in a disabled project `cannotEditIssue`. Each applied issue gives `{type:changeEpic, issue, epic, oldEpic, epicLink}` or, removing, `{type:removeFromEpic, issue, oldEpic, epicLink}` (`epicLink` = the epic link type id). Changed issues are reported to `issue-event-bridge` as `ISSUE_UPDATED`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.EpicAccessor#commitEpic",
+    "com.almworks.jira.structure.extension.sync.agile.EpicAccessor#describeAction",
+    "com.almworks.jira.structure.extension.sync.agile.EpicAccessor#changeEpics",
+    "com.almworks.jira.structure.extension.sync.agile.EpicAccessor#sendNotifications"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/ranks-in",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Jira to structure (rank): the scope issues are read in rank order; when at least two exist, the children of each parent row (all parents, or on incremental independent ranking only parents with changes) are reordered so that the rows of scope issues follow that order with the fewest moves; rows of other issues and items keep their places.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.RanksIn#sync",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSyncUtils#rearrangeSameLevelIssues"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/rank-writes",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "A rank move calls Jira Software's `RankService.rankAfter` or `rankBefore` for the rank field as the current user, only when both issues pass `getIssueError(issue, true, true)` (editable, project enabled). Each move adds action `{type:updateRank, issue, newAfter|newBefore, rankField:{name,id}, oldBefore?, oldAfter?}`; a failed move adds the same with `reason` `cannotUpdateRank`, and an issue that cannot be found `issueNotFound`.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.RankActionApplier#moveRank",
+    "com.almworks.jira.structure.extension.sync.agile.RankActionApplier#describeAction",
+    "com.almworks.structure.commons.agile.RankAPIAccessor#moveRank"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/resync-order",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Resync: with source of truth structure, epics and ranks are first written to Jira from the structure; then epics are synced into the structure, sub-tasks forced, and ranks synced into the structure; with source of truth structure, or the dark feature `almworks.sync.agile.always.hold.rank.invariant` on, ranks are written out again from the resulting structure and, for source of truth Jira, read back in. The audit actions are the epic actions then the rank actions.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#resync"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/force-subtasks",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "With `subtasks` and structure edit access, the sub-tasks (all sub-task types) of the stories and epics in scope are placed under their parent rows as `sync-subtasks` does, in the same run.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer$Sync#forceSubtasks"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/undo",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "Undo first reverts epic actions (`changeEpic`/`removeFromEpic`): each sets the issue's epic back to `oldEpic` (failure `invalidAction` when issue or old epic is missing; already failed actions are skipped), through the same epic writes. Then rank actions are undone in reverse order, moving the issue after `oldAfter` or else before `oldBefore` with the field `rankField.id`; failures `rankFieldNotFound`, `invalidAction`, `cannotAccessIssue`, `cannotAccessTargetIssue`. Reordered issues are reported as `GH_RANK_UPDATED`. Actions that could not be handled are summarized as failures with `notUndoneActions` (reason from the epic setup or `cannot access Agile rank API`) or `notUndoneActionsByType` (`unknown Agile actions`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#undo",
+    "com.almworks.jira.structure.extension.sync.agile.EpicAccessor#undo",
+    "com.almworks.jira.structure.extension.sync.agile.RankActionApplier#undo",
+    "com.almworks.jira.structure.extension.sync.agile.AgileSynchronizer#reportUnconsumedActions"
+   ]
+  },
+  {
+   "key": "e13-synchronizers/sync-gh/undo-rank-continues",
+   "module": "sync-gh",
+   "api": null,
+   "behaviour": "When undoing a rank action whose issue cannot be found, the failure `cannotAccessIssue` is recorded but the move is still attempted and a success entry is also recorded; the outcome of the rank move is not checked during undo (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.sync.agile.RankActionApplier#undo"
+   ]
+  }
+ ]
+}

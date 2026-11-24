@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from telemetry.runclock import RunClock as _RunClock
 from ui_server import safefs, store
 
 SCHEMA_VERSION = 1
@@ -64,8 +65,8 @@ SOURCE_LABELS = {"agent_stream": "Agent", "orchestrator": "Run", "guardrail": "G
 TERMINAL_BAD = {"KILLED", "BUDGET_EXHAUSTED", "FAILED", "INTERRUPTED"}
 
 _BAD_CHARS = {chr(i) for i in range(0x20)} | {chr(0x7F)}
-_BIDI = dict.fromkeys(map(ord, "​‌‍‎‏‪‫‬‭‮"
-                          "⁦⁧⁨⁩﻿  "), None)
+_BIDI = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u202d\u202e"
+                          "\u2066\u2067\u2068\u2069\ufeff\u2028\u2029"), None)   # escaped: editors strip U+2028/9
 
 
 def sanitize(text: Any, cap: int = SUMMARY_CAP) -> str:
@@ -86,39 +87,14 @@ def ts_epoch(ts: Any) -> float | None:
         return None
 
 
-class RunClock:
-    """Run-offset seconds from wall time, from the ``run.clock`` events (``offset_s`` > 0 after a resume)."""
-
-    def __init__(self):
-        self.marks: list[tuple[float, float]] = []   # (start_epoch, offset_s), in order
-
-    def add(self, start_epoch: Any, offset_s: Any = 0.0) -> None:
-        if isinstance(start_epoch, (int, float)) and not isinstance(start_epoch, bool):
-            off = offset_s if isinstance(offset_s, (int, float)) and not isinstance(offset_s, bool) else 0.0
-            mark = (float(start_epoch), float(off))
-            if mark not in self.marks:
-                self.marks.append(mark)
-                self.marks.sort()
+class RunClock(_RunClock):
+    """Run-offset seconds from wall time, from the ``run.clock`` events (``offset_s`` > 0 after a resume).
+    None before the run started (and with no clock yet)."""
 
     def t_s(self, epoch: float | None) -> float | None:
-        if epoch is None or not self.marks:
+        if epoch is None or not self.marks or epoch + 0.5 < self.marks[0][0] + self.marks[0][1]:
             return None
-        cur = None
-        for start, off in self.marks:
-            if start <= epoch + 0.5:
-                cur = (start, off)
-        if cur is None:
-            return None
-        return round(epoch - cur[0] + cur[1], 3)
-
-    @classmethod
-    def from_events(cls, events) -> RunClock:
-        c = cls()
-        for ev in events:
-            if ev.get("type") == "run.clock":
-                p = ev.get("payload") or {}
-                c.add(p.get("start_epoch"), p.get("offset_s"))
-        return c
+        return round(super().t_s(epoch), 3)
 
 
 _CLOCK_CACHE: dict[str, tuple[tuple[int, int], RunClock]] = {}

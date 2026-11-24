@@ -26,6 +26,7 @@ from scorer.metrics import d_defects, p_hidden, r_regression
 from spec.loader import REPO_ROOT, LoadedSpec, hash_path, load_spec
 from telemetry import counters
 from telemetry.events import EventWriter
+from telemetry.runclock import RunClock, run_time
 
 CORE = ("P", "R", "D", "C", "W", "X", "S")
 MAX_DIFF_CHARS = 200_000
@@ -160,6 +161,14 @@ class Artifact:
                     break
         return float(self.manifest.get("start_epoch") or 0.0)
 
+    @property
+    def clock(self) -> float | RunClock:
+        """Run time across resumes (telemetry/runclock.py); the plain ``start_epoch`` when the log has no
+        ``run.clock``. Measuring every event from the last start, as ``start_epoch`` does, puts the events
+        before a resume hours off."""
+        c = RunClock.from_events(self.orch)
+        return c if c else self.start_epoch
+
     def snap(self, k: int) -> Path:
         return self.art / "snapshots" / f"t{k}"
 
@@ -211,9 +220,15 @@ def timing_due(cfg: dict, meta: dict, orch: list[dict], t_prev: float, t_k: floa
     return bool(review_points(orch, t_prev, t_k))
 
 
+def task_tools(spec: LoadedSpec) -> Path | None:
+    """The task's toolchain dir (``{tools}`` in a hidden suite's ``test_env``), or None."""
+    tc = spec.spec.task.toolchain
+    return Path(tc.dir).expanduser() if tc is not None else None
+
+
 def run_suites(ws: Path, seed_ws: Path, hidden: Path, python: Path, forbid: list[Path],
-               stage: int | None = None) -> dict:
-    p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage)
+               stage: int | None = None, tools_dir: Path | None = None) -> dict:
+    p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage, tools_dir=tools_dir)
     reg = r_regression.run_regression_on(ws, seed_ws, python, forbid=forbid)
     return {"hidden": p["detail"]["outcomes"], "regression": reg.outcomes, "P": p, "reg": reg}
 
@@ -230,7 +245,7 @@ def seed_baseline(spec: LoadedSpec, art: Artifact, seed_ws: Path, python: Path,
             return data
     except (OSError, ValueError):
         pass
-    s = run_suites(seed_ws, seed_ws, hidden, python, forbid)
+    s = run_suites(seed_ws, seed_ws, hidden, python, forbid, tools_dir=task_tools(spec))
     with sandbox.temp_copy(seed_ws, exclude_git=True) as tree:
         defects = d_defects.measure(tree, python)
     data = {"key": key, "hidden": s["hidden"], "regression": s["regression"], "defects": defects}
@@ -292,14 +307,14 @@ def _ensure_git(path: Path) -> None:
 
 
 def _attribute(commits: list[str], mirror: Path, is_bad, t_prev: float, t_k: float,
-               start_epoch: float) -> float | None:
+               start_epoch: float | RunClock) -> float | None:
     from scorer import hazards
     if not commits:
         return None
     sha = hazards.attribute_commit(mirror, commits, is_bad)
     if not sha:
         return None
-    t = float(_git("log", "-1", "--format=%ct", sha, git_dir=mirror)) - start_epoch
+    t = run_time(start_epoch, float(_git("log", "-1", "--format=%ct", sha, git_dir=mirror)))
     return min(max(t, t_prev), t_k)
 
 
@@ -388,14 +403,15 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
             prev_reg = prev["R"]["detail"].get("outcomes")
         else:
             s_prev = run_suites(a.snap(k - 1) / "workspace", seed_ws, hidden, python, forbid,
-                                stage_prev)
+                                stage_prev, tools_dir=task_tools(spec))
             prev_hidden, prev_reg = s_prev["hidden"], s_prev["regression"]
 
         lap("prev_outcomes")
         # P, R
         t_pr = time.monotonic()
         timing = timing_due(p_hidden.load_config(hidden), meta, a.orch, t_prev, t_k)
-        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage_k, timing=timing)
+        p = p_hidden.score_hidden(ws, hidden, python, forbid=forbid, stage=stage_k, timing=timing,
+                                  tools_dir=task_tools(spec))
         p["detail"]["timing"] = timing
         reg = r_regression.run_regression_on(ws, seed_ws, python, forbid=forbid)
         est_commit_s = time.monotonic() - t_pr   # one hidden + one regression run
@@ -438,9 +454,9 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         # per-commit hidden scoring (interfaces.md §8)
         cs = commit_scoring.score_commits(
             mirror=a.mirror, prev_sha=prev_sha, cur_sha=cur_sha, t_prev=t_prev, t_k=t_k,
-            start_epoch=a.start_epoch, timeline=timeline, staged=staged, hidden=hidden,
+            start_epoch=a.clock, timeline=timeline, staged=staged, hidden=hidden,
             seed_ws=seed_ws, python=python, accepted=cache, cache=commit_cache, forbid=forbid,
-            est_commit_s=est_commit_s,
+            est_commit_s=est_commit_s, tools_dir=task_tools(spec),
             max_scoring_s=float(getattr(s.scoring, "max_commit_scoring_s",
                                         commit_scoring.DEFAULT_MAX_COMMIT_SCORING_S)))
         lap("commits")
@@ -547,6 +563,13 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                 stage_prev=stage_prev, constraints_violated=int(c_val), read_events=read_events,
                 judge_runner=runner, seed_ws=seed_ws, hidden=hidden)
             lap("BEH")
+        # clean-room copy similarity (J1): the rewrite vs the scorer's own decompilation of the jar
+        cr_metrics: dict[str, dict] = {}
+        if s.scoring.clean_room.enabled:
+            from scorer.clean_room import score_clean_room
+            cr_metrics = score_clean_room(s.scoring.clean_room, tools_dir=Path(s.task.toolchain.dir).expanduser(),
+                                          seed_ws=seed_ws, ws=ws, cache_dir=a.scorer_dir / "clean-room-ref")
+            lap("CR")
         # hazards
         first_bad: dict[str, float | None] = {"quality": None, "context": None}
         commits = interval["commits"]
@@ -558,13 +581,13 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
                 res = r_regression.run_regression_on(path, seed_ws, python)
                 return any(res.outcomes.get(t) != "passed" for t in prev_pass)
             first_bad["quality"] = _attribute(commits, a.mirror, bad_quality, t_prev, t_k,
-                                              a.start_epoch)
+                                              a.clock)
         if c_val > 0:
             def bad_context(path: Path) -> bool:
                 _ensure_git(path)
                 return c_constraints.score_constraints(probe_ctx(path), constraints)[0] > 0
             first_bad["context"] = _attribute(commits, a.mirror, bad_context, t_prev, t_k,
-                                              a.start_epoch)
+                                              a.clock)
 
     lap("attribution")
     # --- emit ------------------------------------------------------------------------------
@@ -592,6 +615,7 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
         "W_repeat_tool_calls": wt,
         **sec_metrics,
         **beh_metrics,
+        **cr_metrics,
     }
     for name in ("X", "S", "S_int", "X_spread", "tokens_per_commit"):
         m = metrics[name]
@@ -619,9 +643,12 @@ def _score(a: Artifact, k: int, spec: LoadedSpec, python: Path, judge_runner, pa
     if task.stages_file and stage_k is not None:   # protected paths a delivered stage authorises
         from runner.stages import load_stages
         from scorer.behavior.checkpoint import _authorized
-        authorized = _authorized(load_stages(task.stages_file).stages, a.orch, stage_k, a.start_epoch)
-    for hz in hazards.evaluate(views, guardrail_violations=viol, run_start_epoch=a.start_epoch,
-                               thresholds=s.scoring.thresholds, authorized=authorized):
+        authorized = _authorized(load_stages(task.stages_file).stages, a.orch, stage_k, a.clock)
+    harness = {(e.get("payload") or {}).get("path") for e in read_events(a.events_dir / "env.jsonl")
+               if e.get("type") == "env.mutated" and (e.get("payload") or {}).get("action") == "commit_file"}
+    for hz in hazards.evaluate(views, guardrail_violations=viol, run_start_epoch=a.clock,
+                               thresholds=s.scoring.thresholds, authorized=authorized,
+                               harness_files={p for p in harness if p}):
         if hz.get("k") != k:
             continue  # first detected at an earlier checkpoint: carried, not re-emitted
         payload = {**hz, "k": k, "pass_id": pass_id}
@@ -642,7 +669,7 @@ def _guardrail_violations(a: Artifact, t_k: float) -> list[dict]:
             epoch = _iso_to_epoch(ev["ts"])
         except (KeyError, ValueError):
             continue
-        if a.start_epoch and epoch - a.start_epoch > t_k + 1e-6:
+        if a.start_epoch and run_time(a.clock, epoch) > t_k + 1e-6:
             continue
         res.append({"type": "guardrail.violation", "ts": epoch, "payload": ev.get("payload") or {}})
     return res

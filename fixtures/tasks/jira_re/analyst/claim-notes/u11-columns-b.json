@@ -1,0 +1,1886 @@
+{
+ "claims": [
+  {
+   "key": "u11-columns-b/widget-bare/formula-type-options",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Column type key `formula`, type name 'Formula'. Its settings panel is the wide, resizable kind and has a link to the plugin's documentation on formulas. The options are, in order: Saved Column; the formula editor, which has no text label of its own (where a label would be there is only the debug toggle); the sum-over-sub-items option under the title 'Options', always applicable; and the display format option.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-own-attribute-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A formula column's own attribute spec is `{\"id\": \"expr\", \"format\": \"json\", \"params\": {\"formula\": <text, \"\" when absent>, \"variables\": <copied map>}}`. Only variable entries are copied whose name is a non-empty string containing a letter or `_` (a match of `[a-zA-Z_][a-zA-Z_0-9.]*` anywhere in the name) and whose value is an object with a string `id`; other entries are dropped from the request but not from the column's settings.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-sum-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With `aggregate` = `sum`, the formula sent as the own spec is wrapped as `WITH summable = (<formula>): IF summable.IS_ARRAY(): SUM(summable) ELSE summable`, so an array result is summed first. The main attribute spec then is `{\"id\": \"sum\", \"format\": \"number\", \"params\": {\"attribute\": <own spec with format any>, \"distinct\": true only when the column's `distinct` is set}}`, and a further `{\"id\": \"value-expand\", \"format\": \"json\", \"params\": {\"attribute\": <the sum spec>}}` is used to read the aggregated cell value.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn",
+    "amd:structure/widget/columns/SummableColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-display-format-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The column's display format is `params.displayFormat`, falling back to the older `params.numberFormat`. With no format, or one without `type`, no formatted spec is requested. With type `wiki` the formatted spec is `{\"id\": \"wiki-render\", \"format\": \"html\", \"params\": {\"attribute\": <base spec with format text>}}`. With any other type it is `{\"id\": \"formatted-number\", \"format\": \"text\", \"params\": {\"attribute\": <base spec with format any>, ...every field of the display format}}`. One formatted spec is built for the own value and, for a summing column, one for the sum.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-required-attributes",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A formula column subscribes, for its column's forest spec (`params.forestSpec` when set), to: the main attribute spec, the own spec, the formatted main spec when there is one, the value-expand spec when summing, and the formatted own spec when there is one.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-cell-value-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "How one formula value is rendered: if a formatted spec exists and it has a non-empty value, that value is shown (raw HTML for `wiki`, escaped text otherwise). Otherwise the JSON value is read: a bare number shows as that number; nothing shows as an empty cell; `{\"error\": <code>}` shows an error lozenge; `{\"undefined\": true}` shows an empty cell; `{\"value\": n}` with a number shows it; `{\"value\": s}` with a string shows it escaped; anything else is empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-cell-own-and-aggregated",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A formula cell combines two values the same way as every summing column: the aggregated value (formatted sum, or value-expand of the sum, or the plain value when not summing) and the row's own value; the own value is shown beside it only when the two differ after trimming their markup.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn",
+    "amd:structure/widget/ui/column/ColumnUtil"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-cell-error-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A formula error lozenge shows a short label and a tooltip chosen by error code: 1 `???` 'The formula could not be parsed'; 2 `func?` 'The formula contains unknown function'; 3 `args?` 'One of the functions was called with an incorrect number of arguments'; 4 `div/0` 'There was division by zero or some other arithmetic problem'; 5 `var!` 'One of the variables produced an error'; 6 `func!` 'A function failed while executing'; 7 `type?` 'A value could not be converted to the numeric format'; 8 `regex?` 'A regular expression used is malformed'; 9 `error!` 'An internal error prevented the calculation'; 10 `value!` 'A value was invalid'; 11 `aggr?` 'The formula contains an unknown aggregate function or an invalid aggregate function modifier'; 12 `limit!` 'Formula exceeded the execution or stack depth limit.'; 13 `array!` 'An array size exceeds limit'. Any other code shows `error` with 'The formula could not be calculated'. The numeric code stays available on the lozenge.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-sort-suggested",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A formula column sorts descending by default. Its sort attribute is the main attribute spec, with format `order` when that spec's format is `json` (a summing column keeps the sum spec and its `number` format). For a non-summing column the attribute offered to other features is the main spec with format `duration` for a duration display format, `text` for `wiki`, `number` for any other display format, and `text` when there is none, and with the formula text exactly as written in the column.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-default-name",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A formula column's default name is the trimmed formula when it is 1 to 20 characters long, otherwise 'Formula'. A summing column gets the prefix 'Σ ': formula `a+b` with sum shows 'Σ a+b'; a 21-character formula shows 'Formula'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn",
+    "amd:structure/widget/columns/SummableColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-clarified-name",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Where an existing column is listed as a source of an attribute, its name is shown as `<name> (Formula)`. If the column's name is the plain 'Formula', the name is replaced by the formula with white space runs collapsed to one space and cut to 20 characters (17 characters plus `...` when longer), or by 'Empty' when there is no formula text.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-presets",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Add Column offers 'Formula...' in group `advanced`, opening the settings at once, with spec `{\"key\": \"formula\", \"params\": {\"formula\": \"\"}}` (also the preset used to switch another column's type to formula), followed by the presets made from the bundled saved columns.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-bundled-presets",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each saved column of list `bundled/bundled` becomes an Add Column preset in group `formulas` with its name and description and params = the column's params plus `savedColumn` = its composed id. A column flagged `shouldOpenConfigurator` opens the settings on adding, shows as '<name>...' and has its variables filled in automatically as soon as its formula has been validated. A column flagged `featured` is also listed, first, in group `featured`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/formula-saved-list-metadata",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Everything about the formula column type (presets, settings, cells) waits for the single page-wide load of saved columns (see the saved-column list load claim).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaColumn",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-panel-content",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The formula editor has a monospaced text area with placeholder 'Enter formula' overlaid by a read-only highlighted view of the same text, a help link 'Formula language documentation' to the plugin's documentation that opens a new window and is skipped by the Tab key, a status icon, and links. When not editing the links are 'Full-screen' and 'Edit'; when editing they are 'Save' and 'Cancel'. Below is a 'Variables' section. The browser's auto-correct, auto-capitalise, auto-complete and spell-check are off on the text area.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-gadget-no-fullscreen",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In a dashboard gadget the 'Full-screen' link is hidden; everything else stays.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-enter-edit-mode",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Edit mode starts when the text area gets focus, when 'Edit' is clicked (focus goes to the text area), when Enter is pressed outside edit mode, or when the highlighted view is clicked. A click in the view places the caret at the clicked character, unless the click made a text selection (then nothing happens, so text can be copied from the view). A click on a variable, local name, function or aggregation does that element's action, and does not start editing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-keys",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In the text area: Enter outside edit mode starts editing; Enter in edit mode inserts a line break; Shift+Enter saves the formula and leaves edit mode. Escape in edit mode is swallowed and does nothing: it neither cancels the edit nor reaches the surrounding panel or dialog. Enter never reaches outer key handlers from the text area.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-blur-saves",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Leaving the text area saves the edit 50 ms later. Focus coming back to the text area within that time cancels the save. Focus moving to 'Save' or 'Cancel' also holds the save off, so 'Cancel' can win; leaving those links without activating them then saves after 50 ms.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-save-cancel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Save' makes the edited text the formula and leaves edit mode. 'Cancel' restores the text to the last saved formula and leaves edit mode. Neither does anything outside edit mode. In the full-screen editor these two links read 'Done' and 'Revert'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-saving-updates-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Saving changed text writes `params.formula` (empty text is stored as empty), marks the formula as changed by the user, and deletes `params.normalizedFormula` if the column had it. Saving identical text changes nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-external-change",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the column's settings change from elsewhere (saved column loaded, revert, panel refresh), the option takes the formula from the column; variables from the column are merged over the ones it already remembers, without dropping others; and if edit mode is on, the text being edited is replaced by the column's formula.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-validate-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each time the saved formula changes and is not blank, the UI sends `POST /rest/structure/2.0/expr/validate` with body `{\"expr\": <formula>}`, a 30 000 ms timeout and no `definedVariables`. An answer for a formula that is no longer the current one is ignored. A blank formula sends nothing and shows no status. Validation also runs once for the formula a column already has when the option is created.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-validation-failed",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the validate request fails, the formula stays shown as plain text and the status stays at the 'Validating the formula...' spinner, with the variable list locked, until the text is changed (as the original does). Closing the panel is not held back by this.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-status-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The status beside the formula: while editing, nothing; blank formula, nothing; no answer yet, spinner titled 'Validating the formula...'; `valid` false, error icon titled 'Cannot parse formula - please hover over the red marks for a detailed error'; `resolved` false, error icon titled 'Cannot resolve some of the functions used - please see the highlighted functions'; any free variable with no attribute, warning icon titled 'Some of the used variables are not defined'; otherwise check icon titled 'The formula is ready for use'. The conditions are tested in this order.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-readiness",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While a validation is running the option reports not ready. Closing the column settings or submitting the attribute editor waits for it, at most 2000 ms, so variables assigned automatically reach the column first.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/WidgetConfig",
+    "amd:structure/widget/ui/column/EditColumnPanel"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-highlight-kinds",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With a validation answer for the current text, the view shows the formula with each range marked by kind: free variable (defined, or undefined when it has no attribute yet), local variable declaration, local variable use, known function, unknown function, known aggregation, unknown aggregation, comment, and error. Text outside ranges is plain and escaped. Without an answer the view shows the plain text.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaViewBuilder",
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-highlight-ranges",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Ranges of the answer are ignored unless `from` and `to` are numbers with 0 <= from < to <= the usable length. The usable length is the formula length, or `errorIndex` (capped at the length) when there is one. Ranges are applied in order of `from`; one starting before the end of the previous one is skipped with a console warning. A range with `error` is marked as failed and shows that message as its tooltip.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaViewBuilder"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-parse-error-mark",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the answer has a numeric `errorIndex`, the text from there to the end is marked as an error, or, when the error is at the very end, a one-space marker is. Its tooltip is 'Cannot parse expression, expected: <tokens>'. The tokens are the `expectedTokens` of 2 or more characters in their order, then the one-character ones joined by spaces as 'characters <list>', all joined by ', '. Example: tokens `identifier`, `(`, `-` give 'Cannot parse expression, expected: identifier, characters ( -'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaViewBuilder"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-local-variables",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Every local declaration gets its own identity, so two declarations with the same text are told apart. The implicit `$` variable counts as a declaration at offset 0 that draws nothing. Hovering a use of a local variable highlights its declaration and all its uses until the mouse leaves. Clicking a use scrolls the view so the declaration is visible, makes it stand out for 500 ms and closes any open variable editor. Clicking a declaration only closes the open variable editor.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaViewBuilder",
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-tooltips",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Elements of the view that have an error message or a debug value show it in the shared tooltip, as HTML for debug values and as plain text otherwise. Tooltips are set up one tick after the option is created, over the whole option.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/FormulaViewBuilder",
+    "amd:structure/widget/columns/formula/TinyStateMachine",
+    "amd:structure/widget/ui/Tooltip2"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-scroll-sync",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The text area and the highlighted view scroll together while editing, and each mode change copies the scroll position across, again one tick later in case the browser reset it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/vars-list-derivation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The variable list holds each free variable of the validation answer once, in order of first appearance, shown as first typed in the formula, keyed by its canonical `name`. Local variables are not listed. Ranges cut off by a parse error do not count, so only variables before the error are listed. Each row has a check icon when the variable has an attribute and a warning icon when not, and is a link.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaViewBuilder",
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/vars-comment-text",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Under the list a comment reads: while editing or validating 'Variable list will be updated when formula editing is done.'; on a parse error 'Please fix the formula to edit variables.'; with no variables 'None'; with one 'One variable used. Click the variable to define it.'; with n 'n variables used. Click a variable to define it.'",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/vars-locked",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "While editing, validating or after a parse error, the list is covered: clicks do nothing and the cover's tooltip is 'Variables cannot be defined while the formula is being updated or validated.'. A resolve error or undefined variables do not lock it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/vars-edit-open",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Clicking a variable in the list or in the formula opens its editor in place of the list: the name as clicked, the shared attribute editor (with the primary format of the chosen attribute) and a link '< Back to Variable List'. The editor starts from the variable's attribute, else its automatic attribute, else empty. Clicking the variable already open does nothing. Starting to edit the formula closes the variable editor.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/vars-edit-commit",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each valid attribute spec produced by the attribute editor is stored at once for that variable name and turns its icon into the check. Choosing a different attribute id records the local usage statistic `formula.var.<attribute id>`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/vars-stored-only-used",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "`params.variables` of the column holds only variables the current formula uses. Attributes of variables removed from the formula stay remembered while the option is open, and come back when the variable is typed again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/vars-auto-assign",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After a validation answer, if the formula was changed by the user (or the column came from a preset that asks for it), each variable with no attribute gets its automatic attribute when one is found, and records statistic `formula.var.<attribute id>`. A formula merely opened for viewing is not auto-filled, so an undefined variable stays undefined.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/defaultvars-field-lookup",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The automatic attribute of a variable name (always the canonical lower-case name) is searched in this order: Jira issue fields, then built-in names, then `total`/`sum` prefixes. A field is found by a fixed alias, else by lower-cased field id, else by field name: lower-cased, split into runs of `[a-z0-9]`, with a run that is just `s` dropped, then either joined with nothing or with `_`. So 'Story Points' answers to `storypoints` and `story_points`, and 'Fix Version/s' to `fixversion` and `fix_version`. When two fields give the same name, the later field in Jira's list wins.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/DefaultVariables"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/defaultvars-aliases",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Fixed field aliases: `affects_versions`, `affects_version`, `affectsversions`, `versions_affected`, `versionsaffected`, `affected_versions`, `affectedversions` mean the field `versions`; `versions`, `version`, `fix_versions` mean `fixVersions`; `type` means `issuetype`; `estimate` and `remaining` mean `timeestimate`; `original` means `timeoriginalestimate`; `spent` means `timespent`; `due` means `duedate`. A field whose name gives the same text replaces a fixed alias. With Jira Software, the Epic Link custom field also answers to `epic`, `epic_link` and `epiclink`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/DefaultVariables"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/defaultvars-field-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A custom field gives `{\"id\": \"customfield\", \"params\": {\"fieldId\": <numeric id>}}`. A system field gives `{\"id\": <the attribute id the field table lists for it, else the field id>}`. Either gets the `format` that is the attribute's primary format in the attribute registry, when it has one. The field list comes from the Jira fields of the widget configuration and is built once, retrying while the list is empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/DefaultVariables",
+    "amd:structure/widget/jira/Fields"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/defaultvars-builtin-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Built-in names with their attribute id and format: `itemtype` itemtype text; `level` level number; `itemid` itemid text; `item` item any; `issueid` issueid number; `notes` itemProperty with params `{\"name\": \"notes\"}` text; `done` done boolean; `editable` editable boolean; `statuscategory` status-category text; `version_start_date` version-start time; `version_release_date` version-release time; `version_description` version-description text; `sprint_start_date` sprint-start time; `sprint_end_date` sprint-end time; `sprint_goal` sprint-goal text; `parent` parent any; `epicstories` epicStories any; `worklogs` worklogs any; `issuelinks` issuelinkobjects any; `remotelinks` remoteissuelinkobjects any; `subtasks` subtasks any; `comments` comments any; `attachments` attachments any; `history` and `changehistory` history any.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/DefaultVariables"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/defaultvars-builtin-aliases",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Aliases of built-in names: `item_type` is `itemtype`; `depth` is `level`; `this` is `item`; `status_category` is `statuscategory`; `parenttask` and `parent_task` are `parent`; `stories`, `epic_stories`, `storiesinepic`, `issuesinepic` are `epicstories`; `worklog` and `worklogged` are `worklogs`; `issue_links` is `issuelinks`; `remote_links` is `remotelinks`; `sub_tasks` is `subtasks`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/DefaultVariables"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/defaultvars-total-prefix",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A name that starts with `total` or `sum` (one leading `_` of the rest is ignored) is resolved by looking up the rest; if that gives an attribute of format `number` or `duration`, the result is `{\"id\": \"sum\", \"format\": <same format>, \"params\": {\"attribute\": <that attribute>}}`. So `total_story_points` sums Story Points when it is a number field, and `totalsummary` gives nothing, since summary is text. Any other name gives no attribute.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/DefaultVariables"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-resize-panel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In the column settings on a project page or a structure board, the formula box and the variable editor can be resized by a bottom corner handle (bottom-right when the panel sits on the right, otherwise bottom-left). Width is between the box's minimum and the room left in the panel; the two boxes keep the same width while dragging; height is only resized on the formula box and has no maximum.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/ui/column/ColumnUtil"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-resize-remembered",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "After a resize the width and (for the formula box) height are remembered per view and per column, in the user's stored view settings, in the same place as other settings of the column panel. On opening again the stored width is used when above the minimum, capped to the room left, and the stored height when above the minimum.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/ui/view/UserSettings"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/editor-resize-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In the full-screen editor the formula box can be resized only downwards, by a bottom handle.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/dialog-open",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Full-screen' records statistic `formula.openFullSizeEditor`, closes any variable editor and opens a large modal titled 'Formula Editor' on a private copy of the column's settings, with the same Formula option, buttons 'Save' and 'Cancel' and focus on 'Cancel'. Jira's keyboard shortcuts are off inside it. The grid's debug row highlight of the panel beneath is removed until it closes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog",
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/dialog-save",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Save' copies the dialog's saved formula and variables into the option underneath and closes. Text still open for editing in the dialog is only included if it was saved first ('Done', Shift+Enter or leaving the text area). Enter with focus on the page body also saves.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/dialog-cancel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Cancel' closes without keeping anything and without asking. Escape anywhere in the dialog asks for confirmation, 'All changes will be lost. Are you sure you want to close the editor?'; only Confirm closes it. Escape inside the text area in edit mode is swallowed by the text area instead.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog",
+    "amd:structure/widget/columns/formula/FormulaOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/dialog-close-effects",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Closing removes the dialog's key handling, ends the dialog's option and its debugging, and restores the debug row highlight of the option underneath.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog",
+    "amd:structure/widget/columns/formula/FormulaDebuggingInfo"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/debug-toggle",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A bug-icon toggle at the top of the formula editor is shown only where debugging is possible, that is, in the structure widget with a focused panel. Its title is 'Start debugging the formula' when off and 'Stop debugging the formula' when on. Clicking it does not reach the label. The toggle starts off and goes off when the option closes.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/FormulaDebuggingInfo",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/debug-section",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When on, a section above the formula appears with a row picker, placeholder 'Select a row...', and the hint 'Select a row and hover over the highlighted elements to see its current value.'. Turning it off hides the section; the last chosen row stays chosen while the option is open.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaDebuggingInfo",
+    "amd:structure/widget/columns/formula/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/debug-row-list",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The row picker lists the rows currently displayed in the focused panel, in display order, as '<key>: <summary>', or just the key or summary part that exists; rows with neither are left out. Key and summary are the values already loaded for the grid, so rows not yet loaded are missing. The list ends with an unselectable line 'To load more rows: scroll structure and try again'. The list is computed each time it opens.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaDebuggingInfo"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/debug-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With debugging on and a row chosen, the UI subscribes through the shared attribute subscription, for the panel's displayed forest spec and only that row, to `{\"id\": \"expr\", \"format\": \"json\", \"params\": {\"formula\": <saved formula>, \"debug\": true, \"variables\": <used variables, copied as for the column>}}`. It asks for nothing otherwise. A change of formula or variables clears the shown values and re-requests. New values for the row are applied as they arrive.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaDebuggingInfo"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/debug-values-shown",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The debug answer is `{\"expr\", \"values\": [{\"from\", \"to\", \"executions\": [{\"context\", \"value\"}]}]}`, see `expr-attribute`. It is used only when its `expr` equals the saved formula. An element of the view whose range is exactly `from`-`to` of an entry with at least one execution is marked as debuggable, and its tooltip lists, for each execution, the context (when present) and the value, as HTML. Entries with no matching element show nothing; ranges outside the formula are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaViewBuilder",
+    "amd:structure/widget/columns/formula/FormulaOption",
+    "amd:structure/widget/columns/formula/FormulaDebuggingInfo"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/debug-row-highlight",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The chosen row is highlighted in the grid, for the column being configured only, and the highlight survives a change of columns. It moves when the row changes and goes when debugging stops or the option closes. Only the affected rows are repainted.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaDebuggingInfo",
+    "amd:structure/widget/columns/formula/FormulaColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/attr-option",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In the attribute editor (attribute id `expr`) the same formula editor is used, with the formula and variables kept in the attribute's params, plus the link 'Load Formula...' beside the other links, shown when not editing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaAttributeOption",
+    "amd:structure/widget/columns/formula/templates",
+    "amd:structure/widget/ui/attribute/desc/FormulaDescriptor"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/attr-load-dropdown",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Load Formula...' opens the tabbed list of saved columns of type `formula`, one tab per list, each sorted by name. Selecting one records the same statistics as the saved-column dropdown.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaAttributeOption",
+    "amd:structure/widget/columns/saved/SavedColumnDropdown"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/attr-load-confirm",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Selecting a saved formula applies its `formula` and `variables` at once, and returns to the variable list, when the formula box is blank or holds an unchanged saved formula. Otherwise a confirmation asks 'Do you really want to load \"<name>\" in the Formula field? Current values will be lost.'; nothing changes unless confirmed.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaAttributeOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/attr-load-matching",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On opening, the option treats the formula as a loaded saved column when a `formula` saved column has exactly the same formula text and variables (missing variables equal to `{}`). Any later change to formula or variables that makes them differ ends this.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaAttributeOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-type",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Column type key `notes`, type name 'Notes', group `structure`. Add Column offers 'Notes (Default)' (params `{}`), 'Create new note...' (params `{\"mode\": \"create\"}`) and 'Existing note...' (params `{\"mode\": \"select\"}`), the last two opening the settings at once. Switching another column to this type uses `{\"key\": \"notes\"}`. Notes work on every item type, not only issues.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-attribute",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The column shows the note `params.note`, or the default note `notes` when absent. While `params.mode` is `create` or `select` no note is chosen: no attribute is requested, cells are empty, there is no sorting and cells cannot be edited. Otherwise the attribute spec is `{\"id\": \"itemProperty\", \"params\": {\"name\": <note id>}, \"format\": \"text\"}`, the sort attribute is the same with format `order`, and cell text is HTML-escaped.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-name",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The column's default name is the loaded note's name, else 'Notes'. In the settings it is the note selected in the picker, else 'Notes'. For an archived note the name comes from the server with its suffix, for example 'Risk (Archived)'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteColumn",
+    "amd:structure/widget/columns/note/NoteOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Before a column with a chosen note is shown, the UI loads it with `GET /rest/structure/2.0/note/{noteId}`, once per note per page: answers are cached and a request in flight is shared. An error answer is treated as no note; it is not cached, so it is tried again next time.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteColumn",
+    "amd:structure/widget/columns/note/NoteController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-cell-edit-rules",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A note cell can be edited only in a saved structure (not when the panel's structure id is 0), with a note chosen, and when the note loaded and is not archived. If the note could not be loaded the column is read-only. Whether the user may edit the row is decided as for other editable columns.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-cell-editor",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The cell editor is a text area of 4 rows and 20 columns starting with the cell's text, empty when none. It opens even when the row's issue data is not loaded. It sends its value with the edit key `itemproperty.<note id>` (for example `itemproperty.notes` or `itemproperty.dc_note_7`) through the shared item update, see `POST /rest/structure/2.0/item/update`. Committing updates the cell locally straight away and records statistic `columns.notes.update`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-settings",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The settings show the option 'Note' followed by the text 'Note values are associated with the currently selected structure. There may be different values for the same items in another structure.'",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteColumn",
+    "amd:structure/widget/columns/note/NoteOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-option-modes",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The Note option shows one of three control sets: pick, create or rename. On showing or refreshing, `mode` = `create` shows create; `mode` = `select` shows the picker with its list open and nothing chosen; otherwise the picker with the current note. A refresh does not replace a control set of the same kind. Closing the settings removes the controls.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-default-storage",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Choosing the default note removes `params.note` from the column; any other note is stored by id, for example `{\"note\": \"dc_note_7\"}`. Choosing a note also removes `mode` from a column in `select` mode.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-picker-search",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The picker searches with `GET /rest/structure/2.0/note/search?structureId=<panel's structure>&limit=40&name=<typed text>`, 250 ms after typing stops, and from the first opening with an empty text. Groups are shown with their `title`, and a group without a title has no heading. Each hit shows its `html` (the name with the matched part marked). With `hasMore` the last group ends with an unselectable line 'More results available...'. Placeholder: 'Select a note...'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/SelectNoteControls"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-picker-create-entry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the structure of the panel is the one loaded and is editable, the list ends with an entry 'Create new note...', which switches to the create controls. In any other case there is no way to create from the picker.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/SelectNoteControls",
+    "amd:structure/widget/columns/note/NoteColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-picker-initial",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With a current note the picker first loads it (see note load), then shows its name. When it cannot be loaded the picker is empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/SelectNoteControls"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-picker-buttons",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Once a note is selected, an edit and an archive button appear beside the picker. Each is enabled only when the note's `editAllowedResponse.allowed` is true, and each shows `editAllowedResponse.reason` as its tooltip, empty when none. The default note therefore shows both disabled, with its reason.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/SelectNoteControls",
+    "amd:structure/widget/columns/note/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-picker-overflow-title",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A note name too long for the picker or the list gets the full name as its tooltip.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/SelectNoteControls"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-create-controls",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Create controls: a text input with placeholder 'Note name', with focus, plus a check button and a close button. Enter or the check button sends `POST /rest/structure/2.0/note` with `{\"name\": <trimmed text>, \"structureId\": <panel's structure>}`. While the request runs the input and both buttons are disabled and further Enter or clicks are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/CreateNoteControls",
+    "amd:structure/widget/columns/note/AbstractSubmitNoteControls",
+    "amd:structure/widget/columns/note/NoteController",
+    "amd:structure/widget/columns/note/templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-create-result",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A created note is cached, the column's `mode` is removed, the note is stored as the column's note and it is shown in the picker. On failure the message of the answer (`localizedMessage`, else `message`, else the body) shows under the input, in place of any older message, and the controls are usable again. The next submit clears it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/AbstractSubmitNoteControls",
+    "amd:structure/widget/columns/note/NoteController",
+    "amd:structure/widget/columns/note/NoteOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-create-cancel",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Cancelling create: from `mode` = `create` the column changes to `mode` = `select` and an empty picker is shown, closed; from `mode` = `select`, an empty picker; with neither, the picker with the current note. Cancel does nothing while a request runs.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/NoteOption",
+    "amd:structure/widget/columns/note/AbstractSubmitNoteControls"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-rename",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The edit button shows the same controls as create, with the note's name in the input and the caret at its end. Enter or check sends `PUT /rest/structure/2.0/note/{noteId}` with `{\"name\": <trimmed text>}`. On success the note is cached and the panel is told that external parameters changed, so columns are redrawn, and the picker returns with the note. On failure the message shows as for create. Cancel returns to the picker with the current note.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/EditNoteControls",
+    "amd:structure/widget/columns/note/AbstractSubmitNoteControls",
+    "amd:structure/widget/columns/note/NoteController",
+    "amd:structure/widget/columns/note/NoteOption",
+    "amd:structure/widget/columns/note/SelectNoteControls"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/note-archive",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The archive button opens a dialog titled 'Confirmation' with 'Are you sure you want to archive note <name>?' and buttons 'Confirm' and Cancel. Confirm disables the picker and both buttons and sends `PUT /rest/structure/2.0/note/{noteId}/archive`. On success the picker is enabled, shows the returned name, and columns are redrawn; the two buttons stay disabled. On failure all three are enabled and the message shows in the dialog, which stays open.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/note/SelectNoteControls",
+    "amd:structure/widget/columns/note/NoteController",
+    "amd:structure/widget/columns/note/NoteOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-type",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Column type key `progress`, type and default name 'Progress', group `progress`. It loads, for presets, settings and cells alike and with a 10 000 ms timeout, Jira's `GET rest/api/2/status` and `GET rest/api/2/statuscategory`, cached for the page. A non-array answer counts as empty; when a load fails, the status or category choices are not offered.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-cell",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A numeric progress value is limited to 0..1 and rounded to a whole percent, for example 0.574 gives 57% and 1.3 gives 100%. The tooltip is 'Progress: 57%'. With `displayPercents` the percent is written over the bar; without it only the bar shows. A value that is not a number gives an empty cell.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-attribute-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The attribute spec is `{\"id\": \"progress\", \"format\": \"number\", \"params\": <filtered params>}`, also used for sorting. Only non-null params that apply are sent: `basedOn` always; `includeSelf` for status, category, timetracking; `percentField` for percentfield; `statuses` and `percents` for status when statuses are loaded; `categories` and `categoryPercents` for category when categories are loaded; `resolvedComplete` for status, category, timetracking, percentfield, resolution; `weightBy` and `weightByField` for status, category, resolution, percentfield. `displayPercents` is never sent.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumn",
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-invalid-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A column with no params, or with `basedOn` not one of `status`, `category`, `resolution`, `percentfield`, `timetracking` or empty, has its params replaced by `{\"basedOn\": \"timetracking\", \"resolvedComplete\": true, \"includeSelf\": true}`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-sizing",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The column is auto-sized only when it shows percentages. It may shrink when there is no space.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-presets",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Add Column offers, in this order: 'Progress by Time Tracking' (timetracking); 'Progress by <field>' (resolution, weight by field); 'Progress by Status' (status, with default statuses, weight equal, includeSelf false); 'Progress by Status and <field>' (same, weight by field); 'Progress by Status Category'; 'Progress by Status Category and <field>'; 'Custom Progress...' (`basedOn` empty, opens the settings). The presets naming <field> exist only when there is such a field: the first summable custom field with 'story point' in its name, in any case. Status presets need at least 2 default statuses and category presets at least 2 default categories. All have `resolvedComplete` true.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-preset-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Every preset, and the switch-type preset (timetracking, resolvedComplete and includeSelf true, weightBy `equal`), also carries `percentField` and `weightByField` picked from the summable custom fields: a name with a word starting with `point` gives the points field (last match wins), else a name with a word starting with `complet` gives the complete field (last wins), else the first and second other fields are noted. `percentField` is the complete field or the first other; `weightByField` is the points field, else the second other, else the first other.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-default-stages",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Default percentages by Jira status name: New 0, Open 0, Reopened 0, To Do 0, In Progress 50, Resolved 100, Done 100, Closed 100; other statuses are left out. By status category key: undefined 0, new 0, indeterminate 50, done 100. Listed in Jira's order. A status added later by hand starts with its name's value, else its category's value, else 0; a category with its key's value, else 0.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-options-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Settings in order: checkbox 'Show Percentage'; heading 'Issue Progress'; 'Based On'; 'Field with %'; '% by Status'; '% by Status Category'; checkbox 'Apply Resolution' with description 'If an issue has non-empty Resolution, consider progress to be 100%'; heading 'Σ Progress' (hidden while `basedOn` is empty); 'Weight' (a fixed text 'Time Estimate' for timetracking, or a select); checkbox 'Ignore parent issue progress'. Options that do not apply to the current `basedOn` are hidden.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumn",
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-based-on",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Based On' lists 'Time Tracking' `timetracking`, 'Resolution Only' `resolution`, 'Status' `status` and 'Status Category' `category` when loaded, and 'Custom Percent Field' `percentfield` when Jira has a summable custom field. With `basedOn` empty, 'Please choose...' comes first, and the list opens by itself 10 ms after the panel shows; the entry goes away once a choice is made.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-percent-field",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Field with %' lists the summable custom fields by name and shows for `percentfield` only. When `percentField` is not set the last field in the list is taken as the value (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-weight-select",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The 'Weight' select offers 'All Sub-Issues Are Equal' (`weightBy` = `equal`), 'Time Estimate' (`time`) and each summable custom field (`weightBy` = `field`, `weightByField` = its id). A missing `weightBy` shows as equal.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-weight-no-refresh",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Choosing a field in 'Weight' when `weightBy` was not `field` but `weightByField` already holds that field stores the new `weightBy` without refreshing the column (as the original does); the next change applies it.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-apply-resolution",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Apply Resolution' stores `resolvedComplete`. For `resolution` it is shown checked and disabled whatever is stored.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-ignore-parent",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Ignore parent issue progress' is the inverse of `includeSelf`: checked stores `includeSelf` = false.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-stage-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'% by Status' and '% by Status Category' show one row per chosen status or category known to Jira, with its name (tooltip: the status description or the category name), a remove icon with tooltip 'Remove', and a percent input. On first showing with no list stored the defaults fill it. Rows start sorted by ascending percent; rows added later go at the end.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-stage-percent-input",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A percent is parsed as a whole number: a value in 0..100 is stored ('50abc' gives 50), blank stores 0, anything else restores the former value. Stored in `percents` or `categoryPercents`, at the same index as the id in `statuses` or `categories`. Status ids are text; category ids are numbers.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/progress-stage-add-remove",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Removing a row removes the id and its percent and makes it available to add again. Statuses are added with a multi-select list of the statuses not yet chosen; the choice is applied when the list closes, in Jira's order. Categories are added one at a time with a select headed 'Add status category...'. Each control is hidden when nothing is left to add. After adding, the settings panel scrolls so the control stays visible.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/progress/ProgressColumnOptions",
+    "amd:structure/widget/ui/StatusMultiselectDropdown"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-list-load",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The page loads saved columns once with `GET /rest/structure/2.0/saved-column/`, on the first need, and all users of the list share that answer; it is not reloaded while the page lives. A 403 gives empty lists, other failures leave the list unavailable. Later changes update the local copy from the answers of the write calls.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-write-errors",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each write shows its error as the answer's `localizedMessage`, else `message`, else the body, else 'Failed to submit: server error'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-spec-reference",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A column using a saved column has `params.savedColumn` = the composed id, for example `stored/12`, and a copy of the saved params in its own params. Once its params differ from the saved ones, `savedColumn` becomes `modified/stored/12`, and goes back when they match. The comparison ignores `savedColumn` itself and empty objects at any depth. A composed id that matches no known column counts as none.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption",
+    "amd:structure/widget/columns/saved/utils",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-option-select",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The option 'Saved Column' shows a tabbed dropdown of `formula` columns, one tab per list named as the list, each sorted by name. The first entry of the 'My Columns' tab is 'Custom', the choice for a column tied to no saved column. An empty tab says 'You don't have any columns in this list yet.' with a link to the plugin's documentation on saved columns.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption",
+    "amd:structure/widget/columns/saved/SavedColumnDropdown",
+    "amd:structure/widget/columns/saved/utils",
+    "amd:structure/widget/ui/TabbedDropdown"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-select-effect",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Selecting a saved column replaces all the column's params with a copy of its params plus `savedColumn`, and clears the modified state. Selecting 'Custom' empties the params. Selecting a saved column of list key `<k>` records statistics `savedColumns.select` and `savedColumns.select.<k>`; 'Custom' records nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption",
+    "amd:structure/widget/columns/saved/SavedColumnDropdown",
+    "amd:structure/widget/columns/saved/utils"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-select-confirm",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the current column has unsaved changes, selecting another entry first asks 'Do you really want to load a saved column? Current values will be lost.'; without Confirm the selection does not change. A Custom column counts as changed when it has non-blank formula text or any param other than `formula` and `variables`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-actions-button",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Beside the dropdown a button opens the actions menu. It carries a mark while there are unsaved changes. The menu starts with the line 'Column list: <list name>' (My Columns for Custom) and, with unsaved changes, 'Unsaved changes'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/ColumnActionsDropdown"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-actions-entries",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Menu entries, in order, and when each is present: 'Save' when modified and the column is editable; 'Save as...' when not anonymous; 'Revert to original' when modified; 'Edit name' when editable; 'Move to Global' when unmodified, a saved column, in list `stored/user`, and the user may manage global saved columns; 'Delete saved column' when editable. In a separate section 'Manage saved columns...', except on an issue page, in a gadget or on a Jira Software tab. A section with no entries is hidden.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/ColumnActionsDropdown",
+    "amd:structure/widget/columns/saved/utils",
+    "amd:structure/widget/WidgetConfig"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-actions-activation",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An entry is activated by click, or Enter on it. The button gets focus back first, and the action then runs.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/saved/ColumnActionsDropdown"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-action-save",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Save' sends `POST /rest/structure/2.0/saved-column/<composed id>/updateParameters` with `{\"parameters\": <column params without savedColumn>}`. The button shows a busy state and hides its mark until the answer. Success updates the local copy, so the column is unmodified. Failure shows an error flag with the message, which closes by itself, and the column stays modified.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption",
+    "amd:structure/widget/columns/saved/ColumnActionsDropdown",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-action-revert",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Revert to original' reloads the params of the selected saved column, or, with Custom, empties them.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-action-save-as",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Save as...' opens the Save As dialog with the column's params without `savedColumn`, and on success selects the new column in the option.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption",
+    "amd:structure/widget/columns/saved/SaveAsColumnDialog"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-action-rename",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Edit name' opens a dialog 'Edit column name' with the read-only 'Previous' name and the input 'New', prefilled. Save sends `POST /rest/structure/2.0/saved-column/<composed id>/edit` with `{\"name\": <text>}`. On success the dialog closes and the dropdown is rebuilt. On failure the message shows in the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption",
+    "amd:structure/widget/columns/saved/RenameColumnDialog",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-action-move",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Move to Global' opens a dialog titled 'Move to Global' with 'Are you sure you're going to move the saved column <b>name</b> to global list? After the action everybody would be able to use the saved column, and you cannot move it back.' and buttons 'Proceed' and Cancel. The name is cut to 40 characters (37 plus `...`). Proceed sends `POST /rest/structure/2.0/saved-column/<composed id>/move/global` with `{}`. On success the column moves to list `stored/global` in the local copy; its composed id stays.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/dialogs",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-action-delete",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Delete saved column' opens a dialog of that title with 'Are you sure you're going to delete the saved column <b>name</b>? This action cannot be undone.' and buttons 'Delete' and Cancel, the name cut as for moving. Delete sends `DELETE /rest/structure/2.0/saved-column/<composed id>`. On failure the message shows in the dialog.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/dialogs",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-delete-selected",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When the selected saved column is deleted, from anywhere on the page, the option goes back to 'Custom' and the column's params are emptied, so its formula is gone from the settings.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-changes-keep-in-step",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Every create, update, rename, edit, move and delete through the page tells all open options: the dropdown is rebuilt, the option showing that column refreshes its modified state and menu, and on update or delete the settings panel refreshes as well.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-action-manage",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Manage saved columns...' fires the same action as the shortcut `x` and the Add Column entry: it opens the Manage Saved Columns dialog.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SavedColumnOption",
+    "amd:structure/widget/columns/saved/ColumnActionsDropdown",
+    "amd:structure/widget/AddColumnPanel"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-save-as-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The dialog 'Save column as...' has 'Name' (prefilled with the source column's name, empty for Custom), 'Column list', and 'Description' (4 rows, placeholder 'About saved column...', prefilled). Column list shows a select of the lists with `createSupported`, 'My Columns' selected, or just the name when only one list qualifies. Enter inside Description adds a line and does not submit.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SaveAsColumnDialog"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-save-as-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Save sends `POST /rest/structure/2.0/saved-column/<list id>/`, list id for example `stored/user`, with `{\"name\", \"description\", \"type\", \"parameters\"}`; the text is sent as typed. The new column from the answer joins its list. On failure the message shows in the dialog, which stays open with the button usable.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/SaveAsColumnDialog",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-edit-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The dialog 'Edit saved column' has 'Name' and 'Description' (as in Save As, prefilled). Save sends `POST /rest/structure/2.0/saved-column/<composed id>/edit` with `{\"name\", \"description\"}`. Success closes it and refreshes the caller; failure shows the message in the dialog. Enter in Description adds a line.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/EditColumnDialog",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-manage-dialog",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The dialog 'Manage Saved Columns' (large, modal, Jira's shortcuts off) has a search box (placeholder 'Search...', at most 20 characters), one tab per list with 'My Columns' active, and a 'Close' button. Escape closes it unless another dialog is on top.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/ManageSavedColumnsDialog",
+    "amd:structure/widget/columns/saved/utils"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-manage-search",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "50 ms after each key press or change, the trimmed lower-cased search text filters every tab by a case-insensitive part of the column name. No request is sent.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/ManageSavedColumnsDialog",
+    "amd:structure/widget/columns/saved/SavedColumnController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-manage-table",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each tab lists columns sorted by name in a table with headers 'Name' and 'Actions'; each row shows the name (tooltip with the full name when cut), the description, and an action menu. With no columns the tab shows the empty-list text when the search is empty, else 'Not found'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/ManageSavedColumnsDialog",
+    "amd:structure/widget/columns/saved/utils"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/saved-manage-actions",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A row's menu has, in order: 'Save as...' when not anonymous; 'Edit' when editable; 'Move to Global' for the 'My Columns' tab when the user may manage global saved columns; 'Delete saved column' when editable. With no entry the menu button is disabled. Each runs the dialog of that name, on the row's column, and the tabs are refreshed after it, keeping the search. 'Save as...' here copies the column's own params.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/saved/ManageSavedColumnsDialog",
+    "amd:structure/widget/columns/saved/utils",
+    "amd:structure/widget/columns/saved/dialogs",
+    "amd:structure/widget/columns/saved/EditColumnDialog",
+    "amd:structure/widget/columns/saved/SaveAsColumnDialog"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/actions-column",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Column key `actions`: a fixed width of 68 (also its minimum and default), not resizable. Its cells never flash on change, and it does not ask for a cell to be drawn when the row's values are absent.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/actions/ActionsColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/actions-issue-trigger",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On an issue row the cell is a button with tooltip 'Actions' that opens Jira's standard issue actions menu from a URL: `/rest/structure/2.0/issue/{issueId}/actions-and-operations` when the widget configuration's feature `useStructuresActionsLink` is on (the default), otherwise Jira's own `/rest/api/1.0/issues/{issueId}/ActionsAndOperations`. Both get `?atl_token=<token>` when a token is known. Each button is tied to its row.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/actions/ActionsColumn",
+    "amd:structure/widget/columns/actions/actions-column-templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/actions-effector-row",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On an effector row the cell has the same button only if the structure's information says `effectorExecutionAllowed` or `effectorConfigurationAllowed`. All other rows have an empty cell.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/actions/ActionsColumn",
+    "amd:structure/widget/columns/actions/actions-column-templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/actions-effector-menu",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The first left click on an effector row's button builds and opens a menu: 'Edit' when configuring is allowed, then 'Run' when executing is allowed. The allowed states are the ones at drawing time.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/actions/ActionsController",
+    "amd:structure/widget/columns/actions/actions-column-templates"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/actions-effector-run-edit",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Run' opens the effector run dialog (see the effector dialogs) with the effector id and the panel's structure id. 'Edit' opens the row's editor in the main column. Both act on the row and panel the menu belongs to, falling back to the focused panel and focused row; with no row, or for a row that is gone, they do nothing.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/actions/ActionsController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/actions-statistic",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Any left click (or a click from a device with no button number) on an issue or effector actions button records the local statistic `jira.actions.dropdown.click`; other mouse buttons are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/actions/ActionsController"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/pages-type",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Column key `pages`, type name 'Page Field', group `pages`, available only when the widget configuration says Confluence is available; otherwise it offers no presets and no settings and no column is created for it. Switching another column to this type uses `{\"key\": \"pages\", \"params\": {}}`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/confluence/ConfluenceColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/pages-fields",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "`params.field` is one of `space` 'Space', `updated` 'Last edited', `updater` 'Last editor', `updateMessage` 'Last update', `parentPages` 'Location'. Any other field gives no column. Add Column has one preset per field, sorted by label, and the settings have one select 'Field' with the same list in the same order. The default name of a column is the field's label.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/confluence/ConfluenceColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/pages-html-cell",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Fields other than `space` request `{\"id\": <field>, \"format\": \"html\"}`, show the value as HTML, or an empty cell, and have a default width of 200.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/confluence/ConfluenceColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/pages-space-cell",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "`space` requests `{\"id\": \"space.key\", \"format\": \"text\"}` and `{\"id\": \"url\", \"format\": \"text\"}`. With a page URL of the form `<base>/pages/viewpage.action?pageId=<digits>` the cell is a link to `<base>/display/<key>` showing the key; the key is URL-encoded, keeping `@` and `~`. With another URL it shows the escaped key and logs a warning; with no key it is empty.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/confluence/ConfluenceColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/pages-shared",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "All Confluence columns may shrink when there is no space and offer their attribute to other features.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/confluence/ConfluenceColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/confluence-error-detect",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "On each poll result the UI reads `extensionData[\"com.almworks.structure.pages:pages-extension\"].confluenceErrors`. Empty or absent, it hides any warning and popup. When present and no popup exists, it sets up the popup and shows a footer warning 'Confluence Integration Alert' with tooltip 'There was a problem accessing Confluence data, click to see the details'; clicking it opens the popup. While a popup exists, later poll results do not change it. Without the companion Confluence app no such data arrives and nothing shows.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/confluence/ConfluenceErrorHandler"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/confluence-error-kinds",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The popup kind is chosen from `confluenceErrors`: `system` with `errorType` `CREDENTIALS` and `errorData.userKey` the current user: login; any other `system`: ask admin with ignore; `user` with `errorType` `CREDENTIALS`: login; otherwise: ask admin.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/confluence/ConfluenceErrorHandler"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/confluence-error-popup-text",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Ask admin shows 'Confluence integration doesn't work. Please ask your Jira administrator to check Structure-Confluence integration settings.' with 'Try Again'; ask admin with ignore has also 'Got It'. Login shows 'Structures may contain Confluence pages. Please log in to get access to Confluence content in structures.' with 'Log In to Confluence' and 'Try Again'. The popup sits above the warning, is 400 wide, opens after 100 ms, and clicks inside do not close it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/confluence/ConfluenceErrorHandler",
+    "js/structure/confluence-templates.js"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/confluence-error-retry",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Try Again' disables itself, shows a spinner and sends `POST /rest/structure-pages/1.0/error/retry/user` with body `{}` (the companion Confluence app's REST). The answer ends the spinner; the popup stays when the answer's `confluenceErrors` give the same kind, otherwise popup and warning go away. Only a successful answer is handled.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/confluence/ConfluenceErrorHandler"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/confluence-error-ignore",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Got It' sends `POST /rest/structure-pages/1.0/error/ignore/system` with body `{}` to the companion Confluence app; on success popup and warning go away.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/confluence/ConfluenceErrorHandler"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/confluence-error-login",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Log In to Confluence' opens the Confluence login window on `errorData.url`, when there is one, see `confluence-auth-utils`; when that window finishes, the retry above is sent.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/confluence/ConfluenceErrorHandler",
+    "js/structure/confluence-util.js"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-type",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Column key `timeinstatus`, type name 'Time in Status', with a link to the plugin's documentation. Add Column offers 'Time in Status...' in group `advanced`, opening the settings, with params `{\"displayFormat\": {\"type\": \"duration\"}}`, also the switch-type preset. Default name 'Time in Status', with prefix 'Σ ' when `aggregate` is `sum`. Descending sort by default.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn",
+    "amd:structure/widget/columns/SummableColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-attribute-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The base spec is `{\"id\": \"timeinstatus\", \"format\": \"duration\", \"params\": {\"statuses\": <list or []>, \"useCurrentStatus\": <bool>, \"reopen\": <bool>, \"targetEnabled\": <bool>, \"targetStatuses\": <list only when targetEnabled, else []>, \"calendar\": <id or \"\">}}`. Summing wraps it in `{\"id\": \"sum\", \"format\": \"duration\", \"params\": {\"attribute\": <base>, \"distinct\": true only when set}}`. Sorting uses the sum spec when summing, otherwise the base.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn",
+    "amd:structure/widget/columns/SummableColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-cell",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Cells show text from `{\"id\": \"formatted-number\", \"format\": \"text\", \"params\": {\"attribute\": <base or sum spec>, \"type\": \"duration\", \"workTime\": true only when set}}`, HTML-escaped: the sum as the aggregated value and the base as the own value, combined as for every summing column. Those are the attributes the column subscribes to, for `forestSpec` when set; the raw duration is only requested for sorting.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-status-list",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Statuses' (placeholder 'Select statuses') is a multi-select with no search box, with Jira's `GET /rest/api/2/status`, loaded once per page. Group 'Statuses' lists each status as value `status:<id>`, tooltip its name, a line break and its description; group 'Categories' lists each category met among the statuses as `category:<id>`, tooltip '<name> status category', drawn differently from statuses. Statuses are ordered by category rank (undefined and unknown 0, new 1, indeterminate 2, done 3) then name; categories by rank. A failed load shows the error 'Cannot load the list of statuses', the inputs do not appear, and it is not tried again until the page reloads.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-current-status",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The toggle 'Use current status' stores `useCurrentStatus` (default false, removed when off). While on, the statuses select is replaced by a disabled one showing 'Current status', and the conditions below are hidden; values stay stored. Clicking the label also flips the toggle.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-reopen",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Under the heading 'Conditions', the checkbox 'Returns only' stores `reopen` (default false), with the description 'Ignore the first time the issue is in the selected group of statuses.' and a help icon 'Learn More' linking to the plugin's documentation.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-transition-filter",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The checkbox 'Transition filter', with description 'Only count time in a status if the issue then moved directly to a target status.', stores `targetEnabled` (true, or removed) and shows a second multi-select with the same choices, placeholder 'Select target statuses', stored as `targetStatuses`. Unchecking removes `targetStatuses`; the selection stays in the open panel and comes back when checked again.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-options-group",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In the column settings 'Options' follows: the sum-over-sub-items option, and the checkbox 'Work time' with description 'When checked, the value will be interpreted according to Jira's \"work hours per day\" settings.', stored as `workTime`. These two are not offered when the same options configure an attribute instead of a column.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-calendar",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Calendar' (placeholder 'Select calendar...', no search box) lists `GET /rest/structure/2.0/calendar/list`, loaded once per page, with each entry's `description` as tooltip. The first calendar is the default: with no `calendar` stored it shows selected, and selecting it removes the param. A failed load shows 'Cannot load the list of calendars', the input does not appear, and it is not tried again until the page reloads (for an anonymous user the call answers 401, so that message shows).",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tis-attribute-mode",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Used for configuring an attribute rather than a column, the options read and write the attribute's params directly; changing the toggle updates the visibility of the other options at once.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TimeInStatusColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-type",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Column key `worklogged`, type name 'Work Logged'; the settings store `params.field` = `worklogged`. Add Column offers 'Work Logged...' and 'Σ Work Logged...' (with `aggregate` = `sum`), both opening the settings, with `period` = `today` and `timeZone` = the user's zone from `GET /rest/structure/1.0/config/timezone`, cached for the page. Switching type uses the sum preset. Without that zone there are no presets. Group `totals` when aggregating, otherwise `advanced`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-default-name",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Default name by `period`: `today` 'Work Today', `yesterday` 'Work Yesterday', `this_week` 'Work This Week', `last_week` 'Work Last Week', `this_month` 'Work This Month', `last_month` 'Work Last Month', `this_year` 'Work This Year', `last_year` 'Work Last Year', `date_range` 'Work Logged'. With any `aggregate` it reads 'Σ <name>'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-attribute-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Attribute params are `timeZone`; the first non-empty of `author`, `group`, `role`; and `dateFrom` plus `dateTo` for `period` = `date_range`, otherwise `period`. The own spec is `{\"id\": \"worklogged\", \"format\": \"html\", \"params\": ...}`. With `aggregate` = `sum`, a further `{\"id\": \"sum\", \"format\": \"html\", \"params\": {\"distinct\": <bool>, \"attribute\": <same with format duration>}}` is requested and shown as the aggregated value. A column with no `timeZone` requests nothing and is blank.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-sort-size",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Sorting is by the same spec in `duration` format (the sum when summing), descending by default. The column may be auto-sized and may shrink.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-offset-request",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "When a column has a `timeZone`, the UI loads `GET /rest/structure/1.0/config/timezone?name=<zone>`, cached, keeping `offset`. The zone is put into the URL unencoded, so a zone with `+` reaches the server changed (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-options-order",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Settings: 'Period'; 'From' and 'To', enabled only for `date_range`; the 'Logged by' controls; the sum-over-sub-items option. Which 'Logged by' controls show depends on `GET /rest/structure/1.0/config/userPickerPermission`, cached: the searchable picker when true and not in a remote gadget; otherwise the plain controls.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-plain-controls",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Plain 'Logged by': a select 'User', 'Group', 'Project role', and a text input labelled 'Author'. The type comes from which of `group`, `role` is present in params, else `author`. Changing it moves the current value to the new param. The input stores the trimmed text 250 ms after a key is released.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-picker-search",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The searchable 'Logged by' uses `GET /rest/structure/2.0/author-picker` with the typed text, shows groups of users, groups and project roles with a dropdown button, and gives users the avatar `/secure/useravatar?ownerId=<key>&ts=<page load time>` and the others Jira's group icon. A group footer that is cut off gets a tooltip with its text. Typing something that is not offered shows 'There is no user, group or project role <text>'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-picker-store",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Choosing in the picker stores one of `author` = user key, `group` = group name lower-cased, `role` = role id, removing the other two. Emptying the field, 250 ms after a key is released or on submit, removes all three.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/wl-picker-initial",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "For a stored `author` the settings load `GET /rest/api/2/user?key=<key>` (Jira's REST), for a stored `role` `GET /rest/structure/2.0/author-picker/project-role/<role>`, both cached and only with the user-picker permission, and show the display name with its 16x16 avatar, or the role name. When the load fails the stored value itself shows. A stored `group` shows its name.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/WorkloggedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-availability",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Keys `tempo-worklogged` (type name 'Tempo Work Logged') and `tempo-timeplanned` ('Tempo Planned Time'). They exist only while the widget configuration's `enabledPlugins` holds `is.origo.jira.tempo-plugin` and `com.tempoplugin.tempo-plan-core` respectively. Without that app there is no preset and no settings, and no column is created for an existing spec of that key.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/TempoSummableColumn",
+    "amd:structure/widget/columns/TempoWorkLoggedColumn",
+    "amd:structure/widget/columns/TempoTimePlannedColumn",
+    "amd:structure/widget/columns/TempoColumnUtils"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-presets",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each has two Add Column presets, opening the settings at once: in group `tempo` 'Tempo Work Logged...' or 'Tempo Planned Time...' with the default params; in group `totals` 'Σ Tempo Work Logged...' or 'Σ Tempo Planned Time...' with `aggregate` = `sum` as well. Neither has a preset for switching type.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TempoSummableColumn",
+    "amd:structure/widget/columns/TempoWorkLoggedColumn",
+    "amd:structure/widget/columns/TempoTimePlannedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-default-params",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Default params: `tempo-worklogged` `{\"accounts\": [], \"dateFrom\": <today>, \"dateTo\": <today>, \"users\": [], \"teams\": [], \"billable\": true}`; `tempo-timeplanned` `{\"dateFrom\": <today>, \"dateTo\": <today>, \"users\": [], \"teams\": [], \"roles\": []}`. Today is the current UTC date as `yyyy-MM-dd`, which can differ from the user's own date near midnight (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/TempoWorkLoggedColumn",
+    "amd:structure/widget/columns/TempoTimePlannedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-attribute-spec",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The own spec is `{\"id\": <key>, \"format\": \"html\", \"params\": <exactly the fields of the default params>}`, shown as HTML. With `aggregate` = `sum`, also `{\"id\": \"sum\", \"format\": \"html\", \"params\": {\"distinct\": <bool, always sent>, \"attribute\": {\"id\": <key>, \"format\": \"duration\", \"params\": ...}}}` shown as the aggregated value. Both use `forestSpec` when set. Sorting uses the same specs in `duration` format, descending by default.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TempoSummableColumn",
+    "amd:structure/widget/columns/TempoWorkLoggedColumn",
+    "amd:structure/widget/columns/TempoTimePlannedColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-default-name",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Default name: the type name, or 'Σ <type name>' with any `aggregate`.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TempoSummableColumn"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-options",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Settings of `tempo-worklogged` in order: From, To, 'Accounts', users, 'Teams', checkbox 'Billable hours', the sum option. Of `tempo-timeplanned`: From, To, users, 'Teams', 'Roles', the sum option. The sum option is always applicable. Users is a user picker when `GET /rest/structure/1.0/config/userPickerPermission` is true and not in a remote gadget, else a plain input. The permission is fetched once per page; the app-enabled check waits for the widget configuration.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TempoWorkLoggedColumn",
+    "amd:structure/widget/columns/TempoTimePlannedColumn",
+    "amd:structure/widget/columns/TempoColumnUtils"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-multiselect-search",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "'Accounts', 'Teams' and 'Roles' are multi-selects searching `GET /rest/structure/2.0/tempo/accounts`, `/teams`, `/roles` with `query` = typed text and `limit` = 10, 250 ms after typing stops. When `total` exceeds the options received, an unselectable line 'There are more results. Try refining search.' ends the list; with none, 'No matches found'. Long entries get a tooltip.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TempoMultiSelectOption",
+    "amd:structure/widget/columns/TempoAccountOption",
+    "amd:structure/widget/columns/TempoTeamOption",
+    "amd:structure/widget/columns/TempoTeamRoleOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-multiselect-initial",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "With stored ids the input first requests the same URL with `?ids=<id,id,...>`, hiding the input and showing a spinner if that takes over 500 ms, then shows the entries in stored order. An id missing from the answer stays selected, shown as 'ID:<id> (Deleted/Unavailable)'. If the request fails the input stays hidden.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TempoMultiSelectOption",
+    "amd:structure/widget/columns/TempoAccountOption",
+    "amd:structure/widget/columns/TempoTeamOption",
+    "amd:structure/widget/columns/TempoTeamRoleOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-multiselect-format",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Placeholders: 'Select account(s)', 'Select team(s)', 'Select role(s)'. An account shows as '<key> - <name> (<status>)', a team or role as its name.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TempoAccountOption",
+    "amd:structure/widget/columns/TempoTeamOption",
+    "amd:structure/widget/columns/TempoTeamRoleOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/tempo-multiselect-store",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "Each change stores the selection as a list of integers in `accounts`, `teams` or `roles`. A clear icon appears when something is selected and removes all entries.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/TempoMultiSelectOption"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/error-central",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The widget keeps a list of errors. A reported error goes on it, and to the error bar, only if it is permanent or the page is in the plugin's beta mode; any other is written to the browser console as its message followed by its details.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/error-js-sink",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "In beta mode, script errors are reported with the message 'Oops... A script problem happened. You may need to reload page. Sorry about that!' and their text as details.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/error-bar",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The error bar at the bottom of the page shows the oldest error's message. It slides in, and out when no error is left. With more errors a second part says '1 more error' or '<n> more errors' with the link 'Dismiss All'.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/error-bar-close",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "A close icon dismisses the oldest error and shows the next. It is hidden for a permanent error, which cannot be dismissed that way, though 'Dismiss All' removes it.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/error-bar-details",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "An error with details has 'Show Details', changing to 'Hide Details', which unfolds a read-only text box, as does a click on the message. The box's text is selected when it gets focus. A permanent error unfolds its details by itself. Going to an error with no details folds the box.",
+   "confidence": "high",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog"
+   ]
+  },
+  {
+   "key": "u11-columns-b/widget-bare/error-bar-enable",
+   "module": "widget-bare",
+   "api": null,
+   "behaviour": "The bar can be switched off by whoever embeds the widget, with a value or a function giving one: false ignores new errors, and the value `dismiss` dismisses them all as they come.",
+   "confidence": "medium",
+   "evidence": [
+    "amd:structure/widget/columns/formula/FormulaEditorDialog"
+   ]
+  }
+ ]
+}

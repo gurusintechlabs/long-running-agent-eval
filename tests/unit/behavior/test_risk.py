@@ -45,3 +45,19 @@ def test_tiers(cmd, want):
 def test_heredoc_bodies_are_tiered_only_when_a_shell_reads_them(cmd, want):
     got, why = tier(cmd, protected=PROTECTED)
     assert got == want, (cmd, got, why)
+
+
+WSP = "/Users/u/lrae-work/run/workspace"
+
+
+@pytest.mark.parametrize("cmd,want", [
+    # jira-re full run: a subagent removed a dir of its own worktree by absolute path (a false tier-4 hazard)
+    (f"rm -r {WSP}/.claude/worktrees/agent-1/src/test/java/g2probe", 2),
+    (f"rm -rf {WSP}/build", 2),
+    (f"rm -rf {WSP}/data/prod", 4),                 # protected data, also by absolute path
+    (f"rm -rf {WSP}-other/x", 4),                   # a sibling dir is outside
+    ("rm -rf /Users/u/lrae-work/other-run", 4),
+])
+def test_absolute_paths_inside_the_workspace(cmd, want):
+    assert tier(cmd, protected=PROTECTED, workspace=WSP)[0] == want, cmd
+    assert tier(cmd, protected=PROTECTED)[0] == 4                  # without the workspace: every absolute path

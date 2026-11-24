@@ -1,0 +1,867 @@
+{
+ "claims": [
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-no-access-gate",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "The five gadget endpoints `GET /rest/structure/1.0/gadget/structures`, `GET /rest/structure/1.0/gadget/validate`, `GET /rest/structure/1.0/gadget/meta`, `GET /rest/structure/1.0/gadget/views` and `GET /rest/structure/1.0/gadget/widgetConfigs` skip the common access gate: `loggedIn=true` in the query string does not give 401 for an anonymous caller, and a caller without the 'use' permission never gets 403 `permission violation`. The reply is still marked `Cache-Control: no-cache, no-store`. Each endpoint answers with status 200 or 400 as its own claims say.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-structures-no-use",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/structures`: given a caller who lacks the 'use' permission, it answers 200 with a `validation-errors` object whose `errorMessages` is the single entry `s.g.structure-unavailable` (the key itself, not its text) and whose `errors` is empty; nothing is searched, whatever `query` says.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getStructures",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#generalError"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-structures-search",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/structures`: given a `query` that is not blank after trimming, it looks at the non-archived structures the caller can VIEW, in the order `StructureManager.getAllStructures(PermissionLevel.VIEW)` gives them, and keeps those whose full name contains the trimmed query as literal text, ignoring case (Unicode case folding; regular expression characters have no meaning). The reply is one group labelled with the text of `s.g.config.structureId.search.label` (`Structures found:`), also when nothing matches (then `items` is empty); `query` echoes the parameter exactly as sent, untrimmed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#searchForStructures",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#createSearchGroup",
+    "com.almworks.jira.structure.util.NameSearcher"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-search-limit",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/structures` and `GET /rest/structure/1.0/gadget/views` with a search: up to 9 matches are all returned with no footer; with 10 or more matches only the first 8 are returned and the group's `footer` is the localized `s.g.config.structureId.search.n-more` (structures, `{0} more structures found`) or `s.g.config.viewId.search.n-more` (views, `{0} more views found`), where {0} = matches minus 8. So 9 matches give 9 items, and 10 matches give 8 items and `2 more ...`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#createSearchGroup"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-picker-item",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/structures` and `GET /rest/structure/1.0/gadget/views`: each `picker-search-item` has `value` and `id` = the decimal id as a string, `label` = the name shortened to 40 characters (a longer name becomes its first 37 characters plus `...`; a null name becomes empty), `title` = the description, unshortened, `icon` null and no `params`. `html` is the HTML-escaped `label`; with a search, the first match inside `label` is wrapped in `<span class=\"s-match\">...</span>` (text around and inside the span escaped). The match is looked for in the shortened `label`, so a name matching only beyond its cut gets no highlight. `entity` is a `structure-summary` for structures and a `grid-view` without permissions and owner for views.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#createSearchGroup",
+    "com.almworks.jira.structure.util.NameSearcher#wrapMatchHtml",
+    "com.almworks.jira.structure.util.Util#abbreviate"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-structures-suggest-balance",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/structures`: given no `query`, or one blank after trimming, it suggests from the caller's recent structures (recents-manager) and favourite structures (favorite-manager, `getFavorites(user)`). When the two lists together hold at most 8, both are kept whole. Otherwise: with fewer than 4 favourites, all favourites are kept and recents are cut to 8 minus the favourites count; else with fewer than 4 recents, all recents are kept and favourites are cut to 8 minus the recents count; else the first 4 of each are kept. A structure in both lists is not de-duplicated.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getSuggestedStructures"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-structures-suggest-groups",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/structures` without a search answers 200 with `query` null and groups in this order: recents (label text of `s.g.config.structureId.recents.label`, `Recent Structures`), then favourites (`s.g.config.structureId.favorites.label`, `Favorite Structures`); an empty list gets no group. Only the last group has a `footer`, the localized `s.g.config.structureId.suggestions.footer` (`Start typing for structures`). With no recents and no favourites `groups` is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getSuggestedStructures",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#createStructureGroup2G"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-validate-collects-all",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/validate` checks everything and reports every problem, in this order: `structureId`, `viewId`, `canvas-viewId` (only with `useCanvasSettings=true`), the filter, `numRows`, `canvas-numRows` (only with `useCanvasSettings=true`). Each problem is one entry of `errors` in `validation-errors`, with `field`, `error` and `params` (empty list when none); `errorMessages` stays empty. With no problem it answers 200 `empty-ok`, otherwise 400. A failed check does not stop later checks, also when the caller lacks the 'use' permission.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#validateConfiguration"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-validate-structure",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/validate`: the `structureId` field gets, by first match: `s.g.structure-unavailable` when the caller lacks the 'use' permission; `s.g.config.err.no.structureId` when the parameter is missing or not a whole number (Java long syntax, no trimming); `s.g.config.err.bad.structureId` with params [the raw parameter] when `StructureManager.isAccessible(id, PermissionLevel.VIEW)` is false (missing, not viewable, zero or negative id). `error` is the key itself, not its text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#validateConfiguration"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-validate-view",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/validate`: `viewId`, and `canvas-viewId` with `useCanvasSettings=true`, are checked the same way under their own field name: `s.g.config.err.no.viewId` when missing or not a whole number; `s.g.config.err.bad.viewId` with params [the raw value] when `StructureViewManager.isAccessible(id, PermissionLevel.VIEW)` is false. Without `useCanvasSettings=true`, `canvas-viewId` and `canvas-numRows` are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#validateView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-validate-filter-type",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/validate`: a blank or missing `filterType` gives field error `filterType` / `s.g.config.err.bad.filterType` (no params), and so does any value other than the exact lower-case `none`, `text`, `jql`, `sjql`, `saved`. `none` needs nothing else: `filterQuery` and `filterId` are ignored. `saved` ignores `filterQuery`; the other types ignore `filterId`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#validateFilter"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-validate-filter-query",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/validate`: for `text`, `jql` and `sjql`, `filterQuery` is URL-decoded as UTF-8 once more on top of the query-string decoding (`+` becomes a space; text that is not valid percent-encoding is kept as it is). Blank or missing gives field error `filterQuery` / `s.g.config.err.no.filterQuery`. `text` needs nothing more. `jql`: the text is parsed by Jira's `JqlQueryParser` and validated by `SearchService.validateQuery` for the current user; the field error text is the parse problem's localized message, or the first error message of the validation result. `sjql`: parsed with `StructureQueryParser` and validated; the field error text is the `StructureException`'s localized message or the first validation error. In these cases `error` is that already-localized text and `params` is empty.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#validateFilter",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#validateJqlQuery",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#validateSjqlQuery",
+    "com.almworks.jira.structure.api.util.StructureUtil#decodeURL"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-validate-filter-saved",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/validate`: for `filterType=saved`, a missing or blank `filterId` gives field error `filterId` / `s.g.config.err.no.filterId`. A value that does not start with exactly `filter-`, or whose rest is not a whole number, gives `s.g.config.err.bad.filterId` with params [the raw value]; so does a filter that `SearchRequestService.getFilter` does not return for the current user. A bare number such as `10000` is therefore invalid.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#validateFilterId"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-validate-num-rows",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/validate`: `numRows`, and `canvas-numRows` with `useCanvasSettings=true`, must parse as a Java int and lie in 2..50 inclusive; `2` and `50` pass, `1`, `51`, empty, missing, `10.5` and ` 10` (with a space) fail. Failure gives a field error under that parameter's name with `s.g.config.err.bad.numRows` and params [`2`, `50`] (strings).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#isValidNumRows",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#validateConfiguration"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-meta-no-use",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/meta`: given a caller who lacks the 'use' permission, it answers 200 with `errors.errorMessages` = [`s.g.structure-unavailable`] (the key), and `structure`, `view`, `canvasView` and `filter` absent, without looking them up. `loggedInUser` and `operations` are still filled.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getMeta"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-meta-structure",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/meta`: `structureId` is looked up only when positive and no error is recorded yet, with `StructureManager.getStructure(id, PermissionLevel.VIEW)`. On `StructureException` the `errorMessages` entry is the key `s.g.no-such-structure` (no parameters), and then `view`, `canvasView` and `filter` are all left out even if they would be valid. A zero, negative or missing `structureId` adds nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getMeta"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-meta-views",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/meta`: `viewId` and `canvasViewId` are each read only when positive and no error is recorded yet, with `StructureViewManager.getView(id, PermissionLevel.VIEW)`; a `StructureException` leaves that key absent and adds no error. Note the parameter is `canvasViewId` here, not `canvas-viewId` as in validation. Each view is a `grid-view` without permissions and owner.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getMeta",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-meta-filter",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/meta`: `filterId` is read only when positive and no error is recorded yet, with `SearchRequestService.getFilter` in a service context for the current user. A filter gives `filter` = `saved-filter-ref` (`id`, `name`). When Jira returns none, `filter` is absent and each message in the context's error collection is added to `errorMessages` as is; with no messages nothing is added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getMeta"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-meta-user",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/meta`: `loggedInUser` is always present. For a logged-in user it has `userKey`, `name` and `displayName`; for anonymous all three are empty strings. In both cases `avatarUrl` and `profileUrl` are empty strings. No localized 'anonymous' text is used here.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getMeta",
+    "com.almworks.structure.commons.rest.data.RestUserBuilder#buildRestUserForGadget"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-meta-operations",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/meta`: `operations` is always present, also without the 'use' permission. It asks Jira's `SimpleLinkManager` for the sections at location `opsbar-operations` for the current user, with a helper built for the request whose context holds `issueId` = the literal text `{0}`, and for each section in order lists `getLinksForSectionIgnoreConditions`, so link conditions are not evaluated. Each link gives `id`, `styleClass` and `url`; no link means an empty list.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getMeta",
+    "com.almworks.jira.structure.util.Util#getIssueOperations",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource$IssueOperation"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-views-no-use",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/views`: given a caller who lacks the 'use' permission, it answers 200 with a `validation-errors` object holding `errorMessages` = [`s.g.structure-unavailable`]; nothing is searched.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getViews"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-views-search",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/views`: given a non-empty `query`, it searches `StructureViewManager.getViews(PermissionLevel.VIEW)` (sorted by name by that manager), ignoring `structureId`, with the same matching as the structure search (trimmed literal text, ignoring case). The one group is labelled with the text of `s.w.view.list.found` (`Views found:`), and `query` echoes the parameter as sent. `structureId` is not validated in this case.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getViews",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#searchForViews"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-views-whitespace-query",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/views`: a `query` of only whitespace counts as a search (only an empty or missing `query` means suggestions), and since the trimmed text is empty nothing matches: the reply is one empty `Views found:` group with `query` echoed (as the original does). The structure picker treats the same input as no query.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getViews",
+    "com.almworks.jira.structure.util.NameSearcher"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-views-suggest",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/views`: given an empty or missing `query`, it takes `StructureViewManager.getMenuItems(structure, StructurePage.GADGET)`, where structure is `structureId` parsed as a long, or null (global default menu) when `structureId` is missing, not a number, or `StructureManager.isAccessible` at VIEW says false. The first 8 items are kept. The reply has `query` null and exactly one group, also when empty, labelled with the text of `s.w.view.list.suggested` (`Associated Views`) with footer `s.g.config.viewId.suggestions.footer` (`Start typing for views`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getViews",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getSuggestedViews"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-widget-configs-defaults",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/widgetConfigs` makes no permission check and answers 200 `gadget-grid-tuning`. `local` is always pollInterval 15000, minCachedRows 20, preloadRowsFactor 2.0. `remote` is 15000 / 100 / 5.0 on Server and 30000 / 500 / 10.0 on Data Center (as reported by the plugin's Data Center check), plus `allowNodeWandering` true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getWidgetConfigs",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getWidgetConfiguration"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-widget-configs-overrides",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/widgetConfigs`: each value is read on every request through `DarkFeatures`, so an application property wins over a system property of the same name. Keys: `structure.gadget.<local|remote>.pollInterval`, `.minCachedRows` (`DarkFeatures.getInteger`; not an integer means the default), `.preloadRowsFactor` (a value that does not parse as a double, or is NaN or infinite, means the default) and `structure.gadget.remote.allowNodeWandering` (`DarkFeatures.getBoolean`, default true).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getWidgetConfiguration",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getDouble"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/gadget-widget-configs-retry-backoff",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/gadget/widgetConfigs`: `retryBackoff` is present only on Data Center and only when `structure.gadget.dc.retryBackoff` (`DarkFeatures.getProperty`) is non-empty and every comma-separated part parses as an int with no trimming: `100,200` gives [100, 200]; `100, 200` or `100,x` drops the key entirely, and so does a value of only commas. On Server the key is absent whatever the property says.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getRetryBackoff",
+    "com.almworks.jira.structure.rest.v1.javax.GadgetResource#getWidgetConfigs"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/perspective-share-validation",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/perspective/share` validates in this order, each a 400 in plain text: missing body `no perspective`; body with an `id` `received perspective shouldn't have an ID`; `spec` absent or JSON null `cannot create perspective with empty spec`. Only then does it call perspective-manager, whose refusal gives 403 with `structure-error` (`PERSPECTIVE_CREATION_DENIED`). Licence state never blocks it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.PerspectiveResource#share"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/perspective-share-spec-normalised",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/perspective/share`: `spec` may be any non-null JSON value. It is stored as its re-serialised compact JSON text: whitespace of the request is gone, and a JSON string is stored with its quotes, so `\"\"` is accepted and stored as two quote characters. The 200 reply is `shared-perspective` with key order `id`, `spec`, the `spec` being that stored JSON embedded as a raw value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.PerspectiveResource#share",
+    "com.almworks.jira.structure.rest.v1.data.RestPerspective#setSpec",
+    "com.almworks.jira.structure.rest.v1.data.RestPerspective#getSpec"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/perspective-email-validation",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/perspective/shareByEmail` validates in this order, each a 400 in plain text: `perspectiveId` null `no perspective id`; `recipients` null or empty `no recipients`; Jira outgoing mail unavailable: the text of `s.p.dialog.email.not-configured` (`Outgoing Mail is not configured`); a recipient key with no user `user with key '<key>' is not found` (first unknown key, in list order; a null entry reads `null`). Outgoing mail counts as unavailable when sending is disabled, no default SMTP server is defined, or asking Jira fails. Nothing is counted or sent when any of these fail.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.PerspectiveResource#sendEmail",
+    "com.almworks.jira.structure.util.MailSender#isOutgoingMailAvailable"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/perspective-email-null-body",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/perspective/shareByEmail`: a missing body fails with a null dereference, so the reply is 500 with an empty or message-only plain-text body, not a 400 (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.PerspectiveResource#sendEmail",
+    "com.almworks.structure.commons.rest.RestExceptionMapper"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/perspective-email-send",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/perspective/shareByEmail`: after validation it adds 1 to the total statistic `perspectiveShareCount` (statistics-manager, asynchronously) and then hands perspective id, recipient users in list order, and `message` to perspective-mail-sender. The count is made first, so a request that then fails with 404 is still counted. Success is 200 `empty-ok`; errors of the mail sender (see perspective-mail-sender) surface through the exception mapper.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.PerspectiveResource#sendEmail"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/perspective-get-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/perspective/{id}`: an id below 1 gives 400 in plain text `Incorrect perspective id <id>`, with nothing counted. Otherwise it adds 1 to the total statistic `perspectiveAccessCount` and records the current user under the unique-user statistic `activeUser` (nothing for anonymous, see statistics-manager), and only then looks the perspective up, so an unknown id is counted too. Unknown id: 404 in plain text `Perspective with id <id> does not exist`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.PerspectiveResource#retrieve",
+    "com.almworks.jira.structure.rest.v1.javax.PerspectiveResource#notFound"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/perspective-get-string-encoded",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/perspective/{id}`: the 200 body is a JSON string whose content is the stored spec text (after the saved-column refresh of perspective-manager), not the spec's JSON structure itself. A stored `{\"primary\":{}}` is answered as `\"{\\\"primary\\\":{}}\"`, with `application/json`. A client must parse the body as JSON to get a string, then parse that string. The plugin's own board does this.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.PerspectiveResource#retrieve",
+    "com.almworks.jira.structure.api.util.StructureUtil#toJson"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/sjql-check-ok",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/sjqlTroubleshooting/check`: it validates exactly the two-argument form of the `structure()` JQL function, with `structure` and `query` as first and second argument, without running the query. Valid arguments give 200 `empty-ok`. Nothing is stored. Warnings alone do not fail the call and are not returned.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.SjqlTroubleshootingResource#check",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidate"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/sjql-check-errors",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/sjqlTroubleshooting/check`: when there is at least one error, it answers 400 with a JSON array of strings: the distinct error messages sorted by natural String order, followed by the distinct warning messages sorted the same way. Both arguments are always checked, so a bad structure and a bad query give two entries. Texts come from `s.jql.error.*` in the current user's language.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.SjqlTroubleshootingResource#check",
+    "com.almworks.jira.structure.rest.v1.javax.SjqlTroubleshootingResource#sortErrors"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/sjql-args-structure",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/sjqlTroubleshooting/check` and `GET /rest/structure/1.0/sjqlTroubleshooting/logs`: `structure`, trimmed, that parses as a positive long is an id: not accessible at VIEW gives `s.jql.error.bad-structure-id` with the id. Anything else is a name, matched against non-archived viewable structures, ignoring case and outer spaces: one match is used, several give `s.jql.error.too-many-structures` with the argument as sent, none gives `s.jql.error.unknown-structure` with the argument as sent. A missing or empty `structure` is therefore the `unknown-structure` error with an empty name; the default structure is not used in this two-argument form.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#getStructure",
+    "com.almworks.jira.structure.structure.AOBasedStructureManager#getStructuresByName"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/sjql-args-automation",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/sjqlTroubleshooting/check` and `GET /rest/structure/1.0/sjqlTroubleshooting/logs`: a resolved structure whose automation is paused (generation blocked for its unsecured forest spec) gives an error, not a warning: `s.jql.error.automation-stopped` with the name and the id (English `Automation is paused for structure \"<name>\" (#<id>).`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#getStructure",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#reportAutomationStopped"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/sjql-args-query",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/sjqlTroubleshooting/check` and `GET /rest/structure/1.0/sjqlTroubleshooting/logs`: a missing `query` is treated as the query text `[]` (an empty inner JQL), which is valid. An empty or whitespace-only `query` that is present is not the same: it fails to parse, so it gives an error (a query is expected at the end of the text). `check` validates for the search form, `logs` for execution, and the text must parse and pass the structure query validator for the current user.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#parseAndValidateSjql",
+    "com.almworks.jira.structure.query.SjqlParser#query",
+    "com.almworks.jira.structure.query.StructureQueryValidator"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/sjql-logs-reply",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/sjqlTroubleshooting/logs` always answers 200 with `Content-Disposition: attachment; filename=\"S-JQL_Troubleshooting.zip\"`, `application/zip`, no-cache, whatever the arguments are; only the common access gate can refuse it. The body is a ZIP with exactly one entry `S-JQL_Troubleshooting.log`. Three warnings go to the server log: requested, started and finished.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.SjqlTroubleshootingResource#getLogs",
+    "com.almworks.jira.structure.rest.v1.javax.SjqlTroubleshootingResource$SjqlLogsStream#write"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/sjql-logs-invalid-args",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/sjqlTroubleshooting/logs`: with argument errors the query is not run and the ZIP entry stays empty: every message (errors sorted, then warnings sorted) is written at error level to the server log under logger `com.almworks.jira.structure.query`, not into the archive.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.SjqlTroubleshootingResource$SjqlLogsStream#write"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/sjql-logs-capture",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/sjqlTroubleshooting/logs`: with valid arguments the query runs on the structure's forest, secured for the caller, and all results are consumed but not reported. During the run, logger `com.almworks.jira.structure.query` is set to TRACE and its output from the request's thread only goes into the ZIP entry instead of the normal log (output of other threads is not captured). When the forest cannot be loaded, a warning is logged and the entry holds only what was logged until then. Failure during the run is logged, and the ZIP is closed normally. Levels and logger set-up are restored at the end.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.SjqlTroubleshootingResource$SjqlLogsStream#write",
+    "com.almworks.jira.structure.util.Log4jScopedRunner#withAppender",
+    "com.almworks.jira.structure.util.Log4jScopedRunner$ThreadFilter",
+    "com.almworks.jira.structure.query.StructureJqlFunctionArgs#eval"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/sjql-logs-options",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/sjqlTroubleshooting/logs`: `messagePattern` is the log4j pattern layout of captured lines; when missing, `%d %m%n` is used. With `includeRelOutput=true` logger `com.almworks.jira.structure.query.sjql.binaryRelLog` is set to TRACE during the run; otherwise (default) it is switched off during the run, so its lines are left out.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.SjqlTroubleshootingResource$SjqlLogsStream#write",
+    "com.almworks.jira.structure.util.Log4jScopedRunner#createAppender"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/statistics-record-skip",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/statistics/record`: for an anonymous caller (even with a missing body), or when `stats` is null or empty, or `timestamp` is null, it answers 200 `empty-ok` and records nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource#record"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/statistics-record-null-body",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/statistics/record`: a logged-in caller with a missing body gets a null dereference, so 500, not 200 (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource#record",
+    "com.almworks.structure.commons.rest.RestExceptionMapper"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/statistics-record-rows",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/statistics/record`: for a logged-in caller with non-empty `stats` and a `timestamp`, it writes to `AO_8BAD1B_STATISTICS` immediately, not at the next flush, all rows with C_TIMESTAMP = `timestamp` as given. Each `stats` entry gives one row with C_STAT = the name, C_USERKEY null and C_VALUE = the amount (0.0 for a null amount). Plus one `userCount` row with the caller's key and C_VALUE 0.0. An entry with an empty name is skipped. A whitespace-only name is stored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource#record",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#recordSync",
+    "com.almworks.jira.structure.statistics.AOBasedStatisticsService#recordStatistics"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/statistics-record-active-user",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/statistics/record`: an additional `activeUser` unique-user row with the caller's key is written when `stats` has at least one of exactly these 20 names: `forestSpec.change`, `forestSpec.transform`, `layout.switch`, `search.toggle`, `expandClick`, `expandOrMoveToNext`, `expandNextLevel`, `expandAll`, `expandLevel`, `collapseClick`, `collapseOrMoveToParent`, `collapseNextLevel`, `collapseAll`, `view.addColumn`, `view.changeColumn`, `view.removeColumn`, `view.moveColumn`, `view.switch`, `jira.showActions`, `jira.actions.dropdown.click`. The presence of the name counts; its amount does not, so 0 also counts.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource#record",
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/statistics-record-reserved-names",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/statistics/record`: a `stats` entry named `userCount`, or `activeUser` together with one of the 20 interactive names, collides with the entry the endpoint adds itself: the call fails with 400 `structure-error` (`error` = `Invalid request data`) and nothing is recorded (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource#record",
+    "com.almworks.structure.commons.rest.RestExceptionMapper"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/statistics-record-offer-cache",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/statistics/record`: after recording, when the cached answer to 'are at least 3 users recorded?' is no, it is dropped, so the 'enable statistics' offer of statistics-manager can appear right away without waiting for a flush.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#recordSync",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#invalidateEnoughUsers"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/statistics-admin-gate",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/1.0/statistics/enableSending` and `PUT /rest/structure/1.0/statistics/dismissOffer`: the common access gate checks only that the caller is a Jira administrator; a non-administrator, and anonymous, gets 403 `permission violation`. An administrator without the 'use' permission passes, since for these two endpoints that permission is not looked at.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource#enableSending",
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource#dismissOffer",
+    "com.almworks.structure.compat.rest.interceptor.StructureRestInterceptorCommon#isAccessGranted"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/statistics-enable-sending",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/1.0/statistics/enableSending` stores global property `statistics.sendingEnabled` = true and answers 200 `empty-ok`. It takes no parameters, repeating it changes nothing, and it causes no network traffic: nothing is sent to the vendor now or later (see statistics-manager). There is no endpoint that turns the property off.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource#enableSending",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#setSendingEnabled"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/statistics-dismiss-offer",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`PUT /rest/structure/1.0/statistics/dismissOffer` sets the caller's Jira user property `com.almworks.jira.structure.statistics.offerRejected` to true and answers 200 `empty-ok`. It concerns only the calling administrator: others still see the offer.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.StatisticsResource#dismissOffer",
+    "com.almworks.jira.structure.statistics.StructureStatisticsManager#dismissOffer"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-menu-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view/menu`: `forPage` is checked first: any value that is not exactly one of the lower-case page ids `structure`, `structure-with-details`, `issue`, `project`, `component`, `version`, `navigator`, `gadget`, `greenhopper` gives 400 with the JSON string `unknown page`; so does an empty value. Otherwise `views` = `StructureViewManager.getMenuItems(forStructure, page)` in that order, as `grid-view` objects without permissions and owner, and `preferred` = the ids of the items flagged preferred, in the same order (empty list when none). A structure the caller cannot view gives empty `views` and `preferred`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#getMenu",
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#page",
+    "com.almworks.jira.structure.rest.v1.data.RestView$Seq#fromItems"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-page-mapping",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view/menu` and `GET /rest/structure/1.0/view/default`: the menu is read for an effective page: `forPage` missing, `structure-with-details`, `navigator` and `greenhopper` read the structure board's menu and defaults; `component` and `version` read the project page's; `structure`, `issue`, `project` and `gadget` read their own. So a missing `forPage` is not 'no restriction': it is the same as `forPage=structure`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#page",
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView#isOnMenu",
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView#isDefault",
+    "com.almworks.jira.structure.api.view.ViewSettings#adjustPage"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-default",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view/default`: it validates `forPage` as `GET /rest/structure/1.0/view/menu` does, then answers 200 with the first menu item flagged preferred as a `grid-view` without permissions and owner, or 200 `empty-ok` when no item is preferred, including when the structure is not viewable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#getDefaultView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-get",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view/{id}` reads the view with `StructureViewManager.getView(id, PermissionLevel.VIEW)`; a failure is the manager's `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE`, 404 `structure-error` with `viewId` set. It reports `writable` (caller has EDIT), `adminable` (caller has ADMIN), `shared` and `sharedWithAll`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#getView",
+    "com.almworks.jira.structure.rest.v1.data.RestView#fromView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-flags-shared",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "A `grid-view` reply's `shared` is true when any rule is not a set-level rule or sets a level other than NONE. `sharedWithAll` is decided by walking the rules in order: a set-level rule of `Anyone` at VIEW or higher makes it true; a set-level rule at NONE for any subject, and any rule that is not a set-level rule, makes it false; other rules change nothing. Applies to `GET /rest/structure/1.0/view/{id}` and every other view reply.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.structure.commons.permissions.PermissionUtils#isShared",
+    "com.almworks.structure.commons.permissions.PermissionUtils#isPublic",
+    "com.almworks.jira.structure.rest.v1.data.RestView#fromView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-with-permissions",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view/{id}` with `withPermissions=true` includes `permissions` only when the caller holds ADMIN on the view; otherwise the key is absent, and no error is raised. Without the flag the key is absent for everyone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.data.RestView#fromView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-with-owner",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view/{id}` with `withOwner=true`: a view with no owner gives `hasOwner` false and no `owner`. A view with an owner gives `owner` (and no `hasOwner`) when the caller is the owner or holds Jira's global ADMINISTER or USER_PICKER permission; otherwise `hasOwner` true and no `owner`. Without the flag both keys are absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.data.RestView#fromView",
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#getView",
+    "com.almworks.jira.structure.rest.javax.AbstractStructurePluginResource#canBrowseUsers"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-search-level",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view`: `permission` is parsed first, before `ids`, by comparing with the level names ignoring case (`NONE`, `VIEW`, `EDIT`, `EDIT_GENERATORS`, `AUTOMATE`, `ADMIN`). Anything else, including an empty value, gives 400 `structure-error` with `error` = `Invalid request data` and `message` = `Unknown level. Known values for level: NONE,VIEW,EDIT,EDIT_GENERATORS,AUTOMATE,ADMIN`. Missing, `none` and `view` all search at VIEW.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#search",
+    "com.almworks.structure.commons.rest.data.TransferFormat#getSearchPermissionLevel",
+    "com.almworks.structure.commons.rest.data.TransferFormat#parsePermissionLevel"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-search-ids",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view`: given `ids`, it is split on commas, and each part must parse as a positive long with no trimming (`1, 2` keeps only 1). With no valid part (also an empty `ids`) the reply is 400 in plain text `specify correct view ids`. The views are returned in the given order; a repeated id gives the view repeated; ids that fail `getView(id, level)` are left out silently.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#search",
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#getViewIds"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-search-all",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view`: without `ids` it returns `StructureViewManager.getViews(level)`, sorted by name as that manager sorts. The reply is a `grid-view-list` with no `preferred` key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#search",
+    "com.almworks.jira.structure.rest.v1.data.RestView$Seq#fromViews"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-search-name",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view`: `name` narrows the result, with or without `ids`, to views whose name contains the trimmed text as literal characters anywhere, ignoring case with Unicode case folding: `ann` matches `Planning`. Regular-expression characters are plain text. A `name` that is blank after trimming filters nothing.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#search",
+    "com.almworks.jira.structure.util.NameSearcher"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-create-validation",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view` validates in this order: missing body gives 400 plain text `no view`; a body with `id` gives `created view cannot have id parameter`; a `name` that is null or blank after trimming gives `created view must have a name`. Then the body's columns and rules are converted, where invalid data gives 400 `structure-error` `Invalid request data` even for a caller who may not create views. Only then does saving check the right to create and to share views (view-manager).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#createView",
+    "com.almworks.jira.structure.rest.v1.data.RestView#toBeanBuilder"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-create-spec-required",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view`: a body without `spec` is refused when saving, with 400 `structure-error` `INVALID_PARAMETER`; nothing is stored. An empty object `spec` is enough: the view is created with no columns.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#createView",
+    "com.almworks.jira.structure.view.AOBasedViewManager#validateViewWithoutID",
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#isValidExceptId"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-create-stored",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view`: the name is stored as sent, not trimmed. A logged-in caller becomes the owner and an `owner` in the body is ignored. For an anonymous caller the body's `owner` is used if any. The 200 reply is the new `grid-view` built with permissions and owner requested, with the caller's real 'browse users' answer.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#createView",
+    "com.almworks.jira.structure.view.AOBasedViewManager$AOBasedView#setCurrentUserAsOwner"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-update-validation",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view/{id}/update` checks in this order: missing body 400 plain text `no view`; body `id` different from the path id 400 `cannot reassign view id`; `owner` present with no `userKey`, whose `name` is not a Jira user (null or empty included), 400 with the text of `s.w.view.d.det.user-not-found` (`An error occurred while saving: user not found`); only then the view is read at ADMIN. So an unknown owner name gives 400 even to a caller with no access to the view.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#updateView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-update-denied-is-404",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view/{id}/update`: a caller with less than ADMIN on the view gets 404 `structure-error` `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE`, not 403, the same as for a missing view. `POST /rest/structure/1.0/view/{id}/updateSpec` does the same below EDIT, and `POST /rest/structure/1.0/view/{id}/makePublic` below ADMIN. Invalid columns or rules in the body are only looked at after this check.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#updateView",
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#makePublic",
+    "com.almworks.jira.structure.view.AOBasedViewManager#getView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-update-merge",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view/{id}/update` changes only what is non-null in the body: `name`, `description`, `owner`, `permissions`, `spec`. An empty `description` clears it. Null cannot clear anything, so the owner cannot be removed. `permissions` replaces all rules, with null list entries dropped; `spec` replaces the whole specification. An `owner` with a `userKey` is taken without checking that the user exists, and `userKey` wins over `name`. A blank `name` gives 400 `INVALID_PARAMETER` from saving. The reply is `grid-view` with permissions and owner requested.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#updateView",
+    "com.almworks.jira.structure.rest.v1.data.RestView#toBeanBuilder",
+    "com.almworks.jira.structure.api.view.StructureViewBean$Builder#updatePropertiesOf"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-update-spec",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view/{id}/updateSpec`: missing body gives 400 plain text `no specification`. The view is read at EDIT, then its whole specification is replaced by the body; name, owner and rules stay. The reply is `grid-view` with permissions and owner requested, so a caller with EDIT but not ADMIN gets no `permissions` key.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#updateView",
+    "com.almworks.jira.structure.rest.v1.data.RestView#fromView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-layout-validation",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view`, `POST /rest/structure/1.0/view/{id}/update` and `POST /rest/structure/1.0/view/{id}/updateSpec`, for each column of a `view-layout`: a null entry gives 400 `structure-error` `Invalid request data` with `message` `null column`; a missing `key` gives `no key`; a missing `csid` gives `no csid`. A `columnDisplayMode` or `rowDisplayMode` of 0 or of an unsupported value is not an error: it is ignored (the latter with a logged warning) and the specification default applies, not the view's previous mode. Missing `columns` or `pins` means none.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.data.RestViewSpecification#toSpecBuilder",
+    "com.almworks.jira.structure.rest.v1.data.RestViewSpecification$Column#toBuilder"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-reply-assert",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view/{id}/update`: when the change leaves the caller below VIEW on the view (for example the owner hands it over and no rule covers them), the change is saved, then building the reply fails: with assertions enabled (as the tests run) it throws `AssertionError`; with them disabled the reply is 200 with `writable` and `adminable` false.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#updateView",
+    "com.almworks.jira.structure.rest.v1.data.RestView#fromView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-make-public",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view/{id}/makePublic`: the view is read at ADMIN; the body is ignored and may be any JSON object. When `sharedWithAll` is already true nothing is saved. Otherwise the rules become: first `anyone VIEW`, then, in order, only the old set-level rules with a level above VIEW; all others are dropped, so rules giving VIEW to a group and NONE rules are lost. The reply is `grid-view` with permissions and owner requested.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#makePublic",
+    "com.almworks.structure.commons.permissions.PermissionUtils#makePublic",
+    "com.almworks.jira.structure.view.AOBasedViewManager$AOBasedView#makePublic"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-make-default-order",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view/{id}/makeDefault`: a missing body gives 500. It validates `pageId` as a page id (400 JSON string `unknown page`), reads the view at VIEW (404 `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE`), and only then calls `makeDefaultForStructure` (view-manager), which requires ADMIN on the structure. So a bad view is reported before a bad structure. A missing `structureId` is 0, and gives 404 `STRUCTURE_NOT_EXISTS_OR_NOT_ACCESSIBLE`. The reply is `grid-view` without permissions and owner.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#makeDefault",
+    "com.almworks.jira.structure.view.AOBasedViewManager#makeDefaultForStructure"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-make-default-no-page",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view/{id}/makeDefault` with no `pageId`: if the view is already the structure board default for that structure it answers 200 and writes nothing; otherwise it fails with a null dereference, so 500, and nothing is written (as the original does).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#makeDefault",
+    "com.almworks.jira.structure.view.AOBasedViewManager#makeDefaultForStructure",
+    "com.almworks.jira.structure.view.AOBasedViewManager#addPageToDefaults",
+    "com.almworks.jira.structure.api.view.ViewSettings$Builder#addView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-make-default-other-pages",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`POST /rest/structure/1.0/view/{id}/makeDefault`: only `structure`, `issue` and `project` can hold a default. For `pageId=gadget` it answers 200 and saves the structure's settings: the view is placed on the gadget menu but no default is recorded. For `component`, `version`, `navigator`, `greenhopper` and `structure-with-details` the page itself is dropped from what is stored, so an associated view that had unset menu pages ends up on no menu (as the original does); `component` and `version` are a no-op when the view is already the project page default.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.view.AOBasedViewManager#makeDefaultForStructure",
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView$Builder#setMenuPages",
+    "com.almworks.jira.structure.api.view.ViewSettings$AssociatedView$Builder#setDefaultPages",
+    "com.almworks.jira.structure.api.view.ViewSettings#getDefaultViewForPage"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-associations",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`GET /rest/structure/1.0/view/{id}/associations`: when `StructureViewManager.isAccessible(id, PermissionLevel.VIEW)` is false it answers 403 with no body. Otherwise `associatedStructures` is `getAssociatedStructures(id)` in that order as `structure-summary` objects (empty list when none); `associatedDefault` is true when the view is listed in the global default view settings, on any page, and absent otherwise, never false.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#getViewAssociations",
+    "com.almworks.jira.structure.api.view.ViewSettings#hasView"
+   ]
+  },
+  {
+   "key": "r2-v1-gadget-view/rest-v1/view-delete",
+   "module": "rest-v1",
+   "api": null,
+   "behaviour": "`DELETE /rest/structure/1.0/view/{id}`: an id of 0 or below gives 400 with no body. When the view is not accessible at VIEW the reply is 404 `structure-error` `VIEW_NOT_EXISTS_OR_NOT_ACCESSIBLE` with `viewId` set and no message. Otherwise `deleteView` runs (view-manager): a caller below ADMIN gets 403 `VIEW_ADMIN_DENIED`. Success is 200 `empty-ok`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.rest.v1.javax.ViewResource#deleteView"
+   ]
+  }
+ ]
+}

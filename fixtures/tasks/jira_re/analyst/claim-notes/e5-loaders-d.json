@@ -1,0 +1,1007 @@
+{
+ "claims": [
+  {
+   "key": "e5-loaders-d/aggregate-order-provider/ids-and-params",
+   "module": "aggregate-order-provider",
+   "api": null,
+   "behaviour": "Answers attribute ids `max` and `min` only. The compared attribute is the nested attribute under params key `attribute` (taken with its own stored format). It is accepted only when that format is one of text, number, duration, time, order or generic (`any`); a missing nested attribute or any other format (e.g. html, boolean) gives no loader (null). Other params are not read except `type` (the reduction strategy, see below).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider#isValidAttributeDependency"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-order-provider/reduction-strategy-from-type",
+   "module": "aggregate-order-provider",
+   "api": null,
+   "behaviour": "The scope is the standard reduction strategy chosen by the spec's `type` parameter (`subtree` by default, also `children`, `leaves`, `strict`, as `ReductionStrategy` defines them): by default a row's `max`/`min` covers the row's own value and the values of all its descendants. Values of child rows that are generators or effectors are left out and the first child error is passed up, as for every `ReducingAggregateLoader`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider$ReducingLoader",
+    "com.almworks.jira.structure.api.attribute.loader.reduce.ReducingAggregateLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-order-provider/comparison-order",
+   "module": "aggregate-order-provider",
+   "api": null,
+   "behaviour": "Values are compared with `TotalOrder.withCaseInsensitiveStringComparison()` (strings lower-cased in the root locale, numbers of any class compared numerically, then `TotalOrder.COMPARATOR`: numbers before strings before other classes). The result is the original value, not the lower-cased one. Example: among `Beta`, `alpha`, `GAMMA` max is `GAMMA` and min is `alpha`; among 3, 10 and 7.5 max is 10.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider",
+    "com.almworks.jira.structure.api.util.TotalOrder#withCaseInsensitiveStringComparison"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-order-provider/nulls-skipped",
+   "module": "aggregate-order-provider",
+   "api": null,
+   "behaviour": "Undefined (null) values are skipped; when no value in scope is defined the result is undefined. Mixed types follow the total order, so with `max` a text value wins over any number (numbers sort first) and with `min` a number wins over any text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider$ReducingLoader#reduce"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-order-provider/ties",
+   "module": "aggregate-order-provider",
+   "api": null,
+   "behaviour": "On equal comparison values (e.g. `abc` and `ABC`), `max` returns the one met last in scope order (the row's own value first, then children in forest order) and `min` returns the one met first.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider$ReducingLoader#reduce"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-order-provider/same-format-direct",
+   "module": "aggregate-order-provider",
+   "api": null,
+   "behaviour": "When the requested format of `max`/`min` equals the nested attribute's format, the values compared are exactly the values returned: the loader depends only on the nested attribute and reduces its values.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider#getSingleLoader",
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider$MinMaxSingleLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-order-provider/different-format-pick-by-comparison",
+   "module": "aggregate-order-provider",
+   "api": null,
+   "behaviour": "When the requested format differs from the nested attribute's format (e.g. `max` requested in the generic format over a nested attribute in order format, as formula `max{}` does), the row is chosen by comparing the nested attribute's values in its own format, and the result is the chosen row's value of the same nested attribute in the requested format. A row counts only when both its comparison value and its requested-format value are defined; rows missing either are skipped. The resulting loader may be cached (`AttributeCachingStrategy.MAY`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider#getInnerConvertingLoader",
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider$MinMaxPairLoader#getSelfValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-order-provider/internal-pair-attribute",
+   "module": "aggregate-order-provider",
+   "api": null,
+   "behaviour": "For the different-format case the provider also answers its own helper attribute, which carries params `attribute` (comparison attribute), `desired` (the same attribute in the requested format), `predicate` (`max` or `min`) and `type` copied from the request; the helper's value per row is the (comparison value, requested value) pair chosen over the scope. It is given no loader when `attribute` or `desired` is missing, `predicate` is empty or not `max`/`min`, or the comparison format is not supported. The helper's id is not contract.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider#getDependentAttribute",
+    "com.almworks.jira.structure.extension.attribute.MinMaxProvider#isInnerSpec"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/value-path-provider/id-and-params",
+   "module": "value-path-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `aggregation-value-path` only, always in the generic (`any`) format. Params: `attribute` (the nested attribute, required, read in the generic format; missing gives no loader), `withSuperRoot` (boolean, default false) and `withoutTitle` (boolean, default false).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ValuePathProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/value-path-provider/value-is-own-inner-value",
+   "module": "value-path-provider",
+   "api": null,
+   "behaviour": "It is a propagate loader: each row's value is the nested attribute's value for that row (defined, undefined or error as the nested attribute gives it), and it additionally links to the parent row's value-path value so that ancestors can be walked from any row (used by `parent-provider` and the ancestors scope of `aggregate-function-provider`). The row's own loader data from the nested attribute is kept alongside the link.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ValuePathProvider$ValuePathLoader#loadChildren",
+    "com.almworks.jira.structure.extension.attribute.ValuePathProvider$PathLoaderData"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/value-path-provider/chain-top",
+   "module": "value-path-provider",
+   "api": null,
+   "behaviour": "The chain stops (no parent link) at top-level rows; with `withSuperRoot` true the invisible super-root row (row id -1) is loaded too and top-level rows link to it, and it is the top of the chain. With `withoutTitle` true, a title row (semantics 1) gets the plain undefined value with no link, and rows directly under a title row are treated as the top of the chain.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ValuePathProvider$ValuePathLoader#loadChildren",
+    "com.almworks.jira.structure.extension.attribute.ValuePathProvider$ValuePathLoader#isLoadingSuperRoot"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/value-path-provider/dependency",
+   "module": "value-path-provider",
+   "api": null,
+   "behaviour": "Its only attribute dependency is the nested attribute (in the generic format); its values change whenever that attribute's values or the forest's parent links change (default propagate caching).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ValuePathProvider$ValuePathLoader#getAttributeDependencies"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/parent-provider/id-and-params",
+   "module": "parent-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `aggregation-parent` only, in the generic (`any`) format. Params: `attribute` (nested attribute in its own format; missing gives no loader), `level` (Integer; deprecated synonym `depth`, used only when `level` is absent or not an Integer; default -1) and `withoutTitle` (boolean). Only `java.lang.Integer` values are honoured; another number type (e.g. a Long) counts as absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ParentAttributeProvider#createAttributeLoader",
+    "com.almworks.jira.structure.util.Util#expectEither"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/parent-provider/negative-level",
+   "module": "parent-provider",
+   "api": null,
+   "behaviour": "A negative level -n gives the value of the nested attribute n rows up from the row: -1 is the parent, -2 the grandparent. When the chain ends before n steps the result is undefined. Because a non-positive level includes the invisible super-root in the chain, -1 on a top-level row gives the nested attribute's value for the super-root row (usually undefined), not undefined by construction.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ParentAttributeProvider$ParentAttributeLoader#getValueFromTail",
+    "com.almworks.jira.structure.extension.attribute.ParentAttributeProvider$ParentAttributeLoader#<init>"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/parent-provider/positive-level",
+   "module": "parent-provider",
+   "api": null,
+   "behaviour": "A positive level n counts down from the top: 1 is the row's top-level ancestor, 2 the next row below it on the path, and so on; the path includes the row itself, so n equal to the row's depth gives the row's own value and n greater than it gives undefined. Level 0 gives the value for the super-root row (the chain then includes the super-root).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ParentAttributeProvider$ParentAttributeLoader#getValueFromHead"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/parent-provider/without-title",
+   "module": "parent-provider",
+   "api": null,
+   "behaviour": "With `withoutTitle` true the title row (semantics 1) is not part of any path: level 1 under a titled forest is the first row below the title, -1 on a row directly under the title is undefined, and the title row's own value is undefined.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ParentAttributeProvider$ParentAttributeLoader#<init>",
+    "com.almworks.jira.structure.extension.attribute.ValuePathProvider$ValuePathLoader#loadChildren"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/parent-provider/dependency-and-errors",
+   "module": "parent-provider",
+   "api": null,
+   "behaviour": "It is a derived loader depending only on `aggregation-value-path` with the same nested attribute, `withSuperRoot` = (level <= 0) and the same `withoutTitle`. The chosen ancestor's value is returned as that ancestor's nested-attribute value, with its own loader data; an error value of that ancestor is returned as that error, and errors of rows passed over are ignored.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ParentAttributeProvider$ParentAttributeLoader#getAttributeDependencies",
+    "com.almworks.jira.structure.extension.attribute.ParentAttributeProvider$ParentAttributeLoader#withOwnLoaderData"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/ids",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "Answers attribute ids `aggregation-array` (generic format) and `aggregation-join` (text format) only; both need a nested attribute under params key `attribute` (missing gives no loader). Other ids get null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/params",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "Params read, with defaults: `type` (scope, String: `subtree` default for `aggregation-array`, `ancestors` default for `aggregation-join`; also `children`, `leaves`, `strict`), booleans `distinct`, `flatten`, `compact`, `reverse`, `withoutTitle` (all false), Integers `fromLevel` (deprecated `fromdepth`, default 1) and `toLevel` (deprecated `todepth`, default 0); for `aggregation-join` also texts `separator` (default `, `), `beforechildren` (default `(`) and `afterchildren` (default `)`). A value of the wrong Java type (e.g. a non-String `type`, a Long level) counts as absent.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider$AggregationParameters#<init>",
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider$AggregationParameters#buildJoinLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/unsupported-scope",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "Scope `preceding` or any other unknown `type` makes loader creation throw `IllegalArgumentException` with message `unsupported tree type '<type>'` (for `aggregation-join` with `distinct` or scope `ancestors`, when its derived `aggregation-array` is created).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TreeAgnosticLoaderSupport#createTreeAgnosticAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/array-descendant-scopes",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "`aggregation-array` with scope `subtree`, `children`, `leaves` or `strict` is a reducing aggregate whose reduction strategy is selected by `type` as `ReductionStrategy` defines it. With `subtree` a row's array is its own value followed by its children's arrays in forest order (pre-order), e.g. A with children B (child D) and C gives [A, B, D, C]; `children` gives the children's own values; `leaves` the leaves' values (a leaf gives its own); `strict` the descendants without the row itself. Generator and effector child rows are left out; a child error is passed up.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TreeAgnosticLoaderSupport$TreeDescendantsAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider$AggregationParameters#buildArrayLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/array-splice-compact-distinct",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "When collecting, every collected value that is a list is spliced in one level (its elements are taken instead of the list; deeper lists stay nested) and other values are taken as single elements; the `flatten` flag itself does not change this. With `compact` null (undefined) elements are dropped; with `distinct` repeated elements (by `equals`) are dropped, keeping the first. Without `compact`, undefined values appear as null elements. An empty input gives an empty array.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider$AggregationParameters#buildArrayLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/array-size-limit",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "If the number of elements after flattening all nested lists completely exceeds the formula array size limit (dark feature `structure.expr.arraySizeLimit`, default 100000, see `expr-constraints`), the row's value is an error whose data is error 13 (array size limit exceeded). The same limit applies to `aggregation-join` with a descendant scope, counting the number of values being joined at one row.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider$AggregationParameters#buildArrayLoader",
+    "com.almworks.jira.structure.extension.attribute.TreeAgnosticLoaderSupport$TreeDescendantsAttributeLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/array-reverse",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "`aggregation-array` with `reverse` true is derived from the same `aggregation-array` without `reverse` (same nested attribute, `type`, `flatten`, `distinct`, `compact`, `withoutTitle`, and levels for `ancestors`) and returns that list in reverse order; when that value is not a list the result is undefined, and its error is passed through.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider$AggregationParameters#buildArrayLoader",
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider$AggregationParameters#buildArraySpec"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/ancestors-scope",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "Scope `ancestors` is a derived value over `aggregation-value-path` of the nested attribute (with `withSuperRoot` true only when `fromLevel` is 0, and the same `withoutTitle`): the list of values on the path from the top-level ancestor down to the row itself, inclusive, cut to the level range. If any value on the path is an error, that error is the result.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TreeAgnosticLoaderSupport$AncestorsAttributeLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.TreeAgnosticLoaderSupport$AncestorsAttributeLoader#getValuePathBackwardsList"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/ancestors-level-range",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "Level range for `ancestors` (path positions numbered 1 = top-level row ... N = the row): a positive level L means position L, a level 0 or negative L means position N+L (0 = the row, -1 = its parent). The result is positions from..to inclusive; a from before the start is clamped to the start; when to is before from, beyond the row, or before the start, the result is undefined. `fromLevel` 0 is special: the super-root's value is put first and the range starts there, and a positive `toLevel` keeps counting from the top-level row. Examples on a path R > P > X evaluated at X: defaults give [R, P, X]; `toLevel` -1 gives [R, P]; `fromLevel` -1 gives [P, X]; `fromLevel` 2 `toLevel` 2 gives [P]; `fromLevel` 4 gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TreeAgnosticLoaderSupport$AncestorsAttributeLoader#trimListAccordingToParameters",
+    "com.almworks.jira.structure.extension.attribute.TreeAgnosticLoaderSupport$AncestorsAttributeLoader#<init>"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/join-descendants-format",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "`aggregation-join` with scope `subtree`, `children`, `leaves` or `strict` and without `distinct` aggregates the nested attribute in text format with the selected reduction strategy. Where a row's own text is combined with its children's results (subtree, and the merge of strict), the text is `<own><beforechildren><child1><separator><child2>...<afterchildren>`, and a row with no children gives just its own text; where only children are combined (children, leaves, strict) the texts are joined with the separator without brackets. Example with defaults, A with children B (child D) and C, scope subtree: `A(B(D), C)`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider#join",
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider$AggregationParameters#buildJoinLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/join-question-mark",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "In joins every undefined value is written as `?`: in a subtree join a leaf with undefined value gives `?` and a parent with undefined value gives `?(...)`. Joining an empty list gives undefined. `reverse` reverses the order of the joined children texts at each level but never moves the row's own text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider#join",
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/aggregate-function-provider/join-ancestors-or-distinct",
+   "module": "aggregate-function-provider",
+   "api": null,
+   "behaviour": "`aggregation-join` with scope `ancestors` (the default) or with `distinct` true is derived from an `aggregation-array` of the same nested attribute, scope and `withoutTitle` (with `reverse` passed on; with `distinct` also `flatten`, `distinct` and `compact` set; for `ancestors` also `fromLevel`/`toLevel`), whose elements are written with `toString()` (undefined as `?`) and joined with `separator` only (no brackets). An empty array gives undefined, a non-list gives undefined, and an error of the array is returned as the error. Example: ancestors join at X on path R > P > X gives `R, P, X`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider$AggregationParameters#buildJoinLoader",
+    "com.almworks.jira.structure.extension.attribute.AggregationLoaderProvider#expectList"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/manually-adjusted-provider/value",
+   "module": "manually-adjusted-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `manually-adjusted` (any requested format gets the boolean loader). For every row the value is true when the forest's generation data lists that row id among the rows a user adjusted by hand (moved or changed against the generators' result), otherwise false; when the forest has no generation data (e.g. a forest without generators) it is false for all rows. Every row gets a defined value, whatever its item type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ManuallyAdjustedProvider#isRowManuallyAdjusted",
+    "com.almworks.jira.structure.extension.attribute.ManuallyAdjustedProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/manually-adjusted-provider/whole-forest",
+   "module": "manually-adjusted-provider",
+   "api": null,
+   "behaviour": "It is a single-row loader that depends on the whole forest, so its values are recomputed whenever the forest (including its generation data) changes.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ManuallyAdjustedProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/wiki-rendering-provider/id-and-param",
+   "module": "wiki-rendering-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `wiki-render` (HTML format) whose params key `attribute` names a nested attribute, read in text format. With no nested attribute, or when Jira's `RendererManager.getRendererForType(\"atlassian-wiki-renderer\")` returns null at loader creation, no loader is given (null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.WikiRenderingProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.WikiRenderingProvider#getAtlassianWikiRenderer"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/wiki-rendering-provider/value",
+   "module": "wiki-rendering-provider",
+   "api": null,
+   "behaviour": "The value is the nested attribute's text rendered by that renderer with `render(text, null)` (no issue context), for every row and item type the nested attribute covers. When the nested text is undefined, null or an error, the loader yields no value; a null render result also gives no value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.WikiRenderingProvider$WikiRenderingLoader#getValue",
+    "com.almworks.jira.structure.api.attribute.loader.basic.SimpleDerivedAttributeLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-name-provider/attributes",
+   "module": "version-name-provider",
+   "api": null,
+   "behaviour": "Answers, for rows of item type `com.almworks.jira.structure:type-version-name`, only the aggregate variants: `summary` with param `aggregate` = true (text), `icon` with `aggregate` = true (HTML) and `description` with `aggregate` = true (HTML); plain `summary`, `icon`, `description` without that param are not answered. It also serves two internal helper attributes, the issue ids under the row and their project ids (ids not contract).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionNameProvider#<init>",
+    "com.almworks.jira.structure.extension.attribute.InternalAttributeSpecs"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-name-provider/issues-under-row",
+   "module": "version-name-provider",
+   "api": null,
+   "behaviour": "The issues of a version-name row are collected over the forest: for a row whose item is a version name or whose semantics is 2 (group row), it is the set of the item ids of its direct children that are issues (children that are group rows excluded) plus, recursively, the issues collected by its child version-name or group rows; other rows contribute nothing. Generated version-name rows from the version grouper thus see the issues grouped under them.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionNameProvider$IssuesAggregateLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-name-provider/projects-and-versions",
+   "module": "version-name-provider",
+   "api": null,
+   "behaviour": "The projects of a version-name row are the projects of those issues, each issue resolved as the current user (unresolvable issues are skipped). The matching versions are, for each project id in ascending order, the versions of that project (Jira `VersionManager.getVersions(projectId)`) whose canonical name (`CoreIdentities.canonicalVersionName`) equals the version-name item's name, ordered by version id. The 'first' version is the first of these whose description is not blank (after normalising whitespace), else the first one.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionNameProvider$ProjectsLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.VersionNameProvider$ProjectDependentLoader#getValue",
+    "com.almworks.jira.structure.extension.generator.VersionSupport#findVersions"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-name-provider/summary",
+   "module": "version-name-provider",
+   "api": null,
+   "behaviour": "Aggregate `summary` of a version-name row is the name of the 'first' matching version (with its original case); when there are no issues, no projects or no matching versions, it is the version-name item's own name (its canonical, lower-cased form).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionNameProvider$VersionNameSummaryLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-name-provider/icon",
+   "module": "version-name-provider",
+   "api": null,
+   "behaviour": "Aggregate `icon` is an empty span. Each version's classes are `aui-icon aui-icon-small` plus `aui-iconfont-version-unreleased` (unreleased) or `aui-iconfont-version` (released), with ` s-version-icon-archived` appended when archived. If all matching versions have the same classes the result is `<span class=\"<those classes>\"></span>`; if they differ, or there are no issues/projects/matching versions, it is the mixed icon `<span class=\"alm alm-fw alm-version-name\"></span>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionNameProvider$VersionNameIconLoader",
+    "com.almworks.jira.structure.extension.attribute.IconProvider$VersionIconLoader#getVersionIconCSS",
+    "com.almworks.jira.structure.util.Util#emptySpan"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-name-provider/description",
+   "module": "version-name-provider",
+   "api": null,
+   "behaviour": "Aggregate `description` combines the matching versions' descriptions, grouped by key = description with whitespace normalised and lower-cased (root locale); blank descriptions are ignored and when all are blank (or nothing matches) it is undefined. If only the 'first' version's key occurs, the value is its description as is; otherwise it is the first version's `<description> (<PROJECTKEY>)`, then `, ` and, for each other key in order of first appearance, the description of the lowest-id version having it with ` (<PROJECTKEY>)` (without the suffix when the version has no project), joined with `, `. The whole text is HTML-escaped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionNameProvider$VersionNameDescriptionLoader#getValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-name-provider/caching-and-user",
+   "module": "version-name-provider",
+   "api": null,
+   "behaviour": "The project lookup depends on the current user (`AttributeContextDependency.USER`) because issues are resolved with that user's visibility; the issue and project helper values may be cached (`MAY`) and summary, icon and description should be (`SHOULD`). Values change when the rows under the version-name row change.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionNameProvider$ProjectsLoader#getContextDependencies",
+    "com.almworks.jira.structure.extension.attribute.VersionNameProvider$ProjectDependentLoader#getCachingStrategy"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/ids-and-params",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `timeinstatus` for issues. Params: `statuses` (list of texts), `targetEnabled` (boolean), `targetStatuses` (list of texts, read only when `targetEnabled` is true), `reopen` (boolean), `useCurrentStatus` (boolean), `calendar` (text). Each status entry is `status:<status id>` (looked up with Jira `StatusManager.getStatus`) or `category:<category id or key>` (a number is looked up with `StatusCategoryManager.getStatusCategory(id)`, otherwise `getStatusCategoryByKey`); unknown statuses or categories and entries with another prefix are ignored with a logged warning. An empty or missing list matches no status.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider#parseStatusPredicate",
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider#parseStatusCategory"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/formats",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "In HTML format the value is the duration formatted as calendar time (see `format-helper`: whole minutes and larger units, a magnitude under one minute formatted as zero); in every other requested format (duration, number, text, ...) the loader gives a duration in milliseconds (duration format).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$FormattedNumberLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/calendar-param",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "A blank or missing `calendar` uses the default calendar of `simple-calendar-provider` (plain elapsed time, not time-zone dependent). Otherwise it is `<calendar provider complete module key>/<calendar id>`, e.g. `com.almworks.jira.structure:simple-calendar-provider/1`, resolved through the enabled calendar providers; a calendar the provider does not find, or a value not of that form (not exactly one `/`, non-numeric id), gives no loader (null). A provider key that is not installed makes loader creation fail with `NullPointerException` (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider#parseCalendar",
+    "com.almworks.jira.structure.extension.calendar.CalendarFullId#parse"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/history-source",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "Stays are worked out from the issue's status history (Jira `ChangeHistoryManager.getChangeItemsForField(issue, \"status\")`, each change's time, from-status id and to-status id, in the order Jira returns them). The first stay starts at the issue's creation time and each change ends one stay and starts the next. When Jira returns null the value is undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$ChangeItemBeanListLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$InternalTimeInStatusNumberLoader#getValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/basic-sum",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "Without options, the value is the sum, over all completed stays whose status matches `statuses`, of the stay's duration measured by the calendar (`Calendar.getDuration(start, end)`), plus, when the issue's current status matches, the time from the last change (or creation) up to now. Example: created 10:00 in Open, to In Progress 11:00, to Open 12:00, back to Done 12:30, statuses [Open] gives 1h30m.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$InternalTimeInStatusNumberLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$TimeInStatusNumberLoader#getValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/target-statuses",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "With `targetEnabled` true a completed stay counts only when the change that ended it went to a status matching `targetStatuses`; the current, still-open stay is never counted.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$InternalTimeInStatusNumberLoader#getValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/reopen",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "With `reopen` true, stays are grouped into runs of consecutive stays in matching statuses; the first run is not counted and every matching stay from the second run on is counted (i.e. only time after the issue came back to the chosen statuses). The current stay counts by the same rule (when target statuses are off). Example with statuses [In Progress]: In Progress 1h, Review, In Progress 2h, Done gives 2h.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$ReopenFilter#test"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/current-status",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "With `useCurrentStatus` true the `statuses`, `targetStatuses` and `reopen` options are ignored: the value is the time spent in the issue's current status over all completed stays in it plus the ongoing stay up to now.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$InternalTimeInStatusNumberLoader#getValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/expiry-and-time",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "Values with an ongoing counted stay expire after 1 minute (recomputed with the current time); values without one expire after 1 day. The duration loader depends on the current time, and on the user's time zone when the calendar is time-zone dependent; the history helper may be cached (`SHOULD`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$TimeInStatusNumberLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider$TimeInStatusNumberLoader#getContextDependencies"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/time-in-status-provider/usage-statistics",
+   "module": "time-in-status-provider",
+   "api": null,
+   "behaviour": "Each time a duration loader is created it records the current user for usage statistic `timeInStatus.users`, also for `timeInStatus.statusUsers` when any source or target entry starts with `status:`, and for `timeInStatus.categoryUsers` when any starts with `category:` (unique-user counts, see `statistics-manager`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TimeInStatusProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/status-category-provider/formats",
+   "module": "status-category-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `status-category` for issues: in number or order format the value is the category id of the issue's status (`StatusCategory.getId()`, a Long, served in number format); in HTML format the lozenge below; in every other format the category's name (`getPrimaryAlias()`) as text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.StatusCategoryProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/status-category-provider/html",
+   "module": "status-category-provider",
+   "api": null,
+   "behaviour": "The HTML is `<span class=\"alm alm-status-category jira-issue-status-category-icon jira-issue-status-lozenge-<color>\"></span>&nbsp;<span class=\"jira-issue-status-lozenge aui-lozenge jira-issue-status-lozenge-<color>\"><name></span>`, with the category's colour name and primary alias HTML-escaped (`TextUtils.htmlEncode`), e.g. `...lozenge-green\">Done</span>`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.StatusCategoryProvider#statusCategoryHtml"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/status-category-provider/errors",
+   "module": "status-category-provider",
+   "api": null,
+   "behaviour": "An issue without a status, or whose status has no category, gets an error value (not undefined). Items that are not issues are not supported.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.StatusCategoryProvider$StatusCategoryLoader#getValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/project-category-provider/id-and-types",
+   "module": "project-category-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `project-category` (text) for issues and for planning tasks (`com.almworks.jira.structure:type-planning-task`). The value is the name of the project category of the issue's project, or of the planning task's project (task found with `planning-task-manager`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ProjectCategoryProvider#<init>",
+    "com.almworks.jira.structure.extension.attribute.ProjectCategoryProvider#getProjectCategoryAttribute"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/project-category-provider/nulls-and-errors",
+   "module": "project-category-provider",
+   "api": null,
+   "behaviour": "No project (null) gives an error value; a project without a category gives undefined; a planning task that is not found gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ProjectCategoryProvider#getProjectCategoryAttribute",
+    "com.almworks.jira.structure.extension.attribute.ProjectCategoryProvider#planningTaskLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/project-category-provider/trail",
+   "module": "project-category-provider",
+   "api": null,
+   "behaviour": "The project item (`CoreIdentities.project`) and, when present, the project category item (`CoreIdentities.projectCategory`) are added to the value's trail, so the value is recalculated when the project or the category changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ProjectCategoryProvider#getProjectCategoryAttribute"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/transition-date-provider/transition-date-params",
+   "module": "transition-date-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `transition-date` (time format, epoch ms; requests in any format get the time loader) for issues. Params: `status` (status id, or else a status name matched ignoring case, first match in `StatusManager.getStatuses()` order) or, when `status` is absent, `category`; `transition` = `latest` (default) or `first`; any other `transition` value is treated as `latest` with a logged warning. An unknown status, an unknown category name, or neither param gives no loader (null).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TransitionDateProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.TransitionDateProvider#findStatusByQualifier"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/transition-date-provider/category-names",
+   "module": "transition-date-provider",
+   "api": null,
+   "behaviour": "`category` is matched lower-cased (root locale) against fixed aliases: `todo`, `to do`, `new` = category key `new`; `in progress`, `in_progress`, `inprogress`, `indeterminate` = `indeterminate`; `complete`, `done` = `done`; `undefined` = `undefined`. It then covers every status whose category has that key (possibly none, which gives an always-undefined value).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TransitionDateProvider#findAllStatusesOfCategory"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/transition-date-provider/transition-date-value",
+   "module": "transition-date-provider",
+   "api": null,
+   "behaviour": "The value is the time of the earliest (`first`) or latest (`latest`) entry of the issue's status history (`field-change-list` with `fieldId` = `status`) whose status id is one of the selected ones. The first history entry stands for the creation, so an issue created in the selected status has that entry's time when it never left, or as its first transition. No match, or history unavailable, gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TransitionDateProvider$TransitionDateLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.TransitionDateProvider$TransitionDateLoader$searcher$1",
+    "com.almworks.jira.structure.extension.attribute.TransitionDateProvider$TransitionDateLoader$searcher$2"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/transition-date-provider/field-change-list",
+   "module": "transition-date-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `field-change-list` (list format) for issues, param `fieldId` (required: missing gives no loader), the name passed to Jira's `ChangeHistoryManager.getChangeItemsForField(issue, fieldId)`. The value is a list of (value, timestamp ms) entries: first an initial entry, then one per change item whose field equals `fieldId` and whose creation time is not null, in Jira's order, with value = the change's raw `to` value and its creation time. Jira returning null gives an error value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TransitionDateProvider$FieldChangeLoader#getValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/transition-date-provider/field-change-initial",
+   "module": "transition-date-provider",
+   "api": null,
+   "behaviour": "The initial entry's value is the first change's raw `from` value, and when there are no changes it is the issue's current status id, whatever `fieldId` is (as the original does). Its time is the issue's creation time (0 when null), or the first change's time if that is earlier.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TransitionDateProvider$FieldChangeLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.TransitionDateProvider"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/query-match-provider/params",
+   "module": "query-match-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `query-match`. Params: `query` (text, with leading and trailing horizontal whitespace removed) and `queryType` (`jql`, `sjql` or `text`, see `various-query-parser`). A missing or empty query gives a loader whose value is undefined for every row; a missing `queryType` gives no loader (null); a query that `various-query-parser` cannot parse (it throws `StructureException`, e.g. an unknown type or a syntax error) gives the always-undefined loader, logged at info.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryMatchProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.JQLUtil#sanitizeJQL"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/query-match-provider/boolean-value",
+   "module": "query-match-provider",
+   "api": null,
+   "behaviour": "In boolean format (and every format other than HTML) each row's value is true when the row is among the rows the query matches in the current forest and false otherwise; the title row (semantics 1) is always undefined. The query runs for the current user over the forest without its title row (when the forest's only root is a title row it is removed, its children moving up).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryMatchProvider$QueryMatchLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.query.QueryMatchProvider$QueryMatchLoader#getForestWithoutTitle"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/query-match-provider/html",
+   "module": "query-match-provider",
+   "api": null,
+   "behaviour": "In HTML format the value is `<i class=\"s-fa s-fa-check-circle s-querymatch-value\" ></i>` for rows whose boolean value is true and no value otherwise.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryMatchProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/query-match-provider/cache-and-errors",
+   "module": "query-match-provider",
+   "api": null,
+   "behaviour": "Matching is computed once per loading pass: when the loading context knows the base forest spec and non-zero forest and items versions, the result comes from `query-result-cache` (for the spec without its title and the forest without the title root); otherwise, or when the cache gives no answer, the query is parsed and run directly. A `StructureException` while doing so is logged and every row of that pass gets an error value. The loader depends on the whole forest and on the current user.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.query.QueryMatchProvider$QueryMatchLoader#preload",
+    "com.almworks.jira.structure.extension.attribute.query.QueryMatchProvider$QueryMatchLoader#isWholeForestDependent"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/issue-comment-provider/id-and-formats",
+   "module": "issue-comment-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `comment` for issues: in HTML format if requested, otherwise in text format. The value is the issue's last comment the current user may see, loaded in bulk for the batch of issues with `bulk-comment-reader`; it depends on the current user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.comment.IssueCommentProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.comment.IssueCommentProvider$IssueCommentAttributeLoader#preload"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/issue-comment-provider/text-and-html",
+   "module": "issue-comment-provider",
+   "api": null,
+   "behaviour": "Text is the raw comment body. HTML is the body rendered with Jira's `RendererManager.getRenderedContent(rendererType, body, issue.getIssueRenderContext())`, where the renderer type is that of the `comment` field in the issue's field layout (`FieldLayoutManager.getFieldLayout(issue).getFieldLayoutItem(\"comment\")`), e.g. wiki markup rendered when the comment field uses the wiki renderer.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.comment.IssueCommentProvider$IssueCommentAttributeLoader#renderComment"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/issue-comment-provider/nulls-and-errors",
+   "module": "issue-comment-provider",
+   "api": null,
+   "behaviour": "An issue with no visible comment (or not part of the preloaded batch) gives undefined; when no bulk result is available (the loading context could not preload) the value is an error.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.comment.IssueCommentProvider$IssueCommentAttributeLoader#getValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-parameters-provider/ids",
+   "module": "version-parameters-provider",
+   "api": null,
+   "behaviour": "Answers attribute ids `version-start`, `version-release` and `version-description` for items of type `com.almworks.jira.structure:type-version` (resolved to Jira `Version`); other ids get null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionParametersProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.VersionParametersProvider$Companion#versionLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-parameters-provider/dates-time",
+   "module": "version-parameters-provider",
+   "api": null,
+   "behaviour": "`version-start` / `version-release` in time format (and every format other than text and HTML) are the version's start date / release date in epoch ms, undefined when not set. Unless param `disableDateShift` is true, the date is shifted for display: its calendar date in the JVM time zone becomes the start of that date in the user's time zone (see `structure-datetime-formatter`), and the value depends on the user's time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionParametersProvider#buildDateLoader",
+    "com.almworks.structure.commons.util.AttributeUtil#isDateShifted"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-parameters-provider/dates-text-html",
+   "module": "version-parameters-provider",
+   "api": null,
+   "behaviour": "In text format the date (same params, time format) is formatted as a date (Jira date style) by `structure-datetime-formatter`: for the user's zone and locale when date shift is on, else Jira's system zone with the user's locale; it depends on the user's locale (and user). In HTML format it is that text HTML-escaped. An undefined date gives no value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionParametersProvider#createAttributeLoader",
+    "com.almworks.jira.structure.StructureDateTimeService#getDateFormatter"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/version-parameters-provider/description",
+   "module": "version-parameters-provider",
+   "api": null,
+   "behaviour": "`version-description` (text, whatever format is requested) is the version's description as stored (`Version.getDescription()`), undefined when null. The same raw text is what the text form of `description` gives for version rows (served through `main-provider`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.VersionParametersProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.VersionParametersProvider",
+    "com.almworks.jira.structure.extension.attribute.MainProvider"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/sprint-parameters-provider/ids",
+   "module": "sprint-parameters-provider",
+   "api": null,
+   "behaviour": "Answers attribute ids `sprint-start`, `sprint-end` and `sprint-goal` for items of type `com.almworks.jira.structure:type-sprint` (the Jira Software sprint the item resolves to; without Jira Software such items do not resolve and get no value); other ids get null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SprintParametersProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.SprintParametersProvider$Companion#sprintLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/sprint-parameters-provider/dates",
+   "module": "sprint-parameters-provider",
+   "api": null,
+   "behaviour": "`sprint-start` / `sprint-end` in time format (and every format other than text and HTML) are the sprint's start / end instant in epoch ms (no date shift), undefined when not set; they declare a dependency on the user's time zone. In text format the time is formatted as a date (Jira date style) for the user's zone and locale (`structure-datetime-formatter`, always user-based); in HTML format that text HTML-escaped.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SprintParametersProvider#buildDateLoader",
+    "com.almworks.jira.structure.extension.attribute.SprintParametersProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/sprint-parameters-provider/goal-and-description",
+   "module": "sprint-parameters-provider",
+   "api": null,
+   "behaviour": "`sprint-goal` (text) is the sprint's goal, undefined when null. For sprint rows `description` (served through `main-provider`) is the goal: HTML-escaped in HTML format and raw in text format.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SprintParametersProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.SprintParametersProvider",
+    "com.almworks.jira.structure.extension.attribute.MainProvider"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/project-parameters-provider/project-lead",
+   "module": "project-parameters-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `project-lead` only in HTML or text format (other formats get null), for items of type `com.almworks.jira.structure:type-project` (resolved to Jira `Project`). The value is the display name of the project lead: raw in text, HTML-escaped in HTML. A project without a lead gives no value. The lead's user item (`CoreIdentities.user`) is added to the trail, so the value changes when that user changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ProjectParametersProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/tempo-provider/ids-and-dates",
+   "module": "tempo-provider",
+   "api": null,
+   "behaviour": "Answers attribute ids `tempo-worklogged` and `tempo-timeplanned` for issues, always as a duration in milliseconds; both need params `dateFrom` and `dateTo` (texts, ISO dates `yyyy-MM-dd` as `tempo-integration` expects) and without either there is no loader (null). The module is always registered; whether Tempo is installed is decided per load.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#getLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/tempo-provider/worklogged",
+   "module": "tempo-provider",
+   "api": null,
+   "behaviour": "`tempo-worklogged` reads params `accounts` (list of integer account ids), `users` (list of user keys), `teams` (list of integer team ids) and `billable` (boolean) and asks `tempo-integration` once per loaded batch for the work logged by those filters in the date range on the batch's issue ids (billable seconds when `billable` is true). Each issue's value is the seconds times 1000; an issue absent from the answer gets 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#getWorkloggedPreload",
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#getWorkloggedValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/tempo-provider/timeplanned",
+   "module": "tempo-provider",
+   "api": null,
+   "behaviour": "`tempo-timeplanned` reads params `users` (user keys), `teams` and `roles` (lists of integer ids) and asks `tempo-integration` once per batch for the time planned in the date range on the batch's issues. Each issue's value is the planned seconds times 1000; an issue absent from the answer gets 0.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#getTimePlannedPreload",
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#getTimePlannedValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/tempo-provider/tempo-absent",
+   "module": "tempo-provider",
+   "api": null,
+   "behaviour": "When `tempo-integration` gives no answer (Tempo Timesheets or Planner not installed or enabled, the current user has no access, bad dates, or any Tempo failure), every issue's value is undefined. Values depend on the current user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#getWorkloggedValue",
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#getLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/tempo-provider/invalidation",
+   "module": "tempo-provider",
+   "api": null,
+   "behaviour": "Invalidation trail: `tempo-worklogged` values are recalculated when the Tempo work attribute `ACCOUNT`, the global permission `TEMPO_TIMESHEETS_ACCESS` or the project permission `PROJECT_VIEW_ALL_WORKLOGS` change (`AuxiliaryIdentities.tempoWorkAttribute`, `globalPermission`, `projectPermission`); `tempo-timeplanned` values when any group (`com.almworks.jira.structure:type-group`), any Tempo team membership or team permissions (`*`), the global permission `TEMPO_PLANNER_ACCESS` or the project permission `PROJECT_VIEW_ALL_WORKLOGS` change.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#getWorkloggedTrailItemSet",
+    "com.almworks.jira.structure.extension.attribute.TempoProvider#getTimePlannedTrailItemSet"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-fields-provider/field-lookup",
+   "module": "generic-item-fields-provider",
+   "api": null,
+   "behaviour": "For any requested attribute it derives a field id: the attribute id itself, except `key` becomes `issuekey` and `customfield` with a single numeric param `fieldId` N becomes `customfield_N`. When `structure-field-manager` has no field of that id the provider gives no loader; otherwise the loader serves items of type `com.almworks.jira.structure:type-memo` and `com.almworks.jira.structure:type-planning-task`, reading the field from the item's field view (`generic-item-field-accessor-manager`); an item that does not exist gives undefined, a null field value no value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemFieldsProvider#createAttributeLoader",
+    "com.almworks.structure.commons.util.AttributeUtil#convertAttributeSpecToIssueFieldId",
+    "com.almworks.jira.structure.extension.attribute.GenericItemFieldLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-fields-provider/text-format",
+   "module": "generic-item-fields-provider",
+   "api": null,
+   "behaviour": "In text format (for fields other than date fields) the value is the `value-text-converter` text of the field value, except duration and single-sprint fields, which use their field type's display text (see `structure-field-type-manager`). A date field requested in text format is served as its own value format instead (as in the last claim of this module), not as text.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemFieldsProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-fields-provider/html-format",
+   "module": "generic-item-fields-provider",
+   "api": null,
+   "behaviour": "In HTML format: a single-user field gives the user rendered by `user-field-renderer` with the spec's `view` param and adds the user item to the trail; any other field gives its field type's HTML view, or its Excel view when param `excel` is true (`structure-field-type-manager`). When the field type's value format is the item format (`value`), the value's item identity is added to the trail. HTML values depend on the current user.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemFieldsProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-fields-provider/native-format",
+   "module": "generic-item-fields-provider",
+   "api": null,
+   "behaviour": "In any other format the value is the field type's extended value in the field type's own value format (e.g. an item identity for item-valued fields, epoch ms for dates); values in the item (`value`) format may be cached (`MAY`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemFieldsProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.GenericItemFieldLoader#getCachingStrategy"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-fields-provider/time-zone",
+   "module": "generic-item-fields-provider",
+   "api": null,
+   "behaviour": "Time-zone handling: unless param `disableDateShift` is true, a date-only field in time or number format, and a date-time field in text or HTML format, are computed in the user's time zone (and depend on it); everything else uses the JVM default time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemFieldsProvider#isTimezoneDependencyNeeded"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-attribute-provider/attributes",
+   "module": "generic-item-attribute-provider",
+   "api": null,
+   "behaviour": "For memos and planning tasks (`com.almworks.jira.structure:type-memo`, `:type-planning-task`) it serves `project` (Jira `Project`), `type` (Jira `IssueType`), `priority` (Jira `Priority`), `reporter` and `assignee` (Jira `ApplicationUser`), read from the item's own `project`, `issuetype`, `priority`, `reporter` and `assignee` fields through `generic-item-field-accessor-manager` (so a value hidden or invalid in the field configuration reads as null). A request for these ids gets these loaders whatever its params or format.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemAttributeProvider#<init>",
+    "com.almworks.jira.structure.extension.attribute.GenericItemAttributeProvider#fieldLoader"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-attribute-provider/nulls-and-trail",
+   "module": "generic-item-attribute-provider",
+   "api": null,
+   "behaviour": "An item that does not exist gives undefined; a field with no value gives no value. A non-null value's item (`CoreIdentities.project`, `issueType`, `priority` or `user`) is added to the trail, so the value is recalculated when that project, issue type, priority or user changes.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemAttributeProvider#fieldLoader",
+    "com.almworks.jira.structure.extension.attribute.GenericItemFieldLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-history-provider/value",
+   "module": "generic-item-history-provider",
+   "api": null,
+   "behaviour": "Answers attribute id `history` for memos and planning tasks, always in the item (`value`) format. The value is the list of the item's history records as items `com.almworks.jira.structure:type-memo-change-history-group/<record id>`, in the order `generic-item-history-manager` delivers them for the item (by timestamp); an item without records gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemHistoryProvider$GenericItemHistoryLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.GenericItemHistoryProvider$GenericItemHistoryLoader#preload"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-history-provider/bulk-and-errors",
+   "module": "generic-item-history-provider",
+   "api": null,
+   "behaviour": "Records are loaded in bulk once per batch of items with `generic-item-history-manager`'s load-for-items, and each record object is put in the loading pass's item cache under its record identity. When the batch was not preloaded the value is an error. Values may be cached (`MAY`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemHistoryProvider$GenericItemHistoryLoader#preload",
+    "com.almworks.jira.structure.extension.attribute.GenericItemHistoryProvider$GenericItemHistoryLoader#getCachingStrategy"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-history-based-fields-provider/attributes",
+   "module": "generic-item-history-based-fields-provider",
+   "api": null,
+   "behaviour": "For memos and planning tasks it answers `creator`, `created` and `updated`, each computed from the item's `history` attribute (item format): the record items are resolved and examined in history order. `created` (time format, epoch ms) is the timestamp of the create record (the last one if several); `updated` (time format) is the greatest timestamp of all records; `creator` is the author key of the create record. Without a create record `created` and `creator` have no value. Other ids get null.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemHistoryBasedFieldsProvider#createLoadingState",
+    "com.almworks.jira.structure.memo.HistoryBasedLoadingStateSupplier$CreatedState",
+    "com.almworks.jira.structure.memo.HistoryBasedLoadingStateSupplier$UpdatedState"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-history-based-fields-provider/creator-formats",
+   "module": "generic-item-history-based-fields-provider",
+   "api": null,
+   "behaviour": "`creator` in the item (`value`) format is the user item `CoreIdentities.user(authorKey)`; in HTML format the user rendered by `user-field-renderer` with the spec's `view` param, or the raw user key when Jira's `UserManager.getUserByKey` finds no user, adding the user item to the trail and depending on the current user; in any other format the author's user key as text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemHistoryBasedFieldsProvider#createLoadingState",
+    "com.almworks.jira.structure.memo.HistoryBasedLoadingStateSupplier#creatorIdStateSupplier",
+    "com.almworks.jira.structure.memo.HistoryBasedLoadingStateSupplier#creatorKeyStateSupplier"
+   ]
+  },
+  {
+   "key": "e5-loaders-d/generic-item-history-based-fields-provider/history-missing",
+   "module": "generic-item-history-based-fields-provider",
+   "api": null,
+   "behaviour": "When the `history` value has no value (undefined or error) that value is passed through as the result; a history value that is not a list gives undefined. Values in the item format may be cached (`MAY`).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.GenericItemHistoryBasedFieldsProvider$SyntheticFieldLoader#loadValue",
+    "com.almworks.jira.structure.extension.attribute.GenericItemHistoryBasedFieldsProvider$SyntheticFieldLoader#getCachingStrategy"
+   ]
+  }
+ ]
+}

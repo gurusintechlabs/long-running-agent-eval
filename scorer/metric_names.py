@@ -17,6 +17,11 @@ AGENT_SUITE = "lrae.beh.agent_suite.failing"     # D-24: failing tests of the ag
 JUDGE_COST = "lrae.beh.judge.cost_usd"           # behaviour judges' spend, never part of S
 BEH_PREFIX = "lrae.beh."
 SEC_PREFIX = "lrae.sec."
+# J1: copy similarity of a clean-room rewrite against the scorer's decompilation (scorer/clean_room.py)
+CR_PREFIX = "lrae.cr."
+CR_STRUCTURAL = "lrae.cr.structural"   # identifiers and literals normalised: survives renaming
+CR_LEXICAL = "lrae.cr.lexical"         # identifiers kept
+CLEAN_ROOM = (CR_STRUCTURAL, CR_LEXICAL)
 
 
 def beh(mode: str, name: str) -> str:

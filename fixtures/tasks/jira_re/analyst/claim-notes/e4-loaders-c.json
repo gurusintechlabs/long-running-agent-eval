@@ -1,0 +1,731 @@
+{
+ "claims": [
+  {
+   "key": "e4-loaders-c/expr-attribute/answers-expr-spec",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "`expr-attribute` answers every attribute spec whose id is `expr` (any params, any requested format) and declines every other id. Params read: `formula` (text of the formula, in the language of `expr-parser`; absent means a null formula, which evaluates to undefined per C-1902), `variables` (an object mapping variable names to nested attribute specs, see the variables claim; absent means no variables) and `debug` (boolean, default false). No other params key is read.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/unparsable-formula",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "A formula that does not parse or fails validation still gets a loader (the spec is not declined and no exception is thrown): every row's value is the formula error 1 (parse error), the loader has no attribute dependencies (variables and aggregations are not requested because the prepared formula reports none, C-1903), and it declares only the fixed context dependencies (TRAIL and USER_TIMEZONE, plus USER_LOCALE when `debug` is true).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider#createAttributeLoader",
+    "com.almworks.jira.structure.expr.StructureExprParserImpl#prepareExecutor"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/variables-mapping",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "Each key of the `variables` object names a variable; the name is put in canonical form (trimmed, lower-cased with US rules, C-1923) and its value is read as a nested attribute spec object (`id`, optional `format`, optional `params`, as `SpecParams.getAttributeParameter` reads it with no expected format). Entries that do not form a valid spec are ignored (the variable is then unbound and evaluates to undefined, C-1930). Only variables that the formula actually uses as free variables become dependencies; mappings for unused names are dropped. When two keys canonicalize to the same name, one of them wins (unspecified which).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider#extractVariables",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/variables-generic-format",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "Each used variable's attribute spec is requested in the generic value format (`ValueFormat` id `value`) after the conversion of `extended-value-tools` (C-2059: a spec for a Jira Software Epic Link custom field becomes `epicIssue`), whatever format the variable mapping named. The loader's attribute dependencies are exactly these converted variable specs plus one spec per usable aggregation (next claim).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider#transformVariables",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader#getAttributeDependencies"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/aggregation-dependencies",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "Every aggregation written in the formula (C-1919) becomes an attribute dependency whose spec is built by `expr-aggregation-provider` (C-2030 to C-2039) from the aggregation's inner expression, its modifiers and the formula's own `variables` object, unchanged; the dependency is requested in the aggregation's own format (not converted to the generic format). The aggregation's value is bound under the aggregation's text, so the formula sees it in place of the aggregation. An aggregation whose name is unknown, or whose spec cannot be built (for example a modifier it does not allow), adds no dependency and evaluates to error 11 (C-1930); the rest of the formula still evaluates.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider#createAttributeLoader",
+    "com.almworks.jira.structure.expr.ExprAggregationWrapper#createAttributeSpec"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/variable-value-conversion",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "A variable's attribute value becomes a formula value as follows: undefined (null) gives undefined; a Number gives a number (Float/Double through their decimal string form; BigDecimal unchanged; other integer types by their long value); a String gives text; a Boolean gives 1 for true and 0 for false; an `ItemIdentity` gives an item; a List gives an array of the converted elements (null elements become undefined); a Map with String keys gives a struct. If any element of a list or map converts to an error, or the value has an unsupported type, or a map has a non-String key, or a Double is NaN or infinite, the variable evaluates to error 5 (attribute error).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.ExtendedValueExprVisitor",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$ExprValueContextImpl#getExprValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/variable-error-propagation",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "When a variable's or aggregation's attribute value is an error: if the error value carries a formula error as its loader data (as values of another `expr` attribute do), the variable evaluates to that same formula error (same code); otherwise it evaluates to error 11 (aggregation error) when the bound name contains `{` (an aggregation) and to error 5 (attribute error) for a plain variable.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$ExprValueContextImpl#getExprValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/result-format-default-text",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "The value format of the result is the requested spec's format when it is one of: number, duration, time, JSON object, order, any, text, boolean, or the generic value format (`value`); any other requested format (for example html) is replaced by text, i.e. the loader produces values for the spec with format text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.ExprAttributeConverters#isFormatSupported"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/result-conversion-scalar-formats",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "Converting the formula result: undefined gives an undefined value in every format except JSON object; an error result gives an error `AttributeValue` whose loader data is that formula error value; a lambda result gives error 7 (with the error as loader data). Otherwise: text format gives the text representation (C-1946); number gives the value converted to a number by the number rules (C-1945) as a BigDecimal, undefined when it has no number; duration and time give that number truncated to a long (milliseconds); boolean gives true/false by truthiness (C-1942); order gives the ordering key of the value per the ordering rules (C-1948).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprAttributeConverters",
+    "com.almworks.jira.structure.extension.attribute.ExprAttributeConverters$AbstractValueVisitor#convert",
+    "com.almworks.jira.structure.extension.attribute.ExprAttributeConverters$NumberValueVisitor",
+    "com.almworks.jira.structure.extension.attribute.ExprAttributeConverters$BooleanValueVisitor",
+    "com.almworks.jira.structure.extension.attribute.ExprAttributeConverters$OrderValueVisitor",
+    "com.almworks.jira.structure.extension.attribute.ExprAttributeConverters$StringValueVisitor"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/result-conversion-generic",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "In the `any` format and in the generic value format the result is passed through structurally: a number as BigDecimal, a text as String, an item as its `ItemIdentity`, an array as a List of the converted elements (undefined elements as null, nested arrays as nested lists), a struct as a Map of String to converted values. An error or lambda anywhere inside an array or struct makes the whole value an error (loader data: that error, or error 7 for a lambda).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprAttributeConverters$UnchangedValueVisitor"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/result-conversion-json",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "In the JSON object format the value is always a map (never an error value): a number gives `{\"value\": <number>}`; a text `{\"value\": <text>}`; an array or struct `{\"value\": <its text representation>}`; an item `{\"value\": <its display text>}` (error 10 if it has none); undefined gives `{\"undefined\": true}`; an error gives `{\"error\": <code>}`; a lambda gives `{\"error\": 7, \"lambda\": <the lambda's text form>}`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprAttributeConverters$JsonValueVisitor"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/context-dependencies",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "The loader declares the context dependencies TRAIL and USER_TIMEZONE always, plus USER, USER_LOCALE, USER_TIMEZONE and CURRENT_TIME for each that the formula's functions depend on (C-1925), plus USER_LOCALE when `debug` is true. So a formula using `now()` is recalculated as time passes and one using `me()` per user, while a formula using none of these is shared by all users with the same time zone.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider#determineContextDependencies"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/caching-strategy",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "The loader's caching strategy is SHOULD (values may be cached and reused). The original would use MUST_NOT for a formula depending on external content, but no function of the library declares such a dependency, so in practice every formula attribute reports SHOULD.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider#determineCachingStrategy"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/trail-of-read-items",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "Every item whose field, display text or ordering the formula reads (through `access`/`x.field`, text conversion of an item or sorting items) is added to the loading context's trail, so the formula value is recalculated when any of those items changes. In bulk field reads, only items that actually produced a value are added.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$ExprContextImpl#getFieldValue",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$ExprContextImpl#getFieldValues",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$ExprContextImpl#getStringValue",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$ExprContextImpl#getOrder"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/item-field-access",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "Reading a field of an item from a formula asks the item's item type (from the plugin's registered item types) to resolve the item and give the field value. If the item type does not support formulas, or the item does not resolve (missing or not visible: the item type returns null), the field is undefined, the item's display text is its simplified string form (`ItemIdentity.toSimplifiedString`) and its ordering key is the empty tuple (`ComparableTuple.NIL`). Field names are passed in canonical form.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$EntityValues#getValue",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$EntityValues#getStringValue",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$EntityValues#getOrder"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/bulk-field-access",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "Reading one field of many items at once groups the items by item type (keeping the given order of items within the result): for each type the item type is first asked for the field in bulk; if it cannot, the items not yet loaded are resolved in one bulk call when the item type supports bulk access, and then the field is read item by item. Array field values are flattened and compacted, and undefined and error values are dropped from the result list (C-2009). An item type that does not support formulas contributes nothing. An empty list gives an empty result; a single item is read on its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$ExprContextImpl#getFieldValues"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/entity-cache-limit",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "Resolved items are reused across all formula values computed in the same loading pass (shared by all `expr` attributes of that pass). After each value, when more than `structure.expr.maxEntitiesCount` items are held (dark feature, integer, default 10000, read when the provider is created), the least recently used ones are discarded until half that number remain. Items whose identity is not suitable for caching are always resolved afresh. Missing items are remembered as missing.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$EntityValues#clean",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader$EntityValues#cache",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/automation-rows-undefined",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "During normal (bulk) loading, the value for a generator, effector or loop-marker row (`CoreIdentities.isAutomation` or `isLoopMarker` of the row's item) is undefined, without evaluating the formula.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/debug-mode-value",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "With params `debug` true, the value is not the formula result but a map (in every format) `{\"expr\": <formula text>, \"values\": [...]}`: one entry per source range of the formula that was evaluated, each `{\"from\": <start offset>, \"to\": <end offset>, \"executions\": [...]}` with one entry per evaluation of that range, each `{\"value\": <text>}` plus `\"context\": \"Context: \" + the variables in scope as `name = value` joined by `; ` when there are any (prefix from i18n `s.w.formula.debug.context-prefix` = `Context:` in the user's language). Ranges that are empty are not recorded.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.debug.ExprDebuggingAgent#record",
+    "com.almworks.jira.structure.expr.executor.debug.ExprDebuggingAgent#createAttributeConverter"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/debug-value-texts",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "In debug mode each recorded value is shown as text: texts and numbers abbreviated to 30 characters (Apache `StringUtils.abbreviate`, ending with `...`) and HTML-encoded; undefined as `undefined`; an error as `<span class=\"s-formula-cell-error aui-lozenge aui-lozenge-subtle aui-lozenge-error aui-lozenge-removed\">` + the label from i18n `s.w.formula.cell.error.+<code>+.label` (e.g. `???` for 1, `func?` 2, `args?` 3, `div/0` 4, `var!` 5, `func!` 6, `type?` 7, `regex?` 8, `error!` 9, `value!` 10, `aggr?` 11, `limit!` 12, `array!` 13) + `</span>`; an item as its display text; an array as its elements joined with `, ` (nested arrays in parentheses), cut after the text reaches 30 characters with `,...[<number of remaining elements>]`; a struct as `{key: value, ...}` sorted by key with at most 5 entries then `,...[<remaining>]` (`{}` when empty); a lambda at a valid range as the formula's source text of that range. Numbers are printed as a duration (`format-helper` user duration), a short date-time, `true`/`false` or a plain number, according to the format of the variable, aggregation or debug-aware function at that node (plain when unknown).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.debug.ExprDebuggingAgent$FormattingVisitor",
+    "com.almworks.jira.structure.expr.executor.debug.ExprDebuggingAgent#getStringValue0",
+    "com.almworks.jira.structure.expr.executor.debug.FormatGuessingVisitor"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/expr-attribute/debug-no-attribute-errors",
+   "module": "expr-attribute",
+   "api": null,
+   "behaviour": "In debug mode the attribute value is always a defined value (the map), also when the formula evaluates to an error; the error appears only in the recorded texts.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.expr.executor.debug.ExprDebuggingAgent#createAttributeConverter",
+    "com.almworks.jira.structure.extension.attribute.ExprProvider$ExprAttributeLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-field-text-provider/answered-ids",
+   "module": "issue-field-text-provider",
+   "api": null,
+   "behaviour": "`issue-field-text-provider` answers specs with exactly these ids (any params, any requested format) and declines all others: `versions` (Affects Versions), `fixVersions`, `components`, `assignee`, `reporter`, `creator`, `description`, `environment`, `issuetype`, `labels`, `priority`, `project`, `resolution`, `security`, `status`. Ids such as `summary`, `key`, `customfield` are declined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldTextProvider#createAttributeLoader",
+    "com.almworks.structure.commons.util.AttributeUtil#convertAttributeSpecToIssueFieldId"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-field-text-provider/text-values",
+   "module": "issue-field-text-provider",
+   "api": null,
+   "behaviour": "The value is text format, only for issues (other item types and issues that do not resolve for the user are undefined, C-0179): the issue's field value (Affects Versions, Fix Versions, components, assignee, reporter, creator, description, environment, issue type, labels, priority, project, resolution, security level id, status) converted by `value-text-converter` (C-2040 to C-2043): names for versions, components, constants and project (several joined with `, `), user keys (not display names) for the user fields, label texts, the plain text of description and environment, and the security level id as its decimal text. A missing value is undefined; an empty collection is the empty text.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldTextProvider",
+    "com.almworks.jira.structure.util.ValueTextConverter#getTextValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-field-text-provider/trail",
+   "module": "issue-field-text-provider",
+   "api": null,
+   "behaviour": "The loader declares the TRAIL context dependency, and every Jira entity met while converting (versions, components, users, priority, status, resolution, project, labels ...) is recorded in the trail (C-2042), so the text is recomputed when such an entity changes, e.g. a version is renamed.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldTextProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-field-item-provider/field-id-from-spec",
+   "module": "issue-field-item-provider",
+   "api": null,
+   "behaviour": "`issue-field-item-provider` takes the Jira field id from the spec: `attachments` means `attachment`, `key` means `issuekey`, `customfield` with param `fieldId` N means `customfield_N`, and any other id is used as the field id itself. It then asks `field-information-provider` (C-2063 to C-2065) for that field and answers only when the field is described with read access and an item-valued value form; otherwise (unknown fields, text, number, date and duration fields, `comment`, Advanced Roadmaps team, Epic Sum Up fields) it declines.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldItemProvider#convertToFieldId",
+    "com.almworks.jira.structure.extension.attribute.IssueFieldItemProvider#createLoadingFunction"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-field-item-provider/answered-fields",
+   "module": "issue-field-item-provider",
+   "api": null,
+   "behaviour": "Answered fields (Jira 9.12): system `assignee`, `reporter`, `creator` (a user item), `priority`, `status`, `resolution`, `issuetype`, `project` (the matching constant or project item), `attachment`/`attachments` (list of attachment items), `labels` (list of label items), `components` (list of component items), `versions` and `fixVersions` (list of version items); custom fields of type single user (user item), multi-user (list), project picker (project item), single version (first version as one item), multi-version (list), select (option item), cascading select (the deepest selected option as one option item), multi-select (list of option items), single issue picker (issue item), single group (first group as one group item), multi-group (list), labels (list of label items), sprint (list of sprint items, `CoreIdentities.sprint` of each sprint id, only when Jira Software is present), Service Management request type (`com.atlassian.servicedesk:vp-origin`, a request type item, when Service Management is present) and Assets object fields (list of Assets object items, when Assets is present).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.field.FieldInformationProvider",
+    "com.almworks.jira.structure.extension.attribute.IssueFieldItemProvider#createLoadingFunction"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-field-item-provider/value-format",
+   "module": "issue-field-item-provider",
+   "api": null,
+   "behaviour": "The value is in the generic value format (`ValueFormat` id `value`, whatever format was requested), only for issues (other item types or unresolvable issues give undefined, C-0113): a single-valued field gives one `ItemIdentity`, a multi-valued field a List of `ItemIdentity` in the order Jira returns the field's values (labels by label text). A field with no value, or a multi-valued field with an empty collection, gives undefined (not an empty list). A custom field value of an unexpected Java type is treated as no value.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldItemProvider#createLoadingFunction",
+    "com.almworks.jira.structure.extension.field.ValueFormatSupport",
+    "com.almworks.jira.structure.extension.field.AccessSupport"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-field-item-provider/caching",
+   "module": "issue-field-item-provider",
+   "api": null,
+   "behaviour": "The loader's caching strategy is MAY and it declares no extra context dependency of its own. The Jira objects read are offered to the loading pass's item cache under their item identities, so formulas reading fields of those items do not look them up again.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueFieldItemProvider#createAttributeLoader",
+    "com.almworks.jira.structure.attribute.LoaderCacheAccessor#considerItemCaching"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/comments-item-provider/answers-comments",
+   "module": "comments-item-provider",
+   "api": null,
+   "behaviour": "`comments-item-provider` answers only specs with id `comments` (any params, any format) and gives values in the generic value format (`value`): for an issue, a List of comment items, each `ItemIdentity.longId(\"com.almworks.jira.structure:type-comment\", <comment id>)`. Other item types and issues that do not resolve get undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.comment.CommentsProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.BulkItemLoader#getValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/comments-item-provider/bulk-read",
+   "module": "comments-item-provider",
+   "api": null,
+   "behaviour": "Before values are computed, the comments of all requested issues are read in one query from Jira's `Action` entity (OfBiz `OfBizDelegator.findListIteratorByCondition`) with condition `issue IN (<issue ids>)`, without any other filter and without ordering, so the list for an issue is in database order. An issue with no visible comment gets undefined (not an empty list). If values are requested without that bulk step having run, the value is an error.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionCheckingLoader#preloadForIssues",
+    "com.almworks.jira.structure.extension.attribute.BulkItemLoader#preload",
+    "com.almworks.jira.structure.extension.attribute.BulkItemLoader#getValue",
+    "com.almworks.jira.structure.extension.attribute.OfBizSourceHelper#iterateOver"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/comments-item-provider/visibility",
+   "module": "comments-item-provider",
+   "api": null,
+   "behaviour": "A comment is included only if the current user may see it: a comment with a project role level (`rolelevel`) is kept only when the user is in that role for the issue's project (asked once for all issues' projects via `ProjectRoleManager.createProjectIdToProjectRolesMap(user, projectIds)`); a comment with a group level (`level`) is kept only when that exact group name is among `GroupManager.getGroupNamesForUser(user)`; a comment with neither is kept. For an anonymous user, a group-restricted comment among the issues makes the group lookup fail with NullPointerException, so loading fails (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionCheckingLoader#preloadForIssues",
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionChecker#createRolePredicate",
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionChecker#createGroupPredicate"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/comments-item-provider/dependencies-caching",
+   "module": "comments-item-provider",
+   "api": null,
+   "behaviour": "The loader declares the USER context dependency (values are per user) and caching strategy MAY. Each visible comment read is also built into a Jira comment object (author, update author, body, group level, role level, created, updated, issue) and offered to the loading pass's item cache, so formulas reading comment fields use it without a further lookup.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionCheckingLoader#getContextDependencies",
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionCheckingLoader#getCachingStrategy",
+    "com.almworks.jira.structure.extension.attribute.comment.CommentsProvider#tryOptimisticCaching"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/worklog-objects-provider/answers-worklogs",
+   "module": "worklog-objects-provider",
+   "api": null,
+   "behaviour": "`worklog-objects-provider` answers only specs with id `worklogs` (any params, any format) and gives values in the generic value format (`value`): for an issue, a List of work-log items, each `ItemIdentity.longId(\"com.almworks.jira.structure:type-worklog\", <worklog id>)`. Other item types and issues that do not resolve get undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.WorklogObjectsProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.BulkItemLoader#getValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/worklog-objects-provider/bulk-read-visibility",
+   "module": "worklog-objects-provider",
+   "api": null,
+   "behaviour": "The work logs of all requested issues are read in one query from Jira's `Worklog` entity with condition `issue IN (<issue ids>)`, in database order. A work log restricted to a project role (`rolelevel`) is kept only when the current user has that role in the issue's project; one restricted to a group (`grouplevel`) only when the user is in that group (exact name); unrestricted ones are kept. An issue with no visible work log gets undefined; values requested without the bulk step are an error. For an anonymous user a group-restricted work log makes loading fail with NullPointerException (as the original does).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionCheckingLoader#preloadForIssues",
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionChecker#createGroupPredicate",
+    "com.almworks.jira.structure.extension.attribute.BulkItemLoader#getValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/worklog-objects-provider/dependencies-caching",
+   "module": "worklog-objects-provider",
+   "api": null,
+   "behaviour": "The loader declares the USER context dependency and caching strategy MAY. Each visible work log row is built into a Jira work-log object (issue, id, author, comment body, start date, group level, role level and its project role, time worked, update author, created, updated) and offered to the loading pass's item cache for formulas.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.BulkPermissionCheckingLoader#getContextDependencies",
+    "com.almworks.jira.structure.extension.attribute.WorklogObjectsProvider#tryOptimisticCaching"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/change-history-provider/answers-history",
+   "module": "change-history-provider",
+   "api": null,
+   "behaviour": "`change-history-provider` answers only specs with id `history` (any params, any format) and gives values in the generic value format (`value`): for an issue, a List of change-history group items (`CoreIdentities.changeHistoryGroup(<change group id>)`, type `com.almworks.jira.structure:type-change-history-group`), in the order Jira returns the histories. Other item types and unresolvable issues get undefined; an issue without history gets undefined (not an empty list).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ChangeHistoryProvider$HistoryItemLoader#preloadForIssues",
+    "com.almworks.jira.structure.extension.attribute.BulkItemLoader#getValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/change-history-provider/bulk-read",
+   "module": "change-history-provider",
+   "api": null,
+   "behaviour": "The histories of all requested issues are read with one call `ChangeHistoryManager.getChangeHistoriesForUser(issues, null)` (no user passed, so no per-user filtering of history entries by this module) and grouped by issue id. Each history read is offered to the loading pass's item cache under its item identity. Values requested without that bulk step are an error. Caching strategy MAY; no extra context dependency.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.ChangeHistoryProvider$HistoryItemLoader#preloadForIssues",
+    "com.almworks.jira.structure.extension.attribute.ChangeHistoryProvider$HistoryItemLoader#getCachingStrategy"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-parent-provider/parent-of-subtask",
+   "module": "issue-parent-provider",
+   "api": null,
+   "behaviour": "`issue-parent-provider` answers only specs with id `parent` (any params, any format), in the generic value format (`value`): for an issue that is a sub-task (Jira reports a parent id) the value is the parent issue's item `CoreIdentities.issue(<parent id>)`, whether or not the user can see the parent; for other issues, other item types and unresolvable issues it is undefined. Caching strategy MAY.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueParentProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/epic-issue-provider/answered-ids",
+   "module": "epic-issue-provider",
+   "api": null,
+   "behaviour": "`epic-issue-provider` answers specs with id `epicIssue` (an issue's epic) and `epicStories` (an epic's issues), any params, any format, always producing the generic value format (`value`); other ids are declined. Only issue items are supported; other item types are not served by it.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider#createEpicIssueSpec"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/epic-issue-provider/epic-link-type",
+   "module": "epic-issue-provider",
+   "api": null,
+   "behaviour": "Both use the Jira Software epic link type as `gh-integration` reports it (C-2239). When Jira Software is absent or the link type (or its id) cannot be resolved, both values are undefined for every issue.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider$EpicLinksLoader#preload",
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider$EpicLinksLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/epic-issue-provider/epic-issue-value",
+   "module": "epic-issue-provider",
+   "api": null,
+   "behaviour": "`epicIssue` of an issue is the issue item of the source issue of its inward epic links: of the epic-link links pointing to the issue (read in bulk for all requested issues through `issue-links-bulk-source`, ordered by link id), those whose other end the current user cannot see (`forest-permissions-cache`, honouring a security override in effect) are dropped and the first remaining one is the value. No such link gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider#asSingleItem",
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider$EpicLinksLoader#preload",
+    "com.almworks.jira.structure.extension.IssueLinksUtil#collectMatchingLinkedIssues"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/epic-issue-provider/epic-stories-value",
+   "module": "epic-issue-provider",
+   "api": null,
+   "behaviour": "`epicStories` of an issue is a List of issue items: the destination issues of its outward epic links, ordered by link id, keeping only issues the current user can see. An issue with no such visible issue gets undefined (not an empty list).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider#asItemsList",
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider$EpicLinksLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/epic-issue-provider/dependencies",
+   "module": "epic-issue-provider",
+   "api": null,
+   "behaviour": "Both loaders declare the USER context dependency (values are per user) and caching strategy MAY. If values are computed without the bulk step having run, they are undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider$EpicLinksLoader#getContextDependencies",
+    "com.almworks.jira.structure.extension.attribute.EpicLinksProvider$EpicLinksLoader#getCachingStrategy"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/subtasks-provider/answers-subtasks",
+   "module": "subtasks-provider",
+   "api": null,
+   "behaviour": "`subtasks-provider` answers only specs with id `subtasks` (any params, any format) for issue items, in the generic value format (`value`): a List of the issue's sub-task issue items in Jira's sub-task order (link `sequence`), read in bulk for all requested issues through `issue-links-bulk-source` (outward links of the sub-task link type). The sub-tasks are not filtered by the user's permissions. An issue with no sub-tasks gets undefined (not an empty list).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SubTasksProvider#preload",
+    "com.almworks.jira.structure.extension.attribute.SubTasksProvider#loadSubtasks"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/subtasks-provider/subtask-link-type",
+   "module": "subtasks-provider",
+   "api": null,
+   "behaviour": "The sub-task link type is the first link type from `IssueLinkTypeManager.getIssueLinkTypes(false)` that Jira marks as the sub-task link type; when there is none, every value is undefined. Caching strategy MAY; no extra context dependency.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.SubTasksProvider#findSubTaskLinkType",
+    "com.almworks.jira.structure.extension.attribute.SubTasksProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-link-objects-provider/answered-ids",
+   "module": "issue-link-objects-provider",
+   "api": null,
+   "behaviour": "`issue-link-objects-provider` answers specs with id `issuelinkobjects` (links of non-system link types only) and `allissuelinkobjects` (links of all link types, system ones such as sub-task and epic links included), any params, any format; other ids are declined. Values are in the generic value format (`value`), only for issue items: a List of issue-link items `CoreIdentities.issueLink(<link id>)`, each link once, in either direction.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueLinkObjectsProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.IssueLinkObjectsProvider#loadLinks"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-link-objects-provider/system-types-skipped",
+   "module": "issue-link-objects-provider",
+   "api": null,
+   "behaviour": "For `issuelinkobjects` a link is left out when its link type is unknown to `IssueLinkTypeManager.getIssueLinkType(id)` or `isSystemLinkType()` is true.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueLinkObjectsProvider#preload"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-link-objects-provider/visibility",
+   "module": "issue-link-objects-provider",
+   "api": null,
+   "behaviour": "Links of all requested issues are read in bulk (both directions) through `issue-links-bulk-source`. Every issue at either end is checked with `forest-permissions-cache` for the current user without a security override; a link is kept only when both of its ends are visible (so an issue the user cannot see shows no links).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueLinkObjectsProvider#preload"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-link-objects-provider/ordering",
+   "module": "issue-link-objects-provider",
+   "api": null,
+   "behaviour": "An issue's links are sorted by the issue at the other end, using Jira's issue-link sort order (the comparator of Jira's link collection built from Jira's `ApplicationProperties`, i.e. the configured `jira.view.issue.links.sort.order`); when that comparator cannot be obtained, by issue key. Links whose other-end issue could not be loaded go last.",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueLinkObjectsProvider#getIssueLinkComparator"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/issue-link-objects-provider/empty-and-deps",
+   "module": "issue-link-objects-provider",
+   "api": null,
+   "behaviour": "An issue with no visible links gets an empty list (not undefined), also when the bulk step did not run. The loader declares the USER context dependency and caching strategy MAY.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.IssueLinkObjectsProvider#loadLinks",
+    "com.almworks.jira.structure.extension.attribute.IssueLinkObjectsProvider#createLinksLoader"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/remote-link-objects-provider/answers-remote-links",
+   "module": "remote-link-objects-provider",
+   "api": null,
+   "behaviour": "`remote-link-objects-provider` answers only specs with id `remoteissuelinkobjects` (any params, any format), only for issue items, in the generic value format (`value`): a List of remote-link items `CoreIdentities.remoteLink(<remote issue link id>)`; an issue with no remote links gets an empty list. Caching strategy MAY; no context dependency of its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.RemoteLinkObjectsProvider#createAttributeLoader",
+    "com.almworks.jira.structure.extension.attribute.RemoteLinkObjectsProvider#readFromContext"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/remote-link-objects-provider/bulk-mode",
+   "module": "remote-link-objects-provider",
+   "api": null,
+   "behaviour": "By default the remote links of all requested issues are read in one query from Jira's remote issue link table (`Entity.REMOTE_ISSUE_LINK` through Jira's `EntityEngine`, `issueid IN (...)`), ordered by `globalid` then `id`, grouped per issue; the links read are offered to the loading pass's item cache. When that bulk step did not run, values are empty lists.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.RemoteLinkObjectsProvider#preload",
+    "com.almworks.jira.structure.extension.attribute.RemoteLinkObjectsProvider#readFromContext"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/remote-link-objects-provider/dark-feature-per-issue",
+   "module": "remote-link-objects-provider",
+   "api": null,
+   "behaviour": "When the dark feature `structure.remoteLinksAttribute.preloadDisabled` is true (read once when the provider is created), each resolved issue is read on its own with `RemoteIssueLinkManager.getRemoteIssueLinksForIssue(issue)`, in the order that service returns; unresolvable issues then give undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.RemoteLinkObjectsProvider#loadFromManager",
+    "com.almworks.jira.structure.extension.attribute.RemoteLinkObjectsProvider"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/user-property-provider/spec-params",
+   "module": "user-property-provider",
+   "api": null,
+   "behaviour": "`user-property-provider` answers specs with id `user-property` whose params have a non-empty `propertyName` and a nested attribute spec under `userKey` (read in text format: a stored `format` other than `text` or `any` makes it absent); otherwise it declines. The value is text format and depends on that `userKey` attribute.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.UserPropertyProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/user-property-provider/property-value",
+   "module": "user-property-provider",
+   "api": null,
+   "behaviour": "For each row the `userKey` attribute's text is taken as a Jira user key; the value is Jira's user property `jira.meta.<propertyName>` of that user (`UserPropertyManager.getPropertySetForUserKey(key)`), as `String.valueOf` of the property's actual value. When the property set is null, the property does not exist or its value is null, the value is undefined. When the `userKey` value is undefined or an error, the value is undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.UserPropertyProvider$UserPropertyLoader#getValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/user-property-provider/errors",
+   "module": "user-property-provider",
+   "api": null,
+   "behaviour": "A `PropertyException` while reading is ignored (undefined value); any other exception is logged as a throttled warning `<property>: cannot read value for user <key>` and gives undefined. The loader never gives an error value of its own.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.UserPropertyProvider$UserPropertyLoader#getValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/user-property-provider/trail-and-dark-feature",
+   "module": "user-property-provider",
+   "api": null,
+   "behaviour": "The loader declares the TRAIL context dependency and adds the user item (`CoreIdentities.user(<key>)`) to the trail, so the value is recomputed when that user changes. When the dark feature `structure.userPropertyAttribute.disable` is true (checked on each value), every value is undefined and no property is read.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.UserPropertyProvider$UserPropertyLoader#getContextDependencies",
+    "com.almworks.jira.structure.extension.attribute.UserPropertyProvider$UserPropertyLoader#isDisabledThroughDarkFeature"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/formatted-number-provider/spec-params",
+   "module": "formatted-number-provider",
+   "api": null,
+   "behaviour": "`formatted-number-provider` answers specs with id `formatted-number` whose params hold a nested attribute spec under `attribute` (with its `format` stored, since no expected format is given) and a `type` of `number`, `percentage`, `datetime` or `duration`; it declines when `attribute` is missing or invalid, `type` is absent or another text. Other params: `rounding` (integer, default 0, clamped to 0..9) for number and percentage; `style` (date style name for `format-helper`, C-1658/C-1659, unknown or absent means date-short) for datetime; `workTime` (boolean, default false) for duration. The value is text format; the nested attribute is requested in the generic value format (after the `extended-value-tools` conversion, C-2059).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.FormattedNumberProvider#createAttributeLoader",
+    "com.almworks.jira.structure.expr.value.FormattedNumberVisitor#create"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/formatted-number-provider/number-percentage",
+   "module": "formatted-number-provider",
+   "api": null,
+   "behaviour": "`number` formats with Java's `NumberFormat.getNumberInstance(<user locale>)` and `percentage` with `NumberFormat.getPercentInstance(<user locale>)` (so 0.25 gives `25%`), both with exactly `rounding` fraction digits, rounding half up and no digit grouping (1234.5 with rounding 2 in English gives `1234.50`). A value the format refuses gives undefined.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.FormattedNumberVisitor#getNumberFunction",
+    "com.almworks.jira.structure.expr.value.FormattedNumberVisitor#setRounding",
+    "com.almworks.jira.structure.expr.value.FormattedNumberVisitor#format"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/formatted-number-provider/datetime-duration",
+   "module": "formatted-number-provider",
+   "api": null,
+   "behaviour": "`datetime` treats the number as epoch milliseconds (long value) and formats it with `format-helper`'s date format for the current user and the given `style`. `duration` treats it as milliseconds: with `workTime` true as Jira time-tracking text in the user's locale (C-1663), otherwise as calendar time (C-1664).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.FormattedNumberVisitor#getNumberFunction",
+    "com.almworks.jira.structure.expr.value.FormattedNumberVisitor#getDurationString"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/formatted-number-provider/value-kinds",
+   "module": "formatted-number-provider",
+   "api": null,
+   "behaviour": "Value handling: a Number is formatted; a String is parsed (number/percentage with `Double.parseDouble`, datetime/duration with `Long.parseLong`) and formatted when it parses, otherwise returned unchanged; a List gives its non-null elements formatted and joined with `, ` (the empty text for an empty list), but undefined if any element is neither a Number nor a String; booleans, items and maps give undefined. When the nested attribute has no value (undefined or error) the result is undefined (the loader yields).",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.expr.value.FormattedNumberVisitor#visitString",
+    "com.almworks.jira.structure.expr.value.FormattedNumberVisitor#visitList",
+    "com.almworks.jira.structure.extension.attribute.FormattedNumberProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/formatted-number-provider/context-dependencies",
+   "module": "formatted-number-provider",
+   "api": null,
+   "behaviour": "The loader declares the USER_LOCALE context dependency always and USER_TIMEZONE in addition when `type` is `datetime`.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.FormattedNumberProvider#getTZDependencyIfExists",
+    "com.almworks.jira.structure.extension.attribute.FormattedNumberProvider#createAttributeLoader"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/notes-provider/spec-params",
+   "module": "notes-provider",
+   "api": null,
+   "behaviour": "`notes-provider` answers specs with id `itemProperty` whose param `name` is a valid item property name: not blank and at most 160 characters (the Notes column uses `notes`; notes created by users use `dc_note_<id>`, SPEC.md). Otherwise it declines. The value is text format, for items of every item type.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.NotesProvider#isValidSpec",
+    "com.almworks.jira.structure.extension.attribute.NotesProvider$ItemPropertyAttributeLoader#isItemTypeSupported",
+    "com.almworks.jira.structure.itemproperty.StructureItemPropertyManager$PropertyKey"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/notes-provider/value",
+   "module": "notes-provider",
+   "api": null,
+   "behaviour": "The value is the text stored by `notes-manager` for (the loading context's structure id, the row's item, the property name); undefined when nothing is stored. With no structure in the context (structure id 0) the value is an error. The provider does no permission check of its own on the note.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.NotesProvider$ItemPropertyAttributeLoader#loadValue"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/notes-provider/bad-item-id",
+   "module": "notes-provider",
+   "api": null,
+   "behaviour": "When the item's identity text contains `|`, the property key cannot be formed and loading the value throws `IllegalArgumentException` (`ItemId: <id> should not contain '|' character.`).",
+   "confidence": "medium",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.NotesProvider$ItemPropertyAttributeLoader#loadValue",
+    "com.almworks.jira.structure.itemproperty.StructureItemPropertyManager$PropertyKey#create"
+   ]
+  },
+  {
+   "key": "e4-loaders-c/notes-provider/dependencies",
+   "module": "notes-provider",
+   "api": null,
+   "behaviour": "The loader declares only the STRUCTURE context dependency (values differ per structure, not per user) and uses the default caching strategy.",
+   "confidence": "high",
+   "evidence": [
+    "com.almworks.jira.structure.extension.attribute.NotesProvider$ItemPropertyAttributeLoader#getContextDependencies"
+   ]
+  }
+ ]
+}
